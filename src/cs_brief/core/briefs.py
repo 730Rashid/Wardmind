@@ -260,6 +260,18 @@ _ACTIONS: dict[tuple[Motion, SignalKind], str] = {
     (Motion.ONBOARDING, SignalKind.CHAMPION_LEFT): (
         "Find the new champion and re-confirm the onboarding goals with them."
     ),
+    (Motion.ONBOARDING, SignalKind.OPEN_TICKETS_SEV1): (
+        "Get a fix date for the severity-1 tickets and share it with the onboarding lead."
+    ),
+    (Motion.ONBOARDING, SignalKind.NPS_LATEST): (
+        "Ask the onboarding lead what has frustrated them so far."
+    ),
+    (Motion.ONBOARDING, SignalKind.SEAT_UTILISATION): (
+        "Plan the next rollout wave with the onboarding lead to get more seats used."
+    ),
+    (Motion.ONBOARDING, SignalKind.BILLING_OVERDUE_DAYS): (
+        "Ask finance to confirm the first invoice reached the right billing contact."
+    ),
 }
 
 # Used when the top reason has no entry in _ACTIONS.

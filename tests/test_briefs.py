@@ -101,15 +101,10 @@ def test_table_entries_match_the_brief(motion, kind, action):
     assert suggest_action(motion, [_reason(kind)]) == action
 
 
-@pytest.mark.parametrize(
-    "kind",
-    [
-        SignalKind.USAGE_TREND_30D,
-        SignalKind.DAYS_SINCE_LAST_LOGIN,
-        SignalKind.CHAMPION_LEFT,
-    ],
-)
-def test_onboarding_has_its_own_actions_for_the_common_signals(kind):
+@pytest.mark.parametrize("kind", list(SignalKind))
+def test_onboarding_has_its_own_action_for_every_signal(kind):
+    # An onboarding account whose top problem is, say, severity-1 tickets needs a ticket action,
+    # not the generic onboarding check-in.
     action = suggest_action(Motion.ONBOARDING, [_reason(kind)])
     assert action != briefs._FALLBACK_ACTIONS[Motion.ONBOARDING]
 

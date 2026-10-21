@@ -3,7 +3,10 @@
 Rank a Customer Success book of business and explain, in plain English, why each account needs
 attention this week. It is reachable three ways, all backed by the same core code:
 
-- **Web dashboard:** `cs-brief ui` opens a local page at http://127.0.0.1:8000
+- **Web dashboard:** `cs-brief ui` opens a local page at http://127.0.0.1:8000 with:
+  - **My book:** the ranked list
+  - **Account pages:** the score breakdown, signal history and next step
+  - **Weekly brief:** a one-page summary with **Print or save as PDF** (fits on 2 A4 pages)
 - **Claude (MCP):** `cs-brief mcp` serves the book to Claude over stdio
 - **Terminal:** `cs-brief score` prints the top of the book
 

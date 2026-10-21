@@ -1216,7 +1216,8 @@ button {
     -webkit-print-color-adjust: exact;
   }
 
-  .brief-section,
+  /* Short sections stay whole; the top list may flow across pages, one whole account at a time. */
+  .brief-section:not(:has(.top-list)),
   .legend,
   .top-list > li {
     break-inside: avoid;
