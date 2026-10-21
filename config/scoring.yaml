@@ -1,0 +1,26 @@
+# cs-brief scoring configuration.
+# Each signal adds up to `weight` risk points. Risk starts at `start` and is maxed at `full`
+# (linear in between). Total risk is capped at 100. See src/cs_brief/core/config.py.
+
+signals:
+  usage_trend_30d:               { weight: 25, start: 0,  full: -50 }  # % change in active users
+  days_since_last_login:         { weight: 15, start: 7,  full: 30 }   # days
+  open_tickets_sev1:             { weight: 20, start: 0,  full: 3 }    # open sev-1 tickets
+  nps_latest:                    { weight: 15, start: 7,  full: 0 }    # 0-10
+  champion_left:                 { weight: 25, start: 0,  full: 1 }    # 1 = champion gone
+  seat_utilisation:              { weight: 10, start: 70, full: 30 }   # % seats in use
+  billing_overdue_days:          { weight: 20, start: 0,  full: 60 }   # days overdue
+  onboarding_overdue_milestones: { weight: 20, start: 0,  full: 3 }    # late milestones
+
+thresholds:
+  at_risk: 45   # risk >= 45 -> At risk
+  watch: 20     # risk >= 20 -> Watch, otherwise Healthy
+
+motion:
+  onboarding_days: 90       # started within 90 days and milestones incomplete -> Onboarding
+  renewal_window_days: 120  # renewal date within 120 days -> Renewal; otherwise Churn watch
+
+arr:
+  weight: 0.3       # how much ARR lifts priority (0 = ignore ARR, 1 = ARR matters fully)
+  floor: 5000
+  ceiling: 500000
