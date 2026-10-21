@@ -1,0 +1,93 @@
+{% extends "base.html" %}
+{% block content %}
+{% set account = detail.scored.account %}
+{% set health = detail.scored.health %}
+<div class="account-layout">
+  <div class="account-main">
+    <p class="account-back"><a href="/">Back to My book</a></p>
+
+    <header class="account-head">
+      <h1 class="account-name">{{ account.name }}</h1>
+      <ul class="facts">
+        <li><span class="health health--{{ health.value }}"><svg class="icon" aria-hidden="true" focusable="false"><use href="/static/icons.svg#health-{{ health.value | replace('_', '-') }}"/></svg> {{ health.label }}</span></li>
+        <li>{{ detail | motion_fact }}</li>
+        <li>{{ account.arr | money }} ARR</li>
+        <li>{{ account.owner }}</li>
+      </ul>
+      <p class="account-summary">{{ detail.explanation.summary }}</p>
+    </header>
+
+    <section class="account-section next-step" aria-labelledby="next-step-heading">
+      <h2 class="section-title" id="next-step-heading">Next step</h2>
+      <p>{{ detail.explanation.suggested_action }}</p>
+    </section>
+
+    <section class="account-section score" aria-labelledby="score-heading">
+      <h2 class="section-title" id="score-heading">Why it's ranked {{ detail.rank }} of {{ detail.book_size }}</h2>
+      {% set longest = detail.breakdown | map(attribute="max_points") | max %}
+      <table class="breakdown">
+        <caption class="visually-hidden">How each signal adds to the risk score</caption>
+        <thead>
+          <tr>
+            <th scope="col">Signal</th>
+            <th scope="col">Reading</th>
+            <th scope="col" class="num">Points</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in detail.breakdown %}
+          {% set track, fill = bar_geometry(row, longest) %}
+          <tr{% if row.contribution == 0 %} class="breakdown-row--muted"{% endif %}>
+            <th scope="row" class="cell-signal">{{ row.label }}</th>
+            <td class="cell-reading">{{ row.value_text }}</td>
+            <td class="cell-points num">
+              <svg class="pbar" width="{{ track }}" height="8" role="img" aria-label="{{ row.contribution | number }} of {{ row.max_points | number }} points"><rect class="pbar-track" width="{{ track }}" height="8"/><rect class="pbar-fill" width="{{ fill }}" height="8"/></svg>
+              <span class="points-text">{{ row.contribution | number }} of {{ row.max_points | number }}</span>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      <p class="risk-sentence">{{ risk_sentence(detail.scored.risk, detail.scored.priority, health, thresholds) }}</p>
+    </section>
+
+    <section class="account-section history" aria-labelledby="history-heading">
+      <h2 class="section-title" id="history-heading">Signal history</h2>
+      {% if timeline_days %}
+      <dl class="timeline">
+        {% for day, entries in timeline_days %}
+        <dt><time datetime="{{ day.isoformat() }}">{{ day | day_label(today_day) }}</time></dt>
+        {% for entry in entries %}
+        <dd>
+          <span class="timeline-label">{{ entry.label }}</span>
+          <span class="timeline-sentence{% if not entry.is_latest %} timeline-sentence--older{% endif %}">{{ entry.plain_english }}</span>
+          {% if entry.is_latest %}<span class="timeline-current">Current</span>{% endif %}
+        </dd>
+        {% endfor %}
+        {% endfor %}
+      </dl>
+      {% else %}
+      <p>No signal readings yet.</p>
+      {% endif %}
+    </section>
+  </div>
+
+  <aside class="account-aside" aria-labelledby="facts-heading">
+    <h2 class="section-title" id="facts-heading">Account facts</h2>
+    <dl class="facts-list">
+      <dt>Tier</dt>
+      <dd>{{ account.tier }}</dd>
+      <dt>Owner</dt>
+      <dd>{{ account.owner }}</dd>
+      <dt>Started</dt>
+      <dd>{{ account.start_date | day_label(today_day) }}, {{ detail.days_since_start | ago }}</dd>
+      <dt>Renews</dt>
+      <dd>{{ account.renewal_date | day_label(today_day) }}</dd>
+      <dt>Onboarding milestones</dt>
+      <dd>{{ account.milestones.done }} of {{ account.milestones.total }} done{% if account.milestones.overdue > 0 %}, {{ account.milestones.overdue }} overdue{% endif %}</dd>
+      <dt>Data source</dt>
+      <dd>{{ connector_label }}</dd>
+    </dl>
+  </aside>
+</div>
+{% endblock %}

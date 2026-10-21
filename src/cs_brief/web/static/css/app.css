@@ -689,6 +689,261 @@ button {
   }
 }
 
+/* Account detail. Reading order: the summary, the next step, the score, then the history.
+   The facts aside moves beside the main column from 1100px and follows it below that. */
+.account-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-6);
+}
+
+.account-main,
+.account-section,
+.account-aside {
+  display: flex;
+  flex-direction: column;
+}
+
+.account-main {
+  gap: var(--space-6);
+}
+
+.account-section,
+.account-aside {
+  gap: var(--space-4);
+}
+
+.account-back {
+  font-size: var(--t-sm);
+  line-height: var(--lh-sm);
+}
+
+.account-head {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.account-name {
+  font-size: var(--t-lg);
+  line-height: var(--lh-lg);
+  font-weight: 600;
+}
+
+.facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-6);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: var(--t-sm);
+  line-height: var(--lh-sm);
+}
+
+.account-summary {
+  max-inline-size: 60ch;
+  font-size: var(--t-md);
+  line-height: var(--lh-md);
+  font-weight: 400;
+}
+
+.section-title {
+  margin: 0;
+  font-size: var(--t-md);
+  line-height: var(--lh-md);
+  font-weight: 600;
+}
+
+/* The only accent-coloured block on the page. */
+.next-step {
+  padding-inline-start: var(--space-4);
+  border-inline-start: 3px solid var(--accent);
+}
+
+.risk-sentence {
+  font-size: var(--t-sm);
+  line-height: var(--lh-sm);
+}
+
+.breakdown {
+  inline-size: 100%;
+  border-collapse: collapse;
+  background: var(--surface);
+}
+
+.breakdown th,
+.breakdown td {
+  padding: var(--space-3);
+  vertical-align: top;
+  text-align: start;
+}
+
+.breakdown thead th {
+  padding-block-end: var(--space-2);
+  font-size: var(--t-sm);
+  line-height: var(--lh-sm);
+  font-weight: 600;
+  color: var(--ink-muted);
+  border-block-end: 1px solid var(--line);
+}
+
+.breakdown tbody tr {
+  border-block-end: 1px solid var(--line);
+}
+
+.breakdown tbody th {
+  font-weight: 400;
+}
+
+.breakdown .num {
+  text-align: end;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* Rows with no contribution read as quiet. */
+.breakdown-row--muted {
+  color: var(--ink-muted);
+}
+
+/* Bars: the track is proportional to max_points, the fill to contribution. */
+.pbar {
+  display: inline-block;
+  vertical-align: middle;
+  margin-inline-end: var(--space-2);
+  overflow: visible;
+}
+
+.pbar-track {
+  fill: var(--line);
+}
+
+.pbar-fill {
+  fill: var(--bar);
+}
+
+/* Signal history: one rule down the left, a date per group, one reading per line. */
+.timeline {
+  margin: 0;
+  padding-inline-start: var(--space-4);
+  border-inline-start: 1px solid var(--line);
+}
+
+.timeline dt {
+  margin-block-start: var(--space-4);
+  font-size: var(--t-sm);
+  line-height: var(--lh-sm);
+  color: var(--ink-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.timeline dt:first-child {
+  margin-block-start: 0;
+}
+
+.timeline dd {
+  display: grid;
+  grid-template-columns: 12rem minmax(0, 1fr) auto;
+  column-gap: var(--space-4);
+  align-items: baseline;
+  margin: var(--space-1) 0 0;
+}
+
+.timeline-label,
+.timeline-current {
+  font-size: var(--t-sm);
+  line-height: var(--lh-sm);
+  color: var(--ink-muted);
+}
+
+.timeline-sentence--older {
+  color: var(--ink-muted);
+}
+
+.facts-list {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: var(--space-2) var(--space-4);
+  margin: 0;
+}
+
+.facts-list dt {
+  font-size: var(--t-sm);
+  line-height: var(--lh-sm);
+  color: var(--ink-muted);
+}
+
+.facts-list dd {
+  margin: 0;
+}
+
+@media (min-width: 1100px) {
+  .account-layout {
+    grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+    gap: var(--space-7);
+    align-items: start;
+  }
+}
+
+/* Narrow screens: each signal becomes a block with its points on the right, and the
+   reading takes the full width. The header row is hidden, as on My book. */
+@media (max-width: 767px) {
+  .breakdown thead {
+    position: absolute;
+    inline-size: 1px;
+    block-size: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  .breakdown,
+  .breakdown tbody {
+    display: block;
+  }
+
+  .breakdown tbody tr {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas:
+      "signal points"
+      "reading reading";
+    column-gap: var(--space-3);
+    row-gap: var(--space-1);
+    padding-block: var(--space-3);
+  }
+
+  .breakdown tbody th,
+  .breakdown tbody td {
+    display: block;
+    padding: 0;
+  }
+
+  .breakdown .cell-signal {
+    grid-area: signal;
+  }
+
+  .breakdown .cell-reading {
+    grid-area: reading;
+  }
+
+  .breakdown .cell-points {
+    grid-area: points;
+    justify-self: end;
+  }
+}
+
+@media (max-width: 559px) {
+  .timeline dd {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .timeline-label {
+    grid-column: 1 / -1;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

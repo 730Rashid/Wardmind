@@ -22,7 +22,9 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 
 from cs_brief.core import briefs, service
+from cs_brief.core.config import load_scoring_config
 from cs_brief.core.models import Health, Motion, ScoredAccount
+from cs_brief.web import formatting
 
 HOST = "127.0.0.1"  # fixed: no CLI flag or environment variable may change it
 
@@ -113,10 +115,22 @@ def _source_note() -> str:
     return "Showing demo data" if name == "demo" else f"Connected to {name}"
 
 
+def _connector_label() -> str:
+    """The data source as a fact: 'Demo data', or the connector's name."""
+    name = service.get_connector().name
+    return "Demo data" if name == "demo" else name
+
+
 _env = Environment(loader=FileSystemLoader(TEMPLATES_DIR), autoescape=True)
 _env.filters["money"] = money
 _env.filters["money_short"] = money_short
 _env.filters["whole"] = whole
+_env.filters["day_label"] = formatting.day_label
+_env.filters["ago"] = formatting.ago
+_env.filters["motion_fact"] = formatting.motion_fact
+_env.filters["number"] = formatting.number
+_env.globals["risk_sentence"] = formatting.risk_sentence
+_env.globals["bar_geometry"] = formatting.bar_geometry
 templates = Jinja2Templates(env=_env)
 
 
@@ -130,11 +144,13 @@ def _render(
     **context: Any,
 ) -> HTMLResponse:
     """Render one page in the shared layout, with the context every page needs."""
+    today_day = date.today()
     values: dict[str, Any] = {
         "page": page,
         "active": active,
         "source_note": _source_note(),
-        "today": format_today(date.today()),
+        "today": format_today(today_day),
+        "today_day": today_day,
         **context,
     }
     return templates.TemplateResponse(request, template, values, status_code=status_code)
@@ -234,8 +250,9 @@ def create_app() -> FastAPI:
 
     @app.get("/accounts/{account_id}")
     def account(request: Request, account_id: str) -> HTMLResponse:
-        item = service.find_account(service.get_book(), account_id)
-        if item is None:
+        """One account's call prep: summary, next step, score breakdown and signal history."""
+        detail = service.get_account_detail(account_id)
+        if detail is None:
             return _render(
                 request,
                 "not_found.html",
@@ -243,6 +260,15 @@ def create_app() -> FastAPI:
                 status_code=404,
                 message=f"No account with id {account_id}.",
             )
-        return _render(request, "account_placeholder.html", page=item.account.name)
+        return _render(
+            request,
+            "account.html",
+            page=detail.explanation.name,
+            active="book",
+            detail=detail,
+            thresholds=load_scoring_config().thresholds,
+            timeline_days=formatting.group_by_day(detail.timeline),
+            connector_label=_connector_label(),
+        )
 
     return app
