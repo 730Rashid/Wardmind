@@ -1,0 +1,35 @@
+{%- macro nav_link(href, label, key) -%}
+<a class="nav-link" href="{{ href }}"{% if active == key %} aria-current="page"{% endif %}>{{ label }}</a>
+{%- endmacro -%}
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{ page }} - cs-brief</title>
+  <link rel="preload" href="/static/fonts/atkinson-hyperlegible-next-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="/static/css/app.css">
+  <meta name="htmx-config" content='{"includeIndicatorStyles": false, "allowEval": false, "allowScriptTags": false}'>
+  <script src="/static/js/htmx.min.js" integrity="sha384-2OatzQy1H+Zd/IIrjr1TcuDGqLXeHhbooAyJY1KdQMKnr4LZ22k31GBLdYKHmVjg" defer></script>
+</head>
+<body>
+  <a class="skip-link" href="#content">Skip to content</a>
+  <header class="top-bar">
+    <div class="column top-bar-inner">
+      <a class="brand" href="/">cs-brief</a>
+      <nav aria-label="Main">
+        <ul class="nav-list">
+          <li>{{ nav_link("/", "My book", "book") }}</li>
+          <li>{{ nav_link("/brief", "Weekly brief", "brief") }}</li>
+          <li>{{ nav_link("/onboarding", "Onboarding prep", "onboarding") }}</li>
+          <li>{{ nav_link("/settings", "Settings", "settings") }}</li>
+        </ul>
+      </nav>
+      <p class="source-note">{{ source_note }}</p>
+    </div>
+  </header>
+  <main id="content" tabindex="-1" class="column page">
+    {% block content %}{% endblock %}
+  </main>
+</body>
+</html>

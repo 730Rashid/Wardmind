@@ -90,4 +90,25 @@ def ui(
     no_browser: bool = typer.Option(False, "--no-browser", help="Don't open a browser tab."),
 ) -> None:
     """Start the local web dashboard on 127.0.0.1."""
-    raise typer.Exit("Not built yet (task T5).")
+    import socket
+    import threading
+    import webbrowser
+
+    import uvicorn
+
+    from cs_brief.web.app import HOST, create_app
+
+    try:
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as probe:
+            probe.bind((HOST, port))
+    except OSError:
+        typer.echo(f"Port {port} is in use. Try: cs-brief ui --port {port + 1}", err=True)
+        raise typer.Exit(code=1) from None
+
+    url = f"http://{HOST}:{port}/"
+    if not no_browser:
+        timer = threading.Timer(1.0, webbrowser.open, args=(url,))
+        timer.daemon = True
+        timer.start()
+    typer.echo(f"cs-brief is running at {url}  (Ctrl+C to stop)")
+    uvicorn.run(create_app(), host=HOST, port=port, log_level="warning")

@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="0" height="0">
+  <symbol id="health-at-risk" viewBox="0 0 16 16" fill="currentColor">
+    <path fill-rule="evenodd" d="M8 1.5 15 14H1Z M7.2 5.5h1.6l-.3 4.8H7.5Z M7.2 11.2h1.6v1.6H7.2Z"/>
+  </symbol>
+  <symbol id="health-watch" viewBox="0 0 16 16" fill="currentColor">
+    <path fill-rule="evenodd" d="M8 1.5a6.5 6.5 0 1 0 0 13 6.5 6.5 0 1 0 0-13Zm0 1.5a5 5 0 1 1 0 10 5 5 0 0 1 0-10Z"/>
+    <path d="M8 3a5 5 0 0 0 0 10Z"/>
+  </symbol>
+  <symbol id="health-healthy" viewBox="0 0 16 16" fill="currentColor">
+    <path fill-rule="evenodd" d="M8 1.5a6.5 6.5 0 1 0 0 13 6.5 6.5 0 1 0 0-13Zm0 1.5a5 5 0 1 1 0 10 5 5 0 0 1 0-10Z"/>
+    <path d="M6.9 8.9 5.6 7.6 4.8 8.4 6.9 10.5 11.2 6.2 10.4 5.4Z"/>
+  </symbol>
+  <symbol id="search" viewBox="0 0 16 16" fill="currentColor">
+    <path fill-rule="evenodd" d="M6.5 1.5a5 5 0 1 0 0 10 5 5 0 1 0 0-10Zm0 1.5a3.5 3.5 0 1 1 0 7 3.5 3.5 0 0 1 0-7Z"/>
+    <path d="M10.9 9.5 14.9 13.5 13.5 14.9 9.5 10.9Z"/>
+  </symbol>
+</svg>
