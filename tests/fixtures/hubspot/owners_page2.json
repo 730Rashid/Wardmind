@@ -1,0 +1,6 @@
+{
+  "results": [
+    {"id": "82", "email": "priya@example.com", "firstName": "Priya", "lastName": "Raman", "userId": 14, "archived": false},
+    {"id": "83", "email": "tom@example.com", "firstName": "Tom", "lastName": "Okafor", "userId": 15, "archived": false}
+  ]
+}

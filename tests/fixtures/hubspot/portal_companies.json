@@ -1,0 +1,236 @@
+{
+  "_about": "The fake HubSpot portal's companies (invented). The fake filters, pages (5 per page) and trims properties the way HubSpot does, so undefined or empty values are simply absent here.",
+  "companies": [
+    {
+      "id": "1001",
+      "createdAt": "2024-01-10T09:00:00.000Z",
+      "updatedAt": "2026-10-17T13:00:00Z",
+      "properties": {
+        "hs_object_id": "1001",
+        "createdate": "2024-01-10T09:00:00.000Z",
+        "name": "Brightwater Logistics",
+        "lifecyclestage": "customer",
+        "hubspot_owner_id": "77",
+        "cs_arr": "120000",
+        "cs_tier": "Enterprise",
+        "hs_lifecyclestage_customer_date": "1705276800000",
+        "cs_renewal_date": "2026-12-15",
+        "cs_onboarding_milestones_total": "4",
+        "cs_onboarding_milestones_done": "4",
+        "cs_onboarding_milestones_overdue": "0",
+        "cs_usage_trend_30d": "-38",
+        "cs_days_since_last_login": "19",
+        "cs_nps_latest": "3",
+        "cs_champion_left": "true",
+        "cs_seat_utilisation": "45",
+        "cs_billing_overdue_days": "0"
+      },
+      "propertiesWithHistory": {
+        "cs_usage_trend_30d": [
+          {"value": "-38", "timestamp": "2026-10-17T13:00:00.000Z", "sourceType": "API", "sourceId": "usage-sync"},
+          {"value": "-22", "timestamp": "2026-09-19T13:00:00Z", "sourceType": "API", "sourceId": "usage-sync"},
+          {"value": "-10", "timestamp": "2026-08-20T09:00:00Z", "sourceType": "API", "sourceId": "usage-sync"},
+          {"value": "-4", "timestamp": "2026-07-25T09:00:00Z", "sourceType": "API", "sourceId": "usage-sync"}
+        ],
+        "cs_days_since_last_login": [
+          {"value": "19", "timestamp": "2026-10-18T16:00:00Z", "sourceType": "API"},
+          {"value": "6", "timestamp": "2026-10-10T16:00:00Z", "sourceType": "API"}
+        ],
+        "cs_nps_latest": [
+          {"value": "3", "timestamp": "2026-09-30T10:00:00+01:00", "sourceType": "CRM_UI"}
+        ],
+        "cs_champion_left": [
+          {"value": "true", "timestamp": "2026-10-05T11:00:00Z", "sourceType": "CRM_UI"},
+          {"value": "false", "timestamp": "2026-08-10T11:00:00Z", "sourceType": "CRM_UI"}
+        ],
+        "cs_seat_utilisation": [
+          {"value": "45", "timestamp": "2026-10-15T08:00:00Z", "sourceType": "API"},
+          {"value": "72", "timestamp": "2026-09-01T08:00:00Z", "sourceType": "API"}
+        ]
+      }
+    },
+    {
+      "id": "1002",
+      "createdAt": "2026-09-19T13:00:00.000Z",
+      "updatedAt": "2026-10-16T09:00:00Z",
+      "properties": {
+        "hs_object_id": "1002",
+        "createdate": "2026-09-19T13:00:00.000Z",
+        "name": "Northgate Health Partners",
+        "lifecyclestage": "customer",
+        "hubspot_owner_id": "82",
+        "cs_arr": "64000",
+        "cs_tier": "Mid-market",
+        "cs_renewal_date": "2027-09-19",
+        "cs_onboarding_milestones_total": "6",
+        "cs_onboarding_milestones_done": "2",
+        "cs_onboarding_milestones_overdue": "1",
+        "cs_days_since_last_login": "2"
+      },
+      "propertiesWithHistory": {
+        "cs_onboarding_milestones_overdue": [
+          {"value": "1", "timestamp": "2026-10-16T09:00:00.000Z", "sourceType": "API"},
+          {"value": "0", "timestamp": "2026-10-02T09:00:00.000Z", "sourceType": "API"}
+        ],
+        "cs_days_since_last_login": [
+          {"value": "2", "timestamp": "2026-10-18T07:30:00Z", "sourceType": "API"}
+        ]
+      }
+    },
+    {
+      "id": "1003",
+      "createdAt": "2025-02-20T10:00:00.000Z",
+      "updatedAt": "2026-10-14T08:00:00Z",
+      "properties": {
+        "hs_object_id": "1003",
+        "createdate": "2025-02-20T10:00:00.000Z",
+        "name": "Cobalt Ridge Software",
+        "lifecyclestage": "customer",
+        "hubspot_owner_id": "83",
+        "cs_arr": "48000",
+        "cs_tier": "Growth",
+        "hs_lifecyclestage_customer_date": "2025-03-01",
+        "cs_renewal_date": "1803859200000",
+        "cs_usage_trend_30d": "4",
+        "cs_days_since_last_login": "1",
+        "cs_nps_latest": "9",
+        "cs_champion_left": "false",
+        "cs_seat_utilisation": "78",
+        "cs_billing_overdue_days": "0"
+      },
+      "propertiesWithHistory": {
+        "cs_usage_trend_30d": [
+          {"value": "4", "timestamp": "2026-10-14T08:00:00Z", "sourceType": "API"},
+          {"value": "2", "timestamp": "2026-09-14T08:00:00Z", "sourceType": "API"}
+        ],
+        "cs_nps_latest": [
+          {"value": "9", "timestamp": "1790758800000", "sourceType": "CRM_UI"}
+        ]
+      }
+    },
+    {
+      "id": "1004",
+      "createdAt": "2025-05-20T12:00:00.000Z",
+      "updatedAt": "2026-10-11T10:00:00Z",
+      "properties": {
+        "hs_object_id": "1004",
+        "createdate": "2025-05-20T12:00:00.000Z",
+        "name": "Harbourline Foods",
+        "lifecyclestage": "customer",
+        "hubspot_owner_id": "77",
+        "cs_arr": "91000",
+        "cs_tier": "Growth",
+        "hs_lifecyclestage_customer_date": "2025-06-01",
+        "cs_usage_trend_30d": "-12",
+        "cs_days_since_last_login": "9",
+        "cs_nps_latest": "6",
+        "cs_champion_left": "false",
+        "cs_seat_utilisation": "64",
+        "cs_billing_overdue_days": "0"
+      },
+      "propertiesWithHistory": {
+        "cs_usage_trend_30d": [
+          {"value": "-12", "timestamp": "2026-10-11T10:00:00Z", "sourceType": "API"}
+        ]
+      }
+    },
+    {
+      "id": "1005",
+      "createdAt": "2023-08-10T15:00:00.000Z",
+      "updatedAt": "2026-10-12T08:00:00Z",
+      "properties": {
+        "hs_object_id": "1005",
+        "createdate": "2023-08-10T15:00:00.000Z",
+        "name": "  Lumen Print Co ",
+        "lifecyclestage": "customer",
+        "hubspot_owner_id": "81",
+        "cs_tier": "",
+        "hs_lifecyclestage_customer_date": "2023-08-14",
+        "cs_renewal_date": "2026-11-30",
+        "cs_usage_trend_30d": "-20",
+        "cs_days_since_last_login": "15",
+        "cs_nps_latest": "5",
+        "cs_champion_left": "false",
+        "cs_seat_utilisation": "55",
+        "cs_billing_overdue_days": "30"
+      },
+      "propertiesWithHistory": {
+        "cs_usage_trend_30d": [
+          {"value": "-20", "timestamp": "2026-10-12T08:00:00Z", "sourceType": "API"}
+        ],
+        "cs_billing_overdue_days": [
+          {"value": "30", "timestamp": "2026-10-01T08:00:00Z", "sourceType": "API"}
+        ]
+      }
+    },
+    {
+      "id": "1006",
+      "createdAt": "2024-08-28T11:00:00.000Z",
+      "updatedAt": "2026-10-15T12:00:00Z",
+      "properties": {
+        "hs_object_id": "1006",
+        "createdate": "2024-08-28T11:00:00.000Z",
+        "name": "Pinecrest Clinics",
+        "lifecyclestage": "customer",
+        "cs_arr": "210000",
+        "cs_tier": "Enterprise",
+        "hs_lifecyclestage_customer_date": "2024-09-01",
+        "cs_renewal_date": "2027-01-15",
+        "cs_onboarding_milestones_total": "3",
+        "cs_onboarding_milestones_done": "3",
+        "cs_onboarding_milestones_overdue": "0",
+        "cs_usage_trend_30d": "-5",
+        "cs_days_since_last_login": "3",
+        "cs_nps_latest": "8",
+        "cs_champion_left": "false",
+        "cs_seat_utilisation": "81",
+        "cs_billing_overdue_days": "0"
+      },
+      "propertiesWithHistory": {
+        "cs_usage_trend_30d": [
+          {"value": "-5", "timestamp": "2026-10-15T12:00:00Z", "sourceType": "API"}
+        ]
+      }
+    },
+    {
+      "id": "1007",
+      "createdAt": "2025-10-30T09:00:00.000Z",
+      "updatedAt": "2026-10-12T09:00:00Z",
+      "properties": {
+        "hs_object_id": "1007",
+        "createdate": "2025-10-30T09:00:00.000Z",
+        "name": "Old Mill Travel",
+        "lifecyclestage": "customer",
+        "hubspot_owner_id": "999",
+        "cs_arr": "36000",
+        "cs_tier": "Growth",
+        "hs_lifecyclestage_customer_date": "2025-11-03",
+        "cs_renewal_date": "2026-11-20",
+        "cs_usage_trend_30d": "-15",
+        "cs_days_since_last_login": "7",
+        "cs_nps_latest": "7",
+        "cs_champion_left": "false",
+        "cs_seat_utilisation": "66",
+        "cs_billing_overdue_days": "0"
+      },
+      "propertiesWithHistory": {
+        "cs_usage_trend_30d": [
+          {"value": "-15", "timestamp": "2026-10-12T09:00:00Z", "sourceType": "API"},
+          {"value": "n/a", "timestamp": "2026-10-01T09:00:00Z", "sourceType": "API"},
+          {"value": "-40", "timestamp": "2026-06-02T09:00:00Z", "sourceType": "API"}
+        ]
+      }
+    },
+    {
+      "id": "1008",
+      "createdAt": "2026-10-01T09:00:00.000Z",
+      "updatedAt": "2026-10-01T09:00:00Z",
+      "properties": {
+        "hs_object_id": "1008",
+        "createdate": "2026-10-01T09:00:00.000Z",
+        "name": "Quill and Co",
+        "lifecyclestage": "lead"
+      }
+    }
+  ]
+}

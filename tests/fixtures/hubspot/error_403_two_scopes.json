@@ -1,0 +1,12 @@
+{
+  "status": "error",
+  "message": "This app hasn't been granted all required scopes to make this call.",
+  "correlationId": "6f1c2b9e-0000-4000-8000-000000000404",
+  "errors": [
+    {
+      "message": "One or more of the following scopes are required.",
+      "context": {"requiredScopes": ["tickets", "crm.objects.owners.read"]}
+    }
+  ],
+  "category": "MISSING_SCOPES"
+}

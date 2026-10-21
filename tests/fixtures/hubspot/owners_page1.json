@@ -1,0 +1,7 @@
+{
+  "results": [
+    {"id": "77", "email": "dana@example.com", "firstName": "Dana", "lastName": "Whitfield", "userId": 9, "archived": false},
+    {"id": "81", "email": "ops@example.com", "firstName": "", "lastName": "", "userId": 12, "archived": false}
+  ],
+  "paging": {"next": {"after": "p2"}}
+}

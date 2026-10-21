@@ -1,0 +1,53 @@
+{
+  "_about": "Ticket to company associations for the fake portal. Entries use the v4 toObjectId shape, except ticket 9002, which uses the {id} shape. Ticket 9004 is linked to two companies.",
+  "results": [
+    {
+      "from": {"id": "9001"},
+      "to": [
+        {
+          "toObjectId": 1001,
+          "associationTypes": [{"category": "HUBSPOT_DEFINED", "typeId": 26, "label": null}]
+        }
+      ]
+    },
+    {
+      "from": {"id": "9002"},
+      "to": [{"id": "1001"}]
+    },
+    {
+      "from": {"id": "9003"},
+      "to": [
+        {
+          "toObjectId": 1003,
+          "associationTypes": [{"category": "HUBSPOT_DEFINED", "typeId": 26, "label": null}]
+        }
+      ]
+    },
+    {
+      "from": {"id": "9004"},
+      "to": [
+        {
+          "toObjectId": 1005,
+          "associationTypes": [{"category": "HUBSPOT_DEFINED", "typeId": 26, "label": null}]
+        },
+        {
+          "toObjectId": 1006,
+          "associationTypes": [{"category": "HUBSPOT_DEFINED", "typeId": 26, "label": null}]
+        }
+      ]
+    },
+    {
+      "from": {"id": "9005"},
+      "to": [
+        {
+          "toObjectId": 1002,
+          "associationTypes": [{"category": "HUBSPOT_DEFINED", "typeId": 26, "label": null}]
+        }
+      ]
+    },
+    {
+      "from": {"id": "9006"},
+      "to": []
+    }
+  ]
+}

@@ -1,0 +1,6 @@
+{
+  "status": "error",
+  "message": "You have reached your secondly limit.",
+  "errorType": "RATE_LIMIT",
+  "policyName": "SECONDLY"
+}

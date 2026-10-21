@@ -1,0 +1,41 @@
+{
+  "_about": "The fake portal's tickets (invented). The tickets search filters them the way HubSpot does: priority IN the sev1 list and no closed date.",
+  "tickets": [
+    {
+      "id": "9001",
+      "createdAt": "2026-10-03T09:00:00.000Z",
+      "updatedAt": "2026-10-16T09:00:00.000Z",
+      "properties": {"hs_ticket_priority": "HIGH"}
+    },
+    {
+      "id": "9002",
+      "createdAt": "2026-10-05T14:00:00.000Z",
+      "updatedAt": "2026-10-15T10:00:00.000Z",
+      "properties": {"hs_ticket_priority": "HIGH"}
+    },
+    {
+      "id": "9003",
+      "createdAt": "2026-09-28T08:00:00.000Z",
+      "updatedAt": "2026-10-01T10:00:00.000Z",
+      "properties": {"hs_ticket_priority": "URGENT", "closed_date": "2026-10-01T10:00:00.000Z"}
+    },
+    {
+      "id": "9004",
+      "createdAt": "2026-10-08T11:00:00.000Z",
+      "updatedAt": "2026-10-17T11:00:00.000Z",
+      "properties": {"hs_ticket_priority": "HIGH"}
+    },
+    {
+      "id": "9005",
+      "createdAt": "2026-10-10T16:00:00.000Z",
+      "updatedAt": "2026-10-10T16:00:00.000Z",
+      "properties": {"hs_ticket_priority": "LOW"}
+    },
+    {
+      "id": "9006",
+      "createdAt": "2026-10-12T09:30:00.000Z",
+      "updatedAt": "2026-10-12T09:30:00.000Z",
+      "properties": {"hs_ticket_priority": "HIGH"}
+    }
+  ]
+}

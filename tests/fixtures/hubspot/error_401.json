@@ -1,0 +1,6 @@
+{
+  "status": "error",
+  "message": "Authentication credentials not found.",
+  "correlationId": "6f1c2b9e-0000-4000-8000-000000000401",
+  "category": "INVALID_AUTHENTICATION"
+}
