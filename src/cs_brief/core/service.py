@@ -25,6 +25,7 @@ from cs_brief.core.models import Motion, ScoredAccount
 from cs_brief.core.onboarding import OnboardingBrief, onboarding_brief
 from cs_brief.core.scoring import score_book
 from cs_brief.core.settings import DataSource, load_settings
+from cs_brief.core.store import LocalStore
 
 # Test-only: points the HubSpot client at a local fake server. HubSpotClient refuses other hosts.
 _API_BASE_ENV = "CS_BRIEF_HUBSPOT_API_BASE"
@@ -73,6 +74,11 @@ def get_connector() -> Connector:
 def reset_connectors() -> None:
     """Forget shared connectors, e.g. after the token, mapping or source changes."""
     _connectors.clear()
+
+
+def get_store() -> LocalStore:
+    """The local store at store.data_dir(). Cheap to create; callers needn't cache it."""
+    return LocalStore()
 
 
 def get_book(

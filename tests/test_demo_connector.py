@@ -18,7 +18,7 @@ from cs_brief.core.models import Account, Health, Motion, Signal, SignalKind
 REPO = Path(__file__).resolve().parents[1]
 KINDS = {kind.value for kind in SignalKind}
 # SHA-256 of the committed accounts.json. The realism pass must never change it.
-ACCOUNTS_SHA256 = "f424d2ef0203d8bbc9debef3fa95feea279cd3e797584fbdbf4c614547e8a1ea"
+ACCOUNTS_SHA256 = "473a900adcbd0cdbe2fd03b506e22e8b4e922d7c60a739b2864193ff680aaac3"
 
 
 def _load_generator() -> ModuleType:

@@ -2,6 +2,7 @@
   "accounts": [
     {
       "arr": 46500.0,
+      "domain": null,
       "id": "acc-001",
       "milestones": {
         "done": 4,
@@ -16,6 +17,7 @@
     },
     {
       "arr": 107000.0,
+      "domain": null,
       "id": "acc-002",
       "milestones": {
         "done": 5,
@@ -30,6 +32,7 @@
     },
     {
       "arr": 198000.0,
+      "domain": null,
       "id": "acc-003",
       "milestones": {
         "done": 4,
@@ -44,6 +47,7 @@
     },
     {
       "arr": 117000.0,
+      "domain": null,
       "id": "acc-004",
       "milestones": {
         "done": 4,
@@ -58,6 +62,7 @@
     },
     {
       "arr": 17500.0,
+      "domain": null,
       "id": "acc-005",
       "milestones": {
         "done": 4,
@@ -72,6 +77,7 @@
     },
     {
       "arr": 336500.0,
+      "domain": null,
       "id": "acc-006",
       "milestones": {
         "done": 8,
@@ -86,6 +92,7 @@
     },
     {
       "arr": 13000.0,
+      "domain": null,
       "id": "acc-007",
       "milestones": {
         "done": 8,
@@ -100,6 +107,7 @@
     },
     {
       "arr": 77500.0,
+      "domain": null,
       "id": "acc-008",
       "milestones": {
         "done": 7,
@@ -114,6 +122,7 @@
     },
     {
       "arr": 13500.0,
+      "domain": null,
       "id": "acc-009",
       "milestones": {
         "done": 3,
@@ -128,6 +137,7 @@
     },
     {
       "arr": 6000.0,
+      "domain": null,
       "id": "acc-010",
       "milestones": {
         "done": 4,
@@ -142,6 +152,7 @@
     },
     {
       "arr": 55000.0,
+      "domain": null,
       "id": "acc-011",
       "milestones": {
         "done": 4,
@@ -156,6 +167,7 @@
     },
     {
       "arr": 599000.0,
+      "domain": null,
       "id": "acc-012",
       "milestones": {
         "done": 6,
@@ -170,6 +182,7 @@
     },
     {
       "arr": 23500.0,
+      "domain": null,
       "id": "acc-013",
       "milestones": {
         "done": 8,
@@ -184,6 +197,7 @@
     },
     {
       "arr": 167000.0,
+      "domain": null,
       "id": "acc-014",
       "milestones": {
         "done": 6,
@@ -198,6 +212,7 @@
     },
     {
       "arr": 43500.0,
+      "domain": null,
       "id": "acc-015",
       "milestones": {
         "done": 6,
@@ -212,6 +227,7 @@
     },
     {
       "arr": 535000.0,
+      "domain": null,
       "id": "acc-016",
       "milestones": {
         "done": 5,
@@ -226,6 +242,7 @@
     },
     {
       "arr": 60500.0,
+      "domain": null,
       "id": "acc-017",
       "milestones": {
         "done": 4,
@@ -240,6 +257,7 @@
     },
     {
       "arr": 110000.0,
+      "domain": null,
       "id": "acc-018",
       "milestones": {
         "done": 6,
@@ -254,6 +272,7 @@
     },
     {
       "arr": 66000.0,
+      "domain": null,
       "id": "acc-019",
       "milestones": {
         "done": 8,
@@ -268,6 +287,7 @@
     },
     {
       "arr": 21000.0,
+      "domain": null,
       "id": "acc-020",
       "milestones": {
         "done": 4,
@@ -282,6 +302,7 @@
     },
     {
       "arr": 96000.0,
+      "domain": null,
       "id": "acc-021",
       "milestones": {
         "done": 8,
@@ -296,6 +317,7 @@
     },
     {
       "arr": 261500.0,
+      "domain": null,
       "id": "acc-022",
       "milestones": {
         "done": 5,
@@ -310,6 +332,7 @@
     },
     {
       "arr": 51000.0,
+      "domain": null,
       "id": "acc-023",
       "milestones": {
         "done": 6,
@@ -324,6 +347,7 @@
     },
     {
       "arr": 21500.0,
+      "domain": null,
       "id": "acc-024",
       "milestones": {
         "done": 5,
@@ -338,6 +362,7 @@
     },
     {
       "arr": 18000.0,
+      "domain": null,
       "id": "acc-025",
       "milestones": {
         "done": 4,
@@ -352,6 +377,7 @@
     },
     {
       "arr": 52500.0,
+      "domain": null,
       "id": "acc-026",
       "milestones": {
         "done": 4,
@@ -366,6 +392,7 @@
     },
     {
       "arr": 87500.0,
+      "domain": null,
       "id": "acc-027",
       "milestones": {
         "done": 4,
@@ -380,6 +407,7 @@
     },
     {
       "arr": 68500.0,
+      "domain": null,
       "id": "acc-028",
       "milestones": {
         "done": 6,
@@ -394,6 +422,7 @@
     },
     {
       "arr": 401500.0,
+      "domain": null,
       "id": "acc-029",
       "milestones": {
         "done": 4,
@@ -408,6 +437,7 @@
     },
     {
       "arr": 92000.0,
+      "domain": null,
       "id": "acc-030",
       "milestones": {
         "done": 3,
@@ -422,6 +452,7 @@
     },
     {
       "arr": 81000.0,
+      "domain": null,
       "id": "acc-031",
       "milestones": {
         "done": 4,
@@ -436,6 +467,7 @@
     },
     {
       "arr": 104000.0,
+      "domain": null,
       "id": "acc-032",
       "milestones": {
         "done": 7,
@@ -450,6 +482,7 @@
     },
     {
       "arr": 19000.0,
+      "domain": null,
       "id": "acc-033",
       "milestones": {
         "done": 4,
@@ -464,6 +497,7 @@
     },
     {
       "arr": 543000.0,
+      "domain": null,
       "id": "acc-034",
       "milestones": {
         "done": 2,
@@ -478,6 +512,7 @@
     },
     {
       "arr": 360500.0,
+      "domain": null,
       "id": "acc-035",
       "milestones": {
         "done": 7,
@@ -492,6 +527,7 @@
     },
     {
       "arr": 18500.0,
+      "domain": null,
       "id": "acc-036",
       "milestones": {
         "done": 6,
@@ -506,6 +542,7 @@
     },
     {
       "arr": 43500.0,
+      "domain": null,
       "id": "acc-037",
       "milestones": {
         "done": 5,
@@ -520,6 +557,7 @@
     },
     {
       "arr": 18000.0,
+      "domain": null,
       "id": "acc-038",
       "milestones": {
         "done": 5,
@@ -534,6 +572,7 @@
     },
     {
       "arr": 15000.0,
+      "domain": null,
       "id": "acc-039",
       "milestones": {
         "done": 1,
@@ -548,6 +587,7 @@
     },
     {
       "arr": 48000.0,
+      "domain": null,
       "id": "acc-040",
       "milestones": {
         "done": 2,

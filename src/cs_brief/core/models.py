@@ -73,6 +73,7 @@ class Account(BaseModel):
     start_date: date
     renewal_date: date
     milestones: Milestones
+    domain: str | None = None  # website, e.g. "acme.com"; the strongest duplicate-matching key
 
 
 class Signal(BaseModel):

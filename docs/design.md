@@ -338,6 +338,154 @@ Next step                                                          (accent-ruled
     "Your browser blocked copying. The text is selected below: press Ctrl+C to copy it."
 - **Print:** fits on one A4 page for the demo accounts, and hides the buttons and the back link.
 
+### Your data: connections, import, editing
+The CSM's book can come from any mix of connections:
+- HubSpot
+- one or more spreadsheets
+- accounts added by hand
+
+Demo data stays a separate mode that is never mixed with real data.
+
+There's one design goal: **getting a real book in should take under two minutes**, and fixing one
+wrong value should take seconds.
+
+#### Set up your book (`/setup`, shown instead of My book when Your data has no accounts)
+```
+Set up your book                                                   (h1)
+Bring your accounts in any way that suits you. You can mix them later.   (t-md, muted)
+
+  Import a spreadsheet        CSV or Excel. We match the columns for you.          [ Choose a file ]
+  Paste from a spreadsheet    Copy the cells in Excel or Google Sheets, paste here. [ Paste cells ]
+  Connect HubSpot             Read-only. Needs a Service Key.                      [ Connect ]
+  Add accounts by hand        One at a time, for a small book.                     [ Add an account ]
+
+  Not sure what to include?  Download the template (CSV)           (t-sm link)
+  Or keep exploring with the demo data.                            (t-sm link; POST to use-demo)
+```
+- The four options are a `<ul>` of rows separated by 1px `--line` rules, not cards.
+- Each row is a title in weight 600, then a one-line description in `--ink-muted`, then one
+  outlined button on the right; the buttons stack under the text below 768px.
+- **"Choose a file"** is a real `<label>` wrapping a visually hidden `<input type="file"
+  accept=".csv,.tsv,.txt,.xlsx">`. Choosing a file submits the form (`app.js`).
+- **Drag and drop:** dropping a file anywhere on the row does the same. The row shows a 2px dashed
+  `--accent` outline while a file is over it, and the copy changes to "Drop to import". Without
+  JavaScript, an "Import" submit button appears next to the input.
+
+#### Connections (`/settings/connections`, reworked)
+```
+Connections
+Which data cs-brief shows       (•) Your data   ( ) Demo data      [ Save changes ]
+
+Your connections                                                   (h2)
+  HubSpot                 128 accounts. Fetched 14:02.    [ Test ] [ Refresh ] [ Remove ]
+  Q4 renewals sheet       42 accounts. Imported 19 Oct from renewals.xlsx.   [ Import again ] [ Rename ] [ Remove ]
+  Added by hand           3 accounts.                     [ Add an account ]
+  ⚠ HubSpot couldn't load: HubSpot didn't accept the access token. …   (role="alert", only when failing)
+
+Add a connection                                                   (h2)
+  [ Import a spreadsheet ]  [ Paste cells ]  [ Connect HubSpot ]  [ Add an account ]
+
+Hidden accounts (2)            <details>: each with [ Show again ]
+HubSpot access                 (the phase-7 token section, shown when HubSpot is connected)
+What cs-brief reads            (the HubSpot mapping, as before)
+```
+- **Connection rows** are a `<table>` with columns Connection, Status and Actions.
+  - Each connection has an "Include in my book" checkbox (the `enabled` flag) that auto-submits
+    via `app.js`, with a submit fallback.
+  - **Remove** goes to a confirmation page that says exactly what goes: "Remove Q4 renewals
+    sheet? Its 42 accounts and their history leave your book. Edits you made to them are
+    deleted too." The buttons are **Remove sheet** (the filled button style) and "Keep it".
+    This is the one destructive action in the app, so it gets a confirmation step.
+
+#### Import flow
+1. **`/import`** is the upload or paste form, also reachable from Setup and Connections.
+   - Fields: a file input *or* a large `<textarea name="pasted">` ("Paste cells here").
+   - "Import into": a new sheet (name it, default from the file name) or an existing
+     spreadsheet connection, which re-imports it.
+   - POST stores a *draft* in the local data dir and redirects to the mapping step. Drafts expire
+     after 24 hours.
+2. **`/import/{draft}`** is the mapping and preview, one page:
+   ```
+   Match your columns                                             (h1)
+   renewals.xlsx, sheet "Accounts" ▾ (Excel only)   42 rows
+
+   cs-brief field          Your column               Example from row 2
+   Account name *          [ Company ▾ ]             Larkspur Freight
+   ARR *                   [ Annual revenue ▾ ]      $120,000
+   Renewal date *          [ Contract end ▾ ]        2026-12-01
+   Website                 [ Not in my file ▾ ]
+   …every IMPORT_FIELDS row…
+
+   Dates in your file are    (•) Day first (31/12/2026)  ( ) Month first (12/31/2026)
+                             (only shown when detect_date_order returns None)
+
+   What will happen                                                 (h2)
+   40 accounts ready. 2 rows will be skipped.                        (t-md)
+     Row 14: Renewal date is empty.
+     Row 31: ARR "TBC" isn't an amount.
+   [ Download the 2 rows with problems (CSV) ]
+   Re-import only: 3 accounts from last time aren't in this file and will leave your book.
+
+   [ Import 40 accounts ]   [ Cancel ]
+   ```
+   - The mapping selects auto-submit through htmx (`hx-post` to `/import/{draft}/preview`, swapping
+     only the "What will happen" section and the example column), so the counts update as columns
+     are matched. Without JavaScript, there's an "Update preview" button.
+   - Required fields have a visible "Required" word, not only an asterisk.
+   - The issues list shows at most 20 rows, then "and 6 more in the download."
+   - The import button says the number ("Import 40 accounts") and is disabled with a reason
+     when a required field is unmatched: "Match Account name to import."
+3. **Done:** redirect to My book with `role="status"` "Imported 40 accounts from
+   renewals.xlsx." plus, if any, "2 rows were skipped." with a link to download them.
+
+The **template** is `/import/template.csv`.
+
+#### Editing an account (`/accounts/{id}/edit`, linked from the account page)
+```
+Edit Larkspur Freight                                              (h1)
+From HubSpot and Q4 renewals sheet (linked)                        (t-sm muted)
+
+Name            [ Larkspur Freight          ]
+Website         [ larkspur.example          ]
+ARR             [ $135,000                  ]  Edited by you. HubSpot says $120,000.  [ Use HubSpot's value ]
+Tier            [ Enterprise                ]
+Owner           [ Dana Whitfield            ]
+Customer since  [ 2023-03-01 ] (date)
+Renewal date    [ 2026-12-01 ] (date)
+Onboarding milestones  Total [ 6 ]  Done [ 4 ]  Overdue [ 1 ]
+
+[ Save changes ]  [ Cancel ]
+
+Add a signal reading                                               (h2)
+  Signal [ Champion left ▾ ]   Value [ Yes ▾ ]   [ Add reading ]
+  "Readings you add count as the latest until a connection reports a newer one."
+
+Hide this account from my book    [ Hide account ]   (synced accounts)
+Delete this account               [ Delete account ] (hand-added accounts; goes to a confirm page)
+```
+- **Edited fields** have the note in `--ink` with a pencil icon (`edited`) and the words; never
+  colour alone. The revert button is a small outlined button.
+- **The account page** gets:
+  - an "Edit account" link next to the h1 (only in Your data mode)
+  - "Edited by you" markers in the facts row on edited values
+  - any **notices** as a `role="status"` list under the facts: "HubSpot changed ARR to $140,000,
+    replacing your edit of $135,000." with a Dismiss button
+  - readings entered by hand marked "Added by you" in the signal history
+- **Add an account** (`/accounts/new`) is the same form with Name, ARR and Renewal date required,
+  and a "Save account" button.
+- **Demo mode** shows no edit controls. The account page instead shows a one-line note: "Editing
+  is available for your own data."
+
+#### Possible duplicates (`/duplicates`)
+- **On My book**, when there are suggestions, a quiet `role="status"` line appears under the
+  summary: "2 accounts might be duplicates. Review them." (a link).
+- **The page** shows each pair as two columns side by side:
+  - name, connection, ARR, renewal date, owner and website
+  - the reason ("Same website: acme.com")
+  - **Link these** (with a radio for which name to keep, the first checked) and **Not the same**
+- **Linked accounts** show "Linked from HubSpot and Q4 renewals sheet" on the account page, with
+  an "Unlink" button.
+
 ### Settings (`/settings/appearance`, `/settings/scoring`)
 Settings is a quiet workshop page, with no decoration. `/settings` redirects to
 `/settings/appearance`.
