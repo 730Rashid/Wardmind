@@ -5,15 +5,42 @@ CONTRACT: signatures are fixed; implementers escalate before changing them.
 
 from __future__ import annotations
 
+import hashlib
+import os
 from datetime import date
 
+from cs_brief.core import secrets
 from cs_brief.core.briefs import AccountDetail, account_detail, suggest_action
 from cs_brief.core.config import ScoringConfig, load_scoring_config
 from cs_brief.core.connectors.base import Connector
 from cs_brief.core.connectors.demo import DemoConnector
+from cs_brief.core.connectors.errors import ConnectionNotReady
+from cs_brief.core.connectors.hubspot import (
+    API_BASE,
+    HubSpotClient,
+    HubSpotConnector,
+    load_mapping,
+)
 from cs_brief.core.models import Motion, ScoredAccount
 from cs_brief.core.onboarding import OnboardingBrief, onboarding_brief
 from cs_brief.core.scoring import score_book
+from cs_brief.core.settings import DataSource, load_settings
+
+# Test-only: points the HubSpot client at a local fake server. HubSpotClient refuses other hosts.
+_API_BASE_ENV = "CS_BRIEF_HUBSPOT_API_BASE"
+_NO_TOKEN_MESSAGE = (
+    "HubSpot is selected, but no access token is saved. "
+    "Add one on the Connections page, or switch to demo data."
+)
+_BAD_BASE_MESSAGE = "CS_BRIEF_HUBSPOT_API_BASE must point at 127.0.0.1 or localhost."
+
+# Shared HubSpot connectors. Keys hold a hash of the token, never the token itself.
+_connectors: dict[tuple[str, str, str], Connector] = {}
+
+
+def hubspot_api_base() -> str:
+    """The base URL for HubSpot calls: CS_BRIEF_HUBSPOT_API_BASE (test-only), else API_BASE."""
+    return os.environ.get(_API_BASE_ENV) or API_BASE
 
 
 def get_connector() -> Connector:
@@ -24,12 +51,28 @@ def get_connector() -> Connector:
     ConnectionNotReady when no token is available. CS_BRIEF_HUBSPOT_API_BASE (test-only) is
     passed through as base_url; HubSpotClient rejects anything that isn't localhost.
     """
-    return DemoConnector()  # T25 replaces this body
+    if load_settings().source is DataSource.DEMO:
+        return DemoConnector()
+    token = secrets.get_hubspot_token()
+    if token is None:
+        raise ConnectionNotReady(_NO_TOKEN_MESSAGE)
+    base = hubspot_api_base()
+    mapping = load_mapping()
+    key = (hashlib.sha256(token.encode("utf-8")).hexdigest(), mapping.model_dump_json(), base)
+    connector = _connectors.get(key)
+    if connector is None:
+        try:
+            client = HubSpotClient(token, base_url=base)
+        except ValueError:
+            raise ConnectionNotReady(_BAD_BASE_MESSAGE) from None
+        connector = HubSpotConnector(client, mapping)
+        _connectors[key] = connector
+    return connector
 
 
 def reset_connectors() -> None:
     """Forget shared connectors, e.g. after the token, mapping or source changes."""
-    raise NotImplementedError
+    _connectors.clear()
 
 
 def get_book(

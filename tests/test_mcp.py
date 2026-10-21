@@ -12,6 +12,7 @@ from mcp.types import CallToolResult
 
 from cs_brief.core import briefs, service
 from cs_brief.core.connectors.demo import DemoConnector
+from cs_brief.core.connectors.errors import ConnectionNotReady
 from cs_brief.core.models import Motion
 from cs_brief.mcp import server
 
@@ -178,3 +179,39 @@ async def test_stdio_subprocess_serves_the_tools():
             result = await client.call_tool("list_book", {"limit": 1})
     assert {tool.name for tool in tools.tools} == TOOLS
     assert [row["rank"] for row in _rows(result)] == [1]
+
+
+NOT_READY = (
+    "HubSpot is selected, but no access token is saved. "
+    "Add one on the Connections page, or switch to demo data."
+)
+
+
+@pytest.fixture
+def no_token(monkeypatch):
+    def not_ready(*args, **kwargs):
+        raise ConnectionNotReady(NOT_READY)
+
+    monkeypatch.setattr(service, "get_connector", not_ready)
+
+
+@pytest.mark.parametrize(
+    ("tool", "arguments"),
+    [
+        ("list_book", {}),
+        ("get_account", {"account_id": "acc-001"}),
+        ("explain_score", {"account_id": "acc-001"}),
+        ("weekly_brief", {}),
+        ("onboarding_brief", {"account_id": "acc-001"}),
+    ],
+)
+async def test_every_book_tool_reports_a_connector_error_as_its_message(no_token, tool, arguments):
+    async with Client(server.mcp) as client:
+        text = _error_text(await client.call_tool(tool, arguments))
+    assert NOT_READY in text
+    assert "Traceback" not in text
+
+
+def test_a_python_caller_gets_the_connector_message_as_a_value_error(no_token):
+    with pytest.raises(ValueError, match="no access token is saved"):
+        server.list_book()

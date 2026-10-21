@@ -1,0 +1,15 @@
+{% if test_error %}
+<p class="alert" role="alert">{{ test_error }}</p>
+{% else %}
+<ul class="check-list">
+  {% for check in test_check.checks %}
+  <li class="check-item{% if not check.ok %} check-item--failed{% endif %}">
+    <svg class="icon check-icon" aria-hidden="true" focusable="false"><use href="/static/icons.svg#{% if check.ok %}check{% else %}cross{% endif %}"/></svg>
+    <p><span class="visually-hidden">{% if check.ok %}Passed{% else %}Failed{% endif %}: </span>{{ check.name }}{% if check.message %}: {{ check.message }}{% endif %}</p>
+  </li>
+  {% endfor %}
+</ul>
+{% if test_check.missing_properties %}
+<p class="field-help">Missing properties: {{ test_check.missing_properties | join(", ") }}</p>
+{% endif %}
+{% endif %}

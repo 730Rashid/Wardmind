@@ -1,0 +1,96 @@
+{% extends "settings/layout.html" %}
+{% block settings %}
+<div class="connections">
+  <form class="settings-form" method="post" action="/settings/connections/source">
+    {% if source_error %}
+    <p class="field-error" role="alert">{{ source_error }}</p>
+    {% endif %}
+
+    <fieldset>
+      <legend>Data source</legend>
+      <div class="choices">
+        {% for option in source_options %}
+        <div class="choice-option">
+          <label class="choice"><input type="radio" name="source" value="{{ option.value }}" aria-describedby="source-{{ option.value }}-help"{% if option.checked %} checked{% endif %}> {{ option.label }}</label>
+          <p class="field-help choice-help" id="source-{{ option.value }}-help">{{ option.help }}</p>
+        </div>
+        {% endfor %}
+      </div>
+    </fieldset>
+
+    <button type="submit" class="button-primary">Save changes</button>
+  </form>
+
+  <section class="connections-section" aria-labelledby="hubspot-access-title">
+    <h2 class="section-title" id="hubspot-access-title">HubSpot access</h2>
+
+    <div class="token-row">
+      <p class="token-status">{{ token_line }}</p>
+      {% if token_from_file %}
+      <form class="inline-form" method="post" action="/settings/connections/token/delete">
+        <button type="submit" class="button">Remove token</button>
+      </form>
+      {% endif %}
+    </div>
+
+    <form class="token-form" method="post" action="/settings/connections/token">
+      <div class="field">
+        <label for="token">Access token</label>
+        <div class="token-input">
+          <input type="password" name="token" autocomplete="off" spellcheck="false" id="token">
+          <button type="submit" class="button">Save token</button>
+        </div>
+        {% if token_error %}
+        <p class="field-error" role="alert">{{ token_error }}</p>
+        {% endif %}
+        <p class="field-help">Create a Service Key in HubSpot (Settings, then Integrations, then Service Keys) with the read scopes crm.objects.companies.read, crm.objects.owners.read and tickets. A legacy private app token also works. The token is stored in your user profile, not in this folder.</p>
+      </div>
+    </form>
+
+    <div class="connection-test">
+      <form class="inline-form" method="post" action="/settings/connections/test">
+        <button type="submit" class="button" hx-post="/settings/connections/test" hx-target="#connection-test" hx-swap="innerHTML">Test connection</button>
+      </form>
+      <div id="connection-test" class="connection-result" aria-live="polite">
+        {% if test_check or test_error %}
+        {% include "settings/partials/connection_results.html" %}
+        {% endif %}
+      </div>
+    </div>
+
+    {% if show_refresh %}
+    <div class="token-row">
+      <p class="field-help">{{ fetched }}</p>
+      <form class="inline-form" method="post" action="/settings/connections/refresh">
+        <button type="submit" class="button">Refresh data now</button>
+      </form>
+    </div>
+    {% endif %}
+  </section>
+
+  <details class="mapping">
+    <summary><h2 class="section-title">What cs-brief reads</h2></summary>
+    {% if mapping_error %}
+    <p class="alert" role="alert">{{ mapping_error }}</p>
+    {% else %}
+    <table class="mapping-table">
+      <caption class="visually-hidden">The HubSpot properties cs-brief reads</caption>
+      <thead>
+        <tr>
+          <th scope="col">cs-brief field</th>
+          <th scope="col">HubSpot property</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for field, property in mapping_rows %}
+        <tr>
+          <th scope="row">{{ field }}</th>
+          <td>{{ property }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% endif %}
+  </details>
+</div>
+{% endblock %}

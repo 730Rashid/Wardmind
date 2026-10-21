@@ -1,4 +1,8 @@
-{% if preview.alerts %}
+{% if preview.error %}
+<div class="preview-alert" role="alert">
+  <p>{{ preview.error }}</p>
+</div>
+{% elif preview.alerts %}
 <div class="preview-alert" role="alert">
   <p>Fix these to see the preview:</p>
   <ul class="preview-alert-list">

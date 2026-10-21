@@ -140,7 +140,11 @@ def test_appearance_marks_settings_current_and_lists_the_sub_navigation(client: 
     top = [a for a in _tags(response.text, "a") if a.get("class") == "nav-link"]
     assert [a["href"] for a in top if a.get("aria-current") == "page"] == ["/settings"]
     links = _settings_links(response.text)
-    assert [a["href"] for a in links] == ["/settings/appearance", "/settings/scoring"]
+    assert [a["href"] for a in links] == [
+        "/settings/appearance",
+        "/settings/scoring",
+        "/settings/connections",
+    ]
     assert [a["href"] for a in links if a.get("aria-current") == "page"] == ["/settings/appearance"]
 
 

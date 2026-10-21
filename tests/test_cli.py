@@ -10,6 +10,7 @@ from cs_brief import cli
 from cs_brief.core import service
 from cs_brief.core.config import ScoringConfig
 from cs_brief.core.connectors.demo import DemoConnector
+from cs_brief.core.connectors.errors import ConnectionNotReady
 from cs_brief.core.models import Health, Motion, ScoredAccount
 
 AS_OF = date(2026, 10, 19)
@@ -112,6 +113,22 @@ def test_an_empty_book_says_so(monkeypatch):
         "0 accounts, 0 at risk, $0 ARR at risk",
         "No accounts to show.",
     ]
+
+
+def test_a_connector_error_goes_to_stderr_and_exits_with_one(monkeypatch):
+    message = (
+        "HubSpot is selected, but no access token is saved. "
+        "Add one on the Connections page, or switch to demo data."
+    )
+
+    def not_ready():
+        raise ConnectionNotReady(message)
+
+    monkeypatch.setattr(service, "get_connector", not_ready)
+    result = runner.invoke(cli.app, ["score"])
+    assert result.exit_code == 1
+    assert result.stderr.strip() == message
+    assert result.stdout == ""
 
 
 def test_an_empty_motion_says_which_motion_is_empty(monkeypatch):

@@ -7,9 +7,10 @@ and the MCP server use.
 from __future__ import annotations
 
 import math
+import time
 from collections.abc import Awaitable, Callable, Mapping
 from dataclasses import dataclass
-from datetime import date
+from datetime import date, datetime, timedelta
 from enum import StrEnum
 from pathlib import Path
 from typing import Any
@@ -24,12 +25,21 @@ from jinja2 import Environment, FileSystemLoader
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 
-from cs_brief.core import briefs, service
+from cs_brief.core import briefs, secrets, service
 from cs_brief.core.config import ScoringConfig, load_scoring_config, save_scoring_config
+from cs_brief.core.connectors.errors import ConnectorError
+from cs_brief.core.connectors.hubspot import (
+    ConnectionCheck,
+    HubSpotClient,
+    HubSpotConnector,
+    HubSpotMapping,
+    load_mapping,
+)
 from cs_brief.core.models import Health, Motion, ScoredAccount, SignalKind
 from cs_brief.core.onboarding import OnboardingBrief
 from cs_brief.core.settings import (
     Accent,
+    DataSource,
     Density,
     Landing,
     Settings,
@@ -186,9 +196,11 @@ def _selected_motion(value: str) -> Motion | None:
         return None
 
 
-def _source_note() -> str:
-    name = service.get_connector().name
-    return "Showing demo data" if name == "demo" else f"Connected to {name}"
+def _source_note(settings: Settings) -> str:
+    """The top bar's note. It reads the saved choice rather than the connector, so it can't fail."""
+    if settings.source is DataSource.HUBSPOT:
+        return "Connected to HubSpot"
+    return "Showing demo data"
 
 
 def _connector_label() -> str:
@@ -235,11 +247,12 @@ def _render(
 ) -> HTMLResponse:
     """Render one page in the shared layout, with the context every page needs."""
     today_day = date.today()
+    current = load_settings()
     values: dict[str, Any] = {
         "page": page,
         "active": active,
-        "settings": load_settings(),
-        "source_note": _source_note(),
+        "settings": current,
+        "source_note": _source_note(current),
         "today": format_today(today_day),
         "today_day": today_day,
         **context,
@@ -288,11 +301,13 @@ class _Mover:
 
 @dataclass(frozen=True)
 class _Preview:
-    """What the scoring preview shows. When there are alerts, they replace the sentence and list."""
+    """What the scoring preview shows. An error (the book can't load) or alerts (the form can't be
+    read yet) replace the sentence and list."""
 
     alerts: list[str]
     sentence: str
     movers: list[_Mover]
+    error: str = ""
 
 
 def _render_scoring(
@@ -322,6 +337,150 @@ def _render_scoring(
     )
 
 
+# Settings > Connections. The token is read from the store and never given to a template: the page
+# shows only the status sentence, which carries the last four characters at most.
+_SOURCE_HELP: dict[DataSource, str] = {
+    DataSource.DEMO: "40 invented accounts. Nothing leaves your computer.",
+    DataSource.HUBSPOT: (
+        "Reads your customer companies, owners and tickets. cs-brief never writes to HubSpot."
+    ),
+}
+_TOKEN_SAVE_FAILED = (
+    "cs-brief couldn't save the token. Check that your user profile folder is writable, "
+    "then try again."
+)
+
+
+def _token_tail(masked: str | None) -> str:
+    """The last characters of a masked token: '9f3e' from 'pat-na1-…9f3e', or '' when none."""
+    return (masked or "").rsplit("…", 1)[-1]
+
+
+def _token_line(status: secrets.TokenStatus, today: date) -> str:
+    """The token's status sentence, worded as the Connections design gives it."""
+    tail = _token_tail(status.masked)
+    ends = f", ends in …{tail}" if tail else ""
+    if status.source is secrets.TokenSource.FILE:
+        saved = ""
+        if status.saved_at is not None:
+            saved = f" Saved {formatting.day_label(status.saved_at, today)}."
+        return f"Saved on this computer{ends}.{saved}"
+    if status.source is secrets.TokenSource.ENV:
+        return f"Set by {secrets.ENV_TOKEN}{ends}. Change it where you set it."
+    return "No token saved."
+
+
+def _fetched_line(loaded_at: float | None) -> str:
+    """When HubSpot data was last fetched, in wall-clock time. The connector keeps a monotonic
+    reading, so the age of that reading is taken off the current time."""
+    if loaded_at is None:
+        return "Not fetched yet."
+    fetched = datetime.now() - timedelta(seconds=time.monotonic() - loaded_at)
+    return f"Data last fetched {fetched:%H:%M}."
+
+
+def _mapping_rows(mapping: HubSpotMapping) -> list[tuple[str, str]]:
+    """The effective HubSpot mapping as (what cs-brief shows, where HubSpot keeps it) pairs."""
+    milestones = (
+        f"{mapping.milestones_total}, {mapping.milestones_done}, {mapping.milestones_overdue}"
+    )
+    rows = [
+        ("Which companies", f"{mapping.customer_property} = {mapping.customer_value}"),
+        ("Name", mapping.name),
+        ("Owner (CSM)", mapping.owner),
+        ("ARR", mapping.arr),
+        ("Tier", mapping.tier),
+        ("Customer since", mapping.start_date),
+        ("Renewal date", mapping.renewal_date),
+        ("Onboarding milestones: total, done, overdue", milestones),
+    ]
+    rows += [(briefs.SIGNAL_LABELS[kind], prop) for kind, prop in mapping.signals.items()]
+    priorities = " or ".join(mapping.sev1_priorities) or "none"
+    rows.append(
+        (
+            "Severity-1 tickets",
+            f"Tickets with {mapping.ticket_priority_property} of {priorities} "
+            f"and no {mapping.ticket_closed_property}",
+        )
+    )
+    rows.append(("Signal history", f"Readings from the last {mapping.history_days} days"))
+    return rows
+
+
+def _render_connections(
+    request: Request,
+    *,
+    notice: str = "",
+    source_choice: DataSource | None = None,
+    source_error: str = "",
+    token_error: str = "",
+    test_check: ConnectionCheck | None = None,
+    test_error: str = "",
+    status_code: int = 200,
+) -> HTMLResponse:
+    """Settings > Connections. `source_choice` is what the source form shows when a save was
+    refused, so the person sees the choice they made."""
+    today = date.today()
+    current = load_settings()
+    chosen = source_choice or current.source
+    status = secrets.token_status()
+    connector = None
+    if current.source is DataSource.HUBSPOT:
+        try:
+            connector = service.get_connector()
+        except ConnectorError:
+            connector = None  # no token or a bad mapping: the fetch line and refresh are left out
+    try:
+        mapping_rows = _mapping_rows(load_mapping())
+        mapping_error = ""
+    except ConnectorError as error:
+        mapping_rows, mapping_error = [], error.message
+    return _render(
+        request,
+        "settings/connections.html",
+        page="Connections",
+        active="settings",
+        section="connections",
+        notice=notice,
+        source_options=[
+            {
+                "value": source.value,
+                "label": source.label,
+                "help": _SOURCE_HELP[source],
+                "checked": source is chosen,
+            }
+            for source in DataSource
+        ],
+        source_error=source_error,
+        token_line=_token_line(status, today),
+        token_from_file=status.source is secrets.TokenSource.FILE,
+        token_error=token_error,
+        test_check=test_check,
+        test_error=test_error,
+        show_refresh=connector is not None,
+        fetched=_fetched_line(getattr(connector, "loaded_at", None)),
+        mapping_rows=mapping_rows,
+        mapping_error=mapping_error,
+        status_code=status_code,
+    )
+
+
+def _connection_test_response(
+    request: Request, *, check: ConnectionCheck | None = None, error: str = ""
+) -> HTMLResponse:
+    """The test's result: only the results partial for htmx, the whole page otherwise."""
+    if request.headers.get("HX-Request") == "true":
+        response = templates.TemplateResponse(
+            request,
+            "settings/partials/connection_results.html",
+            {"test_check": check, "test_error": error},
+        )
+    else:
+        response = _render_connections(request, test_check=check, test_error=error)
+    response.headers["Vary"] = "HX-Request"
+    return response
+
+
 async def _posted_fields(request: Request) -> dict[str, str]:
     """The text fields of a posted form. The scoring form has no file fields."""
     form = await request.form()
@@ -331,8 +490,11 @@ async def _posted_fields(request: Request) -> dict[str, str]:
 def _scoring_preview(draft: ScoringConfig) -> _Preview:
     """What `draft` would change against the saved config: the at-risk counts and the top ten."""
     today = date.today()
-    before = service.get_book(as_of=today)
-    after = service.get_book(config=draft, as_of=today)
+    try:
+        before = service.get_book(as_of=today)
+        after = service.get_book(config=draft, as_of=today)
+    except ConnectorError as error:
+        return _Preview(alerts=[], sentence="", movers=[], error=error.message)
     now = briefs.weekly_brief(before, as_of=today).counts_by_health[Health.AT_RISK]
     with_changes = briefs.weekly_brief(after, as_of=today).counts_by_health[Health.AT_RISK]
     same_accounts = _at_risk_ids(before) == _at_risk_ids(after)
@@ -424,6 +586,18 @@ def create_app() -> FastAPI:
             page="Page not found",
             status_code=404,
             message="This page doesn't exist.",
+        )
+
+    @app.exception_handler(ConnectorError)
+    def connector_error(request: Request, exc: ConnectorError) -> Response:
+        """A book that can't load shows one message in the layout, with the way out (503)."""
+        return _render(
+            request,
+            "connection_error.html",
+            page="Couldn't load your book",
+            status_code=503,
+            source_label=load_settings().source.label,
+            message=exc.message,
         )
 
     @app.get("/")
@@ -665,5 +839,98 @@ def create_app() -> FastAPI:
             timeline_days=formatting.group_by_day(detail.timeline),
             connector_label=_connector_label(),
         )
+
+    @app.get("/settings/connections")
+    def connections(
+        request: Request, saved: str = "", removed: str = "", refreshed: str = ""
+    ) -> HTMLResponse:
+        """Where the data comes from, whether HubSpot is set up and working, and what it reads."""
+        notice = ""
+        if saved == "source":
+            notice = "Data source saved."
+        elif saved == "token":
+            notice = "Token saved."
+        elif removed == "token":
+            notice = "Token removed."
+        elif refreshed == "1":
+            notice = "Data refreshed."
+        return _render_connections(request, notice=notice)
+
+    @app.post("/settings/connections/source")
+    async def save_source(request: Request) -> Response:
+        """Save the data source. HubSpot needs a saved token: without one, nothing is saved and the
+        form says why (422)."""
+        fields = await _posted_fields(request)
+        try:
+            chosen = DataSource(fields.get("source", ""))
+        except ValueError:
+            return _render_connections(
+                request, source_error="Choose demo data or HubSpot.", status_code=422
+            )
+        if chosen is DataSource.HUBSPOT and secrets.get_hubspot_token() is None:
+            return _render_connections(
+                request,
+                source_choice=chosen,
+                source_error="Save a HubSpot token first.",
+                status_code=422,
+            )
+        save_settings(load_settings().model_copy(update={"source": chosen}))
+        service.reset_connectors()
+        return RedirectResponse("/settings/connections?saved=source", status_code=303)
+
+    @app.post("/settings/connections/token")
+    async def save_token(request: Request) -> Response:
+        """Store the token in the user profile. A token that isn't valid re-renders the field with
+        the reason (422) and an empty input; the token is never shown back."""
+        fields = await _posted_fields(request)
+        try:
+            secrets.save_hubspot_token(fields.get("token", ""))
+        except ValueError as error:
+            return _render_connections(request, token_error=str(error), status_code=422)
+        except OSError:
+            return _render_connections(request, token_error=_TOKEN_SAVE_FAILED, status_code=500)
+        service.reset_connectors()
+        return RedirectResponse("/settings/connections?saved=token", status_code=303)
+
+    @app.post("/settings/connections/token/delete")
+    def delete_token() -> RedirectResponse:
+        """Remove the saved token file. A token set in the environment is not touched."""
+        secrets.delete_hubspot_token()
+        service.reset_connectors()
+        return RedirectResponse("/settings/connections?removed=token", status_code=303)
+
+    @app.post("/settings/connections/test")
+    def test_connection(request: Request) -> HTMLResponse:
+        """Test the saved token with a fresh connector, whichever source is selected, so the
+        person can check before switching."""
+        token = secrets.get_hubspot_token()
+        if token is None:
+            return _connection_test_response(request, error="Save a HubSpot token first.")
+        try:
+            connector = HubSpotConnector(
+                HubSpotClient(token, base_url=service.hubspot_api_base()), load_mapping()
+            )
+            check = connector.check_connection()
+        except ConnectorError as error:
+            return _connection_test_response(request, error=error.message)
+        except ValueError as error:
+            return _connection_test_response(request, error=str(error))
+        return _connection_test_response(request, check=check)
+
+    @app.post("/settings/connections/refresh")
+    def refresh_data() -> RedirectResponse:
+        """Fetch the HubSpot data again on the next load. A ConnectorError shows the error page."""
+        connector = service.get_connector()
+        refresh = getattr(connector, "refresh", None)
+        if callable(refresh):
+            refresh()
+        return RedirectResponse("/settings/connections?refreshed=1", status_code=303)
+
+    @app.post("/settings/connections/use-demo")
+    def use_demo() -> RedirectResponse:
+        """Switch to demo data. Used by the error page, so it leaves every other setting alone."""
+        save_settings(load_settings().model_copy(update={"source": DataSource.DEMO}))
+        service.reset_connectors()
+        return RedirectResponse("/", status_code=303)
 
     return app

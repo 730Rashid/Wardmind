@@ -7,6 +7,8 @@ write to stdout, because the stdio transport uses it.
 
 from __future__ import annotations
 
+from collections.abc import Iterator
+from contextlib import contextmanager
 from datetime import date
 from typing import Any
 
@@ -14,13 +16,14 @@ from mcp.server.mcpserver import MCPServer
 from mcp.server.mcpserver.exceptions import ToolError
 
 from cs_brief.core import briefs, service
+from cs_brief.core.connectors.errors import ConnectorError
 from cs_brief.core.models import Motion, ScoredAccount
 
 _INSTRUCTIONS = (
     "Serves a Customer Success Manager's prioritised book of business: each account's health, "
     "priority, the plain-English reasons it needs attention, a suggested next action, and prep "
     "briefs for onboarding calls. "
-    "It currently serves demo data. "
+    "It serves the data source chosen in cs-brief's Settings (demo data or HubSpot). "
     "Get account ids from list_book before calling get_account, explain_score or onboarding_brief."
 )
 
@@ -36,6 +39,15 @@ mcp = MCPServer("cs-brief", instructions=_INSTRUCTIONS)
 class _BadRequest(ToolError, ValueError):
     """A caller mistake. MCPServer hides the text of plain exceptions from the client, so this is
     a ToolError, which keeps its message. It is still a ValueError for Python callers."""
+
+
+@contextmanager
+def _connector_errors() -> Iterator[None]:
+    """A book that can't load (no token, HubSpot down) reaches the client as its plain message."""
+    try:
+        yield
+    except ConnectorError as error:
+        raise _BadRequest(error.message) from None
 
 
 @mcp.tool()
@@ -54,7 +66,8 @@ def list_book(
     """
     selected = _parse_motion(motion)
     today = date.today()
-    book = service.get_book(as_of=today)
+    with _connector_errors():
+        book = service.get_book(as_of=today)
     ranks = {item.account.id: rank for rank, item in enumerate(book, start=1)}
     kept = service.filter_book(book, motion=selected, search=search)
     limit = _clamp(limit, _MIN_LIST_LIMIT, _MAX_LIST_LIMIT)
@@ -89,8 +102,10 @@ def weekly_brief(top_n: int = 10) -> dict[str, Any]:
         top_n: How many accounts to include in "top", from 1 to 50. Defaults to 10.
     """
     today = date.today()
+    with _connector_errors():
+        book = service.get_book(as_of=today)
     brief = briefs.weekly_brief(
-        service.get_book(as_of=today),
+        book,
         as_of=today,
         top_n=_clamp(top_n, _MIN_TOP_N, _MAX_TOP_N),
     )
@@ -106,7 +121,8 @@ def onboarding_brief(account_id: str) -> dict[str, Any]:
     Args:
         account_id: The account id from list_book.
     """
-    brief = service.get_onboarding_brief(account_id)
+    with _connector_errors():
+        brief = service.get_onboarding_brief(account_id)
     if brief is None:
         raise _BadRequest(f"No account with id '{account_id}'. Use list_book to find ids.")
     return brief.model_dump(mode="json")
@@ -118,7 +134,9 @@ def run() -> None:
 
 
 def _find(account_id: str) -> ScoredAccount:
-    item = service.find_account(service.get_book(), account_id)
+    with _connector_errors():
+        book = service.get_book()
+    item = service.find_account(book, account_id)
     if item is None:
         raise _BadRequest(f"No account with id '{account_id}'. Use list_book to find ids.")
     return item

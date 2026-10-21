@@ -1,0 +1,13 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="stack">
+  <h1 class="page-title">Couldn't load your book</h1>
+  <p class="prose">Couldn't load your book from {{ source_label }}. {{ message }}</p>
+  <div class="error-actions">
+    <a class="button" href="/settings/connections">Check Connections</a>
+    <form class="inline-form" method="post" action="/settings/connections/use-demo">
+      <button type="submit" class="button">Switch to demo data</button>
+    </form>
+  </div>
+</div>
+{% endblock %}

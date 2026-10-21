@@ -1785,6 +1785,131 @@ a.button {
   }
 }
 
+/* Settings > Connections. Each part is a block in the same column as the other settings pages. */
+.connections {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+}
+
+.connections-section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+/* Each source is a radio with its one-line description under it, indented to the label's text. */
+.choice-option {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.choice-help {
+  padding-inline-start: calc(1rem + var(--space-3));
+}
+
+/* A status sentence with its action beside it, when there is one. */
+.token-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3) var(--space-4);
+}
+
+.token-status {
+  color: var(--ink);
+}
+
+.inline-form,
+.token-form {
+  margin: 0;
+}
+
+/* The token field and its save button share a row. The input is narrower than the column. */
+.token-input {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+}
+
+.token-input input[type="password"] {
+  inline-size: min(22rem, 100%);
+  padding-block: var(--space-2);
+  padding-inline: var(--space-3);
+}
+
+.connection-test {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-4);
+}
+
+.connection-result {
+  inline-size: 100%;
+  min-inline-size: 0;
+}
+
+/* The results list. Its icon takes the text colour: this is connection status, not account health,
+   so there is no red or green. A failed check is set in heavier ink instead. */
+.check-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.check-item {
+  display: grid;
+  grid-template-columns: 1rem minmax(0, 1fr);
+  column-gap: var(--space-2);
+  align-items: start;
+}
+
+.check-icon {
+  margin-block-start: 0.25em;
+}
+
+.check-item--failed {
+  font-weight: 600;
+}
+
+.error-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3) var(--space-4);
+}
+
+/* What cs-brief reads is collapsed, so the page stays short until someone wants the detail. */
+.mapping > summary {
+  cursor: pointer;
+}
+
+.mapping-table {
+  inline-size: 100%;
+  margin-block-start: var(--space-3);
+  border-collapse: collapse;
+  font-size: var(--t-sm);
+  line-height: var(--lh-sm);
+}
+
+.mapping-table th,
+.mapping-table td {
+  padding: var(--cell-pad);
+  border-block-end: 1px solid var(--line);
+  text-align: start;
+  vertical-align: top;
+}
+
+.mapping-table th {
+  font-weight: 400;
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

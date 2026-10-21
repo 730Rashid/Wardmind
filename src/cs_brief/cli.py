@@ -9,6 +9,7 @@ import typer
 
 from cs_brief.core import service
 from cs_brief.core.briefs import WeeklyBrief, weekly_brief
+from cs_brief.core.connectors.errors import ConnectorError
 from cs_brief.core.models import Health, Motion, ScoredAccount
 
 app = typer.Typer(no_args_is_help=True, add_completion=False, help=__doc__)
@@ -26,7 +27,11 @@ def score(
 ) -> None:
     """Print the top of the ranked book with each account's top reason."""
     as_of = date.today()
-    book = service.filter_book(service.get_book(as_of=as_of), motion=motion)
+    try:
+        book = service.filter_book(service.get_book(as_of=as_of), motion=motion)
+    except ConnectorError as error:
+        typer.echo(error.message, err=True)
+        raise typer.Exit(code=1) from None
     brief = weekly_brief(book, as_of=as_of, top_n=top)
     typer.echo(_header(brief))
     if not brief.top:
