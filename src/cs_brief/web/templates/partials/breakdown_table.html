@@ -1,0 +1,25 @@
+{% macro breakdown_table(rows, longest, caption) -%}
+<table class="breakdown">
+        <caption class="visually-hidden">{{ caption }}</caption>
+        <thead>
+          <tr>
+            <th scope="col">Signal</th>
+            <th scope="col">Reading</th>
+            <th scope="col" class="num">Points</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in rows %}
+          {% set track, fill = bar_geometry(row, longest) %}
+          <tr{% if row.contribution == 0 %} class="breakdown-row--muted"{% endif %}>
+            <th scope="row" class="cell-signal">{{ row.label }}</th>
+            <td class="cell-reading">{{ row.value_text }}</td>
+            <td class="cell-points num">
+              <svg class="pbar" width="{{ track }}" height="8" role="img" aria-label="{{ row.contribution | number }} of {{ row.max_points | number }} points"><rect class="pbar-track" width="{{ track }}" height="8"/><rect class="pbar-fill" width="{{ fill }}" height="8"/></svg>
+              <span class="points-text">{{ row.contribution | number }} of {{ row.max_points | number }}</span>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+{%- endmacro %}

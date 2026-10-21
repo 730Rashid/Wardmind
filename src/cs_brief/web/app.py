@@ -13,6 +13,7 @@ from datetime import date
 from enum import StrEnum
 from pathlib import Path
 from typing import Any
+from urllib.parse import quote
 
 from fastapi import FastAPI, Request
 from fastapi.exception_handlers import http_exception_handler
@@ -26,6 +27,7 @@ from starlette.middleware.trustedhost import TrustedHostMiddleware
 from cs_brief.core import briefs, service
 from cs_brief.core.config import ScoringConfig, load_scoring_config, save_scoring_config
 from cs_brief.core.models import Health, Motion, ScoredAccount, SignalKind
+from cs_brief.core.onboarding import OnboardingBrief
 from cs_brief.core.settings import (
     Accent,
     Density,
@@ -215,6 +217,8 @@ _env.globals["risk_sentence"] = formatting.risk_sentence
 _env.globals["bar_geometry"] = formatting.bar_geometry
 _env.globals["book_bar_segments"] = formatting.book_bar_segments
 _env.globals["count_bar_width"] = formatting.count_bar_width
+_env.globals["plan_dots"] = formatting.plan_dots
+_env.globals["plan_summary"] = formatting.plan_summary
 _env.globals["scoring_output"] = scoring_output
 _env.globals["slider_max"] = slider_max
 templates = Jinja2Templates(env=_env)
@@ -377,6 +381,12 @@ def _mover(change: briefs.RankChange) -> _Mover:
     )
 
 
+def _other_accounts(book: list[ScoredAccount]) -> list[ScoredAccount]:
+    """The accounts outside onboarding, by name, for the picker's second group."""
+    others = [item for item in book if item.motion is not Motion.ONBOARDING]
+    return sorted(others, key=lambda item: item.account.name.casefold())
+
+
 def create_app() -> FastAPI:
     """Build the web app: no API docs, a host allow-list, and security headers on every response."""
     app = FastAPI(docs_url=None, redoc_url=None, openapi_url=None)
@@ -500,8 +510,63 @@ def create_app() -> FastAPI:
         )
 
     @app.get("/onboarding")
-    def onboarding(request: Request) -> HTMLResponse:
-        return _render(request, "coming.html", page="Onboarding prep", active="onboarding")
+    def onboarding(request: Request, missing: str = "") -> HTMLResponse:
+        """Onboarding prep: each onboarding account with its day and plan, and a picker for any
+        account. Every row's brief uses the same connector, config and date as the book."""
+        connector = service.get_connector()
+        config = load_scoring_config()
+        as_of = date.today()
+        book = service.get_book(connector, config, as_of)
+        rows: list[tuple[ScoredAccount, OnboardingBrief]] = []
+        for item in service.onboarding_accounts(book):
+            brief = service.get_onboarding_brief(item.account.id, connector, config, as_of)
+            if brief is not None:
+                rows.append((item, brief))
+        behind = sum(formatting.behind_on_plan(brief.milestones) for _, brief in rows)
+        return _render(
+            request,
+            "onboarding.html",
+            page="Onboarding prep",
+            active="onboarding",
+            summary=formatting.onboarding_summary(len(rows), behind),
+            rows=rows,
+            other_accounts=_other_accounts(book),
+            missing=missing == "1",
+        )
+
+    @app.get("/onboarding/open")
+    def open_onboarding(account: str = "") -> RedirectResponse:
+        """Opens the brief for the account chosen in the picker. A missing or unknown id goes back
+        to the picker with a message."""
+        found = service.find_account(service.get_book(), account) if account else None
+        if found is None:
+            return RedirectResponse("/onboarding?missing=1", status_code=303)
+        return RedirectResponse(f"/onboarding/{quote(found.account.id, safe='')}", status_code=303)
+
+    @app.get("/onboarding/{account_id}")
+    def onboarding_brief(request: Request, account_id: str) -> HTMLResponse:
+        """One account's onboarding call brief: the plan, the agenda, the questions and signals."""
+        brief = service.get_onboarding_brief(account_id)
+        if brief is None:
+            return _render(
+                request,
+                "not_found.html",
+                page="Account not found",
+                status_code=404,
+                message=f"No account with id {account_id}.",
+            )
+        # The signals table scales its bars to the largest weight in the scoring config, as the
+        # account page does, so the same signal is drawn the same width on both pages.
+        longest = max(rule.weight for rule in load_scoring_config().signals.values())
+        return _render(
+            request,
+            "onboarding_brief.html",
+            page=f"{brief.account.name} onboarding brief",
+            active="onboarding",
+            brief=brief,
+            longest=longest,
+            plain_text=formatting.onboarding_plain_text(brief),
+        )
 
     @app.get("/settings")
     def settings_home() -> RedirectResponse:

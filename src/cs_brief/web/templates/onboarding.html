@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="onboarding-page">
+  <header class="onboarding-head">
+    <h1 class="page-title">Onboarding prep</h1>
+    <p class="summary">{{ summary }}</p>
+  </header>
+
+  {% if rows %}
+  <table class="onboarding-table">
+    <caption class="visually-hidden">Accounts in onboarding, by priority</caption>
+    <thead>
+      <tr>
+        <th scope="col">Account</th>
+        <th scope="col">Health</th>
+        <th scope="col">Day</th>
+        <th scope="col">Plan</th>
+        <th scope="col"><span class="visually-hidden">Brief</span></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for item, brief in rows %}
+      <tr>
+        <th scope="row" class="cell-account"><a class="account-link" href="/onboarding/{{ item.account.id | urlencode }}">{{ item.account.name }}</a></th>
+        <td class="cell-health"><span class="health health--{{ item.health.value }}"><svg class="icon" aria-hidden="true" focusable="false"><use href="/static/icons.svg#health-{{ item.health.value | replace('_', '-') }}"/></svg> {{ item.health.label }}</span></td>
+        <td class="cell-day">Day {{ brief.day }} of {{ brief.window_days }}</td>
+        <td class="cell-plan">
+          <span class="plan-cell">
+            <span class="plan-dots">{% for state in plan_dots(brief.milestones) %}<span class="plan-dot plan-dot--{{ state }}" aria-hidden="true"></span>{% endfor %}</span>
+            <span class="plan-words">{{ plan_summary(brief.milestones) }}</span>
+          </span>
+        </td>
+        <td class="cell-action"><a href="/onboarding/{{ item.account.id | urlencode }}" aria-label="Prepare brief for {{ item.account.name }}">Prepare brief</a></td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% endif %}
+
+  <section class="onboarding-section" aria-labelledby="another-heading">
+    <h2 class="section-title" id="another-heading">Another account</h2>
+    {% if missing %}
+    <p class="alert" role="alert">Choose an account to open its brief.</p>
+    {% endif %}
+    <form class="open-form" method="get" action="/onboarding/open">
+      <label class="visually-hidden" for="account-choice">Account</label>
+      <select id="account-choice" name="account">
+        <option value="">Choose an account</option>
+        {% if rows %}
+        <optgroup label="In onboarding">
+          {% for item, _ in rows %}
+          <option value="{{ item.account.id }}">{{ item.account.name }}</option>
+          {% endfor %}
+        </optgroup>
+        {% endif %}
+        <optgroup label="Other accounts">
+          {% for item in other_accounts %}
+          <option value="{{ item.account.id }}">{{ item.account.name }}</option>
+          {% endfor %}
+        </optgroup>
+      </select>
+      <button type="submit" class="button">Open brief</button>
+    </form>
+  </section>
+</div>
+{% endblock %}

@@ -1,4 +1,5 @@
-"""Formatting for the account view and the weekly brief: dates, ages, sentences and bars.
+"""Formatting for the account view, the weekly brief and onboarding prep: dates, ages, sentences
+and bars.
 
 Pure functions only. Nothing here reads the clock or the config; callers pass `today` and
 thresholds in, which keeps every branch testable.
@@ -13,6 +14,7 @@ from itertools import groupby
 from cs_brief.core.briefs import AccountDetail, BreakdownRow, TimelineEntry
 from cs_brief.core.config import Thresholds
 from cs_brief.core.models import Health, Motion
+from cs_brief.core.onboarding import MilestoneStatus, OnboardingBrief, PlanMilestone
 
 BAR_TRACK_PX = 160  # the track of the signal with the largest max_points
 # The book bar and its legend read left to right in this order.
@@ -165,6 +167,83 @@ def count_bar_width(count: int, largest: int) -> float:
     if largest <= 0:
         return 0.0
     return round(min(max(count, 0), largest) / largest * 100, 1)
+
+
+def onboarding_summary(in_onboarding: int, behind: int) -> str:
+    """The picker's sentence, e.g. '8 accounts are in onboarding. 3 are behind on their plan.'
+
+    With no accounts in onboarding it is one sentence. `behind` counts accounts with an overdue
+    milestone.
+    """
+    if in_onboarding == 0:
+        return "No accounts are in onboarding right now."
+    if in_onboarding == 1:
+        first = "1 account is in onboarding."
+    else:
+        first = f"{in_onboarding} accounts are in onboarding."
+    if behind == 0:
+        second = "None are behind on their plan."
+    elif behind == 1:
+        second = "1 is behind on its plan."
+    else:
+        second = f"{behind} are behind on their plan."
+    return f"{first} {second}"
+
+
+def behind_on_plan(milestones: Sequence[PlanMilestone]) -> bool:
+    """True when a milestone is overdue, which is what 'behind on the plan' means."""
+    return _count_status(milestones, MilestoneStatus.OVERDUE) > 0
+
+
+def plan_summary(milestones: Sequence[PlanMilestone]) -> str:
+    """'2 of 6 done, 1 overdue'. The overdue part is left out when nothing is overdue."""
+    done = _count_status(milestones, MilestoneStatus.DONE)
+    overdue = _count_status(milestones, MilestoneStatus.OVERDUE)
+    text = f"{done} of {len(milestones)} done"
+    return f"{text}, {overdue} overdue" if overdue else text
+
+
+_DOT_STATES: dict[MilestoneStatus, str] = {
+    MilestoneStatus.DONE: "done",
+    MilestoneStatus.OVERDUE: "overdue",
+}
+
+
+def plan_dots(milestones: Sequence[PlanMilestone]) -> list[str]:
+    """One dot state per milestone, in plan order: done, overdue, or open for every other step."""
+    return [_DOT_STATES.get(step.status, "open") for step in milestones]
+
+
+def onboarding_plain_text(brief: OnboardingBrief) -> str:
+    """The brief as plain text, for Copy as text. Sections are separated by a blank line."""
+    account = brief.account
+    facts = (
+        f"Day {brief.day} of {brief.window_days}. {brief.health.label}. "
+        f"${account.arr:,.0f} ARR. {account.owner}."
+    )
+    plan = [f"{step.position}. {step.name}: {step.status.label}" for step in brief.milestones]
+    agenda = [
+        f"{number}. {item.topic}: {item.detail}"
+        for number, item in enumerate(brief.agenda, start=1)
+    ]
+    questions = [f"- {question}" for question in brief.questions]
+    sections = [
+        _section(f"{account.name} onboarding brief", [facts]),
+        brief.summary,
+        _section("The plan", plan),
+        _section("Agenda for the call", agenda),
+        _section("Questions to ask", questions),
+        f"Next step: {brief.suggested_action}",
+    ]
+    return "\n\n".join(sections)
+
+
+def _section(heading: str, lines: list[str]) -> str:
+    return "\n".join([heading, *lines])
+
+
+def _count_status(milestones: Sequence[PlanMilestone], status: MilestoneStatus) -> int:
+    return sum(1 for step in milestones if step.status is status)
 
 
 def _as_date(value: date | datetime) -> date:

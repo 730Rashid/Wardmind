@@ -782,7 +782,8 @@ a.button {
   gap: var(--space-4);
 }
 
-.account-back {
+.account-back,
+.brief-back {
   font-size: var(--t-sm);
   line-height: var(--lh-sm);
 }
@@ -810,7 +811,8 @@ a.button {
   line-height: var(--lh-sm);
 }
 
-.account-summary {
+.account-summary,
+.brief-summary {
   max-inline-size: 60ch;
   font-size: var(--t-md);
   line-height: var(--lh-md);
@@ -1167,6 +1169,263 @@ a.button {
 
 .top-next-label {
   color: var(--ink-muted);
+}
+
+/* Onboarding prep. The picker is a call sheet like My book, and the plan reads as dots. The brief
+   is set like a document: one column, numbered where the content is a sequence. */
+.onboarding-page,
+.onboarding-brief {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+}
+
+.onboarding-section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.onboarding-head {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.onboarding-table {
+  inline-size: 100%;
+  border-collapse: collapse;
+  background: var(--surface);
+}
+
+.onboarding-table th,
+.onboarding-table td {
+  padding: var(--cell-pad);
+  vertical-align: top;
+  text-align: start;
+}
+
+.onboarding-table thead th {
+  padding-block-end: var(--space-2);
+  font-size: var(--t-sm);
+  line-height: var(--lh-sm);
+  font-weight: 600;
+  color: var(--ink-muted);
+  border-block-end: 1px solid var(--line);
+}
+
+.onboarding-table tbody tr {
+  border-block-end: 1px solid var(--line);
+}
+
+.onboarding-table tbody tr:hover {
+  background: var(--paper);
+}
+
+.onboarding-table .cell-day,
+.onboarding-table .cell-action {
+  white-space: nowrap;
+}
+
+.onboarding-table .cell-day {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Plan dots: 8px circles with a 4px gap. The shape carries the state as well as the colour. */
+.plan-cell {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1) var(--space-3);
+}
+
+.plan-dots {
+  display: inline-flex;
+  gap: var(--space-1);
+}
+
+.plan-dot {
+  display: inline-block;
+  inline-size: 8px;
+  block-size: 8px;
+  border-radius: 50%;
+}
+
+.plan-dot--done {
+  background: var(--ink-muted);
+}
+
+.plan-dot--overdue {
+  background: var(--ink);
+  border-radius: 0;
+}
+
+.plan-dot--open {
+  border: 1.5px solid var(--control);
+}
+
+.alert {
+  padding-inline-start: var(--space-4);
+  border-inline-start: 3px solid var(--ink);
+}
+
+.open-form {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+  margin: 0;
+}
+
+.open-form select {
+  min-inline-size: 16rem;
+  max-inline-size: 100%;
+  padding-block: var(--space-2);
+  padding-inline: var(--space-3);
+}
+
+/* The brief's notes and actions. The actions are a no-print group, and the status line sits in it. */
+.brief-note,
+.section-note {
+  font-size: var(--t-sm);
+  line-height: var(--lh-sm);
+  color: var(--ink-muted);
+}
+
+.brief-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.copy-status {
+  font-size: var(--t-sm);
+  line-height: var(--lh-sm);
+  color: var(--ink);
+}
+
+/* The plan is a sequence, so it is numbered. NEXT and OVERDUE are ink and bold; the rest is muted.
+   The number and the row share the list item, so the row is a grid inside it, not the item. */
+.plan,
+.agenda,
+.questions {
+  margin: 0;
+  padding-inline-start: var(--space-6);
+}
+
+.plan > li + li,
+.questions > li + li {
+  margin-block-start: var(--space-2);
+}
+
+.plan li::marker,
+.agenda li::marker {
+  font-variant-numeric: tabular-nums;
+}
+
+.plan-step {
+  color: var(--ink-muted);
+}
+
+.plan-step--next,
+.plan-step--overdue {
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.plan-row {
+  display: grid;
+  grid-template-columns: minmax(0, 14rem) auto;
+  column-gap: var(--space-4);
+  align-items: baseline;
+}
+
+.plan-status {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.agenda,
+.questions {
+  max-inline-size: 70ch;
+}
+
+.agenda > li + li {
+  margin-block-start: var(--list-gap);
+}
+
+.agenda li p + p {
+  margin-block-start: var(--space-1);
+}
+
+.agenda-topic {
+  font-weight: 600;
+}
+
+@media (max-width: 559px) {
+  .plan-row {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* Narrow screens: each account is a block, with the health beside the day and the plan beside the
+   action. The header row is hidden, as on My book. */
+@media (max-width: 719px) {
+  .onboarding-table thead {
+    position: absolute;
+    inline-size: 1px;
+    block-size: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  .onboarding-table,
+  .onboarding-table tbody {
+    display: block;
+  }
+
+  .onboarding-table tbody tr {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas:
+      "account account"
+      "health day"
+      "plan action";
+    column-gap: var(--space-3);
+    row-gap: var(--space-2);
+    padding-block: var(--cell-pad);
+  }
+
+  .onboarding-table tbody th,
+  .onboarding-table tbody td {
+    display: block;
+    padding: 0;
+  }
+
+  .onboarding-table .cell-account {
+    grid-area: account;
+  }
+
+  .onboarding-table .cell-health {
+    grid-area: health;
+  }
+
+  .onboarding-table .cell-day {
+    grid-area: day;
+    justify-self: end;
+  }
+
+  .onboarding-table .cell-plan {
+    grid-area: plan;
+  }
+
+  .onboarding-table .cell-action {
+    grid-area: action;
+    justify-self: end;
+  }
 }
 
 /* Settings. A quiet form in one column, at most 40rem wide. From 960px the sub-navigation is a
@@ -1613,5 +1872,82 @@ a.button {
 
   h2 {
     break-after: avoid;
+  }
+
+  /* The onboarding brief is one A4 page. Body text is one step down from the screen's 16px, and
+     sections are set further apart than their own heading and content, so each heading stays
+     with what it introduces. */
+  .onboarding-brief {
+    gap: var(--space-2);
+    font-size: var(--t-sm);
+    line-height: var(--lh-sm);
+  }
+
+  .onboarding-head {
+    gap: var(--space-1);
+  }
+
+  .onboarding-brief .section-title {
+    font-size: var(--t-body);
+    line-height: var(--lh-body);
+  }
+
+  /* Print is as wide as the paper, so the narrow-screen rules would stack the signals table. The
+     brief puts it back as a table, with shorter rows, so it fits on one page. */
+  .onboarding-brief .breakdown {
+    display: table;
+  }
+
+  .onboarding-brief .breakdown thead {
+    position: static;
+    inline-size: auto;
+    block-size: auto;
+    overflow: visible;
+    clip-path: none;
+    white-space: normal;
+  }
+
+  .onboarding-brief .breakdown tbody {
+    display: table-row-group;
+  }
+
+  .onboarding-brief .breakdown tbody tr {
+    display: table-row;
+    padding-block: 0;
+  }
+
+  .onboarding-brief .breakdown th,
+  .onboarding-brief .breakdown td {
+    display: table-cell;
+    padding: var(--space-1) var(--space-2);
+    font-size: var(--t-sm);
+    line-height: var(--lh-sm);
+  }
+
+  .onboarding-section {
+    gap: var(--space-1);
+    break-inside: avoid;
+  }
+
+  .plan > li + li,
+  .agenda > li + li,
+  .questions > li + li {
+    margin-block-start: var(--space-1);
+  }
+
+  /* The six plan steps run in two columns, so they take three lines. */
+  .plan {
+    columns: 2;
+    column-gap: var(--space-6);
+  }
+
+  .plan-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .plan-step,
+  .agenda li,
+  .questions li {
+    break-inside: avoid;
   }
 }

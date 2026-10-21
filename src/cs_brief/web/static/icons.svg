@@ -16,6 +16,18 @@
   <symbol id="arrow-down" viewBox="0 0 16 16" fill="currentColor">
     <path d="M8 14.2 13.2 8.4 11.7 7 9.25 9.7V1.8H6.75V9.7L4.3 7 2.8 8.4Z"/>
   </symbol>
+  <symbol id="status-done" viewBox="0 0 16 16" fill="currentColor">
+    <path d="M6.4 11.2 2.9 7.7l1.1-1.1 2.4 2.4 5.6-5.6 1.1 1.1Z"/>
+  </symbol>
+  <symbol id="status-overdue" viewBox="0 0 16 16" fill="currentColor">
+    <path d="M3 3h10v10H3Z"/>
+  </symbol>
+  <symbol id="status-next" viewBox="0 0 16 16" fill="currentColor">
+    <path d="M2 6.5h7V3.8L13.8 8 9 12.2V9.5H2Z"/>
+  </symbol>
+  <symbol id="status-upcoming" viewBox="0 0 16 16" fill="currentColor">
+    <path fill-rule="evenodd" d="M8 2.5a5.5 5.5 0 1 0 0 11 5.5 5.5 0 1 0 0-11Zm0 1.5a4 4 0 1 1 0 8 4 4 0 0 1 0-8Z"/>
+  </symbol>
   <symbol id="search" viewBox="0 0 16 16" fill="currentColor">
     <path fill-rule="evenodd" d="M6.5 1.5a5 5 0 1 0 0 10 5 5 0 1 0 0-10Zm0 1.5a3.5 3.5 0 1 1 0 7 3.5 3.5 0 0 1 0-7Z"/>
     <path d="M10.9 9.5 14.9 13.5 13.5 14.9 9.5 10.9Z"/>

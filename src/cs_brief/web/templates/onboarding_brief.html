@@ -1,0 +1,76 @@
+{% extends "base.html" %}
+{% from "partials/breakdown_table.html" import breakdown_table %}
+{% block content %}
+{% set account = brief.account %}
+<div class="onboarding-brief">
+  <p class="brief-back no-print"><a href="/onboarding">Back to onboarding prep</a></p>
+
+  <header class="onboarding-head">
+    <h1 class="page-title">{{ account.name }} onboarding brief</h1>
+    <ul class="facts">
+      <li>Day {{ brief.day }} of {{ brief.window_days }}</li>
+      <li><span class="health health--{{ brief.health.value }}"><svg class="icon" aria-hidden="true" focusable="false"><use href="/static/icons.svg#health-{{ brief.health.value | replace('_', '-') }}"/></svg> {{ brief.health.label }}</span></li>
+      <li>{{ account.arr | money }} ARR</li>
+      <li>{{ account.owner }}</li>
+    </ul>
+    {% if not brief.in_onboarding %}
+    <p class="brief-note" role="note">{{ account.name }} isn't in onboarding right now. This brief shows its plan for reference.</p>
+    {% endif %}
+    <div class="brief-actions no-print">
+      <button type="button" class="button js-only" data-print>Print or save as PDF</button>
+      <button type="button" class="button js-only" data-copy-target="#brief-text">Copy as text</button>
+      <p class="copy-status" role="status" aria-live="polite"></p>
+    </div>
+  </header>
+
+  <p class="brief-summary">{{ brief.summary }}</p>
+
+  <section class="onboarding-section" aria-labelledby="plan-heading">
+    <h2 class="section-title" id="plan-heading">The plan</h2>
+    <ol class="plan">
+      {% for step in brief.milestones %}
+      <li class="plan-step plan-step--{{ step.status.value }}" value="{{ step.position }}">
+        <span class="plan-row">
+          <span class="plan-name">{{ step.name }}</span>
+          <span class="plan-status"><svg class="icon" aria-hidden="true" focusable="false"><use href="/static/icons.svg#status-{{ step.status.value }}"/></svg> {{ step.status.label }}</span>
+        </span>
+      </li>
+      {% endfor %}
+    </ol>
+    <p class="section-note">Steps from the standard onboarding plan.</p>
+  </section>
+
+  <section class="onboarding-section" aria-labelledby="agenda-heading">
+    <h2 class="section-title" id="agenda-heading">Agenda for the call</h2>
+    <ol class="agenda">
+      {% for item in brief.agenda %}
+      <li>
+        <p class="agenda-topic">{{ item.topic }}</p>
+        <p>{{ item.detail }}</p>
+      </li>
+      {% endfor %}
+    </ol>
+  </section>
+
+  <section class="onboarding-section" aria-labelledby="questions-heading">
+    <h2 class="section-title" id="questions-heading">Questions to ask</h2>
+    <ul class="questions">
+      {% for question in brief.questions %}
+      <li>{{ question }}</li>
+      {% endfor %}
+    </ul>
+  </section>
+
+  <section class="onboarding-section" aria-labelledby="signals-heading">
+    <h2 class="section-title" id="signals-heading">Signals to watch</h2>
+    {{ breakdown_table(brief.signals, longest, "How each signal adds to the risk score") }}
+  </section>
+
+  <section class="onboarding-section next-step" aria-labelledby="next-step-heading">
+    <h2 class="section-title" id="next-step-heading">Next step</h2>
+    <p>{{ brief.suggested_action }}</p>
+  </section>
+
+  <template id="brief-text">{{ plain_text }}</template>
+</div>
+{% endblock %}

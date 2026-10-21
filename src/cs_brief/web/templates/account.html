@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "partials/breakdown_table.html" import breakdown_table %}
 {% block content %}
 {% set account = detail.scored.account %}
 {% set health = detail.scored.health %}
@@ -25,29 +26,7 @@
     <section class="account-section score" aria-labelledby="score-heading">
       <h2 class="section-title" id="score-heading">Why it's ranked {{ detail.rank }} of {{ detail.book_size }}</h2>
       {% set longest = detail.breakdown | map(attribute="max_points") | max %}
-      <table class="breakdown">
-        <caption class="visually-hidden">How each signal adds to the risk score</caption>
-        <thead>
-          <tr>
-            <th scope="col">Signal</th>
-            <th scope="col">Reading</th>
-            <th scope="col" class="num">Points</th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for row in detail.breakdown %}
-          {% set track, fill = bar_geometry(row, longest) %}
-          <tr{% if row.contribution == 0 %} class="breakdown-row--muted"{% endif %}>
-            <th scope="row" class="cell-signal">{{ row.label }}</th>
-            <td class="cell-reading">{{ row.value_text }}</td>
-            <td class="cell-points num">
-              <svg class="pbar" width="{{ track }}" height="8" role="img" aria-label="{{ row.contribution | number }} of {{ row.max_points | number }} points"><rect class="pbar-track" width="{{ track }}" height="8"/><rect class="pbar-fill" width="{{ fill }}" height="8"/></svg>
-              <span class="points-text">{{ row.contribution | number }} of {{ row.max_points | number }}</span>
-            </td>
-          </tr>
-          {% endfor %}
-        </tbody>
-      </table>
+      {{ breakdown_table(detail.breakdown, longest, "How each signal adds to the risk score") }}
       <p class="risk-sentence">{{ risk_sentence(detail.scored.risk, detail.scored.priority, health, thresholds) }}</p>
     </section>
 
