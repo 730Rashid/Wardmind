@@ -7,7 +7,7 @@ from __future__ import annotations
 
 from datetime import date
 
-from cs_brief.core.briefs import AccountDetail, suggest_action
+from cs_brief.core.briefs import AccountDetail, account_detail, suggest_action
 from cs_brief.core.config import ScoringConfig, load_scoring_config
 from cs_brief.core.connectors.base import Connector
 from cs_brief.core.connectors.demo import DemoConnector
@@ -61,7 +61,12 @@ def get_account_detail(
 
     Uses one connector, config and as_of for both the book and the account's signal history.
     """
-    raise NotImplementedError
+    connector = connector if connector is not None else get_connector()
+    config = config if config is not None else load_scoring_config()
+    as_of = as_of if as_of is not None else date.today()
+    book = get_book(connector, config, as_of)
+    signals = connector.list_signals(account_id)
+    return account_detail(book, account_id, signals, config, as_of)
 
 
 def find_account(book: list[ScoredAccount], account_id: str) -> ScoredAccount | None:

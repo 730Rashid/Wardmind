@@ -11,6 +11,7 @@ from pydantic import BaseModel
 
 from cs_brief.core.config import ScoringConfig
 from cs_brief.core.models import Health, Motion, Reason, ScoredAccount, Signal, SignalKind
+from cs_brief.core.scoring import describe, latest_signals, normalise
 
 # Short names for each signal, used as row labels in the account view.
 SIGNAL_LABELS: dict[SignalKind, str] = {
@@ -79,7 +80,9 @@ class AccountDetail(BaseModel):
     book_size: int
     days_since_start: int
     days_to_renewal: int  # negative once the renewal date has passed
-    breakdown: list[BreakdownRow]  # every SignalKind: contribution desc, then SignalKind order
+    # Every SignalKind: contribution desc, then kind value asc (the same tie-break as
+    # ScoredAccount.reasons, so the non-zero rows match the reasons exactly).
+    breakdown: list[BreakdownRow]
     timeline: list[TimelineEntry]  # every reading for the account, newest first
 
 
@@ -95,7 +98,97 @@ def account_detail(
     Returns None when the account isn't in the book. Ties in the timeline (same observed_at)
     sort by SignalKind order so the output is deterministic.
     """
-    raise NotImplementedError
+    position = next(
+        (index for index, item in enumerate(book) if item.account.id == account_id), None
+    )
+    if position is None:
+        return None
+    scored = book[position]
+    account = scored.account
+    readings = [signal for signal in signals if signal.account_id == account_id]
+    latest = latest_signals(readings).get(account_id, {})
+    return AccountDetail(
+        scored=scored,
+        explanation=explain(scored),
+        rank=position + 1,
+        book_size=len(book),
+        days_since_start=(as_of - account.start_date).days,
+        days_to_renewal=(account.renewal_date - as_of).days,
+        breakdown=_breakdown(latest, config),
+        timeline=_timeline(readings, latest, config),
+    )
+
+
+_NO_READING = "No reading"
+# Declaration position of each kind, the timeline's tie-break on equal observed_at.
+_KIND_ORDER: dict[SignalKind, int] = {kind: index for index, kind in enumerate(SignalKind)}
+
+
+def _breakdown(latest: dict[SignalKind, Signal], config: ScoringConfig) -> list[BreakdownRow]:
+    rows: list[BreakdownRow] = []
+    for kind in SignalKind:
+        rule = config.signals[kind]
+        reading = latest.get(kind)
+        if reading is None:
+            rows.append(
+                BreakdownRow(
+                    kind=kind,
+                    label=SIGNAL_LABELS[kind],
+                    value_text=_NO_READING,
+                    contribution=0.0,
+                    max_points=rule.weight,
+                    observed_at=None,
+                )
+            )
+        else:
+            rows.append(
+                BreakdownRow(
+                    kind=kind,
+                    label=SIGNAL_LABELS[kind],
+                    value_text=describe(kind, reading.value),
+                    contribution=_contribution(reading, config),
+                    max_points=rule.weight,
+                    observed_at=reading.observed_at,
+                )
+            )
+    # Same tie-break as scoring.score_account's reasons, so the non-zero rows match them exactly.
+    return sorted(rows, key=lambda row: (-row.contribution, row.kind.value))
+
+
+def _timeline(
+    readings: list[Signal], latest: dict[SignalKind, Signal], config: ScoringConfig
+) -> list[TimelineEntry]:
+    # Newest first. Equal timestamps go by SignalKind order, then by the larger value.
+    ordered = sorted(
+        readings,
+        key=lambda signal: (signal.observed_at, -_KIND_ORDER[signal.kind], signal.value),
+        reverse=True,
+    )
+    entries: list[TimelineEntry] = []
+    flagged: set[SignalKind] = set()
+    for signal in ordered:
+        # Only the one reading latest_signals picked for each kind is flagged.
+        is_latest = signal is latest.get(signal.kind) and signal.kind not in flagged
+        if is_latest:
+            flagged.add(signal.kind)
+        entries.append(
+            TimelineEntry(
+                observed_at=signal.observed_at,
+                kind=signal.kind,
+                label=SIGNAL_LABELS[signal.kind],
+                value=signal.value,
+                plain_english=describe(signal.kind, signal.value),
+                contribution=_contribution(signal, config),
+                is_latest=is_latest,
+            )
+        )
+    return entries
+
+
+def _contribution(signal: Signal, config: ScoringConfig) -> float:
+    """Risk points one reading adds. Same formula and rounding as scoring.score_account."""
+    rule = config.signals[signal.kind]
+    return round(rule.weight * normalise(signal.value, rule), 1)
 
 
 _NO_ACTION = "No action needed this week."
