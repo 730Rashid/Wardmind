@@ -26,3 +26,20 @@ document.addEventListener("change", (event) => {
     document.documentElement.setAttribute(attribute, input.value);
   }
 });
+
+// Settings > Scoring. Each slider's <output> shows its value and unit. The server writes the first
+// text, so the page reads correctly without JavaScript; this keeps the text in step as a slider moves.
+function showSliderValue(slider) {
+  const output = document.querySelector(`output[for="${slider.id}"]`);
+  if (!output) return;
+  const value = Number(slider.value);
+  const singular = output.dataset.suffixOne;
+  const suffix = value === 1 && singular ? singular : (output.dataset.suffix || "");
+  output.textContent = `${value}${suffix}`;
+}
+
+document.querySelectorAll('input[type="range"]').forEach(showSliderValue);
+document.addEventListener("input", (event) => {
+  const slider = event.target;
+  if (slider instanceof HTMLInputElement && slider.type === "range") showSliderValue(slider);
+});

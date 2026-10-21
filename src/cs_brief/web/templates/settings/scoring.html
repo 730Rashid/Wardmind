@@ -1,5 +1,75 @@
 {% extends "settings/layout.html" %}
+{% import "settings/fields.html" as fields %}
 {% block settings %}
-<p class="prose">Scoring is coming in a later build.</p>
-<p><a href="/">Back to My book</a></p>
+<div class="scoring-page">
+  <p class="prose">Changes apply to every screen and to Claude once you save them.</p>
+
+  <div class="scoring-layout">
+    <form id="scoring-form" class="settings-form scoring-form" method="post" action="/settings/scoring" novalidate>
+      {% if errors %}
+      <p class="field-error" role="alert">Nothing was saved. Fix the marked settings, then save again.</p>
+      {% endif %}
+      {% if errors.form %}
+      <p class="field-error">{{ errors.form }}</p>
+      {% endif %}
+
+      {# The preview refreshes as values change. The Save button is outside this wrapper, so it
+         submits the form normally. #}
+      <div class="scoring-fields"
+           hx-post="/settings/scoring/preview"
+           hx-trigger="input changed delay:300ms, change"
+           hx-include="#scoring-form"
+           hx-target="#scoring-preview"
+           hx-swap="innerHTML">
+
+        <fieldset class="signals">
+          <legend>Signals</legend>
+          {% for kind in kinds %}
+          {% set key = kind.value %}
+          {% set weight_name = "signals." ~ key ~ ".weight" %}
+          {% set start_name = "signals." ~ key ~ ".start" %}
+          {% set full_name = "signals." ~ key ~ ".full" %}
+          {% set hint_id = "signals-" ~ key ~ "-hint" %}
+          <div class="signal" role="group" aria-labelledby="signal-{{ key }}-title">
+            <h3 class="signal-title" id="signal-{{ key }}-title">{{ signal_labels[kind] }}</h3>
+            {{ fields.slider(name=weight_name, label="Weight", low=0, high=slider_max(values[weight_name], 50), step=1, value=values[weight_name], error=errors.get(weight_name, ""), suffix=" points", singular=" point") }}
+            <div class="signal-range">
+              {{ fields.number_field(name=start_name, label="Risk starts at", value=values[start_name], error=errors.get(start_name, ""), hint_id=hint_id) }}
+              {{ fields.number_field(name=full_name, label="Risk is maxed at", value=values[full_name], error=errors.get(full_name, ""), hint_id=hint_id) }}
+            </div>
+            <p class="field-help" id="{{ hint_id }}">{{ signal_hints[kind] }}</p>
+          </div>
+          {% endfor %}
+        </fieldset>
+
+        <fieldset>
+          <legend>Health bands</legend>
+          {{ fields.slider(name="thresholds.at_risk", label="At risk from", low=0, high=100, step=1, value=values["thresholds.at_risk"], error=errors.get("thresholds.at_risk", "")) }}
+          {{ fields.slider(name="thresholds.watch", label="Watch from", low=0, high=100, step=1, value=values["thresholds.watch"], error=errors.get("thresholds.watch", "")) }}
+        </fieldset>
+
+        <fieldset>
+          <legend>Priority</legend>
+          {{ fields.slider(name="arr.weight_pct", label="How much ARR lifts priority", low=0, high=100, step=5, value=values["arr.weight_pct"], error=errors.get("arr.weight_pct", ""), suffix="%") }}
+        </fieldset>
+
+        <fieldset>
+          <legend>Motion windows</legend>
+          {{ fields.number_field(name="motion.onboarding_days", label="Onboarding lasts", value=values["motion.onboarding_days"], error=errors.get("motion.onboarding_days", ""), step="1", unit="days") }}
+          {{ fields.number_field(name="motion.renewal_window_days", label="Renewal window", value=values["motion.renewal_window_days"], error=errors.get("motion.renewal_window_days", ""), step="1", unit="days") }}
+        </fieldset>
+      </div>
+
+      <div class="scoring-actions">
+        <button type="submit" class="button-primary">Save changes</button>
+        <a class="button" href="/settings/scoring?defaults=1">Reset to defaults</a>
+      </div>
+    </form>
+
+    <section id="scoring-preview" class="scoring-preview" aria-live="polite" aria-labelledby="preview-title">
+      <h2 class="section-title" id="preview-title">What would change</h2>
+      {% include "settings/partials/scoring_preview.html" %}
+    </section>
+  </div>
+</div>
 {% endblock %}

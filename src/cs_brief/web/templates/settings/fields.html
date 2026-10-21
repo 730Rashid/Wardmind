@@ -1,0 +1,27 @@
+{# Form controls for Settings > Scoring. Each one takes its field name, the text it shows and its
+   error, and marks the input invalid and linked to its message when there is one. #}
+
+{% macro slider(name, label, low, high, step, value, error="", suffix="", singular="") %}
+{% set id = name | replace(".", "-") %}
+<div class="slider">
+  <label for="{{ id }}">{{ label }}</label>
+  <div class="slider-control">
+    <input type="range" id="{{ id }}" name="{{ name }}" min="{{ low }}" max="{{ high }}" step="{{ step }}" value="{{ value }}"{% if error %} aria-invalid="true" aria-describedby="{{ id }}-error"{% endif %}>
+    <output for="{{ id }}" data-suffix="{{ suffix }}" data-suffix-one="{{ singular }}">{{ scoring_output(value, suffix, singular) }}</output>
+  </div>
+  {% if error %}<p class="field-error" id="{{ id }}-error">{{ error }}</p>{% endif %}
+</div>
+{% endmacro %}
+
+{% macro number_field(name, label, value, error="", step="any", hint_id="", unit="") %}
+{% set id = name | replace(".", "-") %}
+{% set described = (hint_id ~ " " if hint_id else "") ~ (id ~ "-error" if error else "") %}
+<div class="field">
+  <label for="{{ id }}">{{ label }}</label>
+  <div class="number-control">
+    <input type="number" id="{{ id }}" name="{{ name }}" step="{{ step }}" value="{{ value }}"{% if described %} aria-describedby="{{ described | trim }}"{% endif %}{% if error %} aria-invalid="true"{% endif %}>
+    {% if unit %}<span class="field-unit">{{ unit }}</span>{% endif %}
+  </div>
+  {% if error %}<p class="field-error" id="{{ id }}-error">{{ error }}</p>{% endif %}
+</div>
+{% endmacro %}

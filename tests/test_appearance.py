@@ -161,10 +161,10 @@ def test_every_accent_has_a_swatch_and_a_radio(client: TestClient) -> None:
         assert f"swatch swatch--{accent.value}" in text
 
 
-def test_scoring_is_a_coming_page_inside_settings(client: TestClient) -> None:
+def test_scoring_is_a_form_inside_settings(client: TestClient) -> None:
     response = client.get("/settings/scoring")
     assert response.status_code == 200
-    assert "Scoring is coming in a later build." in response.text
+    assert 'id="scoring-form"' in response.text
     links = _settings_links(response.text)
     assert [a["href"] for a in links if a.get("aria-current") == "page"] == ["/settings/scoring"]
 

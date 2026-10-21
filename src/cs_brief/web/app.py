@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import math
 from collections.abc import Awaitable, Callable, Mapping
+from dataclasses import dataclass
 from datetime import date
 from enum import StrEnum
 from pathlib import Path
@@ -23,8 +24,8 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 
 from cs_brief.core import briefs, service
-from cs_brief.core.config import load_scoring_config
-from cs_brief.core.models import Health, Motion, ScoredAccount
+from cs_brief.core.config import ScoringConfig, load_scoring_config, save_scoring_config
+from cs_brief.core.models import Health, Motion, ScoredAccount, SignalKind
 from cs_brief.core.settings import (
     Accent,
     Density,
@@ -35,6 +36,14 @@ from cs_brief.core.settings import (
     save_settings,
 )
 from cs_brief.web import formatting
+from cs_brief.web.scoring_form import (
+    FIELD_NAMES,
+    UNIT_HINTS,
+    form_values,
+    parse_scoring_form,
+    scoring_output,
+    slider_max,
+)
 
 HOST = "127.0.0.1"  # fixed: no CLI flag or environment variable may change it
 
@@ -200,6 +209,8 @@ _env.globals["risk_sentence"] = formatting.risk_sentence
 _env.globals["bar_geometry"] = formatting.bar_geometry
 _env.globals["book_bar_segments"] = formatting.book_bar_segments
 _env.globals["count_bar_width"] = formatting.count_bar_width
+_env.globals["scoring_output"] = scoring_output
+_env.globals["slider_max"] = slider_max
 templates = Jinja2Templates(env=_env)
 
 
@@ -246,6 +257,117 @@ def _render_appearance(
         errors=dict(errors or {}),
         notice="Appearance saved." if saved else "",
         status_code=status_code,
+    )
+
+
+SCORING_PREVIEW_TOP_N = 10  # the preview lists this many accounts
+_SCORING_DEFAULTS_NOTICE = "Showing the defaults. Save changes to use them."
+_SCORING_SAVED_NOTICE = "Scoring saved. Every screen and Claude now use it."
+
+
+@dataclass(frozen=True)
+class _Mover:
+    """One line of the preview's top ten: the account, where it lands, and how far it moved."""
+
+    rank: int
+    account_id: str
+    name: str
+    movement: str  # "Up 1", "Down 2", "No change", or "New in top 10 (was 14)"
+    arrow: str  # the sprite symbol drawn beside the words, or "" for none
+
+
+@dataclass(frozen=True)
+class _Preview:
+    """What the scoring preview shows. When there are alerts, they replace the sentence and list."""
+
+    alerts: list[str]
+    sentence: str
+    movers: list[_Mover]
+
+
+def _render_scoring(
+    request: Request,
+    *,
+    values: Mapping[str, str],
+    errors: Mapping[str, str],
+    preview: _Preview,
+    notice: str = "",
+    status_code: int = 200,
+) -> HTMLResponse:
+    """The Scoring page. `values` is what each form field shows; `errors` is keyed by field."""
+    return _render(
+        request,
+        "settings/scoring.html",
+        page="Scoring",
+        active="settings",
+        section="scoring",
+        values=dict(values),
+        errors=dict(errors),
+        preview=preview,
+        notice=notice,
+        kinds=list(SignalKind),
+        signal_labels=briefs.SIGNAL_LABELS,
+        signal_hints=UNIT_HINTS,
+        status_code=status_code,
+    )
+
+
+async def _posted_fields(request: Request) -> dict[str, str]:
+    """The text fields of a posted form. The scoring form has no file fields."""
+    form = await request.form()
+    return {key: value for key, value in form.items() if isinstance(value, str)}
+
+
+def _scoring_preview(draft: ScoringConfig) -> _Preview:
+    """What `draft` would change against the saved config: the at-risk counts and the top ten."""
+    today = date.today()
+    before = service.get_book(as_of=today)
+    after = service.get_book(config=draft, as_of=today)
+    now = briefs.weekly_brief(before, as_of=today).counts_by_health[Health.AT_RISK]
+    with_changes = briefs.weekly_brief(after, as_of=today).counts_by_health[Health.AT_RISK]
+    same_accounts = _at_risk_ids(before) == _at_risk_ids(after)
+    changes = briefs.compare_rankings(before, after, SCORING_PREVIEW_TOP_N)
+    return _Preview(
+        alerts=[],
+        sentence=_at_risk_sentence(now, with_changes, same_accounts),
+        movers=[_mover(change) for change in changes],
+    )
+
+
+def _preview_alerts(errors: Mapping[str, str]) -> _Preview:
+    """The preview for a form that can't be turned into a config yet: the messages, no ranking."""
+    return _Preview(alerts=list(errors.values()), sentence="", movers=[])
+
+
+def _at_risk_ids(book: list[ScoredAccount]) -> set[str]:
+    return {item.account.id for item in book if item.health is Health.AT_RISK}
+
+
+def _at_risk_sentence(now: int, with_changes: int, same_accounts: bool) -> str:
+    """'10 accounts at risk now; 11 with these changes.', or 'No change to who is at risk.'"""
+    if same_accounts:
+        return "No change to who is at risk."
+    now_text = f"{now} {_word(now, 'account', 'accounts')}"
+    changed_text = f"{with_changes} {_word(with_changes, 'account', 'accounts')}"
+    return f"{now_text} at risk now; {changed_text} with these changes."
+
+
+def _mover(change: briefs.RankChange) -> _Mover:
+    if change.entered_top:
+        movement = f"New in top {SCORING_PREVIEW_TOP_N} (was {change.old_rank})"
+        arrow = "arrow-up"
+    elif change.movement > 0:
+        movement, arrow = f"Up {change.movement}", "arrow-up"
+    elif change.movement < 0:
+        movement, arrow = f"Down {-change.movement}", "arrow-down"
+    else:
+        movement, arrow = "No change", ""
+    return _Mover(
+        rank=change.new_rank,
+        account_id=change.account_id,
+        name=change.name,
+        movement=movement,
+        arrow=arrow,
     )
 
 
@@ -403,14 +525,49 @@ def create_app() -> FastAPI:
         return RedirectResponse("/settings/appearance?saved=1", status_code=303)
 
     @app.get("/settings/scoring")
-    def scoring(request: Request) -> HTMLResponse:
-        return _render(
+    def scoring(request: Request, saved: str = "", defaults: str = "") -> HTMLResponse:
+        """The scoring form, with its preview. ?defaults=1 shows the built-in defaults, unsaved."""
+        if defaults == "1":
+            draft, notice = ScoringConfig(), _SCORING_DEFAULTS_NOTICE
+        else:
+            draft = load_scoring_config()
+            notice = _SCORING_SAVED_NOTICE if saved == "1" else ""
+        return _render_scoring(
             request,
-            "settings/scoring.html",
-            page="Scoring",
-            active="settings",
-            section="scoring",
+            values=form_values(draft),
+            errors={},
+            preview=_scoring_preview(draft),
+            notice=notice,
         )
+
+    @app.post("/settings/scoring/preview")
+    async def scoring_preview(request: Request) -> HTMLResponse:
+        """The preview partial for the posted form. htmx swaps it into the preview column."""
+        draft, errors = parse_scoring_form(await _posted_fields(request), load_scoring_config())
+        preview = _scoring_preview(draft) if draft is not None else _preview_alerts(errors)
+        return templates.TemplateResponse(
+            request, "settings/partials/scoring_preview.html", {"preview": preview}
+        )
+
+    @app.post("/settings/scoring")
+    async def save_scoring(request: Request) -> Response:
+        """Save the scoring form. A bad value re-renders the page with each message (422) and
+        writes nothing. Cross-site posts never get here (see same_origin_writes)."""
+        fields = await _posted_fields(request)
+        base = load_scoring_config()
+        draft, errors = parse_scoring_form(fields, base)
+        if draft is None:
+            # Keep what was typed, so the person fixes the one value instead of retyping the form.
+            typed = {name: fields[name] for name in FIELD_NAMES if name in fields}
+            return _render_scoring(
+                request,
+                values={**form_values(base), **typed},
+                errors=errors,
+                preview=_preview_alerts(errors),
+                status_code=422,
+            )
+        save_scoring_config(draft)
+        return RedirectResponse("/settings/scoring?saved=1", status_code=303)
 
     @app.get("/accounts/{account_id}")
     def account(request: Request, account_id: str) -> HTMLResponse:

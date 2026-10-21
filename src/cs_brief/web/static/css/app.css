@@ -466,12 +466,20 @@ button {
   display: inline-block;
 }
 
-/* A secondary button: the neutral border and no fill. */
+/* A secondary button: the neutral border and no fill. Also used on a link, which needs the box. */
 .button {
   padding: var(--space-2) var(--space-4);
   background: transparent;
+  border: 1px solid var(--control);
+  border-radius: var(--radius-control);
+  color: var(--ink);
   white-space: nowrap;
   cursor: pointer;
+}
+
+a.button {
+  display: inline-block;
+  text-decoration: none;
 }
 
 .button:hover {
@@ -1313,6 +1321,188 @@ button {
   .settings-nav-list {
     flex-direction: column;
     gap: var(--space-3);
+  }
+}
+
+/* Settings > Scoring. The form is a single column of at most 40rem. From 1100px the preview is a
+   sticky column beside it; below that it follows the form. The page is wider than the others. */
+@media (min-width: 960px) {
+  .settings-layout--wide {
+    grid-template-columns: 11rem minmax(0, 1fr);
+  }
+
+  .settings-layout--wide .settings-body {
+    max-inline-size: none;
+  }
+}
+
+.scoring-page,
+.scoring-layout {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+
+.scoring-layout {
+  gap: var(--space-6);
+}
+
+.scoring-form {
+  max-inline-size: 40rem;
+}
+
+.scoring-form .signals {
+  gap: var(--space-5);
+}
+
+/* Each signal is a block with a rule above it, so the eight read as separate items. */
+.signal {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding-block-start: var(--space-4);
+  border-block-start: 1px solid var(--line);
+}
+
+.signal-title {
+  margin: 0;
+  font-size: var(--t-body);
+  line-height: var(--lh-body);
+  font-weight: 600;
+}
+
+.signal-range {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: var(--space-3) var(--space-5);
+}
+
+.field,
+.slider {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.slider-control,
+.number-control {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-4);
+}
+
+/* Range inputs take the accent colour. The global control border would box the track, so it is
+   reset here; the thumb keeps its native look. */
+.slider-control input[type="range"] {
+  inline-size: min(16rem, 100%);
+  margin: 0;
+  padding: 0;
+  accent-color: var(--accent);
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+}
+
+.slider-control output {
+  min-inline-size: 6.5rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.number-control input[type="number"] {
+  inline-size: 7rem;
+  padding-block: var(--space-2);
+  padding-inline: var(--space-3);
+}
+
+.field-unit {
+  font-size: var(--t-sm);
+  line-height: var(--lh-sm);
+  color: var(--ink-muted);
+}
+
+/* An invalid number gets a heavier ink border. The message beside it says what to change. */
+.number-control [aria-invalid="true"] {
+  border: 2px solid var(--ink);
+}
+
+.scoring-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3) var(--space-4);
+}
+
+.scoring-preview {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  min-inline-size: 0;
+}
+
+.preview-sentence {
+  font-size: var(--t-md);
+  line-height: var(--lh-md);
+}
+
+/* The top ten is a ranked list: the rank in one column, the name over the movement. */
+.movers {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.mover {
+  display: grid;
+  grid-template-columns: 2rem minmax(0, 1fr);
+  column-gap: var(--space-2);
+  padding-block: var(--space-2);
+  border-block-end: 1px solid var(--line);
+}
+
+.mover-rank {
+  grid-row: 1 / span 2;
+  color: var(--ink-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.mover-move {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  grid-column: 2;
+  font-size: var(--t-sm);
+  line-height: var(--lh-sm);
+  color: var(--ink);
+}
+
+.preview-alert {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding-inline-start: var(--space-4);
+  border-inline-start: 3px solid var(--ink);
+}
+
+.preview-alert-list {
+  margin: 0;
+  padding-inline-start: var(--space-5);
+}
+
+@media (min-width: 1100px) {
+  .scoring-layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 20rem);
+    gap: var(--space-6);
+    align-items: start;
+  }
+
+  .scoring-preview {
+    position: sticky;
+    inset-block-start: var(--space-6);
   }
 }
 

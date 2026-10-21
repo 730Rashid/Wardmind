@@ -107,7 +107,29 @@ def compare_rankings(
     Both are full books of the same accounts (the same data scored under two configs).
     Raises ValueError if an account in `after` is missing from `before`.
     """
-    raise NotImplementedError
+    old_ranks: dict[str, int] = {}
+    for rank, item in enumerate(before, start=1):
+        old_ranks.setdefault(item.account.id, rank)
+    missing = [item.account.id for item in after if item.account.id not in old_ranks]
+    if missing:
+        raise ValueError(f"accounts in the new book are missing from the old one: {missing}")
+    # A top_n past the end of the book gives the whole book; a non-positive one gives nothing.
+    changes: list[RankChange] = []
+    for new_rank, item in enumerate(after[: max(top_n, 0)], start=1):
+        old_rank = old_ranks[item.account.id]
+        changes.append(
+            RankChange(
+                account_id=item.account.id,
+                name=item.account.name,
+                health=item.health,
+                priority=item.priority,
+                new_rank=new_rank,
+                old_rank=old_rank,
+                movement=old_rank - new_rank,
+                entered_top=old_rank > top_n,
+            )
+        )
+    return changes
 
 
 def account_detail(

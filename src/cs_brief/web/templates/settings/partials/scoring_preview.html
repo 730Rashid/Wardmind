@@ -1,0 +1,21 @@
+{% if preview.alerts %}
+<div class="preview-alert" role="alert">
+  <p>Fix these to see the preview:</p>
+  <ul class="preview-alert-list">
+    {% for message in preview.alerts %}
+    <li>{{ message }}</li>
+    {% endfor %}
+  </ul>
+</div>
+{% else %}
+<p class="preview-sentence">{{ preview.sentence }}</p>
+<ol class="movers">
+  {% for mover in preview.movers %}
+  <li class="mover">
+    <span class="mover-rank">{{ mover.rank }}</span>
+    <a class="account-link" href="/accounts/{{ mover.account_id | urlencode }}">{{ mover.name }}</a>
+    <span class="mover-move">{% if mover.arrow %}<svg class="icon" aria-hidden="true" focusable="false"><use href="/static/icons.svg#{{ mover.arrow }}"/></svg>{% endif %}{{ mover.movement }}</span>
+  </li>
+  {% endfor %}
+</ol>
+{% endif %}
