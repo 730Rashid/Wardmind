@@ -13,6 +13,7 @@ from cs_brief.core import secrets
 from cs_brief.core.briefs import AccountDetail, account_detail, suggest_action
 from cs_brief.core.config import ScoringConfig, load_scoring_config
 from cs_brief.core.connectors.base import Connector
+from cs_brief.core.connectors.combined import CombinedConnector
 from cs_brief.core.connectors.demo import DemoConnector
 from cs_brief.core.connectors.errors import ConnectionNotReady
 from cs_brief.core.connectors.hubspot import (
@@ -21,22 +22,39 @@ from cs_brief.core.connectors.hubspot import (
     HubSpotConnector,
     load_mapping,
 )
-from cs_brief.core.models import Motion, ScoredAccount
+from cs_brief.core.connectors.local import ManualConnector, SpreadsheetConnector
+from cs_brief.core.models import Account, Motion, ScoredAccount, Signal
 from cs_brief.core.onboarding import OnboardingBrief, onboarding_brief
 from cs_brief.core.scoring import score_book
 from cs_brief.core.settings import DataSource, load_settings
-from cs_brief.core.store import LocalStore
+from cs_brief.core.store import ConnectionConfig, ConnectionKind, LocalStore
 
 # Test-only: points the HubSpot client at a local fake server. HubSpotClient refuses other hosts.
 _API_BASE_ENV = "CS_BRIEF_HUBSPOT_API_BASE"
 _NO_TOKEN_MESSAGE = (
-    "HubSpot is selected, but no access token is saved. "
-    "Add one on the Connections page, or switch to demo data."
+    "HubSpot is connected, but no access token is saved. Add one on the Connections page."
 )
 _BAD_BASE_MESSAGE = "CS_BRIEF_HUBSPOT_API_BASE must point at 127.0.0.1 or localhost."
+_HUBSPOT_NAME = "HubSpot"
 
 # Shared HubSpot connectors. Keys hold a hash of the token, never the token itself.
 _connectors: dict[tuple[str, str, str], Connector] = {}
+
+
+class _UnavailableConnector:
+    """A HubSpot connection that can't be used right now. Its reads raise ConnectionNotReady, so
+    CombinedConnector lists it as a problem and the rest of the book still loads."""
+
+    name = "hubspot"
+
+    def __init__(self, message: str) -> None:
+        self._message = message
+
+    def list_accounts(self) -> list[Account]:
+        raise ConnectionNotReady(self._message)
+
+    def list_signals(self, account_id: str | None = None) -> list[Signal]:
+        raise ConnectionNotReady(self._message)
 
 
 def hubspot_api_base() -> str:
@@ -44,19 +62,13 @@ def hubspot_api_base() -> str:
     return os.environ.get(_API_BASE_ENV) or API_BASE
 
 
-def get_connector() -> Connector:
-    """The connector for load_settings().source.
-
-    Demo: DemoConnector(). HubSpot: one shared HubSpotConnector per (token, mapping, base_url)
-    for the life of the process, so its cache survives across requests; raises
-    ConnectionNotReady when no token is available. CS_BRIEF_HUBSPOT_API_BASE (test-only) is
-    passed through as base_url; HubSpotClient rejects anything that isn't localhost.
-    """
-    if load_settings().source is DataSource.DEMO:
-        return DemoConnector()
+def _hubspot_member() -> Connector:
+    """The shared HubSpot connector for the saved token and mapping. Without a token, or with a
+    base URL that isn't allowed, an _UnavailableConnector. A mapping error propagates as
+    ConnectorError: it is about the file, not about one connection."""
     token = secrets.get_hubspot_token()
     if token is None:
-        raise ConnectionNotReady(_NO_TOKEN_MESSAGE)
+        return _UnavailableConnector(_NO_TOKEN_MESSAGE)
     base = hubspot_api_base()
     mapping = load_mapping()
     key = (hashlib.sha256(token.encode("utf-8")).hexdigest(), mapping.model_dump_json(), base)
@@ -65,10 +77,62 @@ def get_connector() -> Connector:
         try:
             client = HubSpotClient(token, base_url=base)
         except ValueError:
-            raise ConnectionNotReady(_BAD_BASE_MESSAGE) from None
+            return _UnavailableConnector(_BAD_BASE_MESSAGE)
         connector = HubSpotConnector(client, mapping)
         _connectors[key] = connector
     return connector
+
+
+def _member(config: ConnectionConfig, store: LocalStore) -> Connector:
+    if config.kind is ConnectionKind.HUBSPOT:
+        return _hubspot_member()
+    if config.kind is ConnectionKind.SPREADSHEET:
+        return SpreadsheetConnector(store, config.id)
+    return ManualConnector(store)
+
+
+def _add_legacy_hubspot(store: LocalStore) -> None:
+    """The HubSpot-only setting of earlier versions: a saved token with no connections at all
+    becomes a HubSpot connection. It happens once, because the connection then exists."""
+    if not store.connections() and secrets.get_hubspot_token() is not None:
+        store.add_connection(ConnectionKind.HUBSPOT, _HUBSPOT_NAME)
+
+
+def hubspot_connector() -> Connector | None:
+    """The shared HubSpot connector the book reads from, for the Connections page's fetch time.
+    None when no HubSpot connection is enabled, or it can't be used (no token, bad base URL)."""
+    store = get_store()
+    _add_legacy_hubspot(store)
+    if not any(c.kind is ConnectionKind.HUBSPOT and c.enabled for c in store.connections()):
+        return None
+    member = _hubspot_member()
+    return None if isinstance(member, _UnavailableConnector) else member
+
+
+def get_connector() -> Connector:
+    """The connector for load_settings().source.
+
+    Demo: DemoConnector(). Your data: a CombinedConnector over the enabled connections in the
+    local store, in order. A connection that can't be used (HubSpot without a token) becomes a
+    problem on the combined connector, so the rest of the book still loads. A saved HubSpot token
+    with no connections yet gets a HubSpot connection first (see _add_legacy_hubspot). HubSpot
+    connectors are shared per (token, mapping, base_url) for the life of the process.
+    CS_BRIEF_HUBSPOT_API_BASE (test-only) is passed through as base_url; HubSpotClient rejects
+    anything that isn't localhost.
+    """
+    if load_settings().source is DataSource.DEMO:
+        return DemoConnector()
+    store = get_store()
+    _add_legacy_hubspot(store)
+    members = [(config, _member(config, store)) for config in store.connections() if config.enabled]
+    return CombinedConnector(members, store, today=date.today())
+
+
+def get_combined() -> CombinedConnector | None:
+    """get_connector() when it is the combined "Your data" connector, else None (demo data).
+    Callers that refresh or inspect the connections use this."""
+    connector = get_connector()
+    return connector if isinstance(connector, CombinedConnector) else None
 
 
 def reset_connectors() -> None:

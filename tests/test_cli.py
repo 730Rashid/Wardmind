@@ -12,6 +12,7 @@ from cs_brief.core.config import ScoringConfig
 from cs_brief.core.connectors.demo import DemoConnector
 from cs_brief.core.connectors.errors import ConnectionNotReady
 from cs_brief.core.models import Health, Motion, ScoredAccount
+from cs_brief.core.settings import DataSource, Settings, save_settings
 
 AS_OF = date(2026, 10, 19)
 runner = CliRunner()
@@ -37,6 +38,9 @@ class _EmptyConnector:
 
     def list_signals(self, account_id=None):
         return []
+
+
+REAL_GET_CONNECTOR = service.get_connector  # before any test pins it to demo data
 
 
 @pytest.fixture(autouse=True)
@@ -129,6 +133,17 @@ def test_a_connector_error_goes_to_stderr_and_exits_with_one(monkeypatch):
     assert result.exit_code == 1
     assert result.stderr.strip() == message
     assert result.stdout == ""
+
+
+def test_your_data_with_nothing_connected_is_an_empty_book(monkeypatch):
+    monkeypatch.setattr(service, "get_connector", REAL_GET_CONNECTOR)  # undo the demo pin
+    save_settings(Settings(source=DataSource.MINE))
+    result = runner.invoke(cli.app, ["score"])
+    assert result.exit_code == 0, result.output
+    assert result.output.splitlines() == [
+        "0 accounts, 0 at risk, $0 ARR at risk",
+        "No accounts to show.",
+    ]
 
 
 def test_an_empty_motion_says_which_motion_is_empty(monkeypatch):

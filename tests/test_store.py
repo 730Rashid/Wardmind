@@ -165,6 +165,43 @@ def test_notices_round_trip_and_dismiss_hides_them_by_default(store):
     assert len(store.notices(include_dismissed=True)) == 2
 
 
+def test_remove_notices_deletes_one_accounts_notices_dismissed_ones_included(store):
+    keep = store.add_notice("hs-2", "tier", "a notice for another account")
+    store.add_notice("hs-1", "arr", "first")
+    dismissed = store.add_notice("hs-1", "tier", "second")
+    store.dismiss_notice(dismissed.id)
+
+    assert store.remove_notices("hs-1") == 2
+    assert store.notices(include_dismissed=True) == [keep]
+    assert store.remove_notices("hs-1") == 0  # nothing left to remove, nothing written
+
+
+def test_remove_notices_on_an_empty_store_creates_no_file(store):
+    assert store.remove_notices("hs-1") == 0
+    assert not (store.root / "notices.json").exists()
+
+
+def test_move_notices_rekeys_them_and_keeps_id_time_and_dismissed(store):
+    first = store.add_notice("hs-1", "arr", "HubSpot changed ARR.")
+    dismissed = store.add_notice("hs-1", "tier", "HubSpot changed Tier.")
+    store.dismiss_notice(dismissed.id)
+    other = store.add_notice("hs-2", "arr", "a notice for another account")
+
+    assert store.move_notices("hs-1", "sp1-acme") == 2
+    assert store.notices("hs-1", include_dismissed=True) == []
+    assert store.notices("sp1-acme", include_dismissed=True) == [
+        first.model_copy(update={"account_id": "sp1-acme"}),
+        dismissed.model_copy(update={"account_id": "sp1-acme", "dismissed": True}),
+    ]
+    assert store.notices("hs-2") == [other]
+    assert store.move_notices("hs-1", "sp1-acme") == 0  # already moved
+
+
+def test_move_notices_on_an_empty_store_creates_no_file(store):
+    assert store.move_notices("hs-1", "sp1-acme") == 0
+    assert not (store.root / "notices.json").exists()
+
+
 def test_links_round_trip_including_dismissed_pairs(store):
     data = LinkData(
         groups=[LinkGroup(primary="sp1-acme", members=["sp1-acme", "hs-1001"])],

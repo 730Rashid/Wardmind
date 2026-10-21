@@ -9,6 +9,7 @@ import yaml
 
 from cs_brief.core.settings import (
     Accent,
+    DataSource,
     Density,
     Landing,
     Settings,
@@ -92,3 +93,31 @@ def test_save_overwrites_and_leaves_no_temp_file(tmp_path: Path) -> None:
 @pytest.mark.parametrize(("landing", "path"), [(Landing.BOOK, "/"), (Landing.BRIEF, "/brief")])
 def test_landing_path(landing: Landing, path: str) -> None:
     assert landing.path == path
+
+
+def test_the_data_sources_are_demo_and_your_data() -> None:
+    assert [source.value for source in DataSource] == ["demo", "mine"]
+    assert DataSource.DEMO.label == "Demo data"
+    assert DataSource.MINE.label == "Your data"
+    assert Settings().source is DataSource.DEMO
+
+
+def test_your_data_round_trips(tmp_path: Path) -> None:
+    path = tmp_path / "settings.yaml"
+    save_settings(Settings(source=DataSource.MINE), path)
+    assert load_settings(path).source is DataSource.MINE
+
+
+def test_a_saved_hubspot_source_loads_as_your_data(tmp_path: Path) -> None:
+    path = tmp_path / "settings.yaml"
+    path.write_text("source: hubspot\n", encoding="utf-8")
+    assert load_settings(path).source is DataSource.MINE
+    assert Settings.model_validate({"source": "hubspot"}).source is DataSource.MINE
+
+
+def test_an_unknown_source_falls_back_to_demo_data(tmp_path: Path) -> None:
+    path = tmp_path / "settings.yaml"
+    path.write_text("source: salesforce\ntheme: dark\n", encoding="utf-8")
+    loaded = load_settings(path)
+    assert loaded.source is DataSource.DEMO
+    assert loaded.theme is Theme.DARK

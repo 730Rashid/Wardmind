@@ -34,13 +34,12 @@ TOKEN = "pat-na1-SECRETTEST-0000-1111-2222-333344445555"
 OTHER = "pat-na1-OTHERTOKEN-0000-1111-2222-333344445555"
 ORIGIN = {"origin": "http://127.0.0.1"}
 HX = {"origin": "http://127.0.0.1", "HX-Request": "true"}
-NO_TOKEN = "Save a HubSpot token first."
+NO_TOKEN = "Save a HubSpot token first."  # the Test connection button still says this
 NO_TOKEN_MESSAGE = (
-    "HubSpot is selected, but no access token is saved. "
-    "Add one on the Connections page, or switch to demo data."
+    "HubSpot is connected, but no access token is saved. Add one on the Connections page."
 )
 ERROR_HEADING = "Couldn't load your book"
-SOURCE_HUBSPOT = "Connected to HubSpot"
+SOURCE_MINE = "Showing your data"
 SOURCE_DEMO = "Showing demo data"
 EMPTY_TOKEN_INPUT = (
     '<input type="password" name="token" autocomplete="off" spellcheck="false" id="token">'
@@ -190,7 +189,7 @@ def _save_token(token: str = TOKEN) -> None:
 
 @pytest.fixture
 def hubspot_with_token(hub: StubHubSpot) -> StubHubSpot:
-    _use(DataSource.HUBSPOT)
+    _use(DataSource.MINE)
     _save_token()
     return hub
 
@@ -266,15 +265,15 @@ def test_the_data_source_form_posts_to_the_source_route(client: TestClient) -> N
     forms = [(f["method"], f["action"]) for f in _tags(text, "form")]
     assert ("post", "/settings/connections/source") in forms
     radios = {a["value"]: a for a in _tags(text, "input") if a.get("name") == "source"}
-    assert set(radios) == {"demo", "hubspot"}
+    assert set(radios) == {"demo", "mine"}
     assert "checked" in radios["demo"]
 
 
 def test_the_saved_source_is_the_one_checked(client: TestClient) -> None:
-    _use(DataSource.HUBSPOT)
+    _use(DataSource.MINE)
     text = client.get("/settings/connections").text
     radios = {a["value"]: a for a in _tags(text, "input") if a.get("name") == "source"}
-    assert "checked" in radios["hubspot"]
+    assert "checked" in radios["mine"]
     assert "checked" not in radios["demo"]
 
 
@@ -293,7 +292,7 @@ def test_the_test_button_posts_without_js_and_swaps_with_htmx(client: TestClient
 def test_the_data_source_help_is_shown_under_each_choice(client: TestClient) -> None:
     text = _text(client.get("/settings/connections"))
     assert "40 invented accounts. Nothing leaves your computer." in text
-    assert "cs-brief never writes to HubSpot." in text
+    assert "Your connections: HubSpot, spreadsheets and accounts you add by hand." in text
 
 
 def test_the_token_help_names_the_scopes(client: TestClient) -> None:
@@ -325,7 +324,7 @@ def test_before_the_first_load_it_says_not_fetched_yet(
 
 
 def test_the_fetch_line_is_left_out_when_the_connector_cannot_load(client: TestClient) -> None:
-    _use(DataSource.HUBSPOT)  # no token saved
+    _use(DataSource.MINE)  # no token saved
     text = _text(client.get("/settings/connections"))
     assert "Data last fetched" not in text and "Not fetched yet." not in text
     assert "Refresh data now" not in text
@@ -353,14 +352,13 @@ def test_refresh_on_demo_data_still_redirects(client: TestClient, hub: StubHubSp
     assert hub.refreshes == 0
 
 
-def test_refresh_without_a_token_renders_the_error_page(
+def test_refresh_with_nothing_connected_still_redirects(
     client: TestClient, hub: StubHubSpot
 ) -> None:
-    _use(DataSource.HUBSPOT)
+    _use(DataSource.MINE)
     response = client.post("/settings/connections/refresh", headers=ORIGIN, follow_redirects=False)
-    assert response.status_code == 503
-    assert ERROR_HEADING in _text(response)
-    assert NO_TOKEN_MESSAGE in _text(response)
+    assert response.status_code == 303
+    assert hub.refreshes == 0
 
 
 # What cs-brief reads
@@ -392,7 +390,7 @@ def test_a_mapping_error_is_shown_in_place_of_the_table(
 def test_choosing_demo_saves_it_and_keeps_the_other_settings(
     client: TestClient, config_folder: Path, resets: list[int]
 ) -> None:
-    _use(DataSource.HUBSPOT, theme=Theme.DARK)
+    _use(DataSource.MINE, theme=Theme.DARK)
     response = client.post(
         "/settings/connections/source",
         data={"source": "demo"},
@@ -408,39 +406,36 @@ def test_choosing_demo_saves_it_and_keeps_the_other_settings(
     assert "Data source saved." in _text(client.get("/settings/connections?saved=source"))
 
 
-def test_choosing_hubspot_with_a_token_saves_it(
-    client: TestClient, config_folder: Path, hubspot_with_token: StubHubSpot, resets: list[int]
+def test_choosing_your_data_saves_it(
+    client: TestClient, config_folder: Path, resets: list[int]
 ) -> None:
     _use(DataSource.DEMO, theme=Theme.LIGHT)
     response = client.post(
         "/settings/connections/source",
-        data={"source": "hubspot"},
+        data={"source": "mine"},
         headers=ORIGIN,
         follow_redirects=False,
     )
     assert response.status_code == 303
     saved = load_settings(config_folder / "settings.yaml")
-    assert saved.source is DataSource.HUBSPOT
+    assert saved.source is DataSource.MINE
     assert saved.theme is Theme.LIGHT
     assert resets == [1]
 
 
-def test_choosing_hubspot_without_a_token_is_refused_and_saves_nothing(
+def test_choosing_your_data_is_allowed_with_nothing_connected_yet(
     client: TestClient, config_folder: Path, resets: list[int]
 ) -> None:
     response = client.post(
         "/settings/connections/source",
-        data={"source": "hubspot"},
+        data={"source": "mine"},
         headers=ORIGIN,
         follow_redirects=False,
     )
-    assert response.status_code == 422
-    assert 'role="alert"' in response.text
-    assert NO_TOKEN in response.text
-    assert not (config_folder / "settings.yaml").exists()
-    assert resets == []
-    radios = {a["value"]: a for a in _tags(response.text, "input") if a.get("name") == "source"}
-    assert "checked" in radios["hubspot"]  # the choice made stays on screen
+    assert response.status_code == 303
+    assert load_settings(config_folder / "settings.yaml").source is DataSource.MINE
+    assert resets == [1]
+    assert SOURCE_MINE in _text(client.get("/"))
 
 
 def test_an_unknown_source_is_refused(client: TestClient, config_folder: Path) -> None:
@@ -448,8 +443,31 @@ def test_an_unknown_source_is_refused(client: TestClient, config_folder: Path) -
         "/settings/connections/source", data={"source": "salesforce"}, headers=ORIGIN
     )
     assert response.status_code == 422
-    assert "Choose demo data or HubSpot." in response.text
+    assert "Choose your data or demo data." in response.text
     assert not (config_folder / "settings.yaml").exists()
+
+
+def test_saving_the_appearance_keeps_the_data_source(
+    client: TestClient, config_folder: Path
+) -> None:
+    _use(DataSource.MINE)
+    response = client.post(
+        "/settings/appearance",
+        data={"theme": "dark", "accent": "petrol", "density": "compact", "landing": "brief"},
+        headers=ORIGIN,
+        follow_redirects=False,
+    )
+    assert response.status_code == 303
+    saved = load_settings(config_folder / "settings.yaml")
+    assert saved.theme is Theme.DARK
+    assert saved.source is DataSource.MINE
+
+
+def test_a_settings_file_from_before_says_your_data(
+    client: TestClient, config_folder: Path
+) -> None:
+    (config_folder / "settings.yaml").write_text("source: hubspot\n", encoding="utf-8")
+    assert SOURCE_MINE in _text(client.get("/settings/appearance"))
 
 
 # Saving and removing the token
@@ -466,6 +484,22 @@ def test_a_valid_token_is_saved_to_the_secrets_folder(
     assert (secrets_folder / secrets.TOKEN_FILE).read_text(encoding="utf-8") == TOKEN
     assert resets == [1]
     assert "Token saved." in _text(client.get("/settings/connections?saved=token"))
+
+
+def test_saving_a_token_adds_one_hubspot_connection(client: TestClient) -> None:
+    client.post("/settings/connections/token", data={"token": TOKEN}, headers=ORIGIN)
+    client.post("/settings/connections/token", data={"token": OTHER}, headers=ORIGIN)
+    assert [c.id for c in service.get_store().connections()] == ["hubspot"]
+
+
+def test_removing_the_token_leaves_the_hubspot_connection_in_place(
+    client: TestClient, hub: StubHubSpot
+) -> None:
+    _save_token()
+    client.post("/settings/connections/token", data={"token": OTHER}, headers=ORIGIN)
+    client.post("/settings/connections/token/delete", headers=ORIGIN)
+    assert [c.id for c in service.get_store().connections()] == ["hubspot"]
+    assert secrets.get_hubspot_token() is None
 
 
 @pytest.mark.parametrize(
@@ -645,7 +679,7 @@ def test_a_bad_base_url_is_shown_as_a_plain_message(
 def test_use_demo_switches_the_source_and_keeps_other_settings(
     client: TestClient, config_folder: Path, resets: list[int]
 ) -> None:
-    _use(DataSource.HUBSPOT, theme=Theme.DARK)
+    _use(DataSource.MINE, theme=Theme.DARK)
     response = client.post("/settings/connections/use-demo", headers=ORIGIN, follow_redirects=False)
     assert response.status_code == 303
     assert response.headers["location"] == "/"
@@ -662,7 +696,7 @@ def test_use_demo_switches_the_source_and_keeps_other_settings(
 @pytest.fixture
 def no_token_hubspot(monkeypatch: pytest.MonkeyPatch) -> None:
     """HubSpot is selected but no token is saved: every book page raises ConnectionNotReady."""
-    _use(DataSource.HUBSPOT)
+    _use(DataSource.MINE)
 
     def not_ready(*_: Any, **__: Any) -> None:
         raise ConnectionNotReady(NO_TOKEN_MESSAGE)
@@ -679,7 +713,7 @@ def test_every_book_page_shows_the_error_with_the_way_out(
     text = _text(response)
     assert f"<title>{ERROR_HEADING} - cs-brief</title>" in text
     assert f'<h1 class="page-title">{ERROR_HEADING}</h1>' in response.text
-    assert f"Couldn't load your book from HubSpot. {NO_TOKEN_MESSAGE}" in text
+    assert f"Couldn't load your book. {NO_TOKEN_MESSAGE}" in text
     assert '<a class="button" href="/settings/connections">Check Connections</a>' in response.text
     forms = [(f["method"], f["action"]) for f in _tags(response.text, "form")]
     assert forms == [("post", "/settings/connections/use-demo")]
@@ -687,22 +721,20 @@ def test_every_book_page_shows_the_error_with_the_way_out(
     assert all(a.get("aria-current") is None for a in _tags(response.text, "a"))
 
 
-def test_the_error_page_names_the_source_in_the_top_bar(
-    client: TestClient, no_token_hubspot: None
-) -> None:
-    assert SOURCE_HUBSPOT in _text(client.get("/"))
+def test_the_error_page_keeps_the_top_bar_note(client: TestClient, no_token_hubspot: None) -> None:
+    assert SOURCE_MINE in _text(client.get("/"))
 
 
 def test_the_top_bar_note_follows_the_saved_source(client: TestClient) -> None:
     assert SOURCE_DEMO in _text(client.get("/settings/appearance"))
-    _use(DataSource.HUBSPOT)
-    assert SOURCE_HUBSPOT in _text(client.get("/settings/connections"))
+    _use(DataSource.MINE)
+    assert SOURCE_MINE in _text(client.get("/settings/connections"))
 
 
 def test_the_top_bar_note_does_not_call_the_connector(
     client: TestClient, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    _use(DataSource.HUBSPOT)
+    _use(DataSource.MINE)
 
     def boom(*_: Any, **__: Any) -> None:
         raise AssertionError("the top bar must not ask for the connector")
@@ -710,7 +742,7 @@ def test_the_top_bar_note_does_not_call_the_connector(
     monkeypatch.setattr(service, "get_connector", boom)
     response = client.get("/settings/appearance")
     assert response.status_code == 200
-    assert SOURCE_HUBSPOT in _text(response)
+    assert SOURCE_MINE in _text(response)
 
 
 def test_the_scoring_page_renders_with_the_error_in_its_alert(
@@ -774,13 +806,13 @@ def test_the_token_is_in_no_page_header_or_redirect(
         _use(DataSource.DEMO)
         _save_token()
     elif scenario == "hubspot-file":
-        _use(DataSource.HUBSPOT)
+        _use(DataSource.MINE)
         _save_token()
     elif scenario == "hubspot-env":
-        _use(DataSource.HUBSPOT)
+        _use(DataSource.MINE)
         monkeypatch.setenv(secrets.ENV_TOKEN, TOKEN)
     else:
-        _use(DataSource.HUBSPOT)
+        _use(DataSource.MINE)
         _save_token()
         hub.mapping_error = "config/hubspot.yaml could not be read."
         hub.check = ConnectorError("HubSpot is taking too long to answer. Try again.")
@@ -793,7 +825,7 @@ def test_the_token_is_in_no_page_header_or_redirect(
     _assert_no_token(client.post("/settings/connections/test", headers=ORIGIN))
     _assert_no_token(client.post("/settings/connections/refresh", headers=ORIGIN))
     _assert_no_token(
-        client.post("/settings/connections/source", data={"source": "hubspot"}, headers=ORIGIN)
+        client.post("/settings/connections/source", data={"source": "mine"}, headers=ORIGIN)
     )
     _assert_no_token(
         client.post("/settings/connections/token", data={"token": f"{TOKEN} extra"}, headers=ORIGIN)
@@ -838,7 +870,7 @@ CROSS_SITE = [
 @pytest.fixture
 def settled(config_folder: Path, secrets_folder: Path) -> Iterator[dict[str, bytes]]:
     """A HubSpot setup with a saved token, and the bytes of the files a POST could change."""
-    _use(DataSource.HUBSPOT)
+    _use(DataSource.MINE)
     _save_token()
     yield {
         "settings": (config_folder / "settings.yaml").read_bytes(),

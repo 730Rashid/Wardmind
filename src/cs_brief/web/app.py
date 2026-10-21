@@ -47,6 +47,7 @@ from cs_brief.core.settings import (
     load_settings,
     save_settings,
 )
+from cs_brief.core.store import ConnectionKind
 from cs_brief.web import formatting
 from cs_brief.web.scoring_form import (
     FIELD_NAMES,
@@ -198,21 +199,21 @@ def _selected_motion(value: str) -> Motion | None:
 
 def _source_note(settings: Settings) -> str:
     """The top bar's note. It reads the saved choice rather than the connector, so it can't fail."""
-    if settings.source is DataSource.HUBSPOT:
-        return "Connected to HubSpot"
+    if settings.source is DataSource.MINE:
+        return "Showing your data"
     return "Showing demo data"
 
 
 def _connector_label() -> str:
-    """The data source as a fact: 'Demo data', or the connector's name."""
+    """The data source as a fact: 'Demo data', 'Your data', or the connector's name."""
     name = service.get_connector().name
-    return "Demo data" if name == "demo" else name
+    return {"demo": "Demo data", "combined": "Your data"}.get(name, name)
 
 
 def _brief_source() -> str:
-    """The brief's footer source: 'demo data', or the connector's name."""
+    """The brief's footer source: 'demo data', 'your data', or the connector's name."""
     name = service.get_connector().name
-    return "demo data" if name == "demo" else name
+    return {"demo": "demo data", "combined": "your data"}.get(name, name)
 
 
 _env = Environment(loader=FileSystemLoader(TEMPLATES_DIR), autoescape=True)
@@ -341,9 +342,7 @@ def _render_scoring(
 # shows only the status sentence, which carries the last four characters at most.
 _SOURCE_HELP: dict[DataSource, str] = {
     DataSource.DEMO: "40 invented accounts. Nothing leaves your computer.",
-    DataSource.HUBSPOT: (
-        "Reads your customer companies, owners and tickets. cs-brief never writes to HubSpot."
-    ),
+    DataSource.MINE: "Your connections: HubSpot, spreadsheets and accounts you add by hand.",
 }
 _TOKEN_SAVE_FAILED = (
     "cs-brief couldn't save the token. Check that your user profile folder is writable, "
@@ -411,25 +410,22 @@ def _render_connections(
     request: Request,
     *,
     notice: str = "",
-    source_choice: DataSource | None = None,
     source_error: str = "",
     token_error: str = "",
     test_check: ConnectionCheck | None = None,
     test_error: str = "",
     status_code: int = 200,
 ) -> HTMLResponse:
-    """Settings > Connections. `source_choice` is what the source form shows when a save was
-    refused, so the person sees the choice they made."""
+    """Settings > Connections. The source form shows the saved choice, or the one just refused."""
     today = date.today()
     current = load_settings()
-    chosen = source_choice or current.source
     status = secrets.token_status()
-    connector = None
-    if current.source is DataSource.HUBSPOT:
+    hubspot = None
+    if current.source is DataSource.MINE:
         try:
-            connector = service.get_connector()
+            hubspot = service.hubspot_connector()
         except ConnectorError:
-            connector = None  # no token or a bad mapping: the fetch line and refresh are left out
+            hubspot = None  # a bad mapping: the fetch line and refresh are left out
     try:
         mapping_rows = _mapping_rows(load_mapping())
         mapping_error = ""
@@ -442,14 +438,15 @@ def _render_connections(
         active="settings",
         section="connections",
         notice=notice,
+        # Your data first, as the design lists them.
         source_options=[
             {
                 "value": source.value,
                 "label": source.label,
                 "help": _SOURCE_HELP[source],
-                "checked": source is chosen,
+                "checked": source is current.source,
             }
-            for source in DataSource
+            for source in (DataSource.MINE, DataSource.DEMO)
         ],
         source_error=source_error,
         token_line=_token_line(status, today),
@@ -457,8 +454,8 @@ def _render_connections(
         token_error=token_error,
         test_check=test_check,
         test_error=test_error,
-        show_refresh=connector is not None,
-        fetched=_fetched_line(getattr(connector, "loaded_at", None)),
+        show_refresh=hubspot is not None,
+        fetched=_fetched_line(getattr(hubspot, "loaded_at", None)),
         mapping_rows=mapping_rows,
         mapping_error=mapping_error,
         status_code=status_code,
@@ -596,7 +593,6 @@ def create_app() -> FastAPI:
             "connection_error.html",
             page="Couldn't load your book",
             status_code=503,
-            source_label=load_settings().source.label,
             message=exc.message,
         )
 
@@ -769,7 +765,8 @@ def create_app() -> FastAPI:
         if errors:
             current = load_settings().model_copy(update=chosen)
             return _render_appearance(request, current, errors=errors, status_code=422)
-        save_settings(Settings(**chosen))
+        # Only the four appearance choices change; the data source is kept as it was.
+        save_settings(load_settings().model_copy(update=chosen))
         return RedirectResponse("/settings/appearance?saved=1", status_code=303)
 
     @app.get("/settings/scoring")
@@ -858,21 +855,14 @@ def create_app() -> FastAPI:
 
     @app.post("/settings/connections/source")
     async def save_source(request: Request) -> Response:
-        """Save the data source. HubSpot needs a saved token: without one, nothing is saved and the
-        form says why (422)."""
+        """Save the data source. Either choice can be saved, even with no connections yet; an
+        invalid choice is refused (422) and nothing is saved."""
         fields = await _posted_fields(request)
         try:
             chosen = DataSource(fields.get("source", ""))
         except ValueError:
             return _render_connections(
-                request, source_error="Choose demo data or HubSpot.", status_code=422
-            )
-        if chosen is DataSource.HUBSPOT and secrets.get_hubspot_token() is None:
-            return _render_connections(
-                request,
-                source_choice=chosen,
-                source_error="Save a HubSpot token first.",
-                status_code=422,
+                request, source_error="Choose your data or demo data.", status_code=422
             )
         save_settings(load_settings().model_copy(update={"source": chosen}))
         service.reset_connectors()
@@ -880,8 +870,9 @@ def create_app() -> FastAPI:
 
     @app.post("/settings/connections/token")
     async def save_token(request: Request) -> Response:
-        """Store the token in the user profile. A token that isn't valid re-renders the field with
-        the reason (422) and an empty input; the token is never shown back."""
+        """Store the token in the user profile and make sure a HubSpot connection exists (adding
+        it is a no-op when it does). A token that isn't valid re-renders the field with the reason
+        (422) and an empty input; the token is never shown back."""
         fields = await _posted_fields(request)
         try:
             secrets.save_hubspot_token(fields.get("token", ""))
@@ -889,6 +880,7 @@ def create_app() -> FastAPI:
             return _render_connections(request, token_error=str(error), status_code=422)
         except OSError:
             return _render_connections(request, token_error=_TOKEN_SAVE_FAILED, status_code=500)
+        service.get_store().add_connection(ConnectionKind.HUBSPOT, "HubSpot")
         service.reset_connectors()
         return RedirectResponse("/settings/connections?saved=token", status_code=303)
 
@@ -919,11 +911,11 @@ def create_app() -> FastAPI:
 
     @app.post("/settings/connections/refresh")
     def refresh_data() -> RedirectResponse:
-        """Fetch the HubSpot data again on the next load. A ConnectorError shows the error page."""
-        connector = service.get_connector()
-        refresh = getattr(connector, "refresh", None)
-        if callable(refresh):
-            refresh()
+        """Fetch every connection's data again on the next load. Demo data has nothing to fetch.
+        A ConnectorError shows the error page."""
+        combined = service.get_combined()
+        if combined is not None:
+            combined.refresh()
         return RedirectResponse("/settings/connections?refreshed=1", status_code=303)
 
     @app.post("/settings/connections/use-demo")

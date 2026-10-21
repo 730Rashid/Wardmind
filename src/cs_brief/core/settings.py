@@ -1,4 +1,5 @@
-"""UI preferences saved locally to config/settings.yaml (appearance and default landing screen).
+"""UI preferences saved locally to config/settings.yaml (appearance, default landing screen and
+which data the screens show).
 
 CONTRACT FILE: the Settings schema is what the Settings page writes. Implementers escalate
 before changing it.
@@ -11,7 +12,7 @@ from pathlib import Path
 from typing import Any
 
 import yaml
-from pydantic import BaseModel, ValidationError
+from pydantic import BaseModel, ValidationError, field_validator
 
 from cs_brief.core.config import config_dir, write_atomic
 
@@ -48,14 +49,15 @@ class Landing(StrEnum):
 
 
 class DataSource(StrEnum):
-    """Where the book comes from. Demo needs nothing; HubSpot needs a saved token."""
+    """Which book the screens show. Demo data is invented and never mixed with real data. Your
+    data is the connections in the local store: HubSpot, spreadsheets and hand-added accounts."""
 
     DEMO = "demo"
-    HUBSPOT = "hubspot"
+    MINE = "mine"
 
     @property
     def label(self) -> str:
-        return {"demo": "Demo data", "hubspot": "HubSpot"}[self.value]
+        return {"demo": "Demo data", "mine": "Your data"}[self.value]
 
 
 class Settings(BaseModel):
@@ -64,6 +66,12 @@ class Settings(BaseModel):
     density: Density = Density.COMFORTABLE
     landing: Landing = Landing.BOOK
     source: DataSource = DataSource.DEMO
+
+    @field_validator("source", mode="before")
+    @classmethod
+    def _legacy_hubspot_source(cls, value: Any) -> Any:
+        """A settings file saved before "Your data" said "hubspot". That choice is now "mine"."""
+        return DataSource.MINE if value == "hubspot" else value
 
 
 def settings_path() -> Path:

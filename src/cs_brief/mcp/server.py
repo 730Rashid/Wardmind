@@ -23,7 +23,7 @@ _INSTRUCTIONS = (
     "Serves a Customer Success Manager's prioritised book of business: each account's health, "
     "priority, the plain-English reasons it needs attention, a suggested next action, and prep "
     "briefs for onboarding calls. "
-    "It serves the data source chosen in cs-brief's Settings (demo data or HubSpot). "
+    "It serves the data source chosen in cs-brief's Settings (demo data or your data). "
     "Get account ids from list_book before calling get_account, explain_score or onboarding_brief."
 )
 

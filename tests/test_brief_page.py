@@ -260,6 +260,19 @@ def test_footer_names_another_connector(monkeypatch: pytest.MonkeyPatch) -> None
     assert f"Made by cs-brief on {formatting.long_date(date.today())} from hubspot." in text
 
 
+class _CombinedConnector(DemoConnector):
+    """The demo book under the name the combined "Your data" connector has."""
+
+    name = "combined"
+
+
+def test_footer_names_your_data_for_the_combined_book(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(service, "get_connector", lambda: _CombinedConnector())
+    client = TestClient(web.create_app(), base_url="http://127.0.0.1")
+    text = _text(client.get("/brief"))
+    assert f"Made by cs-brief on {formatting.long_date(date.today())} from your data." in text
+
+
 def test_print_stylesheet_is_in_app_css() -> None:
     css = (web.STATIC_DIR / "css" / "app.css").read_text(encoding="utf-8")
     for needle in [

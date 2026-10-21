@@ -436,6 +436,31 @@ class LocalStore:
         ]
         _save(self._path(_NOTICES_FILE), _NOTICES_ADAPTER, updated)
 
+    def remove_notices(self, account_id: str) -> int:
+        """Delete every notice for one account, dismissed ones included. Returns how many went."""
+        found: list[Notice] = _load(self._path(_NOTICES_FILE), _NOTICES_ADAPTER, list)
+        kept = [notice for notice in found if notice.account_id != account_id]
+        removed = len(found) - len(kept)
+        if removed:
+            _save(self._path(_NOTICES_FILE), _NOTICES_ADAPTER, kept)
+        return removed
+
+    def move_notices(self, from_id: str, to_id: str) -> int:
+        """Re-key every notice of from_id to to_id. Each keeps its id, its time and its dismissed
+        flag. Returns how many moved."""
+        found: list[Notice] = _load(self._path(_NOTICES_FILE), _NOTICES_ADAPTER, list)
+        moved = 0
+        updated: list[Notice] = []
+        for notice in found:
+            if notice.account_id == from_id:
+                updated.append(notice.model_copy(update={"account_id": to_id}))
+                moved += 1
+            else:
+                updated.append(notice)
+        if moved:
+            _save(self._path(_NOTICES_FILE), _NOTICES_ADAPTER, updated)
+        return moved
+
     # Links and hidden accounts ---------------------------------------------------------------
     def links(self) -> LinkData:
         return _load(self._path(_LINKS_FILE), _LINKS_ADAPTER, LinkData)
