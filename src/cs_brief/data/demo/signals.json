@@ -132,7 +132,7 @@
       "kind": "open_tickets_sev1",
       "observed_at": "2026-10-17T15:00:00",
       "source": "demo",
-      "value": 1.0
+      "value": 0.0
     },
     {
       "account_id": "acc-003",
@@ -342,7 +342,7 @@
       "kind": "usage_trend_30d",
       "observed_at": "2026-10-17T20:00:00",
       "source": "demo",
-      "value": -8.5
+      "value": -23.5
     },
     {
       "account_id": "acc-007",
@@ -356,7 +356,7 @@
       "kind": "open_tickets_sev1",
       "observed_at": "2026-10-18T07:00:00",
       "source": "demo",
-      "value": 2.0
+      "value": 0.0
     },
     {
       "account_id": "acc-007",
@@ -454,7 +454,7 @@
       "kind": "usage_trend_30d",
       "observed_at": "2026-10-18T22:00:00",
       "source": "demo",
-      "value": -8.1
+      "value": -9.1
     },
     {
       "account_id": "acc-009",
@@ -468,7 +468,7 @@
       "kind": "open_tickets_sev1",
       "observed_at": "2026-10-17T17:00:00",
       "source": "demo",
-      "value": 1.0
+      "value": 0.0
     },
     {
       "account_id": "acc-009",
@@ -741,7 +741,7 @@
       "kind": "usage_trend_30d",
       "observed_at": "2026-10-17T14:00:00",
       "source": "demo",
-      "value": -34.1
+      "value": -18.1
     },
     {
       "account_id": "acc-014",
@@ -769,7 +769,7 @@
       "kind": "champion_left",
       "observed_at": "2026-10-16T17:00:00",
       "source": "demo",
-      "value": 0.0
+      "value": 1.0
     },
     {
       "account_id": "acc-014",
@@ -860,7 +860,7 @@
       "kind": "usage_trend_30d",
       "observed_at": "2026-10-16T23:00:00",
       "source": "demo",
-      "value": -10.4
+      "value": -30.4
     },
     {
       "account_id": "acc-016",
@@ -874,7 +874,7 @@
       "kind": "open_tickets_sev1",
       "observed_at": "2026-10-16T11:00:00",
       "source": "demo",
-      "value": 2.0
+      "value": 0.0
     },
     {
       "account_id": "acc-016",
@@ -1028,7 +1028,7 @@
       "kind": "usage_trend_30d",
       "observed_at": "2026-10-18T13:00:00",
       "source": "demo",
-      "value": -18.4
+      "value": -32.4
     },
     {
       "account_id": "acc-019",
@@ -1042,7 +1042,7 @@
       "kind": "open_tickets_sev1",
       "observed_at": "2026-10-16T06:00:00",
       "source": "demo",
-      "value": 2.0
+      "value": 0.0
     },
     {
       "account_id": "acc-019",
@@ -1098,7 +1098,7 @@
       "kind": "open_tickets_sev1",
       "observed_at": "2026-10-16T20:00:00",
       "source": "demo",
-      "value": 1.0
+      "value": 0.0
     },
     {
       "account_id": "acc-020",
@@ -1154,7 +1154,7 @@
       "kind": "open_tickets_sev1",
       "observed_at": "2026-10-16T17:00:00",
       "source": "demo",
-      "value": 1.0
+      "value": 0.0
     },
     {
       "account_id": "acc-021",
@@ -1329,7 +1329,7 @@
       "kind": "open_tickets_sev1",
       "observed_at": "2026-10-18T20:00:00",
       "source": "demo",
-      "value": 1.0
+      "value": 0.0
     },
     {
       "account_id": "acc-024",
@@ -1378,7 +1378,7 @@
       "kind": "usage_trend_30d",
       "observed_at": "2026-10-18T18:00:00",
       "source": "demo",
-      "value": -36.5
+      "value": -26.5
     },
     {
       "account_id": "acc-025",
@@ -1392,7 +1392,7 @@
       "kind": "open_tickets_sev1",
       "observed_at": "2026-10-17T16:00:00",
       "source": "demo",
-      "value": 1.0
+      "value": 0.0
     },
     {
       "account_id": "acc-025",
@@ -1406,7 +1406,7 @@
       "kind": "champion_left",
       "observed_at": "2026-10-18T21:00:00",
       "source": "demo",
-      "value": 0.0
+      "value": 1.0
     },
     {
       "account_id": "acc-025",
@@ -1434,7 +1434,7 @@
       "kind": "usage_trend_30d",
       "observed_at": "2026-10-18T10:00:00",
       "source": "demo",
-      "value": -15.6
+      "value": -27.6
     },
     {
       "account_id": "acc-026",
@@ -1448,7 +1448,7 @@
       "kind": "open_tickets_sev1",
       "observed_at": "2026-10-18T08:00:00",
       "source": "demo",
-      "value": 1.0
+      "value": 0.0
     },
     {
       "account_id": "acc-026",
@@ -1504,7 +1504,7 @@
       "kind": "open_tickets_sev1",
       "observed_at": "2026-10-16T23:00:00",
       "source": "demo",
-      "value": 2.0
+      "value": 0.0
     },
     {
       "account_id": "acc-027",
@@ -1546,7 +1546,7 @@
       "kind": "usage_trend_30d",
       "observed_at": "2026-10-18T12:00:00",
       "source": "demo",
-      "value": -12.7
+      "value": -3.7
     },
     {
       "account_id": "acc-028",
@@ -1560,7 +1560,7 @@
       "kind": "open_tickets_sev1",
       "observed_at": "2026-10-17T19:00:00",
       "source": "demo",
-      "value": 2.0
+      "value": 0.0
     },
     {
       "account_id": "acc-028",
@@ -1574,7 +1574,7 @@
       "kind": "champion_left",
       "observed_at": "2026-10-17T16:00:00",
       "source": "demo",
-      "value": 0.0
+      "value": 1.0
     },
     {
       "account_id": "acc-028",
@@ -1616,7 +1616,7 @@
       "kind": "open_tickets_sev1",
       "observed_at": "2026-10-17T07:00:00",
       "source": "demo",
-      "value": 1.0
+      "value": 0.0
     },
     {
       "account_id": "acc-029",
@@ -1721,21 +1721,21 @@
       "kind": "usage_trend_30d",
       "observed_at": "2026-10-16T09:00:00",
       "source": "demo",
-      "value": -41.5
+      "value": -49.5
     },
     {
       "account_id": "acc-031",
       "kind": "days_since_last_login",
       "observed_at": "2026-10-18T14:00:00",
       "source": "demo",
-      "value": 19.0
+      "value": 28.0
     },
     {
       "account_id": "acc-031",
       "kind": "open_tickets_sev1",
       "observed_at": "2026-10-18T17:00:00",
       "source": "demo",
-      "value": 2.0
+      "value": 0.0
     },
     {
       "account_id": "acc-031",
@@ -1791,7 +1791,7 @@
       "kind": "open_tickets_sev1",
       "observed_at": "2026-10-18T16:00:00",
       "source": "demo",
-      "value": 1.0
+      "value": 0.0
     },
     {
       "account_id": "acc-032",
@@ -1833,7 +1833,7 @@
       "kind": "usage_trend_30d",
       "observed_at": "2026-10-17T11:00:00",
       "source": "demo",
-      "value": -18.7
+      "value": -20.7
     },
     {
       "account_id": "acc-033",
@@ -1847,7 +1847,7 @@
       "kind": "open_tickets_sev1",
       "observed_at": "2026-10-18T14:00:00",
       "source": "demo",
-      "value": 1.0
+      "value": 0.0
     },
     {
       "account_id": "acc-033",
@@ -1889,7 +1889,7 @@
       "kind": "usage_trend_30d",
       "observed_at": "2026-10-17T13:00:00",
       "source": "demo",
-      "value": -26.0
+      "value": -28.0
     },
     {
       "account_id": "acc-034",
@@ -1903,7 +1903,7 @@
       "kind": "open_tickets_sev1",
       "observed_at": "2026-10-18T01:00:00",
       "source": "demo",
-      "value": 3.0
+      "value": 0.0
     },
     {
       "account_id": "acc-034",
@@ -2001,7 +2001,7 @@
       "kind": "usage_trend_30d",
       "observed_at": "2026-10-16T12:00:00",
       "source": "demo",
-      "value": -16.2
+      "value": -23.2
     },
     {
       "account_id": "acc-036",
@@ -2015,7 +2015,7 @@
       "kind": "open_tickets_sev1",
       "observed_at": "2026-10-18T04:00:00",
       "source": "demo",
-      "value": 1.0
+      "value": 0.0
     },
     {
       "account_id": "acc-036",
@@ -2057,7 +2057,7 @@
       "kind": "usage_trend_30d",
       "observed_at": "2026-10-16T03:00:00",
       "source": "demo",
-      "value": -11.8
+      "value": -29.8
     },
     {
       "account_id": "acc-037",
@@ -2071,7 +2071,7 @@
       "kind": "open_tickets_sev1",
       "observed_at": "2026-10-17T03:00:00",
       "source": "demo",
-      "value": 2.0
+      "value": 0.0
     },
     {
       "account_id": "acc-037",
@@ -2127,7 +2127,7 @@
       "kind": "open_tickets_sev1",
       "observed_at": "2026-10-16T21:00:00",
       "source": "demo",
-      "value": 1.0
+      "value": 0.0
     },
     {
       "account_id": "acc-038",
@@ -2466,53 +2466,46 @@
       "value": 9.0
     },
     {
-      "account_id": "acc-003",
-      "kind": "open_tickets_sev1",
-      "observed_at": "2026-09-26T15:00:00",
-      "source": "demo",
-      "value": 0.0
-    },
-    {
       "account_id": "acc-004",
       "kind": "usage_trend_30d",
       "observed_at": "2026-10-02T07:00:00",
       "source": "demo",
-      "value": -20.8
+      "value": -20.1
     },
     {
       "account_id": "acc-004",
       "kind": "usage_trend_30d",
       "observed_at": "2026-09-18T07:00:00",
       "source": "demo",
-      "value": -13.3
+      "value": -12.7
     },
     {
       "account_id": "acc-004",
       "kind": "usage_trend_30d",
       "observed_at": "2026-09-04T07:00:00",
       "source": "demo",
-      "value": -6.6
+      "value": -4.8
     },
     {
       "account_id": "acc-004",
       "kind": "usage_trend_30d",
       "observed_at": "2026-08-21T07:00:00",
       "source": "demo",
-      "value": 1.0
+      "value": 2.7
     },
     {
       "account_id": "acc-004",
       "kind": "seat_utilisation",
       "observed_at": "2026-09-18T02:00:00",
       "source": "demo",
-      "value": 61.6
+      "value": 62.6
     },
     {
       "account_id": "acc-004",
       "kind": "seat_utilisation",
       "observed_at": "2026-08-21T02:00:00",
       "source": "demo",
-      "value": 80.5
+      "value": 83.8
     },
     {
       "account_id": "acc-004",
@@ -2533,56 +2526,56 @@
       "kind": "open_tickets_sev1",
       "observed_at": "2026-09-27T04:00:00",
       "source": "demo",
-      "value": 1.0
+      "value": 2.0
     },
     {
       "account_id": "acc-005",
       "kind": "usage_trend_30d",
       "observed_at": "2026-10-04T13:00:00",
       "source": "demo",
-      "value": 8.0
+      "value": 14.8
     },
     {
       "account_id": "acc-005",
       "kind": "usage_trend_30d",
       "observed_at": "2026-09-20T13:00:00",
       "source": "demo",
-      "value": 5.6
+      "value": 8.3
     },
     {
       "account_id": "acc-005",
       "kind": "usage_trend_30d",
       "observed_at": "2026-09-06T13:00:00",
       "source": "demo",
-      "value": 12.2
+      "value": 15.4
     },
     {
       "account_id": "acc-005",
       "kind": "usage_trend_30d",
       "observed_at": "2026-08-23T13:00:00",
       "source": "demo",
-      "value": 16.6
+      "value": 11.0
     },
     {
       "account_id": "acc-005",
       "kind": "seat_utilisation",
       "observed_at": "2026-09-20T07:00:00",
       "source": "demo",
-      "value": 84.1
+      "value": 77.0
     },
     {
       "account_id": "acc-005",
       "kind": "seat_utilisation",
       "observed_at": "2026-08-23T07:00:00",
       "source": "demo",
-      "value": 82.5
+      "value": 84.6
     },
     {
       "account_id": "acc-005",
       "kind": "days_since_last_login",
       "observed_at": "2026-09-18T09:00:00",
       "source": "demo",
-      "value": 5.0
+      "value": 4.0
     },
     {
       "account_id": "acc-005",
@@ -2596,49 +2589,49 @@
       "kind": "usage_trend_30d",
       "observed_at": "2026-10-02T15:00:00",
       "source": "demo",
-      "value": 6.3
+      "value": 16.8
     },
     {
       "account_id": "acc-006",
       "kind": "usage_trend_30d",
       "observed_at": "2026-09-18T15:00:00",
       "source": "demo",
-      "value": 15.7
+      "value": 13.8
     },
     {
       "account_id": "acc-006",
       "kind": "usage_trend_30d",
       "observed_at": "2026-09-04T15:00:00",
       "source": "demo",
-      "value": 11.1
+      "value": 6.7
     },
     {
       "account_id": "acc-006",
       "kind": "usage_trend_30d",
       "observed_at": "2026-08-21T15:00:00",
       "source": "demo",
-      "value": 13.4
+      "value": 13.1
     },
     {
       "account_id": "acc-006",
       "kind": "seat_utilisation",
       "observed_at": "2026-09-19T19:00:00",
       "source": "demo",
-      "value": 85.0
+      "value": 85.7
     },
     {
       "account_id": "acc-006",
       "kind": "seat_utilisation",
       "observed_at": "2026-08-22T19:00:00",
       "source": "demo",
-      "value": 81.1
+      "value": 86.8
     },
     {
       "account_id": "acc-006",
       "kind": "days_since_last_login",
       "observed_at": "2026-09-18T05:00:00",
       "source": "demo",
-      "value": 5.0
+      "value": 2.0
     },
     {
       "account_id": "acc-006",
@@ -2652,112 +2645,105 @@
       "kind": "usage_trend_30d",
       "observed_at": "2026-10-03T20:00:00",
       "source": "demo",
-      "value": -9.2
+      "value": -17.1
     },
     {
       "account_id": "acc-007",
       "kind": "usage_trend_30d",
       "observed_at": "2026-09-19T20:00:00",
       "source": "demo",
-      "value": -13.0
+      "value": -12.4
     },
     {
       "account_id": "acc-007",
       "kind": "usage_trend_30d",
       "observed_at": "2026-09-05T20:00:00",
       "source": "demo",
-      "value": -13.5
+      "value": -4.8
     },
     {
       "account_id": "acc-007",
       "kind": "usage_trend_30d",
       "observed_at": "2026-08-22T20:00:00",
       "source": "demo",
-      "value": -10.7
+      "value": 0.3
     },
     {
       "account_id": "acc-007",
       "kind": "seat_utilisation",
       "observed_at": "2026-09-18T11:00:00",
       "source": "demo",
-      "value": 68.6
+      "value": 66.0
     },
     {
       "account_id": "acc-007",
       "kind": "seat_utilisation",
       "observed_at": "2026-08-21T11:00:00",
       "source": "demo",
-      "value": 88.8
+      "value": 87.8
     },
     {
       "account_id": "acc-007",
       "kind": "days_since_last_login",
       "observed_at": "2026-09-18T02:00:00",
       "source": "demo",
-      "value": 5.0
+      "value": 4.0
     },
     {
       "account_id": "acc-007",
       "kind": "nps_latest",
       "observed_at": "2026-08-14T11:00:00",
       "source": "demo",
-      "value": 7.0
-    },
-    {
-      "account_id": "acc-007",
-      "kind": "open_tickets_sev1",
-      "observed_at": "2026-09-27T07:00:00",
-      "source": "demo",
-      "value": 1.0
+      "value": 8.0
     },
     {
       "account_id": "acc-008",
       "kind": "usage_trend_30d",
       "observed_at": "2026-10-04T16:00:00",
       "source": "demo",
-      "value": 11.7
+      "value": 4.5
     },
     {
       "account_id": "acc-008",
       "kind": "usage_trend_30d",
       "observed_at": "2026-09-20T16:00:00",
       "source": "demo",
-      "value": 6.7
+      "value": 2.3
     },
     {
       "account_id": "acc-008",
       "kind": "usage_trend_30d",
       "observed_at": "2026-09-06T16:00:00",
       "source": "demo",
-      "value": 1.5
+      "value": 7.4
     },
     {
       "account_id": "acc-008",
       "kind": "usage_trend_30d",
       "observed_at": "2026-08-23T16:00:00",
       "source": "demo",
-      "value": 6.0
+      "value": 11.7
     },
     {
       "account_id": "acc-008",
       "kind": "seat_utilisation",
       "observed_at": "2026-09-19T23:00:00",
       "source": "demo",
-      "value": 94.1
+      "value": 91.8
     },
     {
       "account_id": "acc-008",
       "kind": "seat_utilisation",
       "observed_at": "2026-08-22T23:00:00",
       "source": "demo",
-      "value": 95.9
+      "value": 87.4
     },
     {
       "account_id": "acc-008",
       "kind": "days_since_last_login",
       "observed_at": "2026-09-18T20:00:00",
       "source": "demo",
-      "value": 5.0
+      "value": 3.0
     },
     {
       "account_id": "acc-008",
@@ -2771,49 +2757,49 @@
       "kind": "usage_trend_30d",
       "observed_at": "2026-10-04T22:00:00",
       "source": "demo",
-      "value": -13.6
+      "value": -3.6
     },
     {
       "account_id": "acc-009",
       "kind": "usage_trend_30d",
       "observed_at": "2026-09-20T22:00:00",
       "source": "demo",
-      "value": -2.5
+      "value": -6.5
     },
     {
       "account_id": "acc-009",
       "kind": "usage_trend_30d",
       "observed_at": "2026-09-06T22:00:00",
       "source": "demo",
-      "value": -6.9
+      "value": -14.6
     },
     {
       "account_id": "acc-009",
       "kind": "usage_trend_30d",
       "observed_at": "2026-08-23T22:00:00",
       "source": "demo",
-      "value": -13.1
+      "value": -3.5
     },
     {
       "account_id": "acc-009",
       "kind": "seat_utilisation",
       "observed_at": "2026-09-18T09:00:00",
       "source": "demo",
-      "value": 59.6
+      "value": 61.3
     },
     {
       "account_id": "acc-009",
       "kind": "seat_utilisation",
       "observed_at": "2026-08-21T09:00:00",
       "source": "demo",
-      "value": 81.3
+      "value": 86.0
     },
     {
       "account_id": "acc-009",
       "kind": "days_since_last_login",
       "observed_at": "2026-09-20T12:00:00",
       "source": "demo",
-      "value": 5.0
+      "value": 1.0
     },
     {
       "account_id": "acc-009",
@@ -2821,13 +2807,6 @@
       "observed_at": "2026-08-16T02:00:00",
       "source": "demo",
       "value": 9.0
-    },
-    {
-      "account_id": "acc-009",
-      "kind": "open_tickets_sev1",
-      "observed_at": "2026-09-26T17:00:00",
-      "source": "demo",
-      "value": 0.0
     },
     {
       "account_id": "acc-009",
@@ -2841,56 +2820,56 @@
       "kind": "usage_trend_30d",
       "observed_at": "2026-10-02T10:00:00",
       "source": "demo",
-      "value": -11.8
+      "value": -12.5
     },
     {
       "account_id": "acc-010",
       "kind": "usage_trend_30d",
       "observed_at": "2026-09-18T10:00:00",
       "source": "demo",
-      "value": -7.1
+      "value": -10.2
     },
     {
       "account_id": "acc-010",
       "kind": "usage_trend_30d",
       "observed_at": "2026-09-04T10:00:00",
       "source": "demo",
-      "value": -3.5
+      "value": -6.6
     },
     {
       "account_id": "acc-010",
       "kind": "usage_trend_30d",
       "observed_at": "2026-08-21T10:00:00",
       "source": "demo",
-      "value": 0.7
+      "value": -4.1
     },
     {
       "account_id": "acc-010",
       "kind": "seat_utilisation",
       "observed_at": "2026-09-18T06:00:00",
       "source": "demo",
-      "value": 62.1
+      "value": 64.3
     },
     {
       "account_id": "acc-010",
       "kind": "seat_utilisation",
       "observed_at": "2026-08-21T06:00:00",
       "source": "demo",
-      "value": 85.9
+      "value": 81.1
     },
     {
       "account_id": "acc-010",
       "kind": "days_since_last_login",
       "observed_at": "2026-09-18T07:00:00",
       "source": "demo",
-      "value": 0.0
+      "value": 3.0
     },
     {
       "account_id": "acc-010",
       "kind": "nps_latest",
       "observed_at": "2026-08-16T03:00:00",
       "source": "demo",
-      "value": 5.0
+      "value": 7.0
     },
     {
       "account_id": "acc-010",
@@ -2904,105 +2883,105 @@
       "kind": "usage_trend_30d",
       "observed_at": "2026-10-02T18:00:00",
       "source": "demo",
-      "value": 0.9
+      "value": -0.1
     },
     {
       "account_id": "acc-011",
       "kind": "usage_trend_30d",
       "observed_at": "2026-09-18T18:00:00",
       "source": "demo",
-      "value": -0.4
+      "value": -0.6
     },
     {
       "account_id": "acc-011",
       "kind": "usage_trend_30d",
       "observed_at": "2026-09-04T18:00:00",
       "source": "demo",
-      "value": 8.7
+      "value": 10.2
     },
     {
       "account_id": "acc-011",
       "kind": "usage_trend_30d",
       "observed_at": "2026-08-21T18:00:00",
       "source": "demo",
-      "value": 9.3
+      "value": 11.1
     },
     {
       "account_id": "acc-011",
       "kind": "seat_utilisation",
       "observed_at": "2026-09-19T07:00:00",
       "source": "demo",
-      "value": 92.7
+      "value": 86.1
     },
     {
       "account_id": "acc-011",
       "kind": "seat_utilisation",
       "observed_at": "2026-08-22T07:00:00",
       "source": "demo",
-      "value": 86.1
+      "value": 92.2
     },
     {
       "account_id": "acc-011",
       "kind": "days_since_last_login",
       "observed_at": "2026-09-18T05:00:00",
       "source": "demo",
-      "value": 4.0
+      "value": 2.0
     },
     {
       "account_id": "acc-011",
       "kind": "nps_latest",
       "observed_at": "2026-08-15T14:00:00",
       "source": "demo",
-      "value": 10.0
+      "value": 9.0
     },
     {
       "account_id": "acc-012",
       "kind": "usage_trend_30d",
       "observed_at": "2026-10-04T07:00:00",
       "source": "demo",
-      "value": -1.1
+      "value": 4.4
     },
     {
       "account_id": "acc-012",
       "kind": "usage_trend_30d",
       "observed_at": "2026-09-20T07:00:00",
       "source": "demo",
-      "value": 4.9
+      "value": 1.8
     },
     {
       "account_id": "acc-012",
       "kind": "usage_trend_30d",
       "observed_at": "2026-09-06T07:00:00",
       "source": "demo",
-      "value": 1.3
+      "value": 7.0
     },
     {
       "account_id": "acc-012",
       "kind": "usage_trend_30d",
       "observed_at": "2026-08-23T07:00:00",
       "source": "demo",
-      "value": -0.1
+      "value": 4.2
     },
     {
       "account_id": "acc-012",
       "kind": "seat_utilisation",
       "observed_at": "2026-09-19T11:00:00",
       "source": "demo",
-      "value": 92.9
+      "value": 91.8
     },
     {
       "account_id": "acc-012",
       "kind": "seat_utilisation",
       "observed_at": "2026-08-22T11:00:00",
       "source": "demo",
-      "value": 84.3
+      "value": 92.0
     },
     {
       "account_id": "acc-012",
       "kind": "days_since_last_login",
       "observed_at": "2026-09-19T03:00:00",
       "source": "demo",
-      "value": 0.0
+      "value": 3.0
     },
     {
       "account_id": "acc-012",
@@ -3016,42 +2995,42 @@
       "kind": "usage_trend_30d",
       "observed_at": "2026-10-02T01:00:00",
       "source": "demo",
-      "value": 6.9
+      "value": 6.8
     },
     {
       "account_id": "acc-013",
       "kind": "usage_trend_30d",
       "observed_at": "2026-09-18T01:00:00",
       "source": "demo",
-      "value": 8.5
+      "value": -0.6
     },
     {
       "account_id": "acc-013",
       "kind": "usage_trend_30d",
       "observed_at": "2026-09-04T01:00:00",
       "source": "demo",
-      "value": 6.4
+      "value": 0.8
     },
     {
       "account_id": "acc-013",
       "kind": "usage_trend_30d",
       "observed_at": "2026-08-21T01:00:00",
       "source": "demo",
-      "value": 0.6
+      "value": 9.5
     },
     {
       "account_id": "acc-013",
       "kind": "seat_utilisation",
       "observed_at": "2026-09-19T04:00:00",
       "source": "demo",
-      "value": 86.0
+      "value": 80.6
     },
     {
       "account_id": "acc-013",
       "kind": "seat_utilisation",
       "observed_at": "2026-08-22T04:00:00",
       "source": "demo",
-      "value": 80.6
+      "value": 83.5
     },
     {
       "account_id": "acc-013",
@@ -3065,49 +3044,49 @@
       "kind": "nps_latest",
       "observed_at": "2026-08-15T11:00:00",
       "source": "demo",
-      "value": 9.0
+      "value": 8.0
     },
     {
       "account_id": "acc-014",
       "kind": "usage_trend_30d",
       "observed_at": "2026-10-03T14:00:00",
       "source": "demo",
-      "value": -24.8
+      "value": -14.0
     },
     {
       "account_id": "acc-014",
       "kind": "usage_trend_30d",
       "observed_at": "2026-09-19T14:00:00",
       "source": "demo",
-      "value": -17.8
+      "value": -9.6
     },
     {
       "account_id": "acc-014",
       "kind": "usage_trend_30d",
       "observed_at": "2026-09-05T14:00:00",
       "source": "demo",
-      "value": -10.7
+      "value": -6.6
     },
     {
       "account_id": "acc-014",
       "kind": "usage_trend_30d",
       "observed_at": "2026-08-22T14:00:00",
       "source": "demo",
-      "value": -0.9
+      "value": -2.4
     },
     {
       "account_id": "acc-014",
       "kind": "seat_utilisation",
       "observed_at": "2026-09-18T00:00:00",
       "source": "demo",
-      "value": 63.1
+      "value": 52.7
     },
     {
       "account_id": "acc-014",
       "kind": "seat_utilisation",
       "observed_at": "2026-08-21T00:00:00",
       "source": "demo",
-      "value": 85.4
+      "value": 83.5
     },
     {
       "account_id": "acc-014",
@@ -3121,7 +3100,14 @@
       "kind": "nps_latest",
       "observed_at": "2026-08-14T01:00:00",
       "source": "demo",
-      "value": 9.0
+      "value": 7.0
+    },
+    {
+      "account_id": "acc-014",
+      "kind": "champion_left",
+      "observed_at": "2026-09-11T17:00:00",
+      "source": "demo",
+      "value": 0.0
     },
     {
       "account_id": "acc-014",
@@ -3191,21 +3177,21 @@
       "kind": "usage_trend_30d",
       "observed_at": "2026-10-02T23:00:00",
       "source": "demo",
-      "value": -8.9
+      "value": -23.9
     },
     {
       "account_id": "acc-016",
       "kind": "usage_trend_30d",
       "observed_at": "2026-09-18T23:00:00",
       "source": "demo",
-      "value": -7.6
+      "value": -18.5
     },
     {
       "account_id": "acc-016",
       "kind": "usage_trend_30d",
       "observed_at": "2026-09-04T23:00:00",
       "source": "demo",
-      "value": -6.2
+      "value": -12.1
     },
     {
       "account_id": "acc-016",
@@ -3243,60 +3229,53 @@
       "value": 9.0
     },
     {
-      "account_id": "acc-016",
-      "kind": "open_tickets_sev1",
-      "observed_at": "2026-09-25T11:00:00",
-      "source": "demo",
-      "value": 1.0
-    },
-    {
       "account_id": "acc-017",
       "kind": "usage_trend_30d",
       "observed_at": "2026-10-02T05:00:00",
       "source": "demo",
-      "value": -36.3
+      "value": -33.8
     },
     {
       "account_id": "acc-017",
       "kind": "usage_trend_30d",
       "observed_at": "2026-09-18T05:00:00",
       "source": "demo",
-      "value": -24.9
+      "value": -22.5
     },
     {
       "account_id": "acc-017",
       "kind": "usage_trend_30d",
       "observed_at": "2026-09-04T05:00:00",
       "source": "demo",
-      "value": -9.9
+      "value": -10.3
     },
     {
       "account_id": "acc-017",
       "kind": "usage_trend_30d",
       "observed_at": "2026-08-21T05:00:00",
       "source": "demo",
-      "value": 0.8
+      "value": 4.5
     },
     {
       "account_id": "acc-017",
       "kind": "seat_utilisation",
       "observed_at": "2026-09-20T15:00:00",
       "source": "demo",
-      "value": 57.7
+      "value": 61.8
     },
     {
       "account_id": "acc-017",
       "kind": "seat_utilisation",
       "observed_at": "2026-08-23T15:00:00",
       "source": "demo",
-      "value": 81.5
+      "value": 87.6
     },
     {
       "account_id": "acc-017",
       "kind": "days_since_last_login",
       "observed_at": "2026-09-18T03:00:00",
       "source": "demo",
-      "value": 5.0
+      "value": 0.0
     },
     {
       "account_id": "acc-017",
@@ -3317,42 +3296,42 @@
       "kind": "usage_trend_30d",
       "observed_at": "2026-10-02T23:00:00",
       "source": "demo",
-      "value": 6.3
+      "value": 1.0
     },
     {
       "account_id": "acc-018",
       "kind": "usage_trend_30d",
       "observed_at": "2026-09-18T23:00:00",
       "source": "demo",
-      "value": 4.5
+      "value": 7.0
     },
     {
       "account_id": "acc-018",
       "kind": "usage_trend_30d",
       "observed_at": "2026-09-04T23:00:00",
       "source": "demo",
-      "value": 4.0
+      "value": 1.9
     },
     {
       "account_id": "acc-018",
       "kind": "usage_trend_30d",
       "observed_at": "2026-08-21T23:00:00",
       "source": "demo",
-      "value": 0.8
+      "value": 4.6
     },
     {
       "account_id": "acc-018",
       "kind": "seat_utilisation",
       "observed_at": "2026-09-20T23:00:00",
       "source": "demo",
-      "value": 75.1
+      "value": 73.3
     },
     {
       "account_id": "acc-018",
       "kind": "seat_utilisation",
       "observed_at": "2026-08-23T23:00:00",
       "source": "demo",
-      "value": 74.4
+      "value": 77.0
     },
     {
       "account_id": "acc-018",
@@ -3373,105 +3352,98 @@
       "kind": "usage_trend_30d",
       "observed_at": "2026-10-04T13:00:00",
       "source": "demo",
-      "value": -13.6
+      "value": -26.0
     },
     {
       "account_id": "acc-019",
       "kind": "usage_trend_30d",
       "observed_at": "2026-09-20T13:00:00",
       "source": "demo",
-      "value": -9.7
+      "value": -17.2
     },
     {
       "account_id": "acc-019",
       "kind": "usage_trend_30d",
       "observed_at": "2026-09-06T13:00:00",
       "source": "demo",
-      "value": -4.8
+      "value": -9.3
     },
     {
       "account_id": "acc-019",
       "kind": "usage_trend_30d",
       "observed_at": "2026-08-23T13:00:00",
       "source": "demo",
-      "value": 0.4
+      "value": -2.4
     },
     {
       "account_id": "acc-019",
       "kind": "seat_utilisation",
       "observed_at": "2026-09-19T17:00:00",
       "source": "demo",
-      "value": 68.6
+      "value": 68.2
     },
     {
       "account_id": "acc-019",
       "kind": "seat_utilisation",
       "observed_at": "2026-08-22T17:00:00",
       "source": "demo",
-      "value": 82.4
+      "value": 82.0
     },
     {
       "account_id": "acc-019",
       "kind": "days_since_last_login",
       "observed_at": "2026-09-19T11:00:00",
       "source": "demo",
-      "value": 3.0
+      "value": 2.0
     },
     {
       "account_id": "acc-019",
       "kind": "nps_latest",
       "observed_at": "2026-08-15T05:00:00",
       "source": "demo",
-      "value": 9.0
-    },
-    {
-      "account_id": "acc-019",
-      "kind": "open_tickets_sev1",
-      "observed_at": "2026-09-25T06:00:00",
-      "source": "demo",
-      "value": 0.0
+      "value": 8.0
     },
     {
       "account_id": "acc-020",
       "kind": "usage_trend_30d",
       "observed_at": "2026-10-02T22:00:00",
       "source": "demo",
-      "value": 11.7
+      "value": 10.1
     },
     {
       "account_id": "acc-020",
       "kind": "usage_trend_30d",
       "observed_at": "2026-09-18T22:00:00",
       "source": "demo",
-      "value": 11.2
+      "value": 5.0
     },
     {
       "account_id": "acc-020",
       "kind": "usage_trend_30d",
       "observed_at": "2026-09-04T22:00:00",
       "source": "demo",
-      "value": 7.5
+      "value": 9.5
     },
     {
       "account_id": "acc-020",
       "kind": "usage_trend_30d",
       "observed_at": "2026-08-21T22:00:00",
       "source": "demo",
-      "value": 5.8
+      "value": 2.6
     },
     {
       "account_id": "acc-020",
       "kind": "seat_utilisation",
       "observed_at": "2026-09-20T23:00:00",
       "source": "demo",
-      "value": 95.4
+      "value": 99.2
     },
     {
       "account_id": "acc-020",
       "kind": "seat_utilisation",
       "observed_at": "2026-08-23T23:00:00",
       "source": "demo",
-      "value": 92.3
+      "value": 93.6
     },
     {
       "account_id": "acc-020",
@@ -3485,126 +3457,112 @@
       "kind": "nps_latest",
       "observed_at": "2026-08-15T16:00:00",
       "source": "demo",
-      "value": 9.0
-    },
-    {
-      "account_id": "acc-020",
-      "kind": "open_tickets_sev1",
-      "observed_at": "2026-09-25T20:00:00",
-      "source": "demo",
-      "value": 0.0
+      "value": 8.0
     },
     {
       "account_id": "acc-021",
       "kind": "usage_trend_30d",
       "observed_at": "2026-10-02T15:00:00",
       "source": "demo",
-      "value": 1.1
+      "value": 6.5
     },
     {
       "account_id": "acc-021",
       "kind": "usage_trend_30d",
       "observed_at": "2026-09-18T15:00:00",
       "source": "demo",
-      "value": 5.7
+      "value": 3.4
     },
     {
       "account_id": "acc-021",
       "kind": "usage_trend_30d",
       "observed_at": "2026-09-04T15:00:00",
       "source": "demo",
-      "value": 1.3
+      "value": 5.4
     },
     {
       "account_id": "acc-021",
       "kind": "usage_trend_30d",
       "observed_at": "2026-08-21T15:00:00",
       "source": "demo",
-      "value": 3.5
+      "value": 1.1
     },
     {
       "account_id": "acc-021",
       "kind": "seat_utilisation",
       "observed_at": "2026-09-20T03:00:00",
       "source": "demo",
-      "value": 94.4
+      "value": 96.7
     },
     {
       "account_id": "acc-021",
       "kind": "seat_utilisation",
       "observed_at": "2026-08-23T03:00:00",
       "source": "demo",
-      "value": 99.1
+      "value": 93.0
     },
     {
       "account_id": "acc-021",
       "kind": "days_since_last_login",
       "observed_at": "2026-09-18T07:00:00",
       "source": "demo",
-      "value": 5.0
+      "value": 3.0
     },
     {
       "account_id": "acc-021",
       "kind": "nps_latest",
       "observed_at": "2026-08-14T01:00:00",
       "source": "demo",
-      "value": 9.0
-    },
-    {
-      "account_id": "acc-021",
-      "kind": "open_tickets_sev1",
-      "observed_at": "2026-09-25T17:00:00",
-      "source": "demo",
-      "value": 0.0
+      "value": 8.0
     },
     {
       "account_id": "acc-022",
       "kind": "usage_trend_30d",
       "observed_at": "2026-10-04T13:00:00",
       "source": "demo",
-      "value": -8.1
+      "value": -9.1
     },
     {
       "account_id": "acc-022",
       "kind": "usage_trend_30d",
       "observed_at": "2026-09-20T13:00:00",
       "source": "demo",
-      "value": -4.0
+      "value": -6.8
     },
     {
       "account_id": "acc-022",
       "kind": "usage_trend_30d",
       "observed_at": "2026-09-06T13:00:00",
       "source": "demo",
-      "value": -0.4
+      "value": -4.5
     },
     {
       "account_id": "acc-022",
       "kind": "usage_trend_30d",
       "observed_at": "2026-08-23T13:00:00",
       "source": "demo",
-      "value": 3.5
+      "value": -1.9
     },
     {
       "account_id": "acc-022",
       "kind": "seat_utilisation",
       "observed_at": "2026-09-20T04:00:00",
       "source": "demo",
-      "value": 67.5
+      "value": 69.4
     },
     {
       "account_id": "acc-022",
       "kind": "seat_utilisation",
       "observed_at": "2026-08-23T04:00:00",
       "source": "demo",
-      "value": 85.8
+      "value": 85.5
     },
     {
       "account_id": "acc-022",
       "kind": "days_since_last_login",
       "observed_at": "2026-09-20T06:00:00",
       "source": "demo",
-      "value": 5.0
+      "value": 3.0
     },
     {
       "account_id": "acc-022",
@@ -3632,56 +3590,56 @@
       "kind": "usage_trend_30d",
       "observed_at": "2026-10-02T23:00:00",
       "source": "demo",
-      "value": -23.1
+      "value": -21.5
     },
     {
       "account_id": "acc-023",
       "kind": "usage_trend_30d",
       "observed_at": "2026-09-18T23:00:00",
       "source": "demo",
-      "value": -15.2
+      "value": -15.7
     },
     {
       "account_id": "acc-023",
       "kind": "usage_trend_30d",
       "observed_at": "2026-09-04T23:00:00",
       "source": "demo",
-      "value": -5.3
+      "value": -8.6
     },
     {
       "account_id": "acc-023",
       "kind": "usage_trend_30d",
       "observed_at": "2026-08-21T23:00:00",
       "source": "demo",
-      "value": 1.1
+      "value": -2.9
     },
     {
       "account_id": "acc-023",
       "kind": "seat_utilisation",
       "observed_at": "2026-09-18T22:00:00",
       "source": "demo",
-      "value": 73.0
+      "value": 62.9
     },
     {
       "account_id": "acc-023",
       "kind": "seat_utilisation",
       "observed_at": "2026-08-21T22:00:00",
       "source": "demo",
-      "value": 87.0
+      "value": 86.1
     },
     {
       "account_id": "acc-023",
       "kind": "days_since_last_login",
       "observed_at": "2026-09-18T10:00:00",
       "source": "demo",
-      "value": 5.0
+      "value": 0.0
     },
     {
       "account_id": "acc-023",
       "kind": "nps_latest",
       "observed_at": "2026-08-15T02:00:00",
       "source": "demo",
-      "value": 7.0
+      "value": 9.0
     },
     {
       "account_id": "acc-023",
@@ -3702,105 +3660,98 @@
       "kind": "usage_trend_30d",
       "observed_at": "2026-10-04T07:00:00",
       "source": "demo",
-      "value": 7.1
+      "value": 6.2
     },
     {
       "account_id": "acc-024",
       "kind": "usage_trend_30d",
       "observed_at": "2026-09-20T07:00:00",
       "source": "demo",
-      "value": 2.6
+      "value": 6.0
     },
     {
       "account_id": "acc-024",
       "kind": "usage_trend_30d",
       "observed_at": "2026-09-06T07:00:00",
       "source": "demo",
-      "value": 4.1
+      "value": -1.9
     },
     {
       "account_id": "acc-024",
       "kind": "usage_trend_30d",
       "observed_at": "2026-08-23T07:00:00",
       "source": "demo",
-      "value": 1.5
+      "value": 7.1
     },
     {
       "account_id": "acc-024",
       "kind": "seat_utilisation",
       "observed_at": "2026-09-20T13:00:00",
       "source": "demo",
-      "value": 76.7
+      "value": 80.2
     },
     {
       "account_id": "acc-024",
       "kind": "seat_utilisation",
       "observed_at": "2026-08-23T13:00:00",
       "source": "demo",
-      "value": 79.0
+      "value": 81.4
     },
     {
       "account_id": "acc-024",
       "kind": "days_since_last_login",
       "observed_at": "2026-09-18T03:00:00",
       "source": "demo",
-      "value": 3.0
+      "value": 4.0
     },
     {
       "account_id": "acc-024",
       "kind": "nps_latest",
       "observed_at": "2026-08-14T21:00:00",
       "source": "demo",
-      "value": 10.0
-    },
-    {
-      "account_id": "acc-024",
-      "kind": "open_tickets_sev1",
-      "observed_at": "2026-09-27T20:00:00",
-      "source": "demo",
-      "value": 0.0
+      "value": 9.0
     },
     {
       "account_id": "acc-025",
       "kind": "usage_trend_30d",
       "observed_at": "2026-10-04T18:00:00",
       "source": "demo",
-      "value": -28.6
+      "value": -20.5
     },
     {
       "account_id": "acc-025",
       "kind": "usage_trend_30d",
       "observed_at": "2026-09-20T18:00:00",
       "source": "demo",
-      "value": -19.8
+      "value": -14.5
     },
     {
       "account_id": "acc-025",
       "kind": "usage_trend_30d",
       "observed_at": "2026-09-06T18:00:00",
       "source": "demo",
-      "value": -12.4
+      "value": -8.9
     },
     {
       "account_id": "acc-025",
       "kind": "usage_trend_30d",
       "observed_at": "2026-08-23T18:00:00",
       "source": "demo",
-      "value": -4.4
+      "value": -2.4
     },
     {
       "account_id": "acc-025",
       "kind": "seat_utilisation",
       "observed_at": "2026-09-20T04:00:00",
       "source": "demo",
-      "value": 62.4
+      "value": 64.7
     },
     {
       "account_id": "acc-025",
       "kind": "seat_utilisation",
       "observed_at": "2026-08-23T04:00:00",
       "source": "demo",
-      "value": 81.1
+      "value": 83.4
     },
     {
       "account_id": "acc-025",
@@ -3818,8 +3769,8 @@
     },
     {
       "account_id": "acc-025",
-      "kind": "open_tickets_sev1",
-      "observed_at": "2026-09-26T16:00:00",
+      "kind": "champion_left",
+      "observed_at": "2026-09-13T21:00:00",
       "source": "demo",
       "value": 0.0
     },
@@ -3835,42 +3786,42 @@
       "kind": "usage_trend_30d",
       "observed_at": "2026-10-04T10:00:00",
       "source": "demo",
-      "value": -10.6
+      "value": -20.9
     },
     {
       "account_id": "acc-026",
       "kind": "usage_trend_30d",
       "observed_at": "2026-09-20T10:00:00",
       "source": "demo",
-      "value": -6.5
+      "value": -15.9
     },
     {
       "account_id": "acc-026",
       "kind": "usage_trend_30d",
       "observed_at": "2026-09-06T10:00:00",
       "source": "demo",
-      "value": -2.2
+      "value": -9.9
     },
     {
       "account_id": "acc-026",
       "kind": "usage_trend_30d",
       "observed_at": "2026-08-23T10:00:00",
       "source": "demo",
-      "value": 2.8
+      "value": -3.6
     },
     {
       "account_id": "acc-026",
       "kind": "seat_utilisation",
       "observed_at": "2026-09-18T03:00:00",
       "source": "demo",
-      "value": 64.4
+      "value": 70.0
     },
     {
       "account_id": "acc-026",
       "kind": "seat_utilisation",
       "observed_at": "2026-08-21T03:00:00",
       "source": "demo",
-      "value": 88.0
+      "value": 87.8
     },
     {
       "account_id": "acc-026",
@@ -3884,138 +3835,124 @@
       "kind": "nps_latest",
       "observed_at": "2026-08-16T18:00:00",
       "source": "demo",
-      "value": 7.0
-    },
-    {
-      "account_id": "acc-026",
-      "kind": "open_tickets_sev1",
-      "observed_at": "2026-09-27T08:00:00",
-      "source": "demo",
-      "value": 0.0
+      "value": 8.0
     },
     {
       "account_id": "acc-027",
       "kind": "usage_trend_30d",
       "observed_at": "2026-10-03T16:00:00",
       "source": "demo",
-      "value": -24.5
+      "value": -23.4
     },
     {
       "account_id": "acc-027",
       "kind": "usage_trend_30d",
       "observed_at": "2026-09-19T16:00:00",
       "source": "demo",
-      "value": -15.9
+      "value": -17.6
     },
     {
       "account_id": "acc-027",
       "kind": "usage_trend_30d",
       "observed_at": "2026-09-05T16:00:00",
       "source": "demo",
-      "value": -10.0
+      "value": -9.5
     },
     {
       "account_id": "acc-027",
       "kind": "usage_trend_30d",
       "observed_at": "2026-08-22T16:00:00",
       "source": "demo",
-      "value": -2.0
+      "value": -1.9
     },
     {
       "account_id": "acc-027",
       "kind": "seat_utilisation",
       "observed_at": "2026-09-18T08:00:00",
       "source": "demo",
-      "value": 65.7
+      "value": 64.8
     },
     {
       "account_id": "acc-027",
       "kind": "seat_utilisation",
       "observed_at": "2026-08-21T08:00:00",
       "source": "demo",
-      "value": 86.4
+      "value": 83.7
     },
     {
       "account_id": "acc-027",
       "kind": "days_since_last_login",
       "observed_at": "2026-09-18T12:00:00",
       "source": "demo",
-      "value": 2.0
+      "value": 1.0
     },
     {
       "account_id": "acc-027",
       "kind": "nps_latest",
       "observed_at": "2026-08-15T04:00:00",
       "source": "demo",
-      "value": 7.0
-    },
-    {
-      "account_id": "acc-027",
-      "kind": "open_tickets_sev1",
-      "observed_at": "2026-09-25T23:00:00",
-      "source": "demo",
-      "value": 1.0
+      "value": 9.0
     },
     {
       "account_id": "acc-028",
       "kind": "usage_trend_30d",
       "observed_at": "2026-10-04T12:00:00",
       "source": "demo",
-      "value": -10.6
+      "value": -6.2
     },
     {
       "account_id": "acc-028",
       "kind": "usage_trend_30d",
       "observed_at": "2026-09-20T12:00:00",
       "source": "demo",
-      "value": -7.4
+      "value": -2.1
     },
     {
       "account_id": "acc-028",
       "kind": "usage_trend_30d",
       "observed_at": "2026-09-06T12:00:00",
       "source": "demo",
-      "value": -5.3
+      "value": 1.7
     },
     {
       "account_id": "acc-028",
       "kind": "usage_trend_30d",
       "observed_at": "2026-08-23T12:00:00",
       "source": "demo",
-      "value": -2.9
+      "value": -6.1
     },
     {
       "account_id": "acc-028",
       "kind": "seat_utilisation",
       "observed_at": "2026-09-19T08:00:00",
       "source": "demo",
-      "value": 76.3
+      "value": 67.5
     },
     {
       "account_id": "acc-028",
       "kind": "seat_utilisation",
       "observed_at": "2026-08-22T08:00:00",
       "source": "demo",
-      "value": 87.2
+      "value": 81.3
     },
     {
       "account_id": "acc-028",
       "kind": "days_since_last_login",
       "observed_at": "2026-09-19T10:00:00",
       "source": "demo",
-      "value": 2.0
+      "value": 1.0
     },
     {
       "account_id": "acc-028",
       "kind": "nps_latest",
       "observed_at": "2026-08-14T20:00:00",
       "source": "demo",
-      "value": 7.0
+      "value": 6.0
     },
     {
       "account_id": "acc-028",
-      "kind": "open_tickets_sev1",
-      "observed_at": "2026-09-26T19:00:00",
+      "kind": "champion_left",
+      "observed_at": "2026-09-12T16:00:00",
       "source": "demo",
       "value": 0.0
     },
@@ -4024,105 +3961,98 @@
       "kind": "usage_trend_30d",
       "observed_at": "2026-10-04T08:00:00",
       "source": "demo",
-      "value": 9.6
+      "value": 6.9
     },
     {
       "account_id": "acc-029",
       "kind": "usage_trend_30d",
       "observed_at": "2026-09-20T08:00:00",
       "source": "demo",
-      "value": 0.8
+      "value": 6.3
     },
     {
       "account_id": "acc-029",
       "kind": "usage_trend_30d",
       "observed_at": "2026-09-06T08:00:00",
       "source": "demo",
-      "value": 1.7
+      "value": 4.7
     },
     {
       "account_id": "acc-029",
       "kind": "usage_trend_30d",
       "observed_at": "2026-08-23T08:00:00",
       "source": "demo",
-      "value": 9.2
+      "value": 7.1
     },
     {
       "account_id": "acc-029",
       "kind": "seat_utilisation",
       "observed_at": "2026-09-20T00:00:00",
       "source": "demo",
-      "value": 86.1
+      "value": 79.6
     },
     {
       "account_id": "acc-029",
       "kind": "seat_utilisation",
       "observed_at": "2026-08-23T00:00:00",
       "source": "demo",
-      "value": 82.9
+      "value": 86.8
     },
     {
       "account_id": "acc-029",
       "kind": "days_since_last_login",
       "observed_at": "2026-09-19T23:00:00",
       "source": "demo",
-      "value": 1.0
+      "value": 3.0
     },
     {
       "account_id": "acc-029",
       "kind": "nps_latest",
       "observed_at": "2026-08-16T08:00:00",
       "source": "demo",
-      "value": 8.0
-    },
-    {
-      "account_id": "acc-029",
-      "kind": "open_tickets_sev1",
-      "observed_at": "2026-09-26T07:00:00",
-      "source": "demo",
-      "value": 0.0
+      "value": 10.0
     },
     {
       "account_id": "acc-030",
       "kind": "usage_trend_30d",
       "observed_at": "2026-10-03T09:00:00",
       "source": "demo",
-      "value": 5.3
+      "value": 3.8
     },
     {
       "account_id": "acc-030",
       "kind": "usage_trend_30d",
       "observed_at": "2026-09-19T09:00:00",
       "source": "demo",
-      "value": 10.7
+      "value": 4.7
     },
     {
       "account_id": "acc-030",
       "kind": "usage_trend_30d",
       "observed_at": "2026-09-05T09:00:00",
       "source": "demo",
-      "value": 4.7
+      "value": 12.2
     },
     {
       "account_id": "acc-030",
       "kind": "usage_trend_30d",
       "observed_at": "2026-08-22T09:00:00",
       "source": "demo",
-      "value": 3.4
+      "value": 11.7
     },
     {
       "account_id": "acc-030",
       "kind": "seat_utilisation",
       "observed_at": "2026-09-20T18:00:00",
       "source": "demo",
-      "value": 82.6
+      "value": 80.9
     },
     {
       "account_id": "acc-030",
       "kind": "seat_utilisation",
       "observed_at": "2026-08-23T18:00:00",
       "source": "demo",
-      "value": 79.6
+      "value": 77.0
     },
     {
       "account_id": "acc-030",
@@ -4136,56 +4066,56 @@
       "kind": "nps_latest",
       "observed_at": "2026-08-16T07:00:00",
       "source": "demo",
-      "value": 10.0
+      "value": 9.0
     },
     {
       "account_id": "acc-031",
       "kind": "usage_trend_30d",
       "observed_at": "2026-10-02T09:00:00",
       "source": "demo",
-      "value": -31.4
+      "value": -34.7
     },
     {
       "account_id": "acc-031",
       "kind": "usage_trend_30d",
       "observed_at": "2026-09-18T09:00:00",
       "source": "demo",
-      "value": -21.2
+      "value": -26.8
     },
     {
       "account_id": "acc-031",
       "kind": "usage_trend_30d",
       "observed_at": "2026-09-04T09:00:00",
       "source": "demo",
-      "value": -10.2
+      "value": -12.0
     },
     {
       "account_id": "acc-031",
       "kind": "usage_trend_30d",
       "observed_at": "2026-08-21T09:00:00",
       "source": "demo",
-      "value": -0.6
+      "value": 0.0
     },
     {
       "account_id": "acc-031",
       "kind": "seat_utilisation",
       "observed_at": "2026-09-19T09:00:00",
       "source": "demo",
-      "value": 66.6
+      "value": 62.1
     },
     {
       "account_id": "acc-031",
       "kind": "seat_utilisation",
       "observed_at": "2026-08-22T09:00:00",
       "source": "demo",
-      "value": 81.1
+      "value": 85.2
     },
     {
       "account_id": "acc-031",
       "kind": "days_since_last_login",
       "observed_at": "2026-09-20T14:00:00",
       "source": "demo",
-      "value": 3.0
+      "value": 4.0
     },
     {
       "account_id": "acc-031",
@@ -4195,53 +4125,46 @@
       "value": 8.0
     },
     {
-      "account_id": "acc-031",
-      "kind": "open_tickets_sev1",
-      "observed_at": "2026-09-27T17:00:00",
-      "source": "demo",
-      "value": 1.0
-    },
-    {
       "account_id": "acc-032",
       "kind": "usage_trend_30d",
       "observed_at": "2026-10-02T17:00:00",
       "source": "demo",
-      "value": 0.9
+      "value": 5.1
     },
     {
       "account_id": "acc-032",
       "kind": "usage_trend_30d",
       "observed_at": "2026-09-18T17:00:00",
       "source": "demo",
-      "value": 5.5
+      "value": 4.2
     },
     {
       "account_id": "acc-032",
       "kind": "usage_trend_30d",
       "observed_at": "2026-09-04T17:00:00",
       "source": "demo",
-      "value": 0.0
+      "value": 4.0
     },
     {
       "account_id": "acc-032",
       "kind": "usage_trend_30d",
       "observed_at": "2026-08-21T17:00:00",
       "source": "demo",
-      "value": 5.9
+      "value": 8.9
     },
     {
       "account_id": "acc-032",
       "kind": "seat_utilisation",
       "observed_at": "2026-09-19T20:00:00",
       "source": "demo",
-      "value": 99.5
+      "value": 92.8
     },
     {
       "account_id": "acc-032",
       "kind": "seat_utilisation",
       "observed_at": "2026-08-22T20:00:00",
       "source": "demo",
-      "value": 98.1
+      "value": 99.9
     },
     {
       "account_id": "acc-032",
@@ -4258,60 +4181,53 @@
       "value": 8.0
     },
     {
-      "account_id": "acc-032",
-      "kind": "open_tickets_sev1",
-      "observed_at": "2026-09-27T16:00:00",
-      "source": "demo",
-      "value": 0.0
-    },
-    {
       "account_id": "acc-033",
       "kind": "usage_trend_30d",
       "observed_at": "2026-10-03T11:00:00",
       "source": "demo",
-      "value": -15.1
+      "value": -15.7
     },
     {
       "account_id": "acc-033",
       "kind": "usage_trend_30d",
       "observed_at": "2026-09-19T11:00:00",
       "source": "demo",
-      "value": -10.3
+      "value": -11.9
     },
     {
       "account_id": "acc-033",
       "kind": "usage_trend_30d",
       "observed_at": "2026-09-05T11:00:00",
       "source": "demo",
-      "value": -6.5
+      "value": -6.4
     },
     {
       "account_id": "acc-033",
       "kind": "usage_trend_30d",
       "observed_at": "2026-08-22T11:00:00",
       "source": "demo",
-      "value": -1.4
+      "value": -2.1
     },
     {
       "account_id": "acc-033",
       "kind": "seat_utilisation",
       "observed_at": "2026-09-19T22:00:00",
       "source": "demo",
-      "value": 71.8
+      "value": 66.9
     },
     {
       "account_id": "acc-033",
       "kind": "seat_utilisation",
       "observed_at": "2026-08-22T22:00:00",
       "source": "demo",
-      "value": 88.9
+      "value": 86.8
     },
     {
       "account_id": "acc-033",
       "kind": "days_since_last_login",
       "observed_at": "2026-09-18T13:00:00",
       "source": "demo",
-      "value": 1.0
+      "value": 3.0
     },
     {
       "account_id": "acc-033",
@@ -4321,60 +4237,53 @@
       "value": 5.0
     },
     {
-      "account_id": "acc-033",
-      "kind": "open_tickets_sev1",
-      "observed_at": "2026-09-27T14:00:00",
-      "source": "demo",
-      "value": 0.0
-    },
-    {
       "account_id": "acc-034",
       "kind": "usage_trend_30d",
       "observed_at": "2026-10-03T13:00:00",
       "source": "demo",
-      "value": -19.4
+      "value": -20.3
     },
     {
       "account_id": "acc-034",
       "kind": "usage_trend_30d",
       "observed_at": "2026-09-19T13:00:00",
       "source": "demo",
-      "value": -14.6
+      "value": -13.1
     },
     {
       "account_id": "acc-034",
       "kind": "usage_trend_30d",
       "observed_at": "2026-09-05T13:00:00",
       "source": "demo",
-      "value": -9.7
+      "value": -4.2
     },
     {
       "account_id": "acc-034",
       "kind": "usage_trend_30d",
       "observed_at": "2026-08-22T13:00:00",
       "source": "demo",
-      "value": -2.9
+      "value": 4.5
     },
     {
       "account_id": "acc-034",
       "kind": "seat_utilisation",
       "observed_at": "2026-09-18T15:00:00",
       "source": "demo",
-      "value": 66.7
+      "value": 70.7
     },
     {
       "account_id": "acc-034",
       "kind": "seat_utilisation",
       "observed_at": "2026-08-21T15:00:00",
       "source": "demo",
-      "value": 86.3
+      "value": 80.4
     },
     {
       "account_id": "acc-034",
       "kind": "days_since_last_login",
       "observed_at": "2026-09-20T18:00:00",
       "source": "demo",
-      "value": 0.0
+      "value": 2.0
     },
     {
       "account_id": "acc-034",
@@ -4382,13 +4291,6 @@
       "observed_at": "2026-08-14T11:00:00",
       "source": "demo",
       "value": 7.0
-    },
-    {
-      "account_id": "acc-034",
-      "kind": "open_tickets_sev1",
-      "observed_at": "2026-09-27T01:00:00",
-      "source": "demo",
-      "value": 2.0
     },
     {
       "account_id": "acc-034",
@@ -4409,224 +4311,210 @@
       "kind": "usage_trend_30d",
       "observed_at": "2026-10-03T05:00:00",
       "source": "demo",
-      "value": 1.7
+      "value": -0.9
     },
     {
       "account_id": "acc-035",
       "kind": "usage_trend_30d",
       "observed_at": "2026-09-19T05:00:00",
       "source": "demo",
-      "value": 8.1
+      "value": 3.1
     },
     {
       "account_id": "acc-035",
       "kind": "usage_trend_30d",
       "observed_at": "2026-09-05T05:00:00",
       "source": "demo",
-      "value": -0.7
+      "value": 2.7
     },
     {
       "account_id": "acc-035",
       "kind": "usage_trend_30d",
       "observed_at": "2026-08-22T05:00:00",
       "source": "demo",
-      "value": 0.1
+      "value": 0.3
     },
     {
       "account_id": "acc-035",
       "kind": "seat_utilisation",
       "observed_at": "2026-09-18T01:00:00",
       "source": "demo",
-      "value": 75.6
+      "value": 77.2
     },
     {
       "account_id": "acc-035",
       "kind": "seat_utilisation",
       "observed_at": "2026-08-21T01:00:00",
       "source": "demo",
-      "value": 73.3
+      "value": 72.7
     },
     {
       "account_id": "acc-035",
       "kind": "days_since_last_login",
       "observed_at": "2026-09-18T19:00:00",
       "source": "demo",
-      "value": 4.0
+      "value": 5.0
     },
     {
       "account_id": "acc-035",
       "kind": "nps_latest",
       "observed_at": "2026-08-15T11:00:00",
       "source": "demo",
-      "value": 10.0
+      "value": 9.0
     },
     {
       "account_id": "acc-036",
       "kind": "usage_trend_30d",
       "observed_at": "2026-10-02T12:00:00",
       "source": "demo",
-      "value": -10.7
+      "value": -18.9
     },
     {
       "account_id": "acc-036",
       "kind": "usage_trend_30d",
       "observed_at": "2026-09-18T12:00:00",
       "source": "demo",
-      "value": -6.0
+      "value": -13.6
     },
     {
       "account_id": "acc-036",
       "kind": "usage_trend_30d",
       "observed_at": "2026-09-04T12:00:00",
       "source": "demo",
-      "value": -1.9
+      "value": -8.5
     },
     {
       "account_id": "acc-036",
       "kind": "usage_trend_30d",
       "observed_at": "2026-08-21T12:00:00",
       "source": "demo",
-      "value": 3.5
+      "value": -2.8
     },
     {
       "account_id": "acc-036",
       "kind": "seat_utilisation",
       "observed_at": "2026-09-18T06:00:00",
       "source": "demo",
-      "value": 64.8
+      "value": 65.2
     },
     {
       "account_id": "acc-036",
       "kind": "seat_utilisation",
       "observed_at": "2026-08-21T06:00:00",
       "source": "demo",
-      "value": 84.0
+      "value": 80.4
     },
     {
       "account_id": "acc-036",
       "kind": "days_since_last_login",
       "observed_at": "2026-09-20T08:00:00",
       "source": "demo",
-      "value": 1.0
+      "value": 0.0
     },
     {
       "account_id": "acc-036",
       "kind": "nps_latest",
       "observed_at": "2026-08-14T08:00:00",
       "source": "demo",
-      "value": 9.0
-    },
-    {
-      "account_id": "acc-036",
-      "kind": "open_tickets_sev1",
-      "observed_at": "2026-09-27T04:00:00",
-      "source": "demo",
-      "value": 0.0
+      "value": 7.0
     },
     {
       "account_id": "acc-037",
       "kind": "usage_trend_30d",
       "observed_at": "2026-10-02T03:00:00",
       "source": "demo",
-      "value": -8.8
+      "value": -24.0
     },
     {
       "account_id": "acc-037",
       "kind": "usage_trend_30d",
       "observed_at": "2026-09-18T03:00:00",
       "source": "demo",
-      "value": -5.4
+      "value": -14.9
     },
     {
       "account_id": "acc-037",
       "kind": "usage_trend_30d",
       "observed_at": "2026-09-04T03:00:00",
       "source": "demo",
-      "value": -2.8
+      "value": -8.5
     },
     {
       "account_id": "acc-037",
       "kind": "usage_trend_30d",
       "observed_at": "2026-08-21T03:00:00",
       "source": "demo",
-      "value": -0.1
+      "value": -2.0
     },
     {
       "account_id": "acc-037",
       "kind": "seat_utilisation",
       "observed_at": "2026-09-18T02:00:00",
       "source": "demo",
-      "value": 70.1
+      "value": 74.1
     },
     {
       "account_id": "acc-037",
       "kind": "seat_utilisation",
       "observed_at": "2026-08-21T02:00:00",
       "source": "demo",
-      "value": 69.3
+      "value": 72.6
     },
     {
       "account_id": "acc-037",
       "kind": "days_since_last_login",
       "observed_at": "2026-09-18T10:00:00",
       "source": "demo",
-      "value": 2.0
+      "value": 1.0
     },
     {
       "account_id": "acc-037",
       "kind": "nps_latest",
       "observed_at": "2026-08-15T05:00:00",
       "source": "demo",
-      "value": 8.0
-    },
-    {
-      "account_id": "acc-037",
-      "kind": "open_tickets_sev1",
-      "observed_at": "2026-09-26T03:00:00",
-      "source": "demo",
-      "value": 1.0
+      "value": 7.0
     },
     {
       "account_id": "acc-038",
       "kind": "usage_trend_30d",
       "observed_at": "2026-10-03T14:00:00",
       "source": "demo",
-      "value": -28.6
+      "value": -29.1
     },
     {
       "account_id": "acc-038",
       "kind": "usage_trend_30d",
       "observed_at": "2026-09-19T14:00:00",
       "source": "demo",
-      "value": -18.0
+      "value": -19.3
     },
     {
       "account_id": "acc-038",
       "kind": "usage_trend_30d",
       "observed_at": "2026-09-05T14:00:00",
       "source": "demo",
-      "value": -8.9
+      "value": -10.8
     },
     {
       "account_id": "acc-038",
       "kind": "usage_trend_30d",
       "observed_at": "2026-08-22T14:00:00",
       "source": "demo",
-      "value": -0.6
+      "value": -2.2
     },
     {
       "account_id": "acc-038",
       "kind": "seat_utilisation",
       "observed_at": "2026-09-18T03:00:00",
       "source": "demo",
-      "value": 59.9
+      "value": 58.3
     },
     {
       "account_id": "acc-038",
       "kind": "seat_utilisation",
       "observed_at": "2026-08-21T03:00:00",
       "source": "demo",
-      "value": 85.2
+      "value": 83.2
     },
     {
       "account_id": "acc-038",
@@ -4640,14 +4528,7 @@
       "kind": "nps_latest",
       "observed_at": "2026-08-16T13:00:00",
       "source": "demo",
-      "value": 7.0
-    },
-    {
-      "account_id": "acc-038",
-      "kind": "open_tickets_sev1",
-      "observed_at": "2026-09-25T21:00:00",
-      "source": "demo",
-      "value": 0.0
+      "value": 9.0
     },
     {
       "account_id": "acc-038",
@@ -4661,105 +4542,105 @@
       "kind": "usage_trend_30d",
       "observed_at": "2026-10-02T15:00:00",
       "source": "demo",
-      "value": 15.2
+      "value": 14.5
     },
     {
       "account_id": "acc-039",
       "kind": "usage_trend_30d",
       "observed_at": "2026-09-18T15:00:00",
       "source": "demo",
-      "value": 7.3
+      "value": 10.9
     },
     {
       "account_id": "acc-039",
       "kind": "usage_trend_30d",
       "observed_at": "2026-09-04T15:00:00",
       "source": "demo",
-      "value": 11.3
+      "value": 9.9
     },
     {
       "account_id": "acc-039",
       "kind": "usage_trend_30d",
       "observed_at": "2026-08-21T15:00:00",
       "source": "demo",
-      "value": 11.5
+      "value": 10.5
     },
     {
       "account_id": "acc-039",
       "kind": "seat_utilisation",
       "observed_at": "2026-09-19T06:00:00",
       "source": "demo",
-      "value": 95.7
+      "value": 100.0
     },
     {
       "account_id": "acc-039",
       "kind": "seat_utilisation",
       "observed_at": "2026-08-22T06:00:00",
       "source": "demo",
-      "value": 100.0
+      "value": 98.9
     },
     {
       "account_id": "acc-039",
       "kind": "days_since_last_login",
       "observed_at": "2026-09-20T02:00:00",
       "source": "demo",
-      "value": 2.0
+      "value": 5.0
     },
     {
       "account_id": "acc-039",
       "kind": "nps_latest",
       "observed_at": "2026-08-16T20:00:00",
       "source": "demo",
-      "value": 10.0
+      "value": 9.0
     },
     {
       "account_id": "acc-040",
       "kind": "usage_trend_30d",
       "observed_at": "2026-10-03T03:00:00",
       "source": "demo",
-      "value": -19.3
+      "value": -19.8
     },
     {
       "account_id": "acc-040",
       "kind": "usage_trend_30d",
       "observed_at": "2026-09-19T03:00:00",
       "source": "demo",
-      "value": -13.3
+      "value": -11.2
     },
     {
       "account_id": "acc-040",
       "kind": "usage_trend_30d",
       "observed_at": "2026-09-05T03:00:00",
       "source": "demo",
-      "value": -5.7
+      "value": -4.7
     },
     {
       "account_id": "acc-040",
       "kind": "usage_trend_30d",
       "observed_at": "2026-08-22T03:00:00",
       "source": "demo",
-      "value": 1.6
+      "value": 3.2
     },
     {
       "account_id": "acc-040",
       "kind": "seat_utilisation",
       "observed_at": "2026-09-19T09:00:00",
       "source": "demo",
-      "value": 51.0
+      "value": 49.4
     },
     {
       "account_id": "acc-040",
       "kind": "seat_utilisation",
       "observed_at": "2026-08-22T09:00:00",
       "source": "demo",
-      "value": 89.8
+      "value": 89.0
     },
     {
       "account_id": "acc-040",
       "kind": "days_since_last_login",
       "observed_at": "2026-09-19T09:00:00",
       "source": "demo",
-      "value": 2.0
+      "value": 0.0
     },
     {
       "account_id": "acc-040",

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import importlib.util
 import json
 import random
@@ -12,10 +13,12 @@ from typing import Any
 from cs_brief.core.config import DEFAULT_SIGNAL_RULES, MotionWindows
 from cs_brief.core.connectors.base import Connector
 from cs_brief.core.connectors.demo import DemoConnector
-from cs_brief.core.models import Account, Motion, Signal, SignalKind
+from cs_brief.core.models import Account, Health, Motion, Signal, SignalKind
 
 REPO = Path(__file__).resolve().parents[1]
 KINDS = {kind.value for kind in SignalKind}
+# SHA-256 of the committed accounts.json. The realism pass must never change it.
+ACCOUNTS_SHA256 = "f424d2ef0203d8bbc9debef3fa95feea279cd3e797584fbdbf4c614547e8a1ea"
 
 
 def _load_generator() -> ModuleType:
@@ -223,7 +226,7 @@ def test_every_champion_who_has_left_was_still_in_place_earlier():
 
 
 def test_champion_rule_adds_an_earlier_zero_when_the_champion_has_left():
-    # The demo book has no champion who has left today, so flip one current reading to exercise it.
+    # Flip one account's champion reading to "left", so the history rule runs on any account.
     accounts, signals = gen.generate(ANCHOR)
     target = "acc-001"
     current = [
@@ -253,3 +256,71 @@ def test_latest_reading_per_account_and_kind_is_the_current_reading():
     assert len(latest) == len(current)
     for reading in current:
         assert Signal.model_validate(latest[(reading.account_id, reading.kind.value)]) == reading
+
+
+# Realism pass: the call-outs the weekly brief shows should look like a real book.
+
+
+def _current_values_by_account(signals: dict[str, Any]) -> dict[str, dict[str, float]]:
+    values: dict[str, dict[str, float]] = defaultdict(dict)
+    for (account_id, kind), row in _latest_by_kind(signals["signals"]).items():
+        values[account_id][kind] = row["value"]
+    return values
+
+
+def test_accounts_json_is_unchanged():
+    # The realism pass edits signal values only. Names, ids, ARR and dates must stay as they are.
+    digest = hashlib.sha256((gen.DATA_DIR / "accounts.json").read_bytes()).hexdigest()
+    assert digest == ACCOUNTS_SHA256
+
+
+def test_five_to_seven_accounts_have_an_open_severity_one_ticket():
+    _, signals = gen.generate(ANCHOR)
+    values = _current_values_by_account(signals)
+    with_tickets = [a for a, v in values.items() if v[SignalKind.OPEN_TICKETS_SEV1.value] >= 1]
+    assert 5 <= len(with_tickets) <= 7
+
+
+def test_no_healthy_account_has_an_open_severity_one_ticket():
+    accounts, signals = gen.generate(ANCHOR)
+    values = _current_values_by_account(signals)
+    for account in accounts["accounts"]:
+        current = values[account["id"]]
+        if _band(_risk(current)) == Health.HEALTHY:
+            assert current[SignalKind.OPEN_TICKETS_SEV1.value] == 0
+
+
+def test_every_risk_sits_inside_its_health_band_window():
+    accounts, signals = gen.generate(ANCHOR)
+    values = _current_values_by_account(signals)
+    for account in accounts["accounts"]:
+        current = values[account["id"]]
+        low, high = gen.RISK_WINDOWS[Health(_band(_risk(current)))]
+        assert low <= _risk(current) <= high
+
+
+def test_exactly_three_champions_have_left_two_at_risk_in_renewal_and_one_watch_in_churn():
+    accounts, signals = gen.generate(ANCHOR)
+    values = _current_values_by_account(signals)
+    windows = MotionWindows()
+    split: Counter[tuple[str, Motion]] = Counter()
+    for account in accounts["accounts"]:
+        current = values[account["id"]]
+        if current[SignalKind.CHAMPION_LEFT.value] == 1.0:
+            split[(_band(_risk(current)), _motion(account, ANCHOR, windows))] += 1
+    assert split == {("at_risk", Motion.RENEWAL): 2, ("watch", Motion.CHURN): 1}
+
+
+def test_each_champion_who_has_left_had_an_earlier_zero_reading():
+    _, signals = gen.generate(ANCHOR)
+    grouped = _readings_by_key(signals["signals"])
+    left = [
+        readings
+        for (_, kind), readings in grouped.items()
+        if kind == SignalKind.CHAMPION_LEFT.value
+        and max(readings, key=lambda s: s.observed_at).value == 1.0
+    ]
+    assert len(left) == 3
+    for readings in left:
+        newest = max(readings, key=lambda s: s.observed_at)
+        assert any(s.value == 0.0 and s.observed_at < newest.observed_at for s in readings)

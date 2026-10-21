@@ -47,6 +47,15 @@ OLDER_KINDS = [
 ]
 N_OLDER = 6
 
+# Realism pass, applied to the current readings after _build. It has its own RNG, so the draws in
+# _build (names, dates, ARR, and every value before the pass) do not move.
+WATCH_SEV1_KEEP = 1  # watch accounts that keep one open severity-1 ticket (at most 2 allowed)
+AT_RISK_SEV1_KEEP = 5  # at-risk accounts that keep one to three open severity-1 tickets
+RENEWAL_CHAMPIONS_LEFT = 2  # at-risk accounts in renewal whose champion has left
+CHURN_CHAMPIONS_LEFT = 1  # watch accounts in churn whose champion has left
+USAGE_RANGE = (-50.0, 15.0)  # keeps a nudged usage reading realistic
+LOGIN_RANGE = (0.0, 45.0)  # keeps a nudged days-since-login reading realistic
+
 PREFIXES = [
     "Larkspur",
     "Quillon",
@@ -253,7 +262,8 @@ def _older_value(kind: SignalKind, current: float, rng: random.Random) -> float:
 def _build(anchor: date) -> tuple[list[Account], list[Signal], list[Signal]]:
     """Accounts, the current reading per (account, kind), and every existing reading.
 
-    Every draw comes from the main RNG, so these values are the same as before history existed.
+    Every draw comes from the main RNG, so the draws are the same as before the realism pass
+    existed. The pass then edits some current values, and the existing readings follow it.
     """
     rng = random.Random(SEED)
     anchor_dt = datetime(anchor.year, anchor.month, anchor.day)
@@ -316,7 +326,126 @@ def _build(anchor: date) -> tuple[list[Account], list[Signal], list[Signal]]:
                 )
             )
 
+    current = _realism_pass(accounts, current, random.Random(SEED + 2), anchor)
+    edited = {(r.account_id, r.kind, r.observed_at): r for r in current}
+    signals = [edited.get((s.account_id, s.kind, s.observed_at), s) for s in signals]
     return accounts, current, signals
+
+
+def _fit_to_window(values: dict[SignalKind, float], health: Health) -> bool:
+    """Nudge usage, then days since last login, until the risk is back inside the band's window.
+
+    Each step moves usage by one point or logins by one day, so the risk moves in small steps and
+    cannot jump over a window. Stops at the first reading that lands inside it. Returns False if
+    even the extreme readings cannot bring the risk into the window.
+    """
+    low, high = RISK_WINDOWS[health]
+
+    def inside() -> bool:
+        return low <= _risk(values) <= high
+
+    too_high = _risk(values) > high
+    usage_step = 1.0 if too_high else -1.0  # a flatter usage trend lowers the risk
+    login_step = -1.0 if too_high else 1.0  # fewer days since the last login lowers it too
+    usage_low, usage_high = USAGE_RANGE
+    login_low, login_high = LOGIN_RANGE
+    while not inside():
+        usage = values[SignalKind.USAGE_TREND_30D] + usage_step
+        if not usage_low <= usage <= usage_high:
+            break
+        values[SignalKind.USAGE_TREND_30D] = round(usage, 1)
+    while not inside():
+        logins = values[SignalKind.DAYS_SINCE_LAST_LOGIN] + login_step
+        if not login_low <= logins <= login_high:
+            break
+        values[SignalKind.DAYS_SINCE_LAST_LOGIN] = logins
+    return inside()
+
+
+def _realism_pass(
+    accounts: list[Account], current: list[Signal], rng: random.Random, anchor: date
+) -> list[Signal]:
+    """Edit current readings so the call-outs look realistic. Accounts and dates never change.
+
+    Healthy accounts have no open severity-1 tickets, and a few watch and at-risk accounts keep
+    some. Three accounts have lost their champion: two at-risk accounts in renewal and one watch
+    account in churn. Each account whose readings changed is then nudged back into its health
+    band's risk window, so the health and motion mixes stay exactly the same.
+    """
+    motion_of = {account.id: _motion(account, anchor) for account in accounts}
+    values: dict[str, dict[SignalKind, float]] = {}
+    for reading in current:
+        values.setdefault(reading.account_id, {})[reading.kind] = reading.value
+    ids = sorted(values)
+
+    health: dict[str, Health] = {}
+    for acc_id in ids:
+        band = _band(_risk(values[acc_id]))
+        assert band is not None, f"{acc_id} risk falls between two bands"
+        health[acc_id] = band
+    before = {acc_id: dict(values[acc_id]) for acc_id in ids}
+
+    def pick(pool: list[str], count: int) -> list[str]:
+        shuffled = sorted(pool)
+        rng.shuffle(shuffled)
+        return shuffled[:count]
+
+    watch = [i for i in ids if health[i] is Health.WATCH]
+    at_risk = [i for i in ids if health[i] is Health.AT_RISK]
+
+    # Open severity-1 tickets. An at-risk account that cannot drop to zero and stay in its window
+    # keeps its tickets. The remaining at-risk keeps go to the busiest accounts first.
+    def can_clear(acc_id: str) -> bool:
+        trial = {**values[acc_id], SignalKind.OPEN_TICKETS_SEV1: 0.0}
+        return _fit_to_window(trial, health[acc_id])
+
+    tickets = SignalKind.OPEN_TICKETS_SEV1
+    keep_at_risk = [i for i in at_risk if values[i][tickets] >= 1 and not can_clear(i)]
+    assert len(keep_at_risk) <= AT_RISK_SEV1_KEEP, "too many at-risk accounts cannot clear tickets"
+    busy = [i for i in at_risk if values[i][tickets] >= 2 and i not in keep_at_risk]
+    quiet = [i for i in at_risk if values[i][tickets] == 1 and i not in keep_at_risk]
+    keep_at_risk += pick(busy, AT_RISK_SEV1_KEEP - len(keep_at_risk))
+    keep_at_risk += pick(quiet, AT_RISK_SEV1_KEEP - len(keep_at_risk))
+    keep_watch = pick([i for i in watch if values[i][tickets] == 1], WATCH_SEV1_KEEP)
+    kept = {*keep_at_risk, *keep_watch}
+    for acc_id in ids:
+        if acc_id not in kept:
+            values[acc_id][tickets] = 0.0
+
+    # Champions who have left. Candidates are tried in shuffled order, and one is taken only if
+    # its risk can be brought back into its window, so the account keeps its health band.
+    def take(pool: list[str], count: int) -> list[str]:
+        taken: list[str] = []
+        for acc_id in pick(pool, len(pool)):
+            if len(taken) == count:
+                break
+            trial = {**values[acc_id], SignalKind.CHAMPION_LEFT: 1.0}
+            if _fit_to_window(trial, health[acc_id]):
+                values[acc_id] = trial
+                taken.append(acc_id)
+        assert len(taken) == count, f"only {len(taken)} of {count} champion candidates fit"
+        return taken
+
+    left = take([i for i in at_risk if motion_of[i] is Motion.RENEWAL], RENEWAL_CHAMPIONS_LEFT)
+    left += take([i for i in watch if motion_of[i] is Motion.CHURN], CHURN_CHAMPIONS_LEFT)
+    for acc_id in ids:
+        if acc_id not in left:
+            values[acc_id][SignalKind.CHAMPION_LEFT] = 0.0
+
+    for acc_id in ids:
+        if values[acc_id] != before[acc_id]:
+            assert _fit_to_window(values[acc_id], health[acc_id]), f"{acc_id} cannot be kept"
+        assert _band(_risk(values[acc_id])) is health[acc_id], f"{acc_id} left its band"
+    assert sum(values[i][SignalKind.CHAMPION_LEFT] == 1.0 for i in ids) == len(left) == 3
+
+    edited: list[Signal] = []
+    for reading in current:
+        value = values[reading.account_id][reading.kind]
+        if value == reading.value:
+            edited.append(reading)
+        else:
+            edited.append(reading.model_copy(update={"value": value}))
+    return edited
 
 
 def _usage_history(current: float, rng: random.Random) -> list[float]:

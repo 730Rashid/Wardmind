@@ -1,15 +1,9 @@
 [
   {
-    "id": "acc-034",
-    "priority": 79.2,
+    "id": "acc-014",
+    "priority": 83.3,
     "health": "at_risk",
-    "motion": "onboarding"
-  },
-  {
-    "id": "acc-027",
-    "priority": 77.1,
-    "health": "at_risk",
-    "motion": "churn"
+    "motion": "renewal"
   },
   {
     "id": "acc-004",
@@ -24,10 +18,16 @@
     "motion": "onboarding"
   },
   {
-    "id": "acc-014",
-    "priority": 67.5,
+    "id": "acc-025",
+    "priority": 70.1,
     "health": "at_risk",
     "motion": "renewal"
+  },
+  {
+    "id": "acc-027",
+    "priority": 65.3,
+    "health": "at_risk",
+    "motion": "churn"
   },
   {
     "id": "acc-023",
@@ -36,26 +36,26 @@
     "motion": "churn"
   },
   {
+    "id": "acc-034",
+    "priority": 60.2,
+    "health": "at_risk",
+    "motion": "onboarding"
+  },
+  {
     "id": "acc-038",
-    "priority": 59.8,
+    "priority": 54.5,
     "health": "at_risk",
     "motion": "renewal"
-  },
-  {
-    "id": "acc-025",
-    "priority": 59.7,
-    "health": "at_risk",
-    "motion": "renewal"
-  },
-  {
-    "id": "acc-031",
-    "priority": 56.5,
-    "health": "at_risk",
-    "motion": "churn"
   },
   {
     "id": "acc-017",
     "priority": 53.7,
+    "health": "at_risk",
+    "motion": "churn"
+  },
+  {
+    "id": "acc-031",
+    "priority": 53.5,
     "health": "at_risk",
     "motion": "churn"
   }
