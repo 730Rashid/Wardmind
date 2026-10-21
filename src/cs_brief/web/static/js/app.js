@@ -8,24 +8,46 @@ document.querySelectorAll("[data-print]").forEach((button) => {
 
 // Copy as text on the onboarding brief. The plain text sits in a <template> the server renders, so
 // the copy matches the page. The result goes in the status line beside the buttons.
+// Order of attempts: the async clipboard API; then the older copy-from-selection command, which
+// needs no permission; and if both are refused, the text is shown selected for Ctrl+C.
 const COPY_DONE = "Copied.";
-const COPY_FAILED = "Copy didn't work. Select the text and copy it instead.";
+const COPY_MANUAL = "Your browser blocked copying. The text is selected below: press Ctrl+C to copy it.";
+
+function copyBySelection(field) {
+  field.hidden = false;
+  field.focus();
+  field.select();
+  try {
+    return document.execCommand("copy");
+  } catch {
+    return false;
+  }
+}
 
 document.querySelectorAll("[data-copy-target]").forEach((button) => {
   button.addEventListener("click", async () => {
     const source = document.querySelector(button.dataset.copyTarget);
     const status = button.closest(".brief-actions")?.querySelector('[role="status"]');
+    const field = document.getElementById(`${source?.id}-fallback`);
     const text = source instanceof HTMLTemplateElement ? source.content.textContent.trim() : "";
-    let message = COPY_FAILED;
+    const say = (message) => { if (status) status.textContent = message; };
+    if (!text) return;
     try {
-      if (text && navigator.clipboard) {
-        await navigator.clipboard.writeText(text);
-        message = COPY_DONE;
-      }
+      await navigator.clipboard.writeText(text);
+      say(COPY_DONE);
+      return;
     } catch {
-      message = COPY_FAILED;
+      // Fall through to the selection-based copy.
     }
-    if (status) status.textContent = message;
+    if (!field) return say(COPY_MANUAL);
+    field.value = text;
+    if (copyBySelection(field)) {
+      field.hidden = true;
+      button.focus();
+      say(COPY_DONE);
+    } else {
+      say(COPY_MANUAL);
+    }
   });
 });
 

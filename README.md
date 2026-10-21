@@ -7,6 +7,9 @@ attention this week. It is reachable three ways, all backed by the same core cod
   - **My book:** the ranked list
   - **Account pages:** the score breakdown, signal history and next step
   - **Weekly brief:** a one-page summary with **Print or save as PDF** (fits on 2 A4 pages)
+  - **Onboarding prep:** pick an account to get a call brief. It covers where the account is on
+    the standard onboarding plan, an agenda, questions to ask and the signals to watch. You can
+    print it (1 page) or copy it as text.
   - **Settings:**
     - Appearance: theme, accent colour, density, and which screen it opens on. These are saved
       to `config/settings.yaml`.
@@ -34,7 +37,7 @@ uv run cs-brief ui         # dashboard at http://127.0.0.1:8000
 claude mcp add cs-brief -- uv --directory "<path to this folder>" run cs-brief mcp
 ```
 
-The server exposes four tools:
+The server exposes five tools:
 
 | Tool | What it returns |
 |---|---|
@@ -42,6 +45,7 @@ The server exposes four tools:
 | `get_account` | everything about one account |
 | `explain_score` | why the account ranks where it does, with a short summary |
 | `weekly_brief` | totals, counts by health and motion, call-outs, and the top accounts |
+| `onboarding_brief` | a prep brief for an onboarding call: plan status, agenda, questions |
 
 ## How scoring works
 

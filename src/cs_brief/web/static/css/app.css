@@ -1305,6 +1305,26 @@ a.button {
   color: var(--ink);
 }
 
+/* Only shown when the browser refuses to copy; the text is pre-selected for Ctrl+C. */
+.copy-fallback {
+  display: block;
+  inline-size: 100%;
+  max-inline-size: 70ch;
+  margin-block-start: var(--space-3);
+  padding: var(--space-3);
+  font: inherit;
+  font-size: var(--t-sm);
+  line-height: var(--lh-sm);
+  color: var(--ink);
+  background: var(--surface);
+  border: 1px solid var(--control);
+  border-radius: 4px;
+}
+
+.copy-fallback[hidden] {
+  display: none;
+}
+
 /* The plan is a sequence, so it is numbered. NEXT and OVERDUE are ink and bold; the rest is muted.
    The number and the row share the list item, so the row is a grid inside it, not the item. */
 .plan,

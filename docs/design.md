@@ -331,8 +331,11 @@ Next step                                                          (accent-ruled
 - **Copy as text** (`data-copy-target`, wired in `app.js`) copies a plain-text version of the
   brief: the title, the facts line, the summary, then the plan, agenda and questions as numbered
   and bulleted lines. The plain text sits in a hidden `<template>` rendered by the server, so the
-  copied text matches the page. After copying, a `role="status"` line says "Copied." If the
-  clipboard isn't available it says "Copy didn't work. Select the text and copy it instead."
+  copied text matches the page. After copying, a `role="status"` line says "Copied."
+  - If the clipboard API is refused, `app.js` falls back to a selection copy from a hidden,
+    read-only textarea.
+  - If that fails too, the textarea stays visible with its text selected, and the status says
+    "Your browser blocked copying. The text is selected below: press Ctrl+C to copy it."
 - **Print:** fits on one A4 page for the demo accounts, and hides the buttons and the back link.
 
 ### Settings (`/settings/appearance`, `/settings/scoring`)

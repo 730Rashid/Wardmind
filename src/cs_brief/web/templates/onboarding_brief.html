@@ -21,6 +21,9 @@
       <button type="button" class="button js-only" data-copy-target="#brief-text">Copy as text</button>
       <p class="copy-status" role="status" aria-live="polite"></p>
     </div>
+    {# Shown only when the browser won't copy for us, pre-selected so Ctrl+C copies it. #}
+    <textarea id="brief-text-fallback" class="copy-fallback no-print" rows="12" readonly hidden
+              aria-label="Brief as plain text"></textarea>
   </header>
 
   <p class="brief-summary">{{ brief.summary }}</p>

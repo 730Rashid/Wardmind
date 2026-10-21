@@ -393,7 +393,7 @@ def test_copy_as_text_is_wired_in_app_js() -> None:
     assert "[data-copy-target]" in script
     assert "navigator.clipboard.writeText" in script
     assert "Copied." in script
-    assert "Copy didn't work. Select the text and copy it instead." in script
+    assert "Your browser blocked copying. The text is selected below" in script
 
 
 def test_the_plan_status_symbols_are_in_the_sprite() -> None:
@@ -482,3 +482,21 @@ def test_onboarding_plain_text_is_the_copyable_brief() -> None:
 def test_onboarding_plain_text_keeps_the_plan_heading_when_there_are_no_steps() -> None:
     text = formatting.onboarding_plain_text(_onboarding_brief(milestones=[]))
     assert "The plan\n\nAgenda for the call" in text
+
+
+def test_copy_has_a_working_fallback_when_the_clipboard_is_refused(client: TestClient) -> None:
+    # Embedded or locked-down browsers refuse navigator.clipboard. The text lives in a <template>,
+    # which can't be selected, so a hidden, read-only textarea is the fallback: app.js fills it,
+    # tries a selection copy, and if that fails too leaves it showing with the text selected.
+    page = client.get(f"/onboarding/{_book_onboarding()[0].account.id}").text
+    assert re.search(r'<textarea id="brief-text-fallback"[^>]*\breadonly\b[^>]*\bhidden\b', page)
+    script = client.get("/static/js/app.js").text
+    assert "navigator.clipboard.writeText" in script
+    assert 'execCommand("copy")' in script
+    assert "press Ctrl+C" in script
+
+
+def test_static_files_are_revalidated_so_upgrades_never_run_stale_code(client: TestClient) -> None:
+    for path in ("/static/js/app.js", "/static/css/app.css"):
+        assert client.get(path).headers["cache-control"] == "no-cache"
+    assert "cache-control" not in client.get("/onboarding").headers

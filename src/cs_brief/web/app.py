@@ -407,6 +407,9 @@ def create_app() -> FastAPI:
     ) -> Response:
         response = await call_next(request)
         response.headers.update(SECURITY_HEADERS)
+        if request.url.path.startswith("/static/"):
+            # Revalidate every time (a cheap 304 locally) so an upgrade never runs stale JS or CSS.
+            response.headers["Cache-Control"] = "no-cache"
         return response
 
     app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
