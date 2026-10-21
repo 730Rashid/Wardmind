@@ -12,12 +12,24 @@ before changing them. Nothing here touches the network.
 
 from __future__ import annotations
 
-from datetime import date, datetime
+import codecs
+import csv
+import hashlib
+import io
+import re
+import unicodedata
+from dataclasses import dataclass
+from dataclasses import field as dc_field
+from datetime import UTC, date, datetime, timedelta
+from decimal import Decimal
 from enum import StrEnum
+from pathlib import PureWindowsPath
+from typing import Any
 
+from openpyxl import load_workbook
 from pydantic import BaseModel
 
-from cs_brief.core.models import Account, Signal, SignalKind
+from cs_brief.core.models import Account, Milestones, Signal, SignalKind
 
 MAX_BYTES = 5 * 1024 * 1024  # larger files are refused with a plain message
 MAX_ROWS = 5000  # data rows; more are refused with a plain message
@@ -51,7 +63,25 @@ IMPORT_FIELDS: tuple[ImportField, ...] = (
         required=True,
         type=FieldType.TEXT,
         help="The customer's name",
-        synonyms=(),
+        synonyms=(
+            "account name",
+            "account",
+            "company",
+            "company name",
+            "customer",
+            "customer name",
+            "customer account",
+            "client",
+            "client name",
+            "organisation",
+            "organization",
+            "organisation name",
+            "organization name",
+            "name",
+            "account title",
+            "business name",
+            "legal name",
+        ),
     ),
     ImportField(
         key="arr",
@@ -59,7 +89,25 @@ IMPORT_FIELDS: tuple[ImportField, ...] = (
         required=True,
         type=FieldType.MONEY,
         help="Annual recurring revenue",
-        synonyms=(),
+        synonyms=(
+            "arr",
+            "arr usd",
+            "arr gbp",
+            "arr eur",
+            "current arr",
+            "total arr",
+            "annual recurring revenue",
+            "annual revenue",
+            "annual contract value",
+            "annual value",
+            "acv",
+            "contract value",
+            "revenue",
+            "yearly revenue",
+            "recurring revenue",
+            "subscription value",
+            "subscription revenue",
+        ),
     ),
     ImportField(
         key="renewal_date",
@@ -67,7 +115,34 @@ IMPORT_FIELDS: tuple[ImportField, ...] = (
         required=True,
         type=FieldType.DATE,
         help="When the contract renews",
-        synonyms=(),
+        synonyms=(
+            "renewal date",
+            "renewal",
+            "renewal day",
+            "renewal due",
+            "renewal due date",
+            "next renewal",
+            "next renewal date",
+            "renews",
+            "renews on",
+            "contract end",
+            "contract end date",
+            "contract ends",
+            "contract expiry",
+            "contract expiry date",
+            "end date",
+            "term end",
+            "term end date",
+            "expiry",
+            "expiry date",
+            "expiration date",
+            "expires",
+            "expires on",
+            "subscription end",
+            "subscription end date",
+            "license end date",
+            "licence end date",
+        ),
     ),
     ImportField(
         key="external_id",
@@ -75,7 +150,23 @@ IMPORT_FIELDS: tuple[ImportField, ...] = (
         required=False,
         type=FieldType.TEXT,
         help="Your own ID for the account, so re-imports update the same account",
-        synonyms=(),
+        synonyms=(
+            "account id",
+            "customer id",
+            "company id",
+            "external id",
+            "crm id",
+            "record id",
+            "hubspot id",
+            "hubspot record id",
+            "salesforce id",
+            "account number",
+            "customer number",
+            "account code",
+            "customer code",
+            "account reference",
+            "customer reference",
+        ),
     ),
     ImportField(
         key="domain",
@@ -83,7 +174,25 @@ IMPORT_FIELDS: tuple[ImportField, ...] = (
         required=False,
         type=FieldType.TEXT,
         help="Helps spot the same customer in another connection",
-        synonyms=(),
+        synonyms=(
+            "domain",
+            "domain name",
+            "primary domain",
+            "website",
+            "website url",
+            "web site",
+            "web",
+            "web address",
+            "web url",
+            "url",
+            "company website",
+            "company domain",
+            "company url",
+            "company site",
+            "homepage",
+            "home page",
+            "site",
+        ),
     ),
     ImportField(
         key="owner",
@@ -91,7 +200,27 @@ IMPORT_FIELDS: tuple[ImportField, ...] = (
         required=False,
         type=FieldType.TEXT,
         help="The CSM who owns the account",
-        synonyms=(),
+        synonyms=(
+            "owner",
+            "owner name",
+            "account owner",
+            "account owner name",
+            "relationship owner",
+            "csm",
+            "csm name",
+            "csm owner",
+            "csm assigned",
+            "assigned csm",
+            "account csm",
+            "customer success manager",
+            "customer success manager name",
+            "customer success owner",
+            "cs manager",
+            "cs owner",
+            "account manager",
+            "success manager",
+            "assigned to",
+        ),
     ),
     ImportField(
         key="tier",
@@ -99,7 +228,27 @@ IMPORT_FIELDS: tuple[ImportField, ...] = (
         required=False,
         type=FieldType.TEXT,
         help="Plan or segment, e.g. Enterprise",
-        synonyms=(),
+        synonyms=(
+            "tier",
+            "customer tier",
+            "account tier",
+            "service tier",
+            "product tier",
+            "license tier",
+            "plan",
+            "plan name",
+            "plan tier",
+            "subscription plan",
+            "subscription tier",
+            "segment",
+            "customer segment",
+            "account segment",
+            "market segment",
+            "edition",
+            "package",
+            "product",
+            "product name",
+        ),
     ),
     ImportField(
         key="start_date",
@@ -107,7 +256,27 @@ IMPORT_FIELDS: tuple[ImportField, ...] = (
         required=False,
         type=FieldType.DATE,
         help="When they became a customer",
-        synonyms=(),
+        synonyms=(
+            "customer since",
+            "customer start",
+            "customer start date",
+            "start date",
+            "start",
+            "started",
+            "contract start",
+            "contract start date",
+            "start of contract",
+            "subscription start",
+            "subscription start date",
+            "go live",
+            "go live date",
+            "became a customer",
+            "onboarded",
+            "onboarding start",
+            "onboarding start date",
+            "first contract date",
+            "kickoff date",
+        ),
     ),
     ImportField(
         key="milestones_total",
@@ -115,7 +284,21 @@ IMPORT_FIELDS: tuple[ImportField, ...] = (
         required=False,
         type=FieldType.INTEGER,
         help="How many onboarding milestones in total",
-        synonyms=(),
+        synonyms=(
+            "onboarding milestones",
+            "onboarding milestones total",
+            "total onboarding milestones",
+            "milestones total",
+            "total milestones",
+            "milestones",
+            "milestone count",
+            "number of milestones",
+            "onboarding steps",
+            "onboarding steps total",
+            "total steps",
+            "plan steps",
+            "onboarding plan steps",
+        ),
     ),
     ImportField(
         key="milestones_done",
@@ -123,7 +306,21 @@ IMPORT_FIELDS: tuple[ImportField, ...] = (
         required=False,
         type=FieldType.INTEGER,
         help="Onboarding milestones completed",
-        synonyms=(),
+        synonyms=(
+            "milestones done",
+            "done milestones",
+            "milestones completed",
+            "completed milestones",
+            "milestones complete",
+            "milestones achieved",
+            "onboarding milestones done",
+            "onboarding milestones completed",
+            "steps done",
+            "steps completed",
+            "completed steps",
+            "onboarding steps done",
+            "onboarding steps completed",
+        ),
     ),
     ImportField(
         key="milestones_overdue",
@@ -131,7 +328,21 @@ IMPORT_FIELDS: tuple[ImportField, ...] = (
         required=False,
         type=FieldType.INTEGER,
         help="Onboarding milestones past their date",
-        synonyms=(),
+        synonyms=(
+            "milestones overdue",
+            "overdue milestones",
+            "onboarding milestones overdue",
+            "overdue onboarding milestones",
+            "milestones late",
+            "late milestones",
+            "milestones past due",
+            "past due milestones",
+            "milestones behind",
+            "behind milestones",
+            "overdue steps",
+            "steps overdue",
+            "overdue onboarding steps",
+        ),
     ),
     ImportField(
         key="signal:usage_trend_30d",
@@ -139,7 +350,29 @@ IMPORT_FIELDS: tuple[ImportField, ...] = (
         required=False,
         type=FieldType.NUMBER,
         help="% change in active users over 30 days, e.g. -25",
-        synonyms=(),
+        synonyms=(
+            "usage trend",
+            "usage trend 30d",
+            "usage trend 30 days",
+            "usage trend percent",
+            "usage change",
+            "usage change 30d",
+            "usage change 30 days",
+            "usage change percent",
+            "30 day usage change",
+            "30d usage change",
+            "usage growth",
+            "active users change",
+            "active users change 30d",
+            "active users change 30 days",
+            "active users change percent",
+            "active users 30 day change",
+            "active users trend",
+            "active user change",
+            "change in active users",
+            "user activity change",
+            "mau change",
+        ),
     ),
     ImportField(
         key="signal:days_since_last_login",
@@ -147,7 +380,21 @@ IMPORT_FIELDS: tuple[ImportField, ...] = (
         required=False,
         type=FieldType.INTEGER,
         help="Days since anyone logged in",
-        synonyms=(),
+        synonyms=(
+            "days since last login",
+            "days since login",
+            "days since last logon",
+            "days since logon",
+            "days since last seen",
+            "days since last activity",
+            "days since active",
+            "days since last active",
+            "last login days",
+            "last active days",
+            "days inactive",
+            "inactive days",
+            "days without login",
+        ),
     ),
     ImportField(
         key="signal:open_tickets_sev1",
@@ -155,7 +402,32 @@ IMPORT_FIELDS: tuple[ImportField, ...] = (
         required=False,
         type=FieldType.INTEGER,
         help="How many urgent tickets are open",
-        synonyms=(),
+        synonyms=(
+            "open severity 1 tickets",
+            "open severity 1",
+            "severity 1 tickets",
+            "severity 1",
+            "open sev1 tickets",
+            "open sev 1 tickets",
+            "open sev1",
+            "open sev 1",
+            "sev1 tickets",
+            "sev 1 tickets",
+            "sev1",
+            "sev 1",
+            "sev1 open tickets",
+            "open tickets sev1",
+            "open tickets severity 1",
+            "p1 tickets",
+            "open p1 tickets",
+            "p1",
+            "open p1",
+            "urgent tickets",
+            "open urgent tickets",
+            "urgent open tickets",
+            "critical tickets",
+            "open critical tickets",
+        ),
     ),
     ImportField(
         key="signal:nps_latest",
@@ -163,7 +435,20 @@ IMPORT_FIELDS: tuple[ImportField, ...] = (
         required=False,
         type=FieldType.NUMBER,
         help="Latest NPS response, 0 to 10",
-        synonyms=(),
+        synonyms=(
+            "nps",
+            "nps score",
+            "nps rating",
+            "nps response",
+            "nps latest",
+            "latest nps",
+            "latest nps score",
+            "latest nps response",
+            "last nps",
+            "nps last",
+            "net promoter score",
+            "promoter score",
+        ),
     ),
     ImportField(
         key="signal:champion_left",
@@ -171,7 +456,20 @@ IMPORT_FIELDS: tuple[ImportField, ...] = (
         required=False,
         type=FieldType.BOOLEAN,
         help="Yes if your main contact has left",
-        synonyms=(),
+        synonyms=(
+            "champion left",
+            "champion left company",
+            "champion left the company",
+            "champion has left",
+            "champion has left the company",
+            "champion churned",
+            "champion departed",
+            "champion gone",
+            "champion lost",
+            "main contact left",
+            "main contact has left",
+            "contact left",
+        ),
     ),
     ImportField(
         key="signal:seat_utilisation",
@@ -179,7 +477,31 @@ IMPORT_FIELDS: tuple[ImportField, ...] = (
         required=False,
         type=FieldType.NUMBER,
         help="% of purchased seats in use, e.g. 64",
-        synonyms=(),
+        synonyms=(
+            "seat utilisation",
+            "seat utilization",
+            "seat utilisation percent",
+            "seat utilization percent",
+            "seat utilisation pct",
+            "seat utilization pct",
+            "seat usage",
+            "seat use",
+            "seats in use",
+            "seats used",
+            "seats used percent",
+            "seats used percentage",
+            "seats used pct",
+            "seat percent used",
+            "percent of seats used",
+            "license usage",
+            "licence usage",
+            "license utilisation",
+            "licence utilisation",
+            "license utilization",
+            "licence utilization",
+            "licenses used",
+            "licences used",
+        ),
     ),
     ImportField(
         key="signal:billing_overdue_days",
@@ -187,7 +509,24 @@ IMPORT_FIELDS: tuple[ImportField, ...] = (
         required=False,
         type=FieldType.INTEGER,
         help="Days the oldest invoice is overdue",
-        synonyms=(),
+        synonyms=(
+            "days invoice overdue",
+            "invoice overdue days",
+            "invoice overdue",
+            "invoice days overdue",
+            "overdue invoice days",
+            "days overdue",
+            "overdue days",
+            "days overdue invoice",
+            "days past due",
+            "days late",
+            "days in arrears",
+            "billing overdue",
+            "billing overdue days",
+            "payment overdue days",
+            "aging days",
+            "ageing days",
+        ),
     ),
 )
 
@@ -202,6 +541,10 @@ class Table(BaseModel):
     source_name: str  # file name, or "Pasted cells"
     headers: list[str]  # stripped; blank headers become "Column <n>"
     rows: list[list[str]]  # every row padded or cut to len(headers); fully blank rows dropped
+    # The spreadsheet row number of each entry in `rows` (header = 1), so issues point at the
+    # right row even when blank rows were dropped. Same length as `rows`. When empty (a Table
+    # built by hand), rows are numbered 2, 3, 4… in order.
+    row_numbers: list[int] = []
     sheet_names: list[str] = []  # Excel only: every sheet, so the CSM can pick another
     sheet: str | None = None  # Excel only: the sheet these rows came from
 
@@ -224,68 +567,802 @@ class ImportResult(BaseModel):
     ready_rows: int  # rows that became accounts
 
 
+# ---------------------------------------------------------------------------------------------
+# Implementation helpers
+# ---------------------------------------------------------------------------------------------
+
+_QUOTE_LIMIT = 40  # quoted cell values are cut to this many characters in messages
+_SLUG_LIMIT = 40  # account id slugs
+_ZIP_MAGIC = b"PK\x03\x04"
+_Record = tuple[int, list[str]]  # (spreadsheet row number, cells); blank rows included
+_EXCEL_EPOCH = date(1899, 12, 30)
+_MONTH_NAMES = (
+    "january",
+    "february",
+    "march",
+    "april",
+    "may",
+    "june",
+    "july",
+    "august",
+    "september",
+    "october",
+    "november",
+    "december",
+)
+_MONTHS: dict[str, int] = {
+    **{name: number for number, name in enumerate(_MONTH_NAMES, start=1)},
+    **{name[:3]: number for number, name in enumerate(_MONTH_NAMES, start=1)},
+    "sept": 9,
+}
+
+_CURRENCY_SYMBOL = re.compile(r"[$€£¥]")
+_CURRENCY_CODE = re.compile(r"(?<![A-Za-z])(?:USD|EUR|GBP)(?![A-Za-z])", re.IGNORECASE)
+_MONEY_SUFFIXES = (  # checked in this order, so "bn" isn't read as "n"
+    ("bn", Decimal(1_000_000_000)),
+    ("k", Decimal(1_000)),
+    ("m", Decimal(1_000_000)),
+)
+# digits in groups of three, with an optional decimal part of one or two digits
+_GROUPED_DECIMAL = re.compile(r"(\d+(?:[.,]\d{3})*)(?:[.,](\d{1,2}))?")
+_TIME_TAIL = re.compile(
+    r"(.+?)(?:\s+|T)\d{1,2}:\d{2}(?::\d{2}(?:\.\d+)?)?(?:\s*[ap]\.?m\.?)?"
+    r"(?:\s*(?:z|utc|[+-]\d{2}:?\d{2}))?",
+    re.IGNORECASE,
+)
+_YEAR_FIRST_DATE = re.compile(r"(\d{4})[-/. ](\d{1,2})[-/. ](\d{1,2})")
+_NUMERIC_DATE = re.compile(r"(\d{1,2})[-/. ](\d{1,2})[-/. ](\d{4}|\d{2})")
+_DAY_FIRST_NAMED = re.compile(
+    r"(\d{1,2})(?:st|nd|rd|th)?[-/. ]+([a-z]+)\.?[-/. ,]+(\d{4}|\d{2})", re.IGNORECASE
+)
+_MONTH_FIRST_NAMED = re.compile(
+    r"([a-z]+)\.?[-/. ]+(\d{1,2})(?:st|nd|rd|th)?,?[-/. ]+(\d{4}|\d{2})", re.IGNORECASE
+)
+_COMPACT_DATE = re.compile(r"\d{8}")  # 20261201
+_SERIAL_DATE = re.compile(r"(\d+)(?:\.\d+)?")  # Excel serial, e.g. 46357
+_CONNECTION = re.compile(r"sheet-(\d+)")
+
+# Sanity ranges for optional signal fields. Values outside them are left out, with an issue.
+_RANGES: dict[str, tuple[int, int]] = {
+    "signal:nps_latest": (0, 10),
+    "signal:seat_utilisation": (0, 200),
+    "signal:usage_trend_30d": (-100, 1000),
+}
+_FIELD_INDEX = {spec.key: index for index, spec in enumerate(IMPORT_FIELDS)}
+_FIELDS = {spec.key: spec for spec in IMPORT_FIELDS}
+# Done and overdue only count when the row has a milestones total (the total comes first in
+# IMPORT_FIELDS, so it has been read by the time these are).
+_NEEDS_TOTAL = frozenset({"milestones_done", "milestones_overdue"})
+# Headers about monthly revenue are not annual recurring revenue, so they never map to ARR.
+_MONTHLY_WORDS = ("monthly", "mrr", "per month")
+
+_EMPTY_FILE = "That file is empty."
+_EMPTY_PASTE = "The pasted text is empty."
+_NOT_EXCEL = "That file isn't a readable Excel file. Save it as .xlsx or CSV and try again."
+_XLS = "Old Excel files (.xls) aren't supported. Save it as .xlsx or CSV and try again."
+_TOO_BIG_FILE = (
+    f"That file is larger than {MAX_BYTES // (1024 * 1024)} MB. Split it or remove extra columns."
+)
+_TOO_BIG_PASTE = (
+    f"That paste is larger than {MAX_BYTES // (1024 * 1024)} MB. Split it or remove extra columns."
+)
+_TOO_MANY_FILE = f"That file has more than {MAX_ROWS:,} rows."
+_TOO_MANY_PASTE = f"That paste has more than {MAX_ROWS:,} rows."
+_UNREADABLE_FILE = "That file couldn't be read as a table. Save it as .xlsx or CSV and try again."
+_UNREADABLE_PASTE = "The pasted cells couldn't be read as a table. Copy them again and try again."
+
+_TEMPLATE_EXAMPLES: tuple[dict[str, str], ...] = (
+    {
+        "name": "Larkspur Freight",
+        "arr": "$184,000",
+        "renewal_date": "2026-12-01",
+        "external_id": "LF-1001",
+        "domain": "larkspur.example",
+        "owner": "Dana Whitfield",
+        "tier": "Enterprise",
+        "start_date": "2023-03-01",
+        "milestones_total": "6",
+        "milestones_done": "4",
+        "milestones_overdue": "1",
+        "signal:usage_trend_30d": "-38",
+        "signal:days_since_last_login": "44",
+        "signal:open_tickets_sev1": "1",
+        "signal:nps_latest": "8",
+        "signal:champion_left": "yes",
+        "signal:seat_utilisation": "64",
+        "signal:billing_overdue_days": "0",
+    },
+    {
+        "name": "Quillon Health",
+        "arr": "$96,500",
+        "renewal_date": "2026-11-15",
+        "external_id": "QH-2040",
+        "domain": "quillon.example",
+        "owner": "Sam Okafor",
+        "tier": "Mid-market",
+        "start_date": "2024-07-15",
+        "milestones_total": "5",
+        "milestones_done": "5",
+        "milestones_overdue": "0",
+        "signal:usage_trend_30d": "6",
+        "signal:days_since_last_login": "3",
+        "signal:open_tickets_sev1": "0",
+        "signal:nps_latest": "9",
+        "signal:champion_left": "no",
+        "signal:seat_utilisation": "81",
+        "signal:billing_overdue_days": "0",
+    },
+)
+
+
+def _quote(text: str) -> str:
+    """The offending value in double quotes, cut to _QUOTE_LIMIT characters."""
+    shown = " ".join(text.split())
+    if len(shown) > _QUOTE_LIMIT:
+        shown = shown[: _QUOTE_LIMIT - 1] + "…"
+    return f'"{shown}"'
+
+
+def _normalise_header(text: str) -> str:
+    """Casefold, punctuation to spaces, spaces collapsed. The form auto_map compares."""
+    return " ".join(re.sub(r"[\W_]+", " ", text.casefold()).split())
+
+
+def _may_map(key: str, text: str) -> bool:
+    """False when a normalised header must not map to this field."""
+    if key != "arr":
+        return True
+    padded = f" {text} "
+    return not any(f" {word} " in padded for word in _MONTHLY_WORDS)
+
+
+def _parse_decimal(body: str) -> Decimal | None:
+    """Digits with optional thousands groups and a decimal part, no sign or spaces. The last
+    "," or "." followed by 1-2 digits is the decimal separator; other separators must group
+    digits in threes."""
+    match = _GROUPED_DECIMAL.fullmatch(body)
+    if match is None:
+        return None
+    whole = match.group(1).replace(".", "").replace(",", "")
+    fraction = match.group(2)
+    return Decimal(f"{whole}.{fraction}") if fraction else Decimal(whole)
+
+
+def _without_time(text: str) -> str:
+    """Drop a trailing time such as " 00:00:00" or "T10:30Z", so the date part can be read."""
+    match = _TIME_TAIL.fullmatch(text)
+    return match.group(1).strip() if match else text
+
+
+def _make_date(year: int, month: int, day: int) -> date | None:
+    try:
+        return date(year, month, day)
+    except ValueError:
+        return None
+
+
+def _two_digit_year(text: str) -> int:
+    return int(text) + 2000 if len(text) == 2 else int(text)
+
+
+def _connection_prefix(connection_id: str) -> str:
+    match = _CONNECTION.fullmatch(connection_id)
+    if match is None:
+        raise ValueError(f"Connection id {_quote(connection_id)} isn't in the form sheet-<n>.")
+    return f"sp{match.group(1)}-"
+
+
+def _slug(text: str) -> str:
+    """Lowercase ASCII, other characters to "-", collapsed, trimmed, at most _SLUG_LIMIT."""
+    ascii_text = unicodedata.normalize("NFKD", text).encode("ascii", "ignore").decode("ascii")
+    slug = re.sub(r"[^a-z0-9]+", "-", ascii_text.casefold()).strip("-")
+    return slug[:_SLUG_LIMIT].rstrip("-")
+
+
+def _fallback_slug(text: str) -> str:
+    """For names with no ASCII letters or digits: a stable short hash, so ids are still unique."""
+    return "account-" + hashlib.sha256(text.encode("utf-8")).hexdigest()[:8]
+
+
+def _normalise_domain(text: str) -> str | None:
+    """A website as a bare domain ("https://www.Acme.com/about" gives "acme.com"), or None when
+    what's left isn't a domain. A private copy of the rule; importing never depends on matching."""
+    value = text.strip().casefold()
+    value = re.sub(r"^(?:[a-z][a-z0-9+.-]*:)?//", "", value)  # scheme
+    value = re.split(r"[/?#]", value, maxsplit=1)[0]  # path, query, fragment
+    value = value.rsplit("@", 1)[-1]  # user:password@
+    value = re.sub(r":\d+$", "", value)  # port
+    value = value.rstrip(".")
+    if value.startswith("www."):
+        value = value[4:]
+    if "." not in value:
+        return None
+    try:
+        ascii_value = value.encode("idna").decode("ascii")
+    except UnicodeError:
+        return None
+    label = r"[a-z0-9](?:[a-z0-9-]*[a-z0-9])?"
+    if re.fullmatch(rf"(?:{label}\.)+{label}", ascii_value) is None:
+        return None
+    return ascii_value
+
+
+def _naive_utc(moment: datetime) -> datetime:
+    if moment.tzinfo is None:
+        return moment
+    return moment.astimezone(UTC).replace(tzinfo=None)
+
+
+def _clamp_milestones(total: int, done: int, overdue: int) -> tuple[Milestones, bool]:
+    """Keep done within total and overdue within what's left. Also reports whether it changed."""
+    fixed_done = min(done, total)
+    fixed_overdue = min(overdue, total - fixed_done)
+    changed = (fixed_done, fixed_overdue) != (done, overdue)
+    return Milestones(done=fixed_done, total=total, overdue=fixed_overdue), changed
+
+
+def _parse_count(text: str) -> int:
+    """A whole number of zero or more (milestones, days, counts)."""
+    raw = text.strip()
+    try:
+        number = parse_number(raw)
+    except ValueError:
+        raise ValueError(f"{_quote(raw)} isn't a whole number.") from None
+    if number < 0:
+        raise ValueError(f"{_quote(raw)} can't be negative.")
+    if not number.is_integer():
+        raise ValueError(f"{_quote(raw)} isn't a whole number.")
+    return int(number)
+
+
+def _in_range(key: str, text: str, value: float) -> float:
+    bounds = _RANGES.get(key)
+    if bounds is not None and not bounds[0] <= value <= bounds[1]:
+        raise ValueError(
+            f"{_quote(text)} should be between {bounds[0]} and {bounds[1]}, so it was left out."
+        )
+    return value
+
+
+def _convert(spec: ImportField, text: str, date_order: DateOrder) -> Any:
+    """One non-blank cell as its field's value. Raises ValueError with the message that follows
+    the field label in an issue."""
+    if spec.key == "domain":
+        domain = _normalise_domain(text)
+        if domain is None:
+            raise ValueError(f"{_quote(text)} isn't a web address.")
+        return domain
+    match spec.type:
+        case FieldType.TEXT:
+            return text
+        case FieldType.MONEY:
+            return parse_money(text)
+        case FieldType.DATE:
+            return parse_date(text, date_order)
+        case FieldType.INTEGER:
+            return _parse_count(text)
+        case FieldType.NUMBER:
+            return _in_range(spec.key, text, parse_number(text))
+        case FieldType.BOOLEAN:
+            return 1.0 if parse_bool(text) else 0.0
+
+
+def _mapped_columns(table: Table, mapping: dict[str, str]) -> dict[str, int]:
+    """Field key to the column index of the header it's mapped to."""
+    columns: dict[str, int] = {}
+    for key, header in mapping.items():
+        if key not in _FIELDS:
+            raise ValueError(f"{_quote(key)} isn't an import field.")
+        if header not in table.headers:
+            raise ValueError(f"{_quote(header)} isn't a column in this file.")
+        columns[key] = table.headers.index(header)
+    return columns
+
+
+def _cell(row: list[str], columns: dict[str, int], key: str) -> str | None:
+    """The stripped cell for a field, None when the field isn't mapped."""
+    index = columns.get(key)
+    if index is None:
+        return None
+    return row[index].strip() if index < len(row) else ""
+
+
+def _row_numbers(table: Table) -> list[int]:
+    """The spreadsheet row number of each entry in table.rows: the table's own when it has
+    them, otherwise 2, 3, 4… (a Table built by hand)."""
+    if not table.row_numbers:
+        return [index + 2 for index in range(len(table.rows))]
+    if len(table.row_numbers) != len(table.rows):
+        raise ValueError("The row numbers don't match the rows in this table.")
+    return list(table.row_numbers)
+
+
+@dataclass
+class _ParsedRow:
+    values: dict[str, Any] = dc_field(default_factory=dict)  # usable values, by field key
+    problems: list[tuple[int, ImportIssue]] = dc_field(default_factory=list)  # (field index, issue)
+    blocked: bool = False  # a required field is missing or invalid, or the id is taken
+    milestones: Milestones = dc_field(default_factory=lambda: Milestones(done=0, total=0))
+
+    def problem(self, number: int, index: int, message: str, *, blocks: bool) -> None:
+        issue = ImportIssue(row=number, field=IMPORT_FIELDS[index].key, message=message)
+        self.problems.append((index, issue))
+        self.blocked = self.blocked or blocks
+
+
+def _parse_row(
+    row: list[str], columns: dict[str, int], number: int, date_order: DateOrder
+) -> _ParsedRow:
+    parsed = _ParsedRow()
+    for index, spec in enumerate(IMPORT_FIELDS):
+        cell = _cell(row, columns, spec.key)
+        if spec.key in _NEEDS_TOTAL and "milestones_total" not in parsed.values:
+            continue  # no total for this row: done and overdue are ignored, with no issue
+        if not cell:
+            if spec.required:
+                missing = (
+                    f"{spec.label} isn't matched to a column."
+                    if cell is None
+                    else f"{spec.label} is empty."
+                )
+                parsed.problem(number, index, missing, blocks=True)
+            continue
+        try:
+            parsed.values[spec.key] = _convert(spec, cell, date_order)
+        except ValueError as exc:
+            parsed.problem(number, index, f"{spec.label} {exc}", blocks=spec.required)
+    return parsed
+
+
+def _apply_milestones(parsed: _ParsedRow, number: int) -> None:
+    """Without a total the row has no milestones (0 of 0): done and overdue were ignored when the
+    row was read, with no issue. With a total, done and overdue are clamped to fit it."""
+    if "milestones_total" not in parsed.values:
+        parsed.milestones = Milestones(done=0, total=0)
+        return
+    milestones, changed = _clamp_milestones(
+        parsed.values["milestones_total"],
+        parsed.values.get("milestones_done", 0),
+        parsed.values.get("milestones_overdue", 0),
+    )
+    if changed:
+        parsed.problem(
+            number,
+            _FIELD_INDEX["milestones_total"],
+            "Onboarding milestones didn't add up, so they were adjusted.",
+            blocks=False,
+        )
+    parsed.milestones = milestones
+
+
+def _ordered(problems: list[tuple[int, ImportIssue]]) -> list[ImportIssue]:
+    """Issues in IMPORT_FIELDS order; the sort is stable, so each field keeps its own order."""
+    return [issue for _, issue in sorted(problems, key=lambda item: item[0])]
+
+
+def _sniff_delimiter(text: str) -> str:
+    sample = "\n".join(text.splitlines()[:50])
+    try:
+        return csv.Sniffer().sniff(sample, delimiters=",;\t|").delimiter
+    except csv.Error:
+        return ","
+
+
+def _decode(data: bytes) -> str:
+    """UTF-16 (with BOM), UTF-8 with or without BOM, then cp1252; latin-1 as a last resort."""
+    if data.startswith((codecs.BOM_UTF16_LE, codecs.BOM_UTF16_BE)):
+        try:
+            return data.decode("utf-16")
+        except UnicodeDecodeError:
+            pass
+    if data.startswith(codecs.BOM_UTF8):
+        data = data[len(codecs.BOM_UTF8) :]
+    try:
+        return data.decode("utf-8")
+    except UnicodeDecodeError:
+        pass
+    try:
+        return data.decode("cp1252")
+    except UnicodeDecodeError:
+        return data.decode("latin-1")
+
+
+def _unique_headers(cells: list[str]) -> list[str]:
+    """Blank headers become "Column <n>"; repeats get " (2)", " (3)", and so on."""
+    used: set[str] = set()
+    headers: list[str] = []
+    for position, cell in enumerate(cells, start=1):
+        base = cell or f"Column {position}"
+        name = base
+        if name in used:
+            copy = 2
+            while f"{base} ({copy})" in used:
+                copy += 1
+            name = f"{base} ({copy})"
+        used.add(name)
+        headers.append(name)
+    return headers
+
+
+def _build_table(
+    records: list[_Record],
+    source_name: str,
+    *,
+    what: str,
+    empty: str,
+    sheet_names: list[str] | None = None,
+    sheet: str | None = None,
+) -> Table:
+    """Strip cells, drop blank rows, take the first row as headers and fit every row to them.
+    The kept data rows keep their spreadsheet row numbers, so issues point at the right row."""
+    kept = [(number, [cell.strip() for cell in cells]) for number, cells in records]
+    kept = [(number, cells) for number, cells in kept if any(cells)]
+    if not kept:
+        raise ImportError_(empty)
+    header = kept[0][1]
+    body = [cells for _, cells in kept[1:]]
+    numbers = [number for number, _ in kept[1:]]
+    if len(body) > MAX_ROWS:
+        raise ImportError_(_TOO_MANY_PASTE if what == "That paste" else _TOO_MANY_FILE)
+    # Trailing columns that are blank in the header and in every data row aren't columns.
+    width = len(header)
+    while (
+        width > 0
+        and not header[width - 1]
+        and all(len(row) < width or not row[width - 1] for row in body)
+    ):
+        width -= 1
+    fitted = [(row + [""] * width)[:width] for row in body]
+    return Table(
+        source_name=source_name,
+        headers=_unique_headers(header[:width]),
+        rows=fitted,
+        row_numbers=numbers,
+        sheet_names=list(sheet_names or []),
+        sheet=sheet,
+    )
+
+
+def _table_from_text(text: str, source_name: str, *, delimiter: str | None, pasted: bool) -> Table:
+    """Read delimited text. A delimiter of None means sniff it."""
+    what = "That paste" if pasted else "That file"
+    if not text.strip():
+        raise ImportError_(_EMPTY_PASTE if pasted else _EMPTY_FILE)
+    if delimiter is None:
+        delimiter = _sniff_delimiter(text)
+    try:
+        # One record per csv row: a quoted cell that spans lines is still one record, and a
+        # blank line is a record of its own, so the numbers match the sheet.
+        records = [
+            (number, cells)
+            for number, cells in enumerate(
+                csv.reader(io.StringIO(text, newline=""), delimiter=delimiter), start=1
+            )
+        ]
+    except csv.Error:
+        raise ImportError_(_UNREADABLE_PASTE if pasted else _UNREADABLE_FILE) from None
+    return _build_table(
+        records,
+        source_name,
+        what=what,
+        empty=_EMPTY_PASTE if pasted else _EMPTY_FILE,
+    )
+
+
+def _read_text_bytes(data: bytes, source_name: str, *, delimiter: str | None) -> Table:
+    if len(data) > MAX_BYTES:
+        raise ImportError_(_TOO_BIG_FILE)
+    text = _decode(data).lstrip("﻿")
+    return _table_from_text(text, source_name, delimiter=delimiter, pasted=False)
+
+
+def _xlsx_text(value: Any) -> str:
+    """One Excel cell as the text the importer reads."""
+    if value is None:
+        return ""
+    if isinstance(value, bool):
+        return "TRUE" if value else "FALSE"
+    if isinstance(value, datetime):
+        return value.date().isoformat()
+    if isinstance(value, date):
+        return value.isoformat()
+    if isinstance(value, float) and value.is_integer():
+        return str(int(value))
+    return str(value).strip()
+
+
+def _sheet_records(workbook: Any, name: str) -> list[_Record]:
+    """Every row of a sheet, numbered as Excel numbers them (from 1), blank rows included."""
+    sheet_obj = workbook[name]
+    if not hasattr(sheet_obj, "iter_rows"):  # chart sheets have no cells
+        return []
+    rows = sheet_obj.iter_rows(min_row=1, values_only=True)
+    return [
+        (number, [_xlsx_text(value) for value in row]) for number, row in enumerate(rows, start=1)
+    ]
+
+
+def _has_data(records: list[_Record]) -> bool:
+    return any(cell for _, cells in records for cell in cells)
+
+
+def _match_sheet(names: list[str], wanted: str) -> str:
+    if wanted in names:
+        return wanted
+    folded = wanted.casefold()
+    for name in names:
+        if name.casefold() == folded:
+            return name
+    raise ImportError_(
+        f"There's no sheet called {_quote(wanted)}. Pick one of the sheets in this file."
+    )
+
+
+def _pick_sheet(
+    workbook: Any, names: list[str], wanted: str | None
+) -> tuple[str | None, list[_Record]]:
+    """The named sheet, or else the first sheet with any data."""
+    if wanted:
+        chosen = _match_sheet(names, wanted)
+        records = _sheet_records(workbook, chosen)
+        if not _has_data(records):
+            raise ImportError_(f"The sheet {_quote(chosen)} is empty.")
+        return chosen, records
+    for name in names:
+        records = _sheet_records(workbook, name)
+        if _has_data(records):
+            return name, records
+    return (names[0] if names else None), []
+
+
+# ---------------------------------------------------------------------------------------------
+# Parsers
+# ---------------------------------------------------------------------------------------------
+
+
 def parse_money(text: str) -> float:
     """ "$120,000", "120000", "120k", "1.2m", "€120.000,50", "120 000" -> a float >= 0.
     The last "," or "." followed by 1-2 digits is the decimal separator; other separators are
     thousands. Raises ValueError (plain English) for blanks, negatives and anything else."""
-    raise NotImplementedError
+    raw = text.strip()
+    if not raw:
+        raise ValueError("is empty.")
+    stripped = _CURRENCY_CODE.sub(" ", _CURRENCY_SYMBOL.sub(" ", raw)).strip()
+    if re.search(r"[-−]", stripped):
+        raise ValueError(f"{_quote(raw)} can't be negative.")
+    multiplier = Decimal(1)
+    for suffix, factor in _MONEY_SUFFIXES:
+        if stripped.casefold().endswith(suffix):
+            multiplier = factor
+            stripped = stripped[: -len(suffix)]
+            break
+    number = _parse_decimal(re.sub(r"\s+", "", stripped))
+    if number is None:
+        raise ValueError(f"{_quote(raw)} isn't an amount.")
+    return float(number * multiplier)
 
 
 def parse_date(text: str, order: DateOrder) -> date:
     """ISO "2026-12-01" always works. Otherwise d/m/y or m/d/y per `order`, with "/", "-", "."
     or spaces; 2-digit years are 20xx; month names ("1 Dec 2026", "Dec 1, 2026") work in
     either order; Excel serial numbers (e.g. "46357") are accepted. Raises ValueError."""
-    raise NotImplementedError
+    raw = text.strip()
+    if not raw:
+        raise ValueError("is empty.")
+    value = _without_time(raw)
+    found: date | None = None
+    if _COMPACT_DATE.fullmatch(value):
+        found = _make_date(int(value[:4]), int(value[4:6]), int(value[6:]))
+    elif (serial := _SERIAL_DATE.fullmatch(value)) and 20000 <= int(serial.group(1)) <= 80000:
+        found = _EXCEL_EPOCH + timedelta(days=int(serial.group(1)))
+    elif year_first := _YEAR_FIRST_DATE.fullmatch(value):
+        found = _make_date(int(year_first[1]), int(year_first[2]), int(year_first[3]))
+    elif numeric := _NUMERIC_DATE.fullmatch(value):
+        # An all-ISO column is YMD, so a slash date in it can't be read.
+        if order is not DateOrder.YMD:
+            first, second = int(numeric[1]), int(numeric[2])
+            if order is DateOrder.MDY:
+                month, day = first, second
+            else:
+                day, month = first, second
+            found = _make_date(_two_digit_year(numeric[3]), month, day)
+    elif (named := _DAY_FIRST_NAMED.fullmatch(value)) and (
+        month := _MONTHS.get(named[2].casefold())
+    ):
+        found = _make_date(_two_digit_year(named[3]), month, int(named[1]))
+    elif (named := _MONTH_FIRST_NAMED.fullmatch(value)) and (
+        month := _MONTHS.get(named[1].casefold())
+    ):
+        found = _make_date(_two_digit_year(named[3]), month, int(named[2]))
+    if found is None:
+        raise ValueError(f"{_quote(raw)} isn't a date.")
+    return found
 
 
 def parse_bool(text: str) -> bool:
     """yes/no, y/n, true/false, 1/0, x/blank (blank is False). Raises ValueError otherwise."""
-    raise NotImplementedError
+    word = text.strip().casefold()
+    if word in {"yes", "y", "true", "1", "x"}:
+        return True
+    if word in {"no", "n", "false", "0", ""}:
+        return False
+    raise ValueError(f"{_quote(text.strip())} isn't yes or no.")
 
 
 def parse_number(text: str) -> float:
     """A plain number; a trailing "%" and thousands separators are allowed. Raises ValueError."""
-    raise NotImplementedError
+    raw = text.strip()
+    if not raw:
+        raise ValueError("is empty.")
+    body = raw[:-1].strip() if raw.endswith("%") else raw
+    sign = 1
+    if body[:1] in ("-", "−"):
+        sign, body = -1, body[1:]
+    elif body[:1] == "+":
+        body = body[1:]
+    number = _parse_decimal(re.sub(r"\s+", "", body))
+    if number is None:
+        raise ValueError(f"{_quote(raw)} isn't a number.")
+    return float(sign * number)
+
+
+# ---------------------------------------------------------------------------------------------
+# Readers
+# ---------------------------------------------------------------------------------------------
 
 
 def read_csv(data: bytes, source_name: str) -> Table:
     """Decode (UTF-8 with or without BOM, then cp1252), sniff the delimiter (comma,
     semicolon, tab, pipe) and read with the csv module. Raises ImportError_ for empty input,
     no header row, more than MAX_ROWS rows or more than MAX_BYTES."""
-    raise NotImplementedError
+    return _read_text_bytes(data, source_name, delimiter=None)
 
 
 def read_pasted(text: str) -> Table:
     """Cells copied from Excel or Google Sheets arrive tab-separated; fall back to the CSV
     sniffer otherwise. source_name is "Pasted cells". Same limits as read_csv."""
-    raise NotImplementedError
+    body = text.lstrip("﻿")
+    if len(body.encode("utf-8")) > MAX_BYTES:
+        raise ImportError_(_TOO_BIG_PASTE)
+    first_line = next((line for line in body.splitlines() if line.strip()), "")
+    delimiter = "\t" if "\t" in first_line else None
+    return _table_from_text(body, "Pasted cells", delimiter=delimiter, pasted=True)
 
 
 def read_xlsx(data: bytes, source_name: str, sheet: str | None = None) -> Table:
     """Read the named sheet (default: the first one with any data) with openpyxl in read-only,
     data-only mode. Dates become ISO strings, whole floats lose ".0". Raises ImportError_ for a
     file that isn't a valid .xlsx, a missing sheet, or the limits above."""
-    raise NotImplementedError
+    if len(data) > MAX_BYTES:
+        raise ImportError_(_TOO_BIG_FILE)
+    try:
+        workbook = load_workbook(io.BytesIO(data), read_only=True, data_only=True)
+    except Exception:  # openpyxl raises many types for damaged files
+        raise ImportError_(_NOT_EXCEL) from None
+    try:
+        names = [str(name) for name in workbook.sheetnames]
+        chosen, records = _pick_sheet(workbook, names, sheet)
+    except ImportError_:
+        raise
+    except Exception:
+        raise ImportError_(_NOT_EXCEL) from None
+    finally:
+        workbook.close()
+    return _build_table(
+        records,
+        source_name,
+        what="That file",
+        empty=_EMPTY_FILE,
+        sheet_names=names,
+        sheet=chosen,
+    )
 
 
 def read_upload(data: bytes, filename: str, sheet: str | None = None) -> Table:
     """Pick the reader by content (the ZIP signature means .xlsx) and extension (.csv, .tsv,
     .txt, .xlsx). .xls (old Excel) raises ImportError_ asking to save as .xlsx or CSV."""
-    raise NotImplementedError
+    name = PureWindowsPath(filename).name or filename
+    suffix = PureWindowsPath(filename).suffix.lower()
+    if suffix == ".xls":
+        raise ImportError_(_XLS)
+    if data[:4] == _ZIP_MAGIC:
+        return read_xlsx(data, name, sheet)
+    if suffix in (".csv", ".txt"):
+        return _read_text_bytes(data, name, delimiter=None)
+    if suffix == ".tsv":
+        return _read_text_bytes(data, name, delimiter="\t")
+    if suffix == ".xlsx":
+        return read_xlsx(data, name, sheet)
+    raise ImportError_(
+        f"{_quote(name)} isn't a file type cs-brief can read. "
+        "Save it as .xlsx or CSV and try again."
+    )
+
+
+# ---------------------------------------------------------------------------------------------
+# Mapping and building
+# ---------------------------------------------------------------------------------------------
 
 
 def auto_map(headers: list[str]) -> dict[str, str]:
     """Import field key -> header. Normalize headers (casefold, punctuation to spaces, collapse
     spaces) and match exact synonyms first, then a header that contains a synonym as whole
     words. Each header maps to at most one field; required fields get first pick."""
-    raise NotImplementedError
+    normalised = [_normalise_header(header) for header in headers]
+    # Required fields first. A tie between two fields goes to the earlier one in this order.
+    ranked = sorted(IMPORT_FIELDS, key=lambda spec: not spec.required)
+    claimed: dict[str, str] = {}  # field key -> header
+    taken: set[int] = set()  # header positions already used
+
+    # Exact matches: the normalised label or any synonym, equal to the whole header.
+    for spec in ranked:
+        names = {*spec.synonyms, _normalise_header(spec.label)}
+        for position, text in enumerate(normalised):
+            if position not in taken and text and text in names and _may_map(spec.key, text):
+                claimed[spec.key] = headers[position]
+                taken.add(position)
+                break
+
+    # Contains: a synonym as whole words. The longest phrase wins, then one that ends the
+    # header ("Company website" is a website), then the required-first order.
+    candidates: list[tuple[int, int, int, int, str]] = []
+    for rank, spec in enumerate(ranked):
+        if spec.key in claimed:
+            continue
+        for position, text in enumerate(normalised):
+            if position in taken or not text or not _may_map(spec.key, text):
+                continue
+            padded = f" {text} "
+            best: tuple[int, int] | None = None
+            for synonym in spec.synonyms:
+                if f" {synonym} " in padded:
+                    score = (len(synonym.split()), int(padded.endswith(f" {synonym} ")))
+                    best = score if best is None or score > best else best
+            if best is not None:
+                candidates.append((-best[0], -best[1], rank, position, spec.key))
+    for _, _, _, position, key in sorted(candidates):
+        if key in claimed or position in taken:
+            continue
+        claimed[key] = headers[position]
+        taken.add(position)
+
+    return {spec.key: claimed[spec.key] for spec in IMPORT_FIELDS if spec.key in claimed}
 
 
 def detect_date_order(values: list[str]) -> DateOrder | None:
     """Look at every non-blank value in the date columns. ISO (2026-03-04) means YMD. A first
     number above 12 means DMY; a second number above 12 means MDY. None when nothing decides
     it (every value like 03/04/2026), so the screen asks the CSM."""
-    raise NotImplementedError
+    year_first = False
+    ambiguous = False
+    dmy = False
+    mdy = False
+    for value in values:
+        text = _without_time(value.strip())
+        if not text:
+            continue
+        if _YEAR_FIRST_DATE.fullmatch(text):
+            year_first = True
+            continue
+        numeric = _NUMERIC_DATE.fullmatch(text)
+        if numeric is None:
+            continue  # month names and serials read the same in either order
+        first, second = int(numeric[1]), int(numeric[2])
+        if first > 12:
+            dmy = True
+        elif second > 12:
+            mdy = True
+        else:
+            ambiguous = True
+    if dmy and mdy:
+        return None
+    if dmy:
+        return DateOrder.DMY
+    if mdy:
+        return DateOrder.MDY
+    if year_first and not ambiguous:
+        return DateOrder.YMD
+    return None
 
 
 def build_import(
@@ -311,7 +1388,89 @@ def build_import(
     - A mapped milestones_overdue value also becomes an ONBOARDING_OVERDUE_MILESTONES reading,
       as with HubSpot.
     """
-    raise NotImplementedError
+    prefix = _connection_prefix(connection_id)
+    columns = _mapped_columns(table, mapping)
+    observed_at = _naive_utc(imported_at)
+    accounts: list[Account] = []
+    signals: list[Signal] = []
+    issues: list[ImportIssue] = []
+    seen: dict[str, int] = {}  # account id -> the row that took it
+    skipped = 0
+
+    for number, row in zip(_row_numbers(table), table.rows, strict=True):
+        parsed = _parse_row(row, columns, number, date_order)
+        _apply_milestones(parsed, number)
+        if parsed.blocked:
+            skipped += 1
+            issues.extend(_ordered(parsed.problems))
+            continue
+
+        name = parsed.values["name"]
+        external = parsed.values.get("external_id")
+        key_text = external or name
+        account_id = prefix + (_slug(key_text) or _fallback_slug(key_text))
+        if account_id in seen:
+            skipped += 1
+            first = seen[account_id]
+            if external:
+                message = f"ID {_quote(external)} is also on row {first}, so this row was skipped."
+                index_for_issue = _FIELD_INDEX["external_id"]
+            else:
+                message = (
+                    f"Account name {_quote(name)} is also on row {first}, so this row was skipped."
+                )
+                index_for_issue = _FIELD_INDEX["name"]
+            parsed.problem(number, index_for_issue, message, blocks=True)
+            issues.extend(_ordered(parsed.problems))
+            continue
+        seen[account_id] = number
+
+        milestones = parsed.milestones
+        start = parsed.values.get("start_date")
+        account = Account(
+            id=account_id,
+            name=name,
+            arr=parsed.values["arr"],
+            tier=parsed.values.get("tier") or "Unknown",
+            owner=parsed.values.get("owner") or "Unassigned",
+            start_date=today if start is None else start,
+            renewal_date=parsed.values["renewal_date"],
+            milestones=milestones,
+            domain=parsed.values.get("domain"),
+        )
+        accounts.append(account)
+
+        for spec in IMPORT_FIELDS:
+            kind = SIGNAL_FIELD_KINDS.get(spec.key)
+            if kind is not None and spec.key in parsed.values:
+                signals.append(
+                    Signal(
+                        account_id=account_id,
+                        kind=kind,
+                        value=float(parsed.values[spec.key]),
+                        observed_at=observed_at,
+                        source="spreadsheet",
+                    )
+                )
+        if "milestones_overdue" in parsed.values:
+            signals.append(
+                Signal(
+                    account_id=account_id,
+                    kind=SignalKind.ONBOARDING_OVERDUE_MILESTONES,
+                    value=float(milestones.overdue),
+                    observed_at=observed_at,
+                    source="spreadsheet",
+                )
+            )
+        issues.extend(_ordered(parsed.problems))
+
+    return ImportResult(
+        accounts=accounts,
+        signals=signals,
+        issues=issues,
+        skipped_rows=skipped,
+        ready_rows=len(accounts),
+    )
 
 
 def merge_into_snapshot_signals(
@@ -320,19 +1479,50 @@ def merge_into_snapshot_signals(
     """Signal history across re-imports: keep previous readings for accounts still present,
     and append a new reading only when its value differs from that account's latest reading of
     the same kind (so re-importing an unchanged file adds nothing)."""
-    raise NotImplementedError
+    kept = [signal for signal in previous if signal.account_id in kept_ids]
+    latest: dict[tuple[str, SignalKind], Signal] = {}
+    for signal in kept:
+        key = (signal.account_id, signal.kind)
+        current = latest.get(key)
+        if current is None or signal.observed_at >= current.observed_at:
+            latest[key] = signal
+    merged = list(kept)
+    for signal in new:
+        if signal.account_id not in kept_ids:
+            continue
+        key = (signal.account_id, signal.kind)
+        current = latest.get(key)
+        if current is not None and current.value == signal.value:
+            continue
+        merged.append(signal)
+        latest[key] = signal
+    return merged
 
 
 def template_csv() -> str:
     """A CSV with every IMPORT_FIELDS label as the header row and two example rows, ready to
     fill in. Example names are clearly invented."""
-    raise NotImplementedError
+    buffer = io.StringIO()
+    writer = csv.writer(buffer)
+    writer.writerow([spec.label for spec in IMPORT_FIELDS])
+    for example in _TEMPLATE_EXAMPLES:
+        writer.writerow([example.get(spec.key, "") for spec in IMPORT_FIELDS])
+    return buffer.getvalue()
 
 
 def issues_csv(table: Table, issues: list[ImportIssue]) -> str:
     """The rows that have issues, with their original cells plus a "Problems" column, so the
     CSM can fix them and import again."""
-    raise NotImplementedError
+    messages: dict[int, list[str]] = {}
+    for issue in issues:
+        messages.setdefault(issue.row, []).append(issue.message)
+    buffer = io.StringIO()
+    writer = csv.writer(buffer)
+    writer.writerow([*table.headers, "Problems"])
+    for number, row in zip(_row_numbers(table), table.rows, strict=True):
+        if number in messages:
+            writer.writerow([*row, " ".join(messages[number])])
+    return buffer.getvalue()
 
 
 SIGNAL_FIELD_KINDS: dict[str, SignalKind] = {
