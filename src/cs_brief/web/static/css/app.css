@@ -418,6 +418,28 @@ button {
   display: none;
 }
 
+/* Controls that need JavaScript stay hidden until app.js marks the page as scripted. */
+.js-only {
+  display: none;
+}
+
+.js .js-only {
+  display: inline-block;
+}
+
+/* A secondary button: the neutral border and no fill. */
+.button {
+  padding: var(--space-2) var(--space-4);
+  background: transparent;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.button:hover {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
 .book {
   inline-size: 100%;
   border-collapse: collapse;
@@ -944,6 +966,162 @@ button {
   }
 }
 
+/* Weekly brief. The book bar is the one visual moment; the rest is sentences and lists. */
+.brief {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+}
+
+.brief-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-3) var(--space-5);
+}
+
+.brief-title {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.brief-section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.brief-foot {
+  font-size: var(--t-sm);
+  line-height: var(--lh-sm);
+  color: var(--ink-muted);
+}
+
+/* The book bar. Its segments are placed by the server, and filled from the health tokens. */
+.book-bar {
+  display: block;
+  inline-size: 100%;
+  block-size: 24px;
+  overflow: visible;
+}
+
+.seg--at_risk {
+  fill: var(--risk);
+}
+
+.seg--watch {
+  fill: var(--watch);
+}
+
+.seg--healthy {
+  fill: var(--healthy);
+}
+
+.legend {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-4);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.legend-item {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.legend-figure {
+  font-size: var(--t-sm);
+  line-height: var(--lh-sm);
+  color: var(--ink-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.notable {
+  margin: 0;
+  padding-inline-start: var(--space-5);
+}
+
+.motions {
+  border-collapse: collapse;
+}
+
+.motions th,
+.motions td {
+  padding: var(--space-2) var(--space-4) var(--space-2) 0;
+  vertical-align: middle;
+  text-align: start;
+  border-block-end: 1px solid var(--line);
+}
+
+.motions thead th {
+  font-size: var(--t-sm);
+  line-height: var(--lh-sm);
+  font-weight: 600;
+  color: var(--ink-muted);
+}
+
+.motions .num {
+  text-align: end;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Count bars: the track is --line, the fill is the neutral --bar, as on the priority bars. */
+.count-bar {
+  display: block;
+  inline-size: 160px;
+  block-size: 8px;
+  overflow: visible;
+}
+
+.count-track {
+  fill: var(--line);
+}
+
+.count-fill {
+  fill: var(--bar);
+}
+
+/* The top ten is a ranked sequence, so the list is numbered. Each item is three lines. */
+.top-list {
+  margin: 0;
+  padding-inline-start: var(--space-6);
+}
+
+.top-list > li + li {
+  margin-block-start: var(--space-5);
+}
+
+.top-list li::marker {
+  color: var(--ink-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.top-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-1) var(--space-5);
+}
+
+.top-line .num {
+  font-variant-numeric: tabular-nums;
+}
+
+.top-reason,
+.top-next {
+  margin-block-start: var(--space-1);
+  color: var(--ink);
+}
+
+.top-next-label {
+  color: var(--ink-muted);
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
@@ -951,5 +1129,100 @@ button {
     transition: none !important;
     animation: none !important;
     scroll-behavior: auto !important;
+  }
+}
+
+/* Print and save as PDF: light tokens always, on A4 with 16mm margins. */
+@page {
+  size: A4;
+  margin: 16mm;
+}
+
+@media print {
+  /* html rather than :root, so this is not read as a second light token block. !important is
+     what beats the dark rules, which are more specific than a bare element selector. */
+  html {
+    color-scheme: light !important;
+    --paper: #FFFFFF !important;
+    --surface: #FFFFFF !important;
+    --ink: #1C2430 !important;
+    --ink-muted: #566173 !important;
+    --line: #D6DBE3 !important;
+    --control: #7A8494 !important;
+    --accent: #5A3E9B !important;
+    --risk: #B42318 !important;
+    --watch: #9A4A05 !important;
+    --healthy: #067647 !important;
+    --bar: #7D8696 !important;
+  }
+
+  .column {
+    max-width: none;
+    padding-inline: 0;
+  }
+
+  .page {
+    padding-block: 0;
+  }
+
+  /* Tighter spacing than on screen, so the whole brief fits on two A4 pages. */
+  .brief {
+    gap: var(--space-4);
+  }
+
+  .brief-section {
+    gap: var(--space-3);
+  }
+
+  .top-list > li + li {
+    margin-block-start: var(--space-3);
+  }
+
+  .top-line {
+    gap: var(--space-1) var(--space-4);
+  }
+
+  .top-reason,
+  .top-next {
+    margin-block-start: 0;
+  }
+
+  /* The top bar, skip link, print buttons and anything marked no-print stay off the page. */
+  .top-bar,
+  .skip-link,
+  .no-print,
+  [data-print] {
+    display: none !important;
+  }
+
+  a,
+  a:hover {
+    color: var(--ink);
+    text-decoration: none;
+  }
+
+  *,
+  *::before,
+  *::after {
+    animation: none !important;
+    transition: none !important;
+  }
+
+  .book-bar,
+  .health,
+  .count-bar,
+  .pbar {
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
+
+  .brief-section,
+  .legend,
+  .top-list > li {
+    break-inside: avoid;
+  }
+
+  h2 {
+    break-after: avoid;
   }
 }

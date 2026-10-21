@@ -1,0 +1,98 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="brief">
+  <header class="brief-head">
+    <div class="brief-title">
+      <h1 class="page-title">Weekly brief</h1>
+      <p class="date-line">{{ today_day | week_of }}</p>
+    </div>
+    <button type="button" class="button js-only" data-print>Print or save as PDF</button>
+  </header>
+
+  <p class="summary">
+    <span class="summary-line">{{ summary_first }}</span>
+    <span class="summary-line summary-line--muted">{{ summary_second }}</span>
+  </p>
+
+  <section class="brief-section" aria-labelledby="bar-heading">
+    <h2 class="section-title" id="bar-heading">Where your ARR sits</h2>
+    <svg class="book-bar" viewBox="0 0 100 24" preserveAspectRatio="none" width="100%" height="24" role="img" aria-label="{{ bar_label }}">
+      {% for health, start, width in book_bar_segments(brief.arr_by_health, brief.total_arr) %}
+      <rect x="{{ start }}" width="{{ width }}" height="24" class="seg seg--{{ health.value }}"/>
+      {% endfor %}
+    </svg>
+    <ul class="legend">
+      {% for health in health_order %}
+      {% set count = brief.counts_by_health[health] %}
+      <li class="legend-item">
+        <span class="health health--{{ health.value }}"><svg class="icon" aria-hidden="true" focusable="false"><use href="/static/icons.svg#health-{{ health.value | replace('_', '-') }}"/></svg> {{ health.label }}</span>
+        <span class="legend-figure">{{ brief.arr_by_health[health] | money_short }} across {{ count }} {{ 'account' if count == 1 else 'accounts' }}</span>
+      </li>
+      {% endfor %}
+    </ul>
+  </section>
+
+  <section class="brief-section" aria-labelledby="week-heading">
+    <h2 class="section-title" id="week-heading">This week</h2>
+    {% if brief.notable %}
+    <ul class="notable">
+      {% for line in brief.notable %}
+      <li>{{ line }}</li>
+      {% endfor %}
+    </ul>
+    {% else %}
+    <p>Nothing unusual this week.</p>
+    {% endif %}
+  </section>
+
+  <section class="brief-section" aria-labelledby="motion-heading">
+    <h2 class="section-title" id="motion-heading">Accounts by motion</h2>
+    <table class="motions">
+      <caption class="visually-hidden">Accounts in each motion</caption>
+      <thead>
+        <tr>
+          <th scope="col">Motion</th>
+          <th scope="col" class="num">Accounts</th>
+          <th scope="col"><span class="visually-hidden">Relative size</span></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for label, count, width in motion_rows %}
+        <tr>
+          <th scope="row">{{ label }}</th>
+          <td class="num">{{ count }}</td>
+          <td>
+            <svg class="count-bar" viewBox="0 0 100 8" preserveAspectRatio="none" width="160" height="8" aria-hidden="true" focusable="false">
+              <rect class="count-track" width="100" height="8"/>
+              <rect class="count-fill" width="{{ width }}" height="8"/>
+            </svg>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </section>
+
+  <section class="brief-section" aria-labelledby="top-heading">
+    <h2 class="section-title" id="top-heading">Top 10 to contact</h2>
+    <ol class="top-list">
+      {% for item in brief.top %}
+      <li>
+        <p class="top-line">
+          <a class="account-link" href="/accounts/{{ item.account.id | urlencode }}">{{ item.account.name }}</a>
+          <span class="health health--{{ item.health.value }}"><svg class="icon" aria-hidden="true" focusable="false"><use href="/static/icons.svg#health-{{ item.health.value | replace('_', '-') }}"/></svg> {{ item.health.label }}</span>
+          <span class="top-motion">{{ motion_labels[item.motion] }}</span>
+          <span class="num">{{ item.account.arr | money }}</span>
+        </p>
+        <p class="top-reason">{{ item.top_reason }}</p>
+        <p class="top-next"><span class="top-next-label">Next step:</span> {{ item.suggested_action }}</p>
+      </li>
+      {% endfor %}
+    </ol>
+  </section>
+
+  <footer class="brief-foot">
+    <p>Made by cs-brief on {{ today_day | long_date }} from {{ source }}.</p>
+  </footer>
+</div>
+{% endblock %}

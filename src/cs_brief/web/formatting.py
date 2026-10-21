@@ -1,4 +1,4 @@
-"""Formatting for the account view: dates, ages, the facts-row phrase, the risk sentence and bars.
+"""Formatting for the account view and the weekly brief: dates, ages, sentences and bars.
 
 Pure functions only. Nothing here reads the clock or the config; callers pass `today` and
 thresholds in, which keeps every branch testable.
@@ -6,8 +6,8 @@ thresholds in, which keeps every branch testable.
 
 from __future__ import annotations
 
-from collections.abc import Sequence
-from datetime import date, datetime
+from collections.abc import Mapping, Sequence
+from datetime import date, datetime, timedelta
 from itertools import groupby
 
 from cs_brief.core.briefs import AccountDetail, BreakdownRow, TimelineEntry
@@ -15,6 +15,8 @@ from cs_brief.core.config import Thresholds
 from cs_brief.core.models import Health, Motion
 
 BAR_TRACK_PX = 160  # the track of the signal with the largest max_points
+# The book bar and its legend read left to right in this order.
+BOOK_BAR_ORDER: tuple[Health, ...] = (Health.AT_RISK, Health.WATCH, Health.HEALTHY)
 _MONTHS = (
     "January",
     "February",
@@ -113,6 +115,56 @@ def group_by_day(entries: Sequence[TimelineEntry]) -> list[tuple[date, list[Time
         (day, list(group))
         for day, group in groupby(entries, key=lambda entry: entry.observed_at.date())
     ]
+
+
+def long_date(day: date | datetime) -> str:
+    """'21 October 2026'."""
+    chosen = _as_date(day)
+    return f"{chosen.day} {_MONTHS[chosen.month - 1]} {chosen.year}"
+
+
+def week_of(day: date | datetime) -> str:
+    """'Week of 19 October 2026', where 19 October is the Monday of the week that holds `day`."""
+    chosen = _as_date(day)
+    return f"Week of {long_date(chosen - timedelta(days=chosen.weekday()))}"
+
+
+def book_bar_segments(
+    arr_by_health: Mapping[Health, float], total_arr: float
+) -> list[tuple[Health, float, float]]:
+    """(health, x, width) in percent of `total_arr`, in BOOK_BAR_ORDER. Empty when there is no ARR.
+
+    Bands with no ARR are left out. Edges are rounded to 2 decimals, and the last band is
+    100 - x wide, so the bar has no gap at its end.
+    """
+    if total_arr <= 0:
+        return []
+    bands = [
+        (health, arr_by_health.get(health, 0.0))
+        for health in BOOK_BAR_ORDER
+        if arr_by_health.get(health, 0.0) > 0
+    ]
+    starts: list[float] = []
+    running = 0.0
+    for _, arr in bands:
+        starts.append(round(running / total_arr * 100, 2))
+        running += arr
+    segments: list[tuple[Health, float, float]] = []
+    for index, (health, _) in enumerate(bands):
+        start = starts[index]
+        if index + 1 < len(bands):
+            width = round(starts[index + 1] - start, 2)
+        else:
+            width = round(100 - start, 2)
+        segments.append((health, start, width))
+    return segments
+
+
+def count_bar_width(count: int, largest: int) -> float:
+    """A bar's fill as a percent of its track: 0 to 100, one decimal. 0 when `largest` is 0."""
+    if largest <= 0:
+        return 0.0
+    return round(min(max(count, 0), largest) / largest * 100, 1)
 
 
 def _as_date(value: date | datetime) -> date:

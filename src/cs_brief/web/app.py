@@ -7,7 +7,7 @@ and the MCP server use.
 from __future__ import annotations
 
 import math
-from collections.abc import Awaitable, Callable
+from collections.abc import Awaitable, Callable, Mapping
 from datetime import date
 from pathlib import Path
 from typing import Any
@@ -44,6 +44,12 @@ SECURITY_HEADERS = {
     "X-Frame-Options": "DENY",
 }
 _MOTION_ORDER = (Motion.CHURN, Motion.RENEWAL, Motion.ONBOARDING)  # the order on the filter
+# The brief's motion names. Churn reads "Churn watch" here, where the filter says "Churn".
+_BRIEF_MOTION_LABELS: dict[Motion, str] = {
+    Motion.CHURN: "Churn watch",
+    Motion.RENEWAL: "Renewal",
+    Motion.ONBOARDING: "Onboarding",
+}
 
 
 def money(value: float) -> str:
@@ -93,6 +99,18 @@ def summary_sentences(at_risk: int, arr_at_risk: float, watching: int) -> tuple[
     return first, second
 
 
+def _bar_label(arr_by_health: Mapping[Health, float]) -> str:
+    """'ARR by health: $1.2M at risk, $2.1M watch, $3.0M healthy'. Empty bands are left out."""
+    parts = [
+        f"{money_short(arr_by_health[health])} {health.label.lower()}"
+        for health in formatting.BOOK_BAR_ORDER
+        if arr_by_health.get(health, 0.0) > 0
+    ]
+    if not parts:
+        return "ARR by health: no ARR in the book"
+    return "ARR by health: " + ", ".join(parts)
+
+
 def result_count_text(count: int) -> str:
     """The live count under the filters, e.g. 'Showing 1 account' or 'Showing 40 accounts'."""
     return f"Showing {count} {_word(count, 'account', 'accounts')}"
@@ -121,6 +139,12 @@ def _connector_label() -> str:
     return "Demo data" if name == "demo" else name
 
 
+def _brief_source() -> str:
+    """The brief's footer source: 'demo data', or the connector's name."""
+    name = service.get_connector().name
+    return "demo data" if name == "demo" else name
+
+
 _env = Environment(loader=FileSystemLoader(TEMPLATES_DIR), autoescape=True)
 _env.filters["money"] = money
 _env.filters["money_short"] = money_short
@@ -129,8 +153,12 @@ _env.filters["day_label"] = formatting.day_label
 _env.filters["ago"] = formatting.ago
 _env.filters["motion_fact"] = formatting.motion_fact
 _env.filters["number"] = formatting.number
+_env.filters["week_of"] = formatting.week_of
+_env.filters["long_date"] = formatting.long_date
 _env.globals["risk_sentence"] = formatting.risk_sentence
 _env.globals["bar_geometry"] = formatting.bar_geometry
+_env.globals["book_bar_segments"] = formatting.book_bar_segments
+_env.globals["count_bar_width"] = formatting.count_bar_width
 templates = Jinja2Templates(env=_env)
 
 
@@ -238,7 +266,36 @@ def create_app() -> FastAPI:
 
     @app.get("/brief")
     def weekly_brief(request: Request) -> HTMLResponse:
-        return _render(request, "coming.html", page="Weekly brief", active="brief")
+        """The weekly brief: where ARR sits, this week's call-outs, the motions and the top ten."""
+        brief = briefs.weekly_brief(service.get_book(), as_of=date.today(), top_n=10)
+        first, second = summary_sentences(
+            brief.counts_by_health[Health.AT_RISK],
+            brief.arr_at_risk,
+            brief.counts_by_health[Health.WATCH],
+        )
+        largest = max(brief.counts_by_motion.values(), default=0)
+        motion_rows = [
+            (
+                _BRIEF_MOTION_LABELS[motion],
+                brief.counts_by_motion[motion],
+                formatting.count_bar_width(brief.counts_by_motion[motion], largest),
+            )
+            for motion in _MOTION_ORDER
+        ]
+        return _render(
+            request,
+            "brief.html",
+            page="Weekly brief",
+            active="brief",
+            brief=brief,
+            summary_first=first,
+            summary_second=second,
+            bar_label=_bar_label(brief.arr_by_health),
+            health_order=formatting.BOOK_BAR_ORDER,
+            motion_rows=motion_rows,
+            motion_labels=_BRIEF_MOTION_LABELS,
+            source=_brief_source(),
+        )
 
     @app.get("/onboarding")
     def onboarding(request: Request) -> HTMLResponse:
