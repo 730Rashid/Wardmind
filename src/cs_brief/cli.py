@@ -79,7 +79,9 @@ def _cut(name: str) -> str:
 @app.command()
 def mcp() -> None:
     """Run the MCP server over stdio."""
-    raise typer.Exit("Not built yet (task T4).")
+    from cs_brief.mcp.server import run
+
+    run()
 
 
 @app.command()

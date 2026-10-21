@@ -36,12 +36,13 @@ All colours are defined on `:root` in `web/static/css/app.css`. Contrast is veri
 | `--surface` | `#FFFFFF` | `#1F232C` | table, inputs |
 | `--ink` | `#1C2430` | `#E6E9EE` | primary text, the reason sentence |
 | `--ink-muted` | `#566173` | `#A0A9B6` | owner, counts, secondary text |
-| `--line` | `#D6DBE3` | `#353B47` | rules, input borders, bar tracks |
+| `--line` | `#D6DBE3` | `#353B47` | decorative rules and bar tracks only (not a 3:1 boundary) |
+| `--control` | `#7A8494` | `#7D8696` | input, button and filter-segment borders (≥ 3:1) |
 | `--accent` | `#5A3E9B` | `#BBA6F2` | links, focus ring, selected filter (plum ink) |
 | `--risk` | `#B42318` | `#FF8A80` | at risk |
 | `--watch` | `#9A4A05` | `#F7B955` | watch |
 | `--healthy` | `#067647` | `#5FD39A` | healthy |
-| `--bar` | `#8892A2` | `#6F7888` | priority bar fill (neutral) |
+| `--bar` | `#7D8696` | `#6F7888` | priority bar fill (neutral, ≥ 3:1 on paper and surface) |
 
 Theme selection works like this:
 - With no user choice, `prefers-color-scheme` decides.
