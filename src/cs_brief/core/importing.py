@@ -224,6 +224,30 @@ class ImportResult(BaseModel):
     ready_rows: int  # rows that became accounts
 
 
+def parse_money(text: str) -> float:
+    """ "$120,000", "120000", "120k", "1.2m", "€120.000,50", "120 000" -> a float >= 0.
+    The last "," or "." followed by 1-2 digits is the decimal separator; other separators are
+    thousands. Raises ValueError (plain English) for blanks, negatives and anything else."""
+    raise NotImplementedError
+
+
+def parse_date(text: str, order: DateOrder) -> date:
+    """ISO "2026-12-01" always works. Otherwise d/m/y or m/d/y per `order`, with "/", "-", "."
+    or spaces; 2-digit years are 20xx; month names ("1 Dec 2026", "Dec 1, 2026") work in
+    either order; Excel serial numbers (e.g. "46357") are accepted. Raises ValueError."""
+    raise NotImplementedError
+
+
+def parse_bool(text: str) -> bool:
+    """yes/no, y/n, true/false, 1/0, x/blank (blank is False). Raises ValueError otherwise."""
+    raise NotImplementedError
+
+
+def parse_number(text: str) -> float:
+    """A plain number; a trailing "%" and thousands separators are allowed. Raises ValueError."""
+    raise NotImplementedError
+
+
 def read_csv(data: bytes, source_name: str) -> Table:
     """Decode (UTF-8 with or without BOM, then cp1252), sniff the delimiter (comma,
     semicolon, tab, pipe) and read with the csv module. Raises ImportError_ for empty input,
