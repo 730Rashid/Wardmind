@@ -10,6 +10,16 @@
         "$env:UV_PROJECT_ENVIRONMENT = Join-Path $env:LOCALAPPDATA 'cs-brief\\venv'; uv run cs-brief ui --no-browser --port 8000"
       ],
       "port": 8000
+    },
+    {
+      "name": "cs-brief-ui-sandbox",
+      "runtimeExecutable": "powershell",
+      "runtimeArgs": [
+        "-NoProfile",
+        "-Command",
+        "$d = Join-Path $env:TEMP 'cs-brief-sandbox'; New-Item -ItemType Directory -Force $d | Out-Null; Copy-Item config\\scoring.yaml $d -Force; Remove-Item (Join-Path $d 'settings.yaml') -ErrorAction SilentlyContinue; $env:CS_BRIEF_CONFIG_DIR = $d; $env:UV_PROJECT_ENVIRONMENT = Join-Path $env:LOCALAPPDATA 'cs-brief\\venv'; uv run cs-brief ui --no-browser --port 8001"
+      ],
+      "port": 8001
     }
   ]
 }

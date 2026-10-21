@@ -304,8 +304,13 @@ def test_the_save_button_is_a_plain_submit_outside_the_htmx_wrapper(client: Test
     assert [wrapper["hx-post"] for wrapper in wrappers] == ["/settings/scoring/preview"]
     assert wrappers[0]["hx-trigger"] == "input changed delay:300ms, change"
     assert wrappers[0]["hx-include"] == "#scoring-form"
-    assert wrappers[0]["hx-target"] == "#scoring-preview"
+    # The swap targets the preview's body, not the section: an innerHTML swap of the section
+    # would delete its heading and leave aria-labelledby pointing at nothing.
+    assert wrappers[0]["hx-target"] == "#scoring-preview-body"
     assert wrappers[0]["hx-swap"] == "innerHTML"
+    partial = client.post("/settings/scoring/preview", data={}).text
+    assert 'id="preview-title"' not in partial
+    assert 'id="preview-title"' in client.get("/settings/scoring").text
 
     (save,) = [
         (attrs, ancestors)

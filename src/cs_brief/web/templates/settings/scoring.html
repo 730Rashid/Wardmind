@@ -19,7 +19,7 @@
            hx-post="/settings/scoring/preview"
            hx-trigger="input changed delay:300ms, change"
            hx-include="#scoring-form"
-           hx-target="#scoring-preview"
+           hx-target="#scoring-preview-body"
            hx-swap="innerHTML">
 
         <fieldset class="signals">
@@ -68,7 +68,10 @@
 
     <section id="scoring-preview" class="scoring-preview" aria-live="polite" aria-labelledby="preview-title">
       <h2 class="section-title" id="preview-title">What would change</h2>
-      {% include "settings/partials/scoring_preview.html" %}
+      {# Only the body is swapped, so the heading (and aria-labelledby) survive every refresh. #}
+      <div id="scoring-preview-body">
+        {% include "settings/partials/scoring_preview.html" %}
+      </div>
     </section>
   </div>
 </div>

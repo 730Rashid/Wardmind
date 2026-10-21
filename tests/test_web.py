@@ -36,7 +36,7 @@ CSP = (
 EXPECTED_HEADERS = {
     "content-security-policy": CSP,
     "x-content-type-options": "nosniff",
-    "referrer-policy": "no-referrer",
+    "referrer-policy": "same-origin",
     "x-frame-options": "DENY",
 }
 

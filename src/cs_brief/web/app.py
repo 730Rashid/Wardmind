@@ -59,7 +59,9 @@ CSP = (
 SECURITY_HEADERS = {
     "Content-Security-Policy": CSP,
     "X-Content-Type-Options": "nosniff",
-    "Referrer-Policy": "no-referrer",
+    # same-origin, not no-referrer: no-referrer makes browsers send `Origin: null` on the app's
+    # own form posts, which the cross-site write check then has to treat as unknown.
+    "Referrer-Policy": "same-origin",
     "X-Frame-Options": "DENY",
 }
 _MOTION_ORDER = (Motion.CHURN, Motion.RENEWAL, Motion.ONBOARDING)  # the order on the filter
@@ -90,16 +92,20 @@ def is_cross_site_write(method: str, headers: Mapping[str, str]) -> bool:
     127.0.0.1. Browsers send Origin on POST (and Sec-Fetch-Site on modern ones), so a write is
     refused unless it came from this app's own origin. Requests with neither header come from
     non-browser clients (tests, curl), which a web page can't forge.
+
+    Some form posts carry `Origin: null` (an opaque origin, e.g. under a no-referrer policy or
+    from a sandboxed frame). That says nothing either way, so Sec-Fetch-Site decides, and with
+    no Sec-Fetch-Site it is refused.
     """
     if method.upper() not in _UNSAFE_METHODS:
         return False
     origin = headers.get("origin")
-    if origin is not None:
+    if origin is not None and origin != "null":
         return origin != f"http://{headers.get('host', '')}"
     site = headers.get("sec-fetch-site")
     if site is not None:
         return site not in ("same-origin", "none")
-    return False
+    return origin == "null"
 
 
 def money(value: float) -> str:

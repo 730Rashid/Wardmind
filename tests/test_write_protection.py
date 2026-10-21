@@ -34,6 +34,9 @@ def client() -> TestClient:
         ({"origin": f"http://{HOST}"}, False),
         ({"origin": "https://evil.example"}, True),
         ({"origin": "null"}, True),
+        # What Chrome sends for the app's own form post under a no-referrer policy: allowed.
+        ({"origin": "null", "sec-fetch-site": "same-origin"}, False),
+        ({"origin": "null", "sec-fetch-site": "cross-site"}, True),
         ({"origin": "http://localhost:8000"}, True),  # a different origin from the Host
         ({"sec-fetch-site": "same-origin"}, False),
         ({"sec-fetch-site": "none"}, False),  # typed in the address bar / bookmark

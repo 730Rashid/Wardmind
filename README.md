@@ -7,6 +7,11 @@ attention this week. It is reachable three ways, all backed by the same core cod
   - **My book:** the ranked list
   - **Account pages:** the score breakdown, signal history and next step
   - **Weekly brief:** a one-page summary with **Print or save as PDF** (fits on 2 A4 pages)
+  - **Settings:**
+    - Appearance: theme, accent colour, density, and which screen it opens on. These are saved
+      to `config/settings.yaml`.
+    - Scoring: sliders for every weight and threshold, with a live preview of how your top 10
+      would reorder. These are saved to `config/scoring.yaml`.
 - **Claude (MCP):** `cs-brief mcp` serves the book to Claude over stdio
 - **Terminal:** `cs-brief score` prints the top of the book
 
@@ -62,6 +67,8 @@ All weights, thresholds and windows live in [`config/scoring.yaml`](config/scori
 - Nothing is loaded from a CDN. htmx and the Atkinson Hyperlegible Next font are vendored; see
   [`VENDORED.md`](src/cs_brief/web/static/VENDORED.md).
 - A strict Content-Security-Policy blocks inline scripts and third-party requests.
+- Settings can only be changed from cs-brief's own pages. Writes that come from another website
+  are refused.
 - No data leaves your machine. Web research, a later and optional phase, will be off by default.
 
 ## Development
