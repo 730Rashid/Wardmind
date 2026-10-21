@@ -342,9 +342,9 @@ Next step                                                          (accent-ruled
 Settings is a quiet workshop page, with no decoration. `/settings` redirects to
 `/settings/appearance`.
 - **Sub-navigation:** a vertical list on the left from 960px (and a row of links above the content
-  below that) with "Appearance" and "Scoring". The current one gets `aria-current="page"` and the
-  same 2px accent underline as the top nav. Data & privacy and Connections arrive in later phases;
-  don't show them yet.
+  below that) with "Appearance", "Scoring" and "Connections". The current one gets
+  `aria-current="page"` and the same 2px accent underline as the top nav. Data & privacy arrives
+  in phase 8; don't show it yet.
 - **Forms** are left-aligned in a single column, max 640px. Each group is a `<fieldset>` with a
   visible `<legend>` at `--t-md`.
 - **Save changes** is the **only filled button** in the product: `--accent` background with
@@ -352,6 +352,52 @@ Settings is a quiet workshop page, with no decoration. `/settings` redirects to
   4.5:1 on the light dark-mode accents. Other buttons are outlined with `--control`. After a save the page redirects to itself
   with a `role="status"` message under the h1: "Appearance saved." or "Scoring saved. Every
   screen and Claude now use it."
+
+#### Connections (`/settings/connections`)
+The third sub-navigation item. It answers four questions in order: where does my data come
+from, is HubSpot set up, does it work, and what exactly does it read.
+```
+Connections
+Data source                                                         (fieldset)
+  (•) Demo data   "40 invented accounts. Nothing leaves your computer."
+  ( ) HubSpot     "Reads your customer companies, owners and tickets. cs-brief never writes to HubSpot."
+  [ Save changes ]
+
+HubSpot access                                                      (h2)
+  Token   Saved on this computer, ends in …9f3e. Saved 21 October.     [ Remove token ]
+     or   Set by CS_BRIEF_HUBSPOT_TOKEN, ends in …9f3e. Change it where you set it.
+     or   No token saved.
+  Access token  [ ••••••••••••••••••••••• ]  [ Save token ]
+  "Create a Service Key in HubSpot (Settings, then Integrations, then Service Keys) with the
+   read scopes crm.objects.companies.read, crm.objects.owners.read and tickets. A legacy private
+   app token also works. The token is stored in your user profile, not in this folder."
+
+  [ Test connection ]                                               (outlined; hx-post)
+   ✓ Token accepted
+   ✓ Companies: 128 customer companies found.
+   ✗ Tickets: This key is missing the "tickets" scope. Add it in HubSpot and test again.
+   Missing properties: cs_nps_latest, cs_seat_utilisation           (only when some are missing)
+
+  Data last fetched 14:02.   [ Refresh data now ]                    (only when HubSpot is active)
+
+What cs-brief reads                                                 (h2, <details> collapsed)
+  the mapping table from docs/hubspot.md for the effective mapping
+```
+- **Token input:**
+  - `type="password"`, `autocomplete="off"`, `spellcheck="false"`
+  - the value is **never** rendered back into the input or anywhere else
+  - after saving, the status line says "Token saved." and the masked value
+- **Remove token** uses a POST form. The status line says "Token removed." There's no confirmation
+  dialog: re-saving is easy, and the page says what happens.
+- **Test connection** results are a list. Each item has a check or cross icon *and* the words
+  "Passed" or "Failed" (visually hidden when the icon is present), with no red or green: this is
+  connection status, not account health. Failures use `--ink` weight 600.
+- **Choosing HubSpot without a token:** saving the source shows `role="alert"` "Save a HubSpot
+  token first." Nothing is saved.
+- **Every other page while HubSpot is failing:** each book page renders a single message in the
+  layout instead of its content: "Couldn't load your book from HubSpot. {message}". It's followed
+  by links to "Check Connections" and "Switch to demo data" (a POST form button). The status is
+  503. The top-bar source note reads "Connected to HubSpot" or "Showing demo data".
 
 #### Appearance
 ```

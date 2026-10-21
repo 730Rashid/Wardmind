@@ -17,8 +17,19 @@ from cs_brief.core.scoring import score_book
 
 
 def get_connector() -> Connector:
-    """The active connector. Demo only until the HubSpot phase."""
-    return DemoConnector()
+    """The connector for load_settings().source.
+
+    Demo: DemoConnector(). HubSpot: one shared HubSpotConnector per (token, mapping, base_url)
+    for the life of the process, so its cache survives across requests; raises
+    ConnectionNotReady when no token is available. CS_BRIEF_HUBSPOT_API_BASE (test-only) is
+    passed through as base_url; HubSpotClient rejects anything that isn't localhost.
+    """
+    return DemoConnector()  # T25 replaces this body
+
+
+def reset_connectors() -> None:
+    """Forget shared connectors, e.g. after the token, mapping or source changes."""
+    raise NotImplementedError
 
 
 def get_book(

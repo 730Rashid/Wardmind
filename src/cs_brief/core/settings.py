@@ -47,11 +47,23 @@ class Landing(StrEnum):
         return {"book": "/", "brief": "/brief"}[self.value]
 
 
+class DataSource(StrEnum):
+    """Where the book comes from. Demo needs nothing; HubSpot needs a saved token."""
+
+    DEMO = "demo"
+    HUBSPOT = "hubspot"
+
+    @property
+    def label(self) -> str:
+        return {"demo": "Demo data", "hubspot": "HubSpot"}[self.value]
+
+
 class Settings(BaseModel):
     theme: Theme = Theme.SYSTEM
     accent: Accent = Accent.PLUM
     density: Density = Density.COMFORTABLE
     landing: Landing = Landing.BOOK
+    source: DataSource = DataSource.DEMO
 
 
 def settings_path() -> Path:
