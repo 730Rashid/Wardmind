@@ -1,3 +1,73 @@
 # cs-brief
 
-Rank a Customer Success book of business and explain why each account needs attention.
+Rank a Customer Success book of business and explain, in plain English, why each account needs
+attention this week. It is reachable three ways, all backed by the same core code:
+
+- **Web dashboard:** `cs-brief ui` opens a local page at http://127.0.0.1:8000
+- **Claude (MCP):** `cs-brief mcp` serves the book to Claude over stdio
+- **Terminal:** `cs-brief score` prints the top of the book
+
+It runs on bundled demo data (40 invented accounts). A HubSpot connector comes in a later phase.
+
+## Quickstart (Windows, PowerShell)
+
+Requires Python 3.11+ and [uv](https://docs.astral.sh/uv/).
+
+```powershell
+. .\scripts\dev.ps1        # keeps the virtualenv outside OneDrive
+uv sync
+uv run cs-brief score      # ranked top 10 in the terminal
+uv run cs-brief ui         # dashboard at http://127.0.0.1:8000
+```
+
+### Use it from Claude Code
+
+```powershell
+claude mcp add cs-brief -- uv --directory "<path to this folder>" run cs-brief mcp
+```
+
+The server exposes four tools:
+
+| Tool | What it returns |
+|---|---|
+| `list_book` | accounts in priority order; optional `motion`, `search`, `limit` |
+| `get_account` | everything about one account |
+| `explain_score` | why the account ranks where it does, with a short summary |
+| `weekly_brief` | totals, counts by health and motion, call-outs, and the top accounts |
+
+## How scoring works
+
+Eight signals add risk points: usage trend, days since login, open severity-1 tickets, NPS,
+champion left, seat utilisation, overdue billing and overdue onboarding milestones.
+
+- **Risk:** each signal has a `start` value, where its risk begins, and a `full` value, where it
+  adds its whole weight. Risk is the total of all signals, capped at 100.
+- **Health:** risk of 45 or more is **At risk**, 20 or more is **Watch**, and anything lower is
+  **Healthy**.
+- **Priority:** risk scaled by ARR (log-scaled, 30% influence by default). This is what the book
+  is sorted by.
+- **Motion:** each account gets one motion, checked in this order:
+  1. **Onboarding:** under 90 days old with milestones open.
+  2. **Renewal:** renewing within 120 days.
+  3. **Churn:** everything else.
+
+All weights, thresholds and windows live in [`config/scoring.yaml`](config/scoring.yaml).
+
+## Privacy and security
+
+- The web UI binds to `127.0.0.1` only and answers only to `127.0.0.1` and `localhost`.
+- Nothing is loaded from a CDN. htmx and the Atkinson Hyperlegible Next font are vendored; see
+  [`VENDORED.md`](src/cs_brief/web/static/VENDORED.md).
+- A strict Content-Security-Policy blocks inline scripts and third-party requests.
+- No data leaves your machine. Web research, a later and optional phase, will be off by default.
+
+## Development
+
+```powershell
+. .\scripts\dev.ps1
+uv run pytest -q
+uv run ruff check
+uv run python scripts/gen_demo.py   # regenerate demo data (deterministic)
+```
+
+Design direction for the UI lives in [`docs/design.md`](docs/design.md).

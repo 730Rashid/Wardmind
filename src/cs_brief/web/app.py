@@ -6,6 +6,7 @@ and the MCP server use.
 
 from __future__ import annotations
 
+import math
 from collections.abc import Awaitable, Callable
 from datetime import date
 from pathlib import Path
@@ -20,7 +21,8 @@ from jinja2 import Environment, FileSystemLoader
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 
-from cs_brief.core import service
+from cs_brief.core import briefs, service
+from cs_brief.core.models import Health, Motion, ScoredAccount
 
 HOST = "127.0.0.1"  # fixed: no CLI flag or environment variable may change it
 
@@ -39,11 +41,17 @@ SECURITY_HEADERS = {
     "Referrer-Policy": "no-referrer",
     "X-Frame-Options": "DENY",
 }
+_MOTION_ORDER = (Motion.CHURN, Motion.RENEWAL, Motion.ONBOARDING)  # the order on the filter
 
 
 def money(value: float) -> str:
     """Whole dollars with separators: $184,000."""
     return f"${value:,.0f}"
+
+
+def whole(value: float) -> int:
+    """The nearest whole number, halves rounded up, so 12.5 shows as 13 (round() gives 12)."""
+    return math.floor(value + 0.5)
 
 
 def money_short(value: float) -> str:
@@ -61,6 +69,45 @@ def format_today(day: date) -> str:
     return f"{day:%A} {day.day} {day:%B}"
 
 
+def summary_sentences(at_risk: int, arr_at_risk: float, watching: int) -> tuple[str, str]:
+    """The two summary sentences on My book: accounts at risk, then accounts worth watching."""
+    arr = money_short(arr_at_risk)
+    if at_risk == 0:
+        first = "No accounts are at risk this week."
+    elif at_risk == 1:
+        first = f"1 account is at risk, carrying {arr} of ARR."
+    else:
+        first = f"{at_risk} accounts are at risk, carrying {arr} of ARR."
+
+    if watching == 0:
+        second = "Nothing else needs watching."
+    elif at_risk == 0:
+        account = _word(watching, "account", "accounts")
+        second = f"{watching} {account} {_word(watching, 'is', 'are')} worth watching this week."
+    elif watching == 1:
+        second = "1 more is worth watching this week."
+    else:
+        second = f"{watching} more are worth watching this week."
+    return first, second
+
+
+def result_count_text(count: int) -> str:
+    """The live count under the filters, e.g. 'Showing 1 account' or 'Showing 40 accounts'."""
+    return f"Showing {count} {_word(count, 'account', 'accounts')}"
+
+
+def _word(count: int, singular: str, plural: str) -> str:
+    return singular if count == 1 else plural
+
+
+def _selected_motion(value: str) -> Motion | None:
+    """The motion named in the query string, or None (all) when it is missing or not a motion."""
+    try:
+        return Motion(value)
+    except ValueError:
+        return None
+
+
 def _source_note() -> str:
     name = service.get_connector().name
     return "Showing demo data" if name == "demo" else f"Connected to {name}"
@@ -69,6 +116,7 @@ def _source_note() -> str:
 _env = Environment(loader=FileSystemLoader(TEMPLATES_DIR), autoescape=True)
 _env.filters["money"] = money
 _env.filters["money_short"] = money_short
+_env.filters["whole"] = whole
 templates = Jinja2Templates(env=_env)
 
 
@@ -120,8 +168,57 @@ def create_app() -> FastAPI:
         )
 
     @app.get("/")
-    def my_book(request: Request) -> HTMLResponse:
-        return _render(request, "book.html", page="My book", active="book")
+    def my_book(request: Request, motion: str = "", q: str = "") -> HTMLResponse:
+        """My book. An htmx refresh gets only the results partial, not on a history restore."""
+        book = service.get_book()
+        brief = briefs.weekly_brief(book, as_of=date.today())
+        selected = _selected_motion(motion)
+        ranks = {item.account.id: rank for rank, item in enumerate(book, start=1)}
+        rows: list[tuple[int, ScoredAccount]] = [
+            (ranks[item.account.id], item) for item in service.filter_book(book, selected, q)
+        ]
+        first, second = summary_sentences(
+            brief.counts_by_health[Health.AT_RISK],
+            brief.arr_at_risk,
+            brief.counts_by_health[Health.WATCH],
+        )
+        options: list[dict[str, Any]] = [
+            {
+                "value": "",
+                "label": "All",
+                "count": brief.total_accounts,
+                "checked": selected is None,
+            },
+            *(
+                {
+                    "value": motion_kind.value,
+                    "label": motion_kind.label,
+                    "count": brief.counts_by_motion[motion_kind],
+                    "checked": selected == motion_kind,
+                }
+                for motion_kind in _MOTION_ORDER
+            ),
+        ]
+        partial = request.headers.get("HX-Request") == "true" and (
+            "HX-History-Restore-Request" not in request.headers
+        )
+        response = _render(
+            request,
+            "partials/book_results.html" if partial else "book.html",
+            page="My book",
+            active="book",
+            summary_first=first,
+            summary_second=second,
+            motion_options=options,
+            selected_value="" if selected is None else selected.value,
+            rows=rows,
+            q=q,
+            count_text=result_count_text(len(rows)),
+            intro=not partial,
+            oob=partial,
+        )
+        response.headers["Vary"] = "HX-Request, HX-History-Restore-Request"
+        return response
 
     @app.get("/brief")
     def weekly_brief(request: Request) -> HTMLResponse:

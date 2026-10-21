@@ -1,0 +1,66 @@
+<div id="results">
+  {% if rows %}
+  <table class="book{% if intro %} book--intro{% endif %}" role="table">
+    <caption class="visually-hidden">Accounts ranked by priority</caption>
+    <thead>
+      <tr role="row">
+        <th scope="col" role="columnheader" class="num">#</th>
+        <th scope="col" role="columnheader">Health</th>
+        <th scope="col" role="columnheader" class="num">Priority</th>
+        <th scope="col" role="columnheader">Account</th>
+        <th scope="col" role="columnheader">Motion</th>
+        <th scope="col" role="columnheader" class="num">ARR</th>
+        <th scope="col" role="columnheader">Why it's on your list</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for rank, item in rows %}
+      {% set others = item.reasons | length - 1 %}
+      <tr role="row">
+        <th scope="row" role="rowheader" class="cell-rank num">{{ rank }}</th>
+        <td role="cell" class="cell-health">
+          <span class="health health--{{ item.health.value }}">
+            <svg class="icon" aria-hidden="true" focusable="false"><use href="/static/icons.svg#health-{{ item.health.value | replace('_', '-') }}"/></svg>
+            {{ item.health.label }}
+          </span>
+        </td>
+        <td role="cell" class="cell-priority num">
+          <span class="cell-label" aria-hidden="true">Priority</span>
+          <span class="priority-value">{{ item.priority | whole }}</span>
+          <svg class="bar" viewBox="0 0 100 6" width="56" height="6" role="img" aria-label="Priority {{ item.priority | whole }} of 100">
+            <rect class="bar-track" width="100" height="6"/>
+            <rect class="bar-fill" width="{{ item.priority }}" height="6"/>
+          </svg>
+        </td>
+        <td role="cell" class="cell-account">
+          <a class="account-link" href="/accounts/{{ item.account.id | urlencode }}">{{ item.account.name }}</a>
+          <span class="owner">{{ item.account.owner }}</span>
+        </td>
+        <td role="cell" class="cell-motion">{{ item.motion.label }}</td>
+        <td role="cell" class="cell-arr num">{{ item.account.arr | money }}</td>
+        <td role="cell" class="cell-reason">
+          <span class="reason">{{ item.top_reason }}</span>
+          {% if others > 0 %}
+          <span class="more-signals">and {{ others }} other {{ 'signal' if others == 1 else 'signals' }}</span>
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <div class="empty">
+    {% if q | trim %}
+    <p>No accounts match "{{ q }}".</p>
+    <p><a href="/?motion={{ selected_value }}">Clear search</a></p>
+    {% elif selected_value %}
+    <p>No accounts are in {{ selected_value }} right now.</p>
+    {% else %}
+    <p>No accounts to show.</p>
+    {% endif %}
+  </div>
+  {% endif %}
+</div>
+{% if oob %}
+<span id="result-count" hx-swap-oob="innerHTML">{{ count_text }}</span>
+{% endif %}

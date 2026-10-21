@@ -1,7 +1,36 @@
 {% extends "base.html" %}
 {% block content %}
+<h1 class="visually-hidden">{{ page }}</h1>
 <div class="stack">
-  <h1 class="page-title">{{ page }}</h1>
   <p class="date-line">{{ today }}</p>
+  <p class="summary">
+    <span class="summary-line">{{ summary_first }}</span>
+    <span class="summary-line summary-line--muted">{{ summary_second }}</span>
+  </p>
+  <form id="book-filter" class="book-controls" method="get" action="/" role="search"
+        hx-get="/" hx-target="#results" hx-swap="outerHTML" hx-push-url="true"
+        hx-trigger="change, input changed delay:250ms from:#q, submit">
+    <fieldset class="segmented">
+      <legend class="visually-hidden">Filter by motion</legend>
+      {% for option in motion_options %}
+      {% set option_id = "motion-" ~ (option.value or "all") %}
+      <span class="segment-option">
+        <input class="visually-hidden" type="radio" name="motion" id="{{ option_id }}"
+               value="{{ option.value }}"{% if option.checked %} checked{% endif %}>
+        <label class="segment" for="{{ option_id }}">{{ option.label }} <span class="segment-count">{{ option.count }}</span></label>
+      </span>
+      {% endfor %}
+    </fieldset>
+    <div class="search">
+      <label class="search-label" for="q">Search accounts</label>
+      <div class="search-field">
+        <svg class="icon search-icon" aria-hidden="true" focusable="false"><use href="/static/icons.svg#search"/></svg>
+        <input type="search" id="q" name="q" value="{{ q }}" autocomplete="off">
+      </div>
+    </div>
+    <button type="submit" class="no-js-only">Show accounts</button>
+  </form>
+  <p id="result-count" class="result-count" aria-live="polite">{{ count_text }}</p>
+  {% include "partials/book_results.html" %}
 </div>
 {% endblock %}

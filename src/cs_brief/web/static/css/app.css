@@ -282,6 +282,405 @@ button {
   }
 }
 
+/* My book. The summary is the headline; the controls and the call sheet sit under it. */
+.summary {
+  font-size: var(--t-xl);
+  line-height: var(--lh-xl);
+  font-weight: 500;
+}
+
+.summary-line {
+  display: block;
+}
+
+.summary-line--muted {
+  color: var(--ink-muted);
+}
+
+.result-count {
+  font-size: var(--t-sm);
+  line-height: var(--lh-sm);
+  color: var(--ink-muted);
+}
+
+.book-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--space-3) var(--space-5);
+  margin: 0;
+}
+
+/* Segmented control: one bordered group. Options are separated by a 1px rule, and the
+   checked one gets an accent border and accent text. The radio stays focusable but hidden,
+   so its focus ring is drawn on the label beside it. */
+.segmented {
+  display: flex;
+  flex-wrap: wrap;
+  min-inline-size: 0;
+  margin: 0;
+  padding: 0;
+  background: var(--surface);
+  border: 1px solid var(--control);
+  border-radius: var(--radius-control);
+}
+
+.segment-option {
+  position: relative;
+  display: flex;
+  flex: 1 1 auto;
+}
+
+.segment-option + .segment-option {
+  border-inline-start: 1px solid var(--line);
+}
+
+.segment {
+  flex: 1 1 auto;
+  padding: var(--space-2) var(--space-4);
+  border: 2px solid transparent;
+  border-radius: var(--radius-control);
+  color: var(--ink);
+  text-align: center;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.segment-count {
+  color: var(--ink-muted);
+}
+
+.segment-option input:checked + .segment {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.segment-option input:focus-visible {
+  outline: none;
+}
+
+.segment-option input:focus-visible + .segment {
+  outline: var(--focus-width) solid var(--accent);
+  outline-offset: 2px;
+}
+
+.search {
+  min-inline-size: 0;
+}
+
+/* The search label is visually hidden on desktop and shown above the box under 768px. */
+.search-label {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  border: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.search-field {
+  position: relative;
+}
+
+.search-field input {
+  inline-size: 16rem;
+  max-inline-size: 100%;
+  padding-block: var(--space-2);
+  padding-inline: calc(var(--space-3) + 1rem + var(--space-2)) var(--space-3);
+}
+
+.search-icon {
+  position: absolute;
+  inset-inline-start: var(--space-3);
+  inset-block-start: 50%;
+  translate: 0 -50%;
+  width: 1rem;
+  height: 1rem;
+  color: var(--ink-muted);
+  pointer-events: none;
+}
+
+.icon {
+  flex: none;
+  width: 1em;
+  height: 1em;
+  fill: currentColor;
+  vertical-align: -0.125em;
+}
+
+/* Without JavaScript the form needs its submit button. With it, the form refreshes on change. */
+.js .no-js-only {
+  display: none;
+}
+
+.book {
+  inline-size: 100%;
+  border-collapse: collapse;
+  background: var(--surface);
+}
+
+.book th,
+.book td {
+  padding: var(--space-3);
+  vertical-align: top;
+  text-align: start;
+}
+
+.book thead th {
+  padding-block-end: var(--space-2);
+  font-size: var(--t-sm);
+  line-height: var(--lh-sm);
+  font-weight: 600;
+  color: var(--ink-muted);
+  border-block-end: 1px solid var(--line);
+}
+
+.book tbody tr {
+  border-block-end: 1px solid var(--line);
+}
+
+.book tbody tr:hover {
+  background: var(--paper);
+}
+
+.book .num {
+  text-align: end;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.book tbody .cell-rank {
+  font-weight: 400;
+}
+
+.book .cell-motion,
+.book .cell-arr {
+  white-space: nowrap;
+}
+
+.health {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  white-space: nowrap;
+}
+
+.health--at_risk {
+  color: var(--risk);
+}
+
+.health--watch {
+  color: var(--watch);
+}
+
+.health--healthy {
+  color: var(--healthy);
+}
+
+.cell-priority .priority-value {
+  margin-inline-end: var(--space-2);
+}
+
+.cell-label {
+  display: none;
+}
+
+.bar {
+  display: inline-block;
+  inline-size: 56px;
+  block-size: 6px;
+  vertical-align: middle;
+  overflow: visible;
+}
+
+.bar-track {
+  fill: var(--line);
+}
+
+.bar-fill {
+  fill: var(--bar);
+}
+
+.account-link {
+  color: var(--ink);
+  font-weight: 600;
+  text-decoration: none;
+  overflow-wrap: anywhere;
+}
+
+.account-link:hover,
+.account-link:focus-visible {
+  text-decoration: underline;
+  text-underline-offset: 0.2em;
+}
+
+.owner {
+  display: block;
+  font-size: var(--t-sm);
+  line-height: var(--lh-sm);
+  color: var(--ink-muted);
+}
+
+.reason {
+  display: block;
+  color: var(--ink);
+}
+
+.more-signals {
+  display: block;
+  font-size: var(--t-sm);
+  line-height: var(--lh-sm);
+  color: var(--ink-muted);
+}
+
+/* The one motion moment: on the full page the priority bars fill once. Partials never get
+   the class, and prefers-reduced-motion switches the animation off below. */
+@keyframes bar-fill-in {
+  from {
+    transform: scaleX(0);
+  }
+
+  to {
+    transform: scaleX(1);
+  }
+}
+
+.book--intro .bar-fill {
+  transform-origin: 0 0;
+  animation: bar-fill-in 300ms ease-out both;
+}
+
+.empty {
+  padding-block: var(--space-6);
+}
+
+.empty p + p {
+  margin-top: var(--space-2);
+}
+
+@media (max-width: 767px) {
+  .book-controls {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .search-label {
+    position: static;
+    display: block;
+    width: auto;
+    height: auto;
+    margin: 0 0 var(--space-1);
+    overflow: visible;
+    clip: auto;
+    clip-path: none;
+    white-space: normal;
+  }
+
+  .search-field input {
+    inline-size: 100%;
+  }
+
+  /* Two options per row, with a rule between rows and between the two columns. */
+  .segment-option {
+    flex: 1 1 40%;
+  }
+
+  .segment-option:nth-child(n + 3) {
+    border-block-start: 1px solid var(--line);
+  }
+
+  .segment-option:nth-child(odd) {
+    border-inline-start: 0;
+  }
+
+  .segment {
+    padding-inline: var(--space-3);
+  }
+
+  /* Each row becomes a stacked block: the header row is hidden, and the cells sit in a grid. */
+  .book thead {
+    position: absolute;
+    inline-size: 1px;
+    block-size: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  .book,
+  .book tbody {
+    display: block;
+  }
+
+  .book tbody tr {
+    display: grid;
+    grid-template-columns: 2rem auto minmax(0, 1fr) auto;
+    grid-template-areas:
+      "rank health account account"
+      "rank reason reason reason"
+      "rank motion arr prio";
+    column-gap: var(--space-2);
+    row-gap: var(--space-1);
+    padding-block: var(--space-3);
+  }
+
+  .bar {
+    inline-size: 40px;
+  }
+
+  .book tbody th,
+  .book tbody td {
+    display: block;
+    padding: 0;
+    border: 0;
+  }
+
+  .book tbody .cell-rank {
+    grid-area: rank;
+    text-align: start;
+  }
+
+  .book tbody .cell-health {
+    grid-area: health;
+  }
+
+  .book tbody .cell-account {
+    grid-area: account;
+  }
+
+  .book tbody .cell-reason {
+    grid-area: reason;
+  }
+
+  .book tbody .cell-motion {
+    grid-area: motion;
+  }
+
+  .book tbody .cell-arr {
+    grid-area: arr;
+    justify-self: start;
+    text-align: start;
+  }
+
+  .book tbody .cell-priority {
+    grid-area: prio;
+    justify-self: end;
+    text-align: start;
+  }
+
+  .cell-label {
+    display: inline;
+    margin-inline-end: var(--space-1);
+    font-size: var(--t-sm);
+    color: var(--ink-muted);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

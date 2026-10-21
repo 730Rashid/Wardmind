@@ -1,0 +1,15 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "cs-brief-ui",
+      "runtimeExecutable": "powershell",
+      "runtimeArgs": [
+        "-NoProfile",
+        "-Command",
+        "$env:UV_PROJECT_ENVIRONMENT = Join-Path $env:LOCALAPPDATA 'cs-brief\\venv'; uv run cs-brief ui --no-browser --port 8000"
+      ],
+      "port": 8000
+    }
+  ]
+}
