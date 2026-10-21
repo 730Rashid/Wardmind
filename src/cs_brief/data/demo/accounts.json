@@ -1,0 +1,565 @@
+{
+  "accounts": [
+    {
+      "arr": 46500.0,
+      "id": "acc-001",
+      "milestones": {
+        "done": 4,
+        "overdue": 0,
+        "total": 4
+      },
+      "name": "Hessler Fitness",
+      "owner": "Ilse Marrowby",
+      "renewal_date": "2027-01-23",
+      "start_date": "2024-04-21",
+      "tier": "Growth"
+    },
+    {
+      "arr": 107000.0,
+      "id": "acc-002",
+      "milestones": {
+        "done": 5,
+        "overdue": 1,
+        "total": 7
+      },
+      "name": "Tidewell Energy",
+      "owner": "Corin Vashti",
+      "renewal_date": "2027-09-12",
+      "start_date": "2026-09-12",
+      "tier": "Growth"
+    },
+    {
+      "arr": 198000.0,
+      "id": "acc-003",
+      "milestones": {
+        "done": 4,
+        "overdue": 0,
+        "total": 4
+      },
+      "name": "Hessler Legal",
+      "owner": "Pell Anwick",
+      "renewal_date": "2027-01-30",
+      "start_date": "2025-04-16",
+      "tier": "Enterprise"
+    },
+    {
+      "arr": 117000.0,
+      "id": "acc-004",
+      "milestones": {
+        "done": 4,
+        "overdue": 2,
+        "total": 6
+      },
+      "name": "Thistledown Foods",
+      "owner": "Odelia Fenwrick",
+      "renewal_date": "2027-03-17",
+      "start_date": "2023-11-23",
+      "tier": "Growth"
+    },
+    {
+      "arr": 17500.0,
+      "id": "acc-005",
+      "milestones": {
+        "done": 4,
+        "overdue": 0,
+        "total": 4
+      },
+      "name": "Corvane Dairy",
+      "owner": "Ilse Marrowby",
+      "renewal_date": "2027-06-22",
+      "start_date": "2023-12-26",
+      "tier": "Starter"
+    },
+    {
+      "arr": 336500.0,
+      "id": "acc-006",
+      "milestones": {
+        "done": 8,
+        "overdue": 0,
+        "total": 8
+      },
+      "name": "Hollin Roofing",
+      "owner": "Corin Vashti",
+      "renewal_date": "2027-04-25",
+      "start_date": "2024-11-15",
+      "tier": "Enterprise"
+    },
+    {
+      "arr": 13000.0,
+      "id": "acc-007",
+      "milestones": {
+        "done": 8,
+        "overdue": 0,
+        "total": 8
+      },
+      "name": "Quillon Roofing",
+      "owner": "Pell Anwick",
+      "renewal_date": "2027-07-17",
+      "start_date": "2025-09-06",
+      "tier": "Starter"
+    },
+    {
+      "arr": 77500.0,
+      "id": "acc-008",
+      "milestones": {
+        "done": 7,
+        "overdue": 0,
+        "total": 7
+      },
+      "name": "Wrenfield Greenhouse",
+      "owner": "Odelia Fenwrick",
+      "renewal_date": "2026-11-07",
+      "start_date": "2025-04-09",
+      "tier": "Growth"
+    },
+    {
+      "arr": 13500.0,
+      "id": "acc-009",
+      "milestones": {
+        "done": 3,
+        "overdue": 0,
+        "total": 6
+      },
+      "name": "Nimbrel Events",
+      "owner": "Ilse Marrowby",
+      "renewal_date": "2027-08-13",
+      "start_date": "2026-08-13",
+      "tier": "Starter"
+    },
+    {
+      "arr": 6000.0,
+      "id": "acc-010",
+      "milestones": {
+        "done": 4,
+        "overdue": 0,
+        "total": 4
+      },
+      "name": "Ravelin Labs",
+      "owner": "Corin Vashti",
+      "renewal_date": "2027-10-06",
+      "start_date": "2023-07-21",
+      "tier": "Starter"
+    },
+    {
+      "arr": 55000.0,
+      "id": "acc-011",
+      "milestones": {
+        "done": 4,
+        "overdue": 0,
+        "total": 4
+      },
+      "name": "Tallowmere Cargo",
+      "owner": "Pell Anwick",
+      "renewal_date": "2027-07-19",
+      "start_date": "2025-06-01",
+      "tier": "Growth"
+    },
+    {
+      "arr": 599000.0,
+      "id": "acc-012",
+      "milestones": {
+        "done": 6,
+        "overdue": 0,
+        "total": 6
+      },
+      "name": "Quarrowdale Roofing",
+      "owner": "Odelia Fenwrick",
+      "renewal_date": "2027-06-14",
+      "start_date": "2024-02-13",
+      "tier": "Enterprise"
+    },
+    {
+      "arr": 23500.0,
+      "id": "acc-013",
+      "milestones": {
+        "done": 8,
+        "overdue": 0,
+        "total": 8
+      },
+      "name": "Lanternfall Optics",
+      "owner": "Ilse Marrowby",
+      "renewal_date": "2027-07-23",
+      "start_date": "2024-02-08",
+      "tier": "Starter"
+    },
+    {
+      "arr": 167000.0,
+      "id": "acc-014",
+      "milestones": {
+        "done": 6,
+        "overdue": 0,
+        "total": 6
+      },
+      "name": "Greyholt Studio",
+      "owner": "Corin Vashti",
+      "renewal_date": "2026-12-27",
+      "start_date": "2022-12-19",
+      "tier": "Enterprise"
+    },
+    {
+      "arr": 43500.0,
+      "id": "acc-015",
+      "milestones": {
+        "done": 6,
+        "overdue": 0,
+        "total": 6
+      },
+      "name": "Brindle Legal",
+      "owner": "Pell Anwick",
+      "renewal_date": "2027-02-09",
+      "start_date": "2025-08-07",
+      "tier": "Growth"
+    },
+    {
+      "arr": 535000.0,
+      "id": "acc-016",
+      "milestones": {
+        "done": 5,
+        "overdue": 0,
+        "total": 5
+      },
+      "name": "Ravelin Brewing",
+      "owner": "Odelia Fenwrick",
+      "renewal_date": "2027-09-26",
+      "start_date": "2024-06-22",
+      "tier": "Enterprise"
+    },
+    {
+      "arr": 60500.0,
+      "id": "acc-017",
+      "milestones": {
+        "done": 4,
+        "overdue": 0,
+        "total": 4
+      },
+      "name": "Dunmere Events",
+      "owner": "Ilse Marrowby",
+      "renewal_date": "2027-04-15",
+      "start_date": "2024-07-10",
+      "tier": "Growth"
+    },
+    {
+      "arr": 110000.0,
+      "id": "acc-018",
+      "milestones": {
+        "done": 6,
+        "overdue": 0,
+        "total": 6
+      },
+      "name": "Hollin Greenhouse",
+      "owner": "Corin Vashti",
+      "renewal_date": "2027-08-20",
+      "start_date": "2025-02-06",
+      "tier": "Growth"
+    },
+    {
+      "arr": 66000.0,
+      "id": "acc-019",
+      "milestones": {
+        "done": 8,
+        "overdue": 0,
+        "total": 8
+      },
+      "name": "Thistledown Packaging",
+      "owner": "Pell Anwick",
+      "renewal_date": "2026-12-20",
+      "start_date": "2024-08-15",
+      "tier": "Growth"
+    },
+    {
+      "arr": 21000.0,
+      "id": "acc-020",
+      "milestones": {
+        "done": 4,
+        "overdue": 0,
+        "total": 4
+      },
+      "name": "Thistledown Brewing",
+      "owner": "Odelia Fenwrick",
+      "renewal_date": "2027-03-26",
+      "start_date": "2024-09-07",
+      "tier": "Starter"
+    },
+    {
+      "arr": 96000.0,
+      "id": "acc-021",
+      "milestones": {
+        "done": 8,
+        "overdue": 0,
+        "total": 8
+      },
+      "name": "Stonecairn Pharmacy",
+      "owner": "Ilse Marrowby",
+      "renewal_date": "2027-04-03",
+      "start_date": "2024-07-28",
+      "tier": "Growth"
+    },
+    {
+      "arr": 261500.0,
+      "id": "acc-022",
+      "milestones": {
+        "done": 5,
+        "overdue": 0,
+        "total": 5
+      },
+      "name": "Tidewell Dairy",
+      "owner": "Corin Vashti",
+      "renewal_date": "2027-08-28",
+      "start_date": "2024-05-07",
+      "tier": "Enterprise"
+    },
+    {
+      "arr": 51000.0,
+      "id": "acc-023",
+      "milestones": {
+        "done": 6,
+        "overdue": 0,
+        "total": 6
+      },
+      "name": "Hessler Fabrication",
+      "owner": "Pell Anwick",
+      "renewal_date": "2027-06-01",
+      "start_date": "2023-06-23",
+      "tier": "Growth"
+    },
+    {
+      "arr": 21500.0,
+      "id": "acc-024",
+      "milestones": {
+        "done": 5,
+        "overdue": 0,
+        "total": 5
+      },
+      "name": "Brackmoor Studio",
+      "owner": "Odelia Fenwrick",
+      "renewal_date": "2027-06-21",
+      "start_date": "2024-07-25",
+      "tier": "Starter"
+    },
+    {
+      "arr": 18000.0,
+      "id": "acc-025",
+      "milestones": {
+        "done": 4,
+        "overdue": 2,
+        "total": 6
+      },
+      "name": "Orison Optics",
+      "owner": "Ilse Marrowby",
+      "renewal_date": "2026-12-13",
+      "start_date": "2024-05-05",
+      "tier": "Starter"
+    },
+    {
+      "arr": 52500.0,
+      "id": "acc-026",
+      "milestones": {
+        "done": 4,
+        "overdue": 0,
+        "total": 4
+      },
+      "name": "Wrenfield Works",
+      "owner": "Corin Vashti",
+      "renewal_date": "2027-01-19",
+      "start_date": "2023-02-23",
+      "tier": "Growth"
+    },
+    {
+      "arr": 87500.0,
+      "id": "acc-027",
+      "milestones": {
+        "done": 4,
+        "overdue": 2,
+        "total": 6
+      },
+      "name": "Brindle Analytics",
+      "owner": "Pell Anwick",
+      "renewal_date": "2027-06-26",
+      "start_date": "2025-05-31",
+      "tier": "Growth"
+    },
+    {
+      "arr": 68500.0,
+      "id": "acc-028",
+      "milestones": {
+        "done": 6,
+        "overdue": 0,
+        "total": 6
+      },
+      "name": "Quillon Legal",
+      "owner": "Odelia Fenwrick",
+      "renewal_date": "2027-04-12",
+      "start_date": "2023-01-25",
+      "tier": "Growth"
+    },
+    {
+      "arr": 401500.0,
+      "id": "acc-029",
+      "milestones": {
+        "done": 4,
+        "overdue": 0,
+        "total": 7
+      },
+      "name": "Oakhollow Packaging",
+      "owner": "Ilse Marrowby",
+      "renewal_date": "2027-07-31",
+      "start_date": "2026-07-31",
+      "tier": "Enterprise"
+    },
+    {
+      "arr": 92000.0,
+      "id": "acc-030",
+      "milestones": {
+        "done": 3,
+        "overdue": 0,
+        "total": 7
+      },
+      "name": "Pellmar Media",
+      "owner": "Corin Vashti",
+      "renewal_date": "2027-08-09",
+      "start_date": "2026-08-09",
+      "tier": "Growth"
+    },
+    {
+      "arr": 81000.0,
+      "id": "acc-031",
+      "milestones": {
+        "done": 4,
+        "overdue": 0,
+        "total": 4
+      },
+      "name": "Mosswick Clinics",
+      "owner": "Pell Anwick",
+      "renewal_date": "2027-03-15",
+      "start_date": "2023-01-18",
+      "tier": "Growth"
+    },
+    {
+      "arr": 104000.0,
+      "id": "acc-032",
+      "milestones": {
+        "done": 7,
+        "overdue": 0,
+        "total": 7
+      },
+      "name": "Dunmere Renovations",
+      "owner": "Odelia Fenwrick",
+      "renewal_date": "2027-07-09",
+      "start_date": "2025-02-19",
+      "tier": "Growth"
+    },
+    {
+      "arr": 19000.0,
+      "id": "acc-033",
+      "milestones": {
+        "done": 4,
+        "overdue": 0,
+        "total": 6
+      },
+      "name": "Quarrowdale Pharmacy",
+      "owner": "Ilse Marrowby",
+      "renewal_date": "2027-09-19",
+      "start_date": "2026-09-19",
+      "tier": "Starter"
+    },
+    {
+      "arr": 543000.0,
+      "id": "acc-034",
+      "milestones": {
+        "done": 2,
+        "overdue": 1,
+        "total": 6
+      },
+      "name": "Brindle Studio",
+      "owner": "Corin Vashti",
+      "renewal_date": "2027-08-01",
+      "start_date": "2026-08-01",
+      "tier": "Enterprise"
+    },
+    {
+      "arr": 360500.0,
+      "id": "acc-035",
+      "milestones": {
+        "done": 7,
+        "overdue": 0,
+        "total": 7
+      },
+      "name": "Tidewell Cargo",
+      "owner": "Pell Anwick",
+      "renewal_date": "2027-01-15",
+      "start_date": "2023-05-11",
+      "tier": "Enterprise"
+    },
+    {
+      "arr": 18500.0,
+      "id": "acc-036",
+      "milestones": {
+        "done": 6,
+        "overdue": 0,
+        "total": 6
+      },
+      "name": "Corvane Freight",
+      "owner": "Odelia Fenwrick",
+      "renewal_date": "2026-12-05",
+      "start_date": "2025-04-22",
+      "tier": "Starter"
+    },
+    {
+      "arr": 43500.0,
+      "id": "acc-037",
+      "milestones": {
+        "done": 5,
+        "overdue": 0,
+        "total": 5
+      },
+      "name": "Stonecairn Analytics",
+      "owner": "Ilse Marrowby",
+      "renewal_date": "2026-12-25",
+      "start_date": "2023-02-04",
+      "tier": "Growth"
+    },
+    {
+      "arr": 18000.0,
+      "id": "acc-038",
+      "milestones": {
+        "done": 5,
+        "overdue": 0,
+        "total": 5
+      },
+      "name": "Tallowmere Health",
+      "owner": "Corin Vashti",
+      "renewal_date": "2027-02-14",
+      "start_date": "2023-12-30",
+      "tier": "Starter"
+    },
+    {
+      "arr": 15000.0,
+      "id": "acc-039",
+      "milestones": {
+        "done": 1,
+        "overdue": 0,
+        "total": 5
+      },
+      "name": "Greyholt Learning",
+      "owner": "Pell Anwick",
+      "renewal_date": "2027-08-08",
+      "start_date": "2026-08-08",
+      "tier": "Starter"
+    },
+    {
+      "arr": 48000.0,
+      "id": "acc-040",
+      "milestones": {
+        "done": 2,
+        "overdue": 2,
+        "total": 6
+      },
+      "name": "Dunmere Legal",
+      "owner": "Odelia Fenwrick",
+      "renewal_date": "2027-09-21",
+      "start_date": "2026-09-21",
+      "tier": "Growth"
+    }
+  ],
+  "anchor": "2026-10-19"
+}
