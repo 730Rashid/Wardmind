@@ -250,8 +250,11 @@ def _older_value(kind: SignalKind, current: float, rng: random.Random) -> float:
     return older
 
 
-def generate(anchor: date) -> tuple[dict[str, Any], dict[str, Any]]:
-    """Accounts and signals as (accounts payload, signals payload). Same output on every call."""
+def _build(anchor: date) -> tuple[list[Account], list[Signal], list[Signal]]:
+    """Accounts, the current reading per (account, kind), and every existing reading.
+
+    Every draw comes from the main RNG, so these values are the same as before history existed.
+    """
     rng = random.Random(SEED)
     anchor_dt = datetime(anchor.year, anchor.month, anchor.day)
 
@@ -266,6 +269,7 @@ def generate(anchor: date) -> tuple[dict[str, Any], dict[str, Any]]:
     older_ids = set(rng.sample(range(len(slots)), N_OLDER))
 
     accounts: list[Account] = []
+    current: list[Signal] = []
     signals: list[Signal] = []
     for i, ((motion, health), name) in enumerate(zip(slots, names, strict=True)):
         acc_id = f"acc-{i + 1:03d}"
@@ -291,15 +295,15 @@ def generate(anchor: date) -> tuple[dict[str, Any], dict[str, Any]]:
         accounts.append(account)
         observed = {kind: anchor_dt - timedelta(hours=rng.randint(1, 72)) for kind in SignalKind}
         for kind in SignalKind:
-            signals.append(
-                Signal(
-                    account_id=acc_id,
-                    kind=kind,
-                    value=values[kind],
-                    observed_at=observed[kind],
-                    source="demo",
-                )
+            reading = Signal(
+                account_id=acc_id,
+                kind=kind,
+                value=values[kind],
+                observed_at=observed[kind],
+                source="demo",
             )
+            current.append(reading)
+            signals.append(reading)
         if i in older_ids:
             kind = rng.choice(OLDER_KINDS)
             signals.append(
@@ -312,15 +316,116 @@ def generate(anchor: date) -> tuple[dict[str, Any], dict[str, Any]]:
                 )
             )
 
+    return accounts, current, signals
+
+
+def _usage_history(current: float, rng: random.Random) -> list[float]:
+    """Usage readings 14, 28, 42 and 56 days back, newest first."""
+    if current <= -10:  # a clear decline: each older reading is less negative, the oldest near flat
+        oldest = round(rng.uniform(-5, 5), 1)
+        span = oldest - current
+        steps = [round(current + span * (k / 4 + rng.uniform(-0.05, 0.05)), 1) for k in (1, 2, 3)]
+        return [*steps, oldest]
+    return [round(current + rng.uniform(-6, 6), 1) for _ in range(4)]
+
+
+def _seat_history(current: float, rng: random.Random) -> list[float]:
+    """Seat readings 28 and 56 days back, newest first."""
+    if current < 70:  # fuller before, drifting down to the current level
+        oldest = round(rng.uniform(80, 90), 1)
+        middle = round(current + (oldest - current) * rng.uniform(0.35, 0.65), 1)
+        return [middle, oldest]
+    return [round(min(100.0, max(0.0, current + rng.uniform(-5, 5))), 1) for _ in range(2)]
+
+
+def _nps_history(current: float, rng: random.Random) -> float:
+    """The NPS reading 63 days back: a fall to 7-9 if the score is now 5 or lower, else within 1."""
+    if current <= 5:
+        return float(rng.randint(7, 9))
+    return float(min(10, max(0, current + rng.randint(-1, 1))))
+
+
+def _history(
+    accounts: list[Account],
+    current: list[Signal],
+    existing: list[Signal],
+    anchor: date,
+    rng: random.Random,
+) -> list[Signal]:
+    """Earlier readings that give each account a timeline. No current value changes.
+
+    Every reading lands strictly before the newest reading of its (account, kind), so latest-wins
+    and every score stay the same. A reading that would share a timestamp with an existing one
+    moves one day earlier.
+    """
+    newest = {(s.account_id, s.kind): s for s in current}
+    taken = {(s.account_id, s.kind, s.observed_at) for s in existing}
+    history: list[Signal] = []
+
+    def add(account_id: str, kind: SignalKind, days_back: int, value: float) -> None:
+        observed = newest[(account_id, kind)].observed_at - timedelta(days=days_back)
+        while (account_id, kind, observed) in taken:
+            observed -= timedelta(days=1)
+        taken.add((account_id, kind, observed))
+        history.append(
+            Signal(
+                account_id=account_id,
+                kind=kind,
+                value=value + 0.0,  # adding 0.0 turns a negative zero from rounding into 0.0
+                observed_at=observed,
+                source="demo",
+            )
+        )
+
+    for account in accounts:
+        acc_id = account.id
+        now = {kind: newest[(acc_id, kind)].value for kind in SignalKind}
+        usage = _usage_history(now[SignalKind.USAGE_TREND_30D], rng)
+        for days_back, value in zip((14, 28, 42, 56), usage, strict=True):
+            add(acc_id, SignalKind.USAGE_TREND_30D, days_back, value)
+        seats = _seat_history(now[SignalKind.SEAT_UTILISATION], rng)
+        for days_back, value in zip((28, 56), seats, strict=True):
+            add(acc_id, SignalKind.SEAT_UTILISATION, days_back, value)
+        add(acc_id, SignalKind.DAYS_SINCE_LAST_LOGIN, 28, float(rng.randint(0, 5)))
+        add(acc_id, SignalKind.NPS_LATEST, 63, _nps_history(now[SignalKind.NPS_LATEST], rng))
+        if now[SignalKind.CHAMPION_LEFT] == 1.0:
+            add(acc_id, SignalKind.CHAMPION_LEFT, 35, 0.0)  # the champion was still there
+        if now[SignalKind.OPEN_TICKETS_SEV1] >= 1:
+            tickets = now[SignalKind.OPEN_TICKETS_SEV1]
+            add(acc_id, SignalKind.OPEN_TICKETS_SEV1, 21, max(0.0, tickets - rng.choice([1, 2])))
+        if now[SignalKind.BILLING_OVERDUE_DAYS] >= 30:
+            add(
+                acc_id,
+                SignalKind.BILLING_OVERDUE_DAYS,
+                30,
+                now[SignalKind.BILLING_OVERDUE_DAYS] - 30,
+            )
+        overdue = now[SignalKind.ONBOARDING_OVERDUE_MILESTONES]
+        if _motion(account, anchor) is Motion.ONBOARDING and overdue >= 1:
+            add(acc_id, SignalKind.ONBOARDING_OVERDUE_MILESTONES, 21, overdue - 1)
+    return history
+
+
+def generate(anchor: date) -> tuple[dict[str, Any], dict[str, Any]]:
+    """Accounts and signals as (accounts payload, signals payload). Same output on every call."""
+    accounts, current, existing = _build(anchor)
+    # History is drawn last, from its own RNG, so no current value above changes.
+    history = _history(accounts, current, existing, anchor, random.Random(SEED + 1))
     accounts_payload = {
         "anchor": anchor.isoformat(),
         "accounts": [a.model_dump(mode="json") for a in accounts],
     }
     signals_payload = {
         "anchor": anchor.isoformat(),
-        "signals": [s.model_dump(mode="json") for s in signals],
+        "signals": [s.model_dump(mode="json") for s in existing + history],
     }
     return accounts_payload, signals_payload
+
+
+def current_readings(anchor: date) -> list[Signal]:
+    """The newest reading per (account, kind), as generated before any history was added."""
+    _, current, _ = _build(anchor)
+    return current
 
 
 def main() -> None:

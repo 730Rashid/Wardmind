@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import random
 from collections import Counter, defaultdict
 from datetime import date, datetime, timedelta
 from pathlib import Path
@@ -171,3 +172,84 @@ def test_demo_connector_satisfies_connector_protocol():
     connector = DemoConnector()
     assert isinstance(connector, Connector)
     assert connector.name == "demo"
+
+
+def _readings_by_key(rows: list[dict[str, Any]]) -> dict[tuple[str, str], list[Signal]]:
+    grouped: dict[tuple[str, str], list[Signal]] = defaultdict(list)
+    for row in rows:
+        signal = Signal.model_validate(row)
+        grouped[(signal.account_id, signal.kind.value)].append(signal)
+    return grouped
+
+
+def test_history_readings_are_older_than_the_latest_and_never_share_a_timestamp():
+    _, signals = gen.generate(ANCHOR)
+    stamps = [(row["account_id"], row["kind"], row["observed_at"]) for row in signals["signals"]]
+    assert len(set(stamps)) == len(stamps)
+    for readings in _readings_by_key(signals["signals"]).values():
+        newest = max(readings, key=lambda s: s.observed_at)
+        for reading in readings:
+            if reading is not newest:
+                assert reading.observed_at < newest.observed_at
+
+
+def test_every_reading_is_demo_sourced_and_within_84_days_before_the_anchor():
+    _, signals = gen.generate(ANCHOR)
+    anchor_dt = datetime(ANCHOR.year, ANCHOR.month, ANCHOR.day)
+    for row in signals["signals"]:
+        observed = datetime.fromisoformat(row["observed_at"])
+        assert anchor_dt - timedelta(days=84) <= observed < anchor_dt
+        assert row["source"] == "demo"
+
+
+def test_every_account_has_at_least_five_usage_trend_readings():
+    accounts, signals = gen.generate(ANCHOR)
+    usage = Counter(
+        row["account_id"]
+        for row in signals["signals"]
+        if row["kind"] == SignalKind.USAGE_TREND_30D.value
+    )
+    assert all(usage[a["id"]] >= 5 for a in accounts["accounts"])
+
+
+def test_every_champion_who_has_left_was_still_in_place_earlier():
+    accounts, signals = gen.generate(ANCHOR)
+    grouped = _readings_by_key(signals["signals"])
+    for account in accounts["accounts"]:
+        readings = grouped[(account["id"], SignalKind.CHAMPION_LEFT.value)]
+        newest = max(readings, key=lambda s: s.observed_at)
+        if newest.value == 1.0:
+            assert any(s.value == 0.0 and s.observed_at < newest.observed_at for s in readings)
+
+
+def test_champion_rule_adds_an_earlier_zero_when_the_champion_has_left():
+    # The demo book has no champion who has left today, so flip one current reading to exercise it.
+    accounts, signals = gen.generate(ANCHOR)
+    target = "acc-001"
+    current = [
+        reading.model_copy(update={"value": 1.0})
+        if (reading.account_id, reading.kind) == (target, SignalKind.CHAMPION_LEFT)
+        else reading
+        for reading in gen.current_readings(ANCHOR)
+    ]
+    existing = [Signal.model_validate(row) for row in signals["signals"]]
+    accounts_models = [Account.model_validate(a) for a in accounts["accounts"]]
+    history = gen._history(accounts_models, current, existing, ANCHOR, random.Random(0))
+
+    newest = next(
+        r for r in current if (r.account_id, r.kind) == (target, SignalKind.CHAMPION_LEFT)
+    )
+    champion = [s for s in history if (s.account_id, s.kind) == (target, SignalKind.CHAMPION_LEFT)]
+    assert [(s.value, newest.observed_at - s.observed_at) for s in champion] == [
+        (0.0, timedelta(days=35))
+    ]
+
+
+def test_latest_reading_per_account_and_kind_is_the_current_reading():
+    current = gen.current_readings(ANCHOR)
+    _, signals = gen.generate(ANCHOR)
+    latest = _latest_by_kind(signals["signals"])
+    assert len(current) == 40 * len(KINDS)
+    assert len(latest) == len(current)
+    for reading in current:
+        assert Signal.model_validate(latest[(reading.account_id, reading.kind.value)]) == reading
