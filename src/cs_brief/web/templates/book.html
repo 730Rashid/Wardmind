@@ -9,13 +9,13 @@
   </p>
   <form id="book-filter" class="book-controls" method="get" action="/" role="search"
         hx-get="/" hx-target="#results" hx-swap="outerHTML" hx-push-url="true"
-        hx-trigger="change, input changed delay:250ms from:#q, submit">
+        hx-trigger="change from:.motion-radio, input changed delay:250ms from:#q, submit">
     <fieldset class="segmented">
       <legend class="visually-hidden">Filter by motion</legend>
       {% for option in motion_options %}
       {% set option_id = "motion-" ~ (option.value or "all") %}
       <span class="segment-option">
-        <input class="visually-hidden" type="radio" name="motion" id="{{ option_id }}"
+        <input class="visually-hidden motion-radio" type="radio" name="motion" id="{{ option_id }}"
                value="{{ option.value }}"{% if option.checked %} checked{% endif %}>
         <label class="segment" for="{{ option_id }}">{{ option.label }} <span class="segment-count">{{ option.count }}</span></label>
       </span>

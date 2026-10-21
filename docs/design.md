@@ -130,7 +130,8 @@ Showing 40 accounts                                          (t-sm, aria-live="p
 - **Why it's on your list:**
   - the top reason in `--t-body` ink, which makes it the widest column
   - below it, "and N other signals" in `--t-sm` muted when N > 0
-- **Under 768px** each row becomes a stacked block:
+- **Under 960px** (tablets and phones) each row becomes a stacked block, because seven columns
+  can't leave the reason readable any narrower:
   ```
   1  ▲ At risk   Larkspur Freight
      Active users down 38% in 30 days

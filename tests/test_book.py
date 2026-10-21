@@ -260,3 +260,12 @@ def test_accessibility_hooks_are_present(client: TestClient) -> None:
     assert len(labels) == 1
     assert '<p id="result-count" class="result-count" aria-live="polite">' in markup
     assert '<h1 class="visually-hidden">My book</h1>' in markup
+
+
+def test_search_blur_does_not_trigger_a_refresh(client: TestClient) -> None:
+    # A bare "change" trigger fires when the search box loses focus, re-rendering the results
+    # just as Tab moves focus into them, which drops keyboard focus to <body>.
+    form = _tags(client.get("/").text, "form")[0]
+    triggers = [part.strip() for part in (form["hx-trigger"] or "").split(",")]
+    assert "change" not in triggers
+    assert "change from:.motion-radio" in triggers
