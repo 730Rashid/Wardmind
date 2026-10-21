@@ -1890,6 +1890,12 @@ a.button {
   cursor: pointer;
 }
 
+/* The heading sits inside <summary>; keep it on the same line as the disclosure marker. */
+.mapping > summary > .section-title {
+  display: inline;
+  margin: 0;
+}
+
 .mapping-table {
   inline-size: 100%;
   margin-block-start: var(--space-3);

@@ -18,7 +18,8 @@ attention this week. It is reachable three ways, all backed by the same core cod
 - **Claude (MCP):** `cs-brief mcp` serves the book to Claude over stdio
 - **Terminal:** `cs-brief score` prints the top of the book
 
-It runs on bundled demo data (40 invented accounts). A HubSpot connector comes in a later phase.
+It runs on bundled demo data (40 invented accounts) or reads your HubSpot portal. The HubSpot
+connection is read-only; see [docs/hubspot.md](docs/hubspot.md) for setup.
 
 ## Quickstart (Windows, PowerShell)
 
@@ -73,7 +74,11 @@ All weights, thresholds and windows live in [`config/scoring.yaml`](config/scori
 - A strict Content-Security-Policy blocks inline scripts and third-party requests.
 - Settings can only be changed from cs-brief's own pages. Writes that come from another website
   are refused.
-- No data leaves your machine. Web research, a later and optional phase, will be off by default.
+- With demo data, nothing leaves your machine. With HubSpot, the only requests are read-only
+  calls to `api.hubapi.com`. Your access token is stored in your user profile
+  (`%LOCALAPPDATA%\cs-brief`), never in this folder, and the UI only ever shows its last 4
+  characters.
+- Web research, a later and optional phase, will be off by default.
 
 ## Development
 
