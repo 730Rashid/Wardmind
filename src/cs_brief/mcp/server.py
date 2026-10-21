@@ -18,9 +18,10 @@ from cs_brief.core.models import Motion, ScoredAccount
 
 _INSTRUCTIONS = (
     "Serves a Customer Success Manager's prioritised book of business: each account's health, "
-    "priority, the plain-English reasons it needs attention, and a suggested next action. "
+    "priority, the plain-English reasons it needs attention, a suggested next action, and prep "
+    "briefs for onboarding calls. "
     "It currently serves demo data. "
-    "Get account ids from list_book before calling get_account or explain_score."
+    "Get account ids from list_book before calling get_account, explain_score or onboarding_brief."
 )
 
 _MIN_LIST_LIMIT = 1
@@ -96,6 +97,19 @@ def weekly_brief(top_n: int = 10) -> dict[str, Any]:
     data = brief.model_dump(mode="json")
     data["top"] = [_row(rank, item) for rank, item in enumerate(brief.top, start=1)]
     return data
+
+
+@mcp.tool()
+def onboarding_brief(account_id: str) -> dict[str, Any]:
+    """A prep brief for an onboarding call: where the plan stands, an agenda and questions to ask.
+
+    Args:
+        account_id: The account id from list_book.
+    """
+    brief = service.get_onboarding_brief(account_id)
+    if brief is None:
+        raise _BadRequest(f"No account with id '{account_id}'. Use list_book to find ids.")
+    return brief.model_dump(mode="json")
 
 
 def run() -> None:

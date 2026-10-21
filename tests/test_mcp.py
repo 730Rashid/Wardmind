@@ -16,7 +16,7 @@ from cs_brief.core.models import Motion
 from cs_brief.mcp import server
 
 REPO = Path(__file__).resolve().parents[1]
-TOOLS = {"list_book", "get_account", "explain_score", "weekly_brief"}
+TOOLS = {"list_book", "get_account", "explain_score", "weekly_brief", "onboarding_brief"}
 ROW_KEYS = {
     "rank",
     "id",
@@ -51,11 +51,11 @@ def _error_text(result: CallToolResult) -> str:
     return result.content[0].text
 
 
-async def test_lists_the_four_tools_with_descriptions():
+async def test_lists_the_five_tools_with_descriptions():
     async with Client(server.mcp) as client:
         tools = (await client.list_tools()).tools
     assert {tool.name for tool in tools} == TOOLS
-    assert len(tools) == 4
+    assert len(tools) == 5
     assert all(tool.description for tool in tools)
 
 
@@ -131,6 +131,30 @@ async def test_unknown_account_id_is_an_error_result_for_both_lookups():
 def test_unknown_account_raises_value_error_for_python_callers():
     with pytest.raises(ValueError, match="Use list_book"):
         server.get_account("acc-missing")
+
+
+async def test_onboarding_brief_round_trips_for_an_onboarding_account():
+    account = service.onboarding_accounts(service.get_book())[0].account
+    async with Client(server.mcp) as client:
+        brief = _data(await client.call_tool("onboarding_brief", {"account_id": account.id}))
+    assert brief == service.get_onboarding_brief(account.id).model_dump(mode="json")
+    assert brief["account"]["id"] == account.id
+    assert brief["in_onboarding"] is True
+    assert brief["agenda"]
+    assert brief["questions"]
+
+
+async def test_unknown_account_id_is_an_error_result_for_onboarding_brief():
+    async with Client(server.mcp) as client:
+        text = _error_text(
+            await client.call_tool("onboarding_brief", {"account_id": "acc-missing"})
+        )
+    assert "Use list_book" in text
+
+
+def test_unknown_account_raises_value_error_for_onboarding_brief_callers():
+    with pytest.raises(ValueError, match="Use list_book"):
+        server.onboarding_brief("acc-missing")
 
 
 async def test_weekly_brief_counts_the_whole_book_and_lists_ten_rows():

@@ -289,7 +289,7 @@ Brindle Studio onboarding brief                                    (h1, t-lg)
 Day 80 of 90     ▲ At risk     $543,000 ARR     Corin Vashti        (facts row, same as the account page)
 [ Print or save as PDF ]   [ Copy as text ]                        (outlined buttons, js-only)
 
-Behind on the plan with 10 days left. No one has logged in for 44 days.   (summary, t-md weight 400)
+Behind on the plan with 11 days left. No one has logged in for 44 days.   (summary, t-md weight 400)
 
 The plan                                                           (h2)
   1  Kickoff call              Done
