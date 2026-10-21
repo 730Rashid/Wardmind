@@ -7,7 +7,7 @@ from __future__ import annotations
 
 from datetime import date
 
-from cs_brief.core.briefs import suggest_action
+from cs_brief.core.briefs import AccountDetail, suggest_action
 from cs_brief.core.config import ScoringConfig, load_scoring_config
 from cs_brief.core.connectors.base import Connector
 from cs_brief.core.connectors.demo import DemoConnector
@@ -49,6 +49,19 @@ def filter_book(
         if (motion is None or item.motion == motion)
         and (not needle or needle in item.account.name.casefold())
     ]
+
+
+def get_account_detail(
+    account_id: str,
+    connector: Connector | None = None,
+    config: ScoringConfig | None = None,
+    as_of: date | None = None,
+) -> AccountDetail | None:
+    """The account view's data, or None for an unknown id. Same defaults as get_book().
+
+    Uses one connector, config and as_of for both the book and the account's signal history.
+    """
+    raise NotImplementedError
 
 
 def find_account(book: list[ScoredAccount], account_id: str) -> ScoredAccount | None:

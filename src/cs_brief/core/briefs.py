@@ -5,11 +5,24 @@ CONTRACT: the models and signatures below are fixed; implementers escalate befor
 
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, datetime
 
 from pydantic import BaseModel
 
-from cs_brief.core.models import Health, Motion, Reason, ScoredAccount, SignalKind
+from cs_brief.core.config import ScoringConfig
+from cs_brief.core.models import Health, Motion, Reason, ScoredAccount, Signal, SignalKind
+
+# Short names for each signal, used as row labels in the account view.
+SIGNAL_LABELS: dict[SignalKind, str] = {
+    SignalKind.USAGE_TREND_30D: "Usage trend",
+    SignalKind.DAYS_SINCE_LAST_LOGIN: "Last login",
+    SignalKind.OPEN_TICKETS_SEV1: "Severity-1 tickets",
+    SignalKind.NPS_LATEST: "NPS",
+    SignalKind.CHAMPION_LEFT: "Champion",
+    SignalKind.SEAT_UTILISATION: "Seats in use",
+    SignalKind.BILLING_OVERDUE_DAYS: "Billing",
+    SignalKind.ONBOARDING_OVERDUE_MILESTONES: "Onboarding milestones",
+}
 
 
 class WeeklyBrief(BaseModel):
@@ -17,6 +30,7 @@ class WeeklyBrief(BaseModel):
     total_accounts: int
     total_arr: float
     arr_at_risk: float  # sum of ARR for accounts with Health.AT_RISK
+    arr_by_health: dict[Health, float]  # every Health key present, zero if none
     counts_by_health: dict[Health, int]  # every Health key present, zero if none
     counts_by_motion: dict[Motion, int]  # every Motion key present, zero if none
     top: list[ScoredAccount]  # first `top_n` of the book, in book order
@@ -33,6 +47,55 @@ class Explanation(BaseModel):
     reasons: list[Reason]
     suggested_action: str
     summary: str  # one or two sentences combining health, motion and the top reasons
+
+
+class BreakdownRow(BaseModel):
+    """One signal's part in the score. The account view shows a row for every signal kind."""
+
+    kind: SignalKind
+    label: str  # SIGNAL_LABELS[kind]
+    value_text: str  # describe(kind, latest value), or "No reading" when there is none
+    contribution: float  # risk points from the latest reading (0 when none or not triggered)
+    max_points: float  # the rule's weight: what this signal adds when fully triggered
+    observed_at: datetime | None  # when the latest reading was taken
+
+
+class TimelineEntry(BaseModel):
+    """One reading in the account's signal history."""
+
+    observed_at: datetime
+    kind: SignalKind
+    label: str  # SIGNAL_LABELS[kind]
+    value: float
+    plain_english: str  # describe(kind, value)
+    contribution: float  # risk points this reading adds under the current config
+    is_latest: bool  # True for the reading the score uses (one per kind)
+
+
+class AccountDetail(BaseModel):
+    scored: ScoredAccount
+    explanation: Explanation
+    rank: int  # 1-based position in the full book
+    book_size: int
+    days_since_start: int
+    days_to_renewal: int  # negative once the renewal date has passed
+    breakdown: list[BreakdownRow]  # every SignalKind: contribution desc, then SignalKind order
+    timeline: list[TimelineEntry]  # every reading for the account, newest first
+
+
+def account_detail(
+    book: list[ScoredAccount],
+    account_id: str,
+    signals: list[Signal],
+    config: ScoringConfig,
+    as_of: date,
+) -> AccountDetail | None:
+    """Everything the account view needs. `signals` is that account's full history.
+
+    Returns None when the account isn't in the book. Ties in the timeline (same observed_at)
+    sort by SignalKind order so the output is deterministic.
+    """
+    raise NotImplementedError
 
 
 _NO_ACTION = "No action needed this week."
@@ -125,14 +188,17 @@ def weekly_brief(book: list[ScoredAccount], as_of: date, top_n: int = 10) -> Wee
     """Totals, counts by health and motion, the top of the book, and this week's call-outs."""
     counts_by_health = dict.fromkeys(Health, 0)
     counts_by_motion = dict.fromkeys(Motion, 0)
+    arr_by_health = dict.fromkeys(Health, 0.0)
     for item in book:
         counts_by_health[item.health] += 1
         counts_by_motion[item.motion] += 1
+        arr_by_health[item.health] += item.account.arr
     return WeeklyBrief(
         as_of=as_of,
         total_accounts=len(book),
         total_arr=sum((item.account.arr for item in book), 0.0),
-        arr_at_risk=sum((item.account.arr for item in book if item.health is Health.AT_RISK), 0.0),
+        arr_at_risk=arr_by_health[Health.AT_RISK],
+        arr_by_health=arr_by_health,
         counts_by_health=counts_by_health,
         counts_by_motion=counts_by_motion,
         top=book[:top_n],

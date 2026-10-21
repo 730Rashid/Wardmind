@@ -196,6 +196,12 @@ def test_arr_at_risk_counts_only_at_risk_accounts():
     brief = weekly_brief(book, AS_OF)
     assert brief.arr_at_risk == 150_500
     assert brief.total_arr == 1_150_500
+    assert brief.arr_by_health == {
+        Health.AT_RISK: 150_500,
+        Health.WATCH: 999_000,
+        Health.HEALTHY: 1_000,
+    }
+    assert weekly_brief([], AS_OF).arr_by_health == dict.fromkeys(Health, 0.0)
 
 
 def test_top_is_the_first_n_of_the_book():

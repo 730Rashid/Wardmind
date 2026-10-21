@@ -138,6 +138,119 @@ Showing 40 accounts                                          (t-sm, aria-live="p
      Renewal   $184,000   Priority 82
   ```
 
+### Account detail (`/accounts/{id}`)
+This is call prep: the page a CSM opens just before speaking to the customer. It answers three
+things in reading order: what is going on, what to do, and why the score says so. The nav keeps
+"My book" active, because this page lives inside the book.
+
+```
+Back to My book                                                   (t-sm link)
+
+Larkspur Freight                                                  (t-lg, h1)
+▲ At risk     Renewal in 41 days     $184,000 ARR     Dana Whitfield     (facts row, t-sm)
+
+At risk and up for renewal. Champion has left the company, and active users
+down 38% in 30 days.                                              (t-md, weight 400, ink, ≤ 60ch)
+
+┃ Next step                                                        (h2, t-md)
+┃ Find the new decision-maker and meet them before the renewal conversation.
+  (3px --accent rule on the left: the only accent-coloured block on the page)
+
+Why it's ranked 3 of 40                                            (h2)
+  Champion               Champion has left the company       ▬▬▬▬▬▬▬▬▬▬▬▬  25 of 25
+  Usage trend            Active users down 38% in 30 days    ▬▬▬▬▬▬▬▬▬░░░  19 of 25
+  Severity-1 tickets     1 open severity-1 ticket            ▬▬▬░░░░░░     7 of 20
+  NPS                    Latest NPS response was 8 out of 10 ░░░░░░░       0 of 15   (muted row)
+  …every signal is listed, so the CSM sees what is fine as well as what isn't
+  Risk 82 of 100, which is At risk (45 or more). Priority 79 after weighting by ARR.
+
+Signal history                                                     (h2)
+  14 October    Usage trend     Active users down 38% in 30 days   Current
+                Champion        Champion has left the company      Current
+  30 September  Usage trend     Active users down 12% in 30 days
+  …
+```
+- **Facts row:**
+  - separate items spaced with `--space-6` gaps, with no middle dots
+  - the health item uses the same icon and word as the My book table
+  - "Renewal in 41 days" becomes "Renewal was 12 days ago" once the date has passed, and is
+    left out when the motion is onboarding (that row shows "Day 34 of onboarding" instead)
+- **Breakdown** is a `<table>`, with columns Signal, Reading and Points (the bar plus "19 of 25").
+  - **Bars show weight and contribution together.** The track length is proportional to
+    `max_points`: a 25-point signal gets the full 160px, a 10-point signal 64px. The fill shows
+    `contribution`. The fill is `--bar` (neutral), because colour is reserved for health.
+  - Rows are sorted by contribution, largest first. Rows with 0 contribution use `--ink-muted`
+    text.
+  - The risk sentence under the table is `--t-sm`.
+- **Signal history** is a description list grouped by date (`<dl>` with `<dt>` dates).
+  - Dates use `--t-sm` muted and tabular figures, like "14 October", with the year added only
+    when it isn't this year.
+  - Each reading sits on one line: label, sentence, and "Current" (`--t-sm` muted) on the reading
+    the score uses.
+  - Older readings that are no longer current use `--ink-muted` for the sentence.
+  - A 1px `--line` rule runs down the left of the list, because this content really is a
+    sequence.
+- **Facts aside** (from 1100px it sits in a right-hand column, 1fr against a 2fr main; below
+  that it follows the history):
+  - a `<dl>` of Tier, Owner, Started (date plus "2 years ago"), Renews (date), Onboarding
+    milestones ("4 of 6 done, 1 overdue"), and Data source
+  - plain text, no card
+
+### Weekly brief (`/brief`)
+A one-page memo a CSM can bring to a 1:1 with their manager or save as a PDF. Its one visual
+moment is the **book bar**: a single full-width bar showing how the book's ARR splits across
+health. Everything else is sentences and a numbered list.
+
+```
+Weekly brief                                     [ Print or save as PDF ]   (button, --control border)
+Week of 19 October 2026                                            (t-sm muted; Monday of as_of's week)
+
+10 accounts are at risk, carrying $1.2M of ARR.                    (t-xl, same sentences as My book)
+12 more are worth watching this week.
+
+Where your ARR sits                                                (h2)
+ ████████████████▓▓▓▓▓▓▓▓▓▓▓▓░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░    (24px tall, segments in health colours)
+ ▲ At risk               ◐ Watch                ✓ Healthy
+ $1.2M across 10 accounts   $2.1M across 12 accounts   $3.0M across 18 accounts
+
+This week                                                          (h2)
+ • 3 renewals due in the next 30 days
+ • 2 champions have left
+ (the `notable` call-outs, as a plain list; "Nothing unusual this week." when empty)
+
+Accounts by motion                                                 (h2)
+ Churn watch     20  ▬▬▬▬▬▬▬▬▬▬
+ Renewal         12  ▬▬▬▬▬▬
+ Onboarding       8  ▬▬▬▬      (neutral --bar fill, proportional to count; a small table)
+
+Top 10 to contact                                                  (h2)
+ 1. Brindle Studio            ▲ At risk     Onboarding    $543,000
+    3 open severity-1 tickets
+    Next step: Ask support for a fix date on each open severity-1 ticket.
+ 2. …
+ (an <ol>: the list is a ranked sequence, so the numbers carry meaning)
+
+Made by cs-brief on 21 October 2026 from demo data.               (t-sm muted footer)
+```
+- **Book bar:**
+  - `<svg role="img">` with `aria-label="ARR by health: $1.2M at risk, $2.1M watch, $3.0M healthy"`
+  - segments are `<rect>`s whose `x` and `width` attributes come from the server, as
+    percentages of `total_arr`; there are no inline styles, because of the CSP
+  - a zero segment is omitted
+  - the legend under the bar is a three-column grid aligned to the segments' order, each column
+    showing the icon, word, ARR and count
+- **Print / save as PDF:** a `<button type="button" data-print>`, which `app.js` wires to
+  `window.print()`. It is hidden when JavaScript is off (`no-js` hides it with `.js`-gated CSS)
+  and hidden in print.
+- **Print stylesheet** (`@media print` in `app.css`):
+  - `@page { size: A4; margin: 16mm; }`
+  - force the light tokens
+  - hide the top bar, skip link, button and nav
+  - `print-color-adjust: exact` on the book bar and health icons
+  - `break-inside: avoid` on each top-10 item and each section heading with its content
+  - the footer always prints
+  - **Target:** the whole brief fits on 2 A4 pages with the demo book.
+
 ### Empty and error states (copy)
 - **Search with no match:** `No accounts match "{q}".` followed by a **Clear search** button.
 - **A motion with no accounts:** `No accounts are in {motion} right now.`
