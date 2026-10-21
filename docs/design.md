@@ -251,6 +251,91 @@ Made by cs-brief on 21 October 2026 from demo data.               (t-sm muted fo
   - the footer always prints
   - **Target:** the whole brief fits on 2 A4 pages with the demo book.
 
+### Settings (`/settings/appearance`, `/settings/scoring`)
+Settings is a quiet workshop page, with no decoration. `/settings` redirects to
+`/settings/appearance`.
+- **Sub-navigation:** a vertical list on the left from 960px (and a row of links above the content
+  below that) with "Appearance" and "Scoring". The current one gets `aria-current="page"` and the
+  same 2px accent underline as the top nav. Data & privacy and Connections arrive in later phases;
+  don't show them yet.
+- **Forms** are left-aligned in a single column, max 640px. Each group is a `<fieldset>` with a
+  visible `<legend>` at `--t-md`.
+- **Save changes** is the **only filled button** in the product (`--accent` background, white
+  text). Other buttons are outlined with `--control`. After a save the page redirects to itself
+  with a `role="status"` message under the h1: "Appearance saved." or "Scoring saved. Every
+  screen and Claude now use it."
+
+#### Appearance
+```
+Settings
+Appearance        Theme
+Scoring             (•) Match my computer   ( ) Light   ( ) Dark
+                  Accent colour
+                    (•) ● Plum   ( ) ● Blue   ( ) ● Petrol   ( ) ● Graphite
+                  Density
+                    (•) Comfortable   ( ) Compact   "Compact fits more rows on screen."
+                  Opens on
+                    (•) My book   ( ) Weekly brief   "The screen cs-brief ui opens on."
+                  [ Save changes ]
+```
+- **Radios** are real radio inputs with visible labels, not custom widgets. Accent options show a
+  14px circle swatch in that accent (`.swatch--blue` and so on, set by class, never inline style)
+  next to the name.
+- **Live preview:** choosing a theme, accent or density applies it to the page immediately (`app.js`
+  sets the `<html>` attributes) so people can see it before saving. Leaving without saving keeps
+  the saved values.
+- **Accent tokens.** All pass 4.5:1 on paper and surface in both themes:
+
+  | Accent | Light | Dark |
+  |---|---|---|
+  | plum (default) | `#5A3E9B` | `#BBA6F2` |
+  | blue | `#2C4FB0` | `#9DB4F7` |
+  | petrol | `#1D5E78` | `#7CC6E0` |
+  | graphite | `#3B4452` | `#C5CCD7` |
+
+- **How settings reach the page:** `<html>` gets `data-theme="light|dark"` (left out for
+  "Match my computer"), `data-accent`, and `data-density`.
+- **Compact density** tightens table cell padding from 12px to 6px and the gaps between list items.
+  Type sizes don't change.
+
+#### Scoring
+```
+Scoring
+Changes apply to every screen and to Claude once you save them.
+
+Signals                                              | What would change
+  Usage trend                                        | 10 accounts at risk now; 11 with these changes.
+    Weight          [=========o--------]  25 points  |
+    Risk starts at  [  0 ] and is maxed at [ -50 ]   |  1  Brindle Studio       No change
+                    % change in active users, 30 days |  2  Thistledown Foods    ▲ Up 1
+  Last login …                                        |  3  Corvane Freight      New in top 10 (was 14)
+Health bands                                         |  4  Dunmere Legal        ▼ Down 2
+  At risk from      [=====o====]  45                 |  …
+  Watch from        [==o=======]  20                 |
+How much ARR lifts priority  [===o======]  30%       |
+Motion windows                                       |
+  Onboarding lasts [ 90 ] days   Renewal window [ 120 ] days
+[ Save changes ]   [ Reset to defaults ]
+```
+- **Sliders** are `<input type="range">` with a `<label>` and an `<output>` that shows the value and
+  its unit. `app.js` keeps the output in sync. Weights run 0–50 in steps of 1, health bands 0–100
+  in steps of 1, and ARR 0–100% in steps of 5. Start/full use `<input type="number">` with a unit
+  hint under them.
+- **The preview** (from 1100px a sticky right column, otherwise below the form) refreshes as
+  values change. It uses htmx `hx-post` on `input changed delay:300ms` and returns a partial.
+  - **Opening sentence:** "10 accounts at risk now; 11 with these changes." With no change it
+    reads "No change to who is at risk."
+  - **Top 10 list:** rank, name and movement. Movement is a word with an arrow icon: "Up 1",
+    "Down 2", "No change", or "New in top 10 (was 14)". It uses neutral ink, because these aren't
+    health colours.
+- **Reset to defaults** doesn't save. It reloads the form with the built-in defaults
+  (`?defaults=1`), so the preview shows the effect first. The status line then says "Showing the
+  defaults. Save changes to use them."
+- **Invalid combinations** (for example, Watch at or above At risk, or start equal to full) show a
+  plain message next to the field ("Watch has to be below At risk.") and in the preview
+  (`role="alert"`). Saving an invalid form re-renders with the messages and a 422, and writes
+  nothing.
+
 ### Empty and error states (copy)
 - **Search with no match:** `No accounts match "{q}".` followed by a **Clear search** button.
 - **A motion with no accounts:** `No accounts are in {motion} right now.`

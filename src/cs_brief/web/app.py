@@ -14,7 +14,7 @@ from typing import Any
 
 from fastapi import FastAPI, Request
 from fastapi.exception_handlers import http_exception_handler
-from fastapi.responses import HTMLResponse, Response
+from fastapi.responses import HTMLResponse, PlainTextResponse, Response
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from jinja2 import Environment, FileSystemLoader
@@ -50,6 +50,29 @@ _BRIEF_MOTION_LABELS: dict[Motion, str] = {
     Motion.RENEWAL: "Renewal",
     Motion.ONBOARDING: "Onboarding",
 }
+
+
+_UNSAFE_METHODS = frozenset({"POST", "PUT", "PATCH", "DELETE"})
+CROSS_SITE_MESSAGE = "Changes can only be made from cs-brief's own pages."
+
+
+def is_cross_site_write(method: str, headers: Mapping[str, str]) -> bool:
+    """True for a state-changing request that a browser sent from another site.
+
+    The host allow-list stops DNS rebinding, but any web page can still make the browser POST to
+    127.0.0.1. Browsers send Origin on POST (and Sec-Fetch-Site on modern ones), so a write is
+    refused unless it came from this app's own origin. Requests with neither header come from
+    non-browser clients (tests, curl), which a web page can't forge.
+    """
+    if method.upper() not in _UNSAFE_METHODS:
+        return False
+    origin = headers.get("origin")
+    if origin is not None:
+        return origin != f"http://{headers.get('host', '')}"
+    site = headers.get("sec-fetch-site")
+    if site is not None:
+        return site not in ("same-origin", "none")
+    return False
 
 
 def money(value: float) -> str:
@@ -189,6 +212,15 @@ def create_app() -> FastAPI:
     app = FastAPI(docs_url=None, redoc_url=None, openapi_url=None)
     app.add_middleware(TrustedHostMiddleware, allowed_hosts=["127.0.0.1", "localhost"])
 
+    @app.middleware("http")
+    async def same_origin_writes(
+        request: Request, call_next: Callable[[Request], Awaitable[Response]]
+    ) -> Response:
+        if is_cross_site_write(request.method, request.headers):
+            return PlainTextResponse(CROSS_SITE_MESSAGE, status_code=403)
+        return await call_next(request)
+
+    # Registered last so it wraps everything above, including the 403.
     @app.middleware("http")
     async def security_headers(
         request: Request, call_next: Callable[[Request], Awaitable[Response]]

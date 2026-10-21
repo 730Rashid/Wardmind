@@ -86,6 +86,30 @@ class AccountDetail(BaseModel):
     timeline: list[TimelineEntry]  # every reading for the account, newest first
 
 
+class RankChange(BaseModel):
+    """How one account's rank moves when the scoring config changes (for the Settings preview)."""
+
+    account_id: str
+    name: str
+    health: Health  # under the new config
+    priority: float  # under the new config
+    new_rank: int  # 1-based, in the new book
+    old_rank: int  # 1-based, in the old book
+    movement: int  # old_rank - new_rank: positive means it moved up the list
+    entered_top: bool  # True when old_rank was outside the top_n being compared
+
+
+def compare_rankings(
+    before: list[ScoredAccount], after: list[ScoredAccount], top_n: int = 10
+) -> list[RankChange]:
+    """The first `top_n` of `after`, in order, each with its rank in `before`.
+
+    Both are full books of the same accounts (the same data scored under two configs).
+    Raises ValueError if an account in `after` is missing from `before`.
+    """
+    raise NotImplementedError
+
+
 def account_detail(
     book: list[ScoredAccount],
     account_id: str,

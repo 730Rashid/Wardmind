@@ -101,3 +101,27 @@ def load_scoring_config(path: Path | None = None) -> ScoringConfig:
         return ScoringConfig()
     data = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
     return ScoringConfig.model_validate(data)
+
+
+_SCORING_HEADER = """\
+# cs-brief scoring configuration, written by the Settings page.
+# Each signal adds up to `weight` risk points. Risk starts at `start` and is maxed at `full`
+# (linear in between). Total risk is capped at 100. See src/cs_brief/core/config.py.
+"""
+
+
+def save_scoring_config(config: ScoringConfig, path: Path | None = None) -> None:
+    """Write scoring.yaml atomically: a temp file in the same folder, then a replace."""
+    path = path or config_dir() / "scoring.yaml"
+    data = config.model_dump(mode="json")
+    data["signals"] = {kind.value: data["signals"][kind.value] for kind in SignalKind}
+    body = yaml.safe_dump(data, sort_keys=False, default_flow_style=None)
+    write_atomic(path, _SCORING_HEADER + "\n" + body)
+
+
+def write_atomic(path: Path, text: str) -> None:
+    """Replace `path` with `text` so a crash mid-write never leaves a half-written file."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_name(f".{path.name}.tmp")
+    tmp.write_text(text, encoding="utf-8", newline="\n")
+    os.replace(tmp, path)
