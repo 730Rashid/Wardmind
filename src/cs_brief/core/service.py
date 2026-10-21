@@ -12,6 +12,7 @@ from cs_brief.core.config import ScoringConfig, load_scoring_config
 from cs_brief.core.connectors.base import Connector
 from cs_brief.core.connectors.demo import DemoConnector
 from cs_brief.core.models import Motion, ScoredAccount
+from cs_brief.core.onboarding import OnboardingBrief
 from cs_brief.core.scoring import score_book
 
 
@@ -67,6 +68,24 @@ def get_account_detail(
     book = get_book(connector, config, as_of)
     signals = connector.list_signals(account_id)
     return account_detail(book, account_id, signals, config, as_of)
+
+
+def onboarding_accounts(book: list[ScoredAccount]) -> list[ScoredAccount]:
+    """Accounts in the onboarding motion, in book (priority) order."""
+    raise NotImplementedError
+
+
+def get_onboarding_brief(
+    account_id: str,
+    connector: Connector | None = None,
+    config: ScoringConfig | None = None,
+    as_of: date | None = None,
+) -> OnboardingBrief | None:
+    """The onboarding call brief for any account, or None for an unknown id.
+
+    Same defaults as get_book(); builds on get_account_detail() with the same config.
+    """
+    raise NotImplementedError
 
 
 def find_account(book: list[ScoredAccount], account_id: str) -> ScoredAccount | None:

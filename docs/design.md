@@ -251,6 +251,90 @@ Made by cs-brief on 21 October 2026 from demo data.               (t-sm muted fo
   - the footer always prints
   - **Target:** the whole brief fits on 2 A4 pages with the demo book.
 
+### Onboarding prep (`/onboarding`, `/onboarding/{id}`)
+This page helps a CSM prepare for an onboarding call. A brief is a working document they read
+just before the call, can print, and can paste into their notes, so it's set like a document,
+not a dashboard.
+
+#### Picker (`/onboarding`)
+```
+Onboarding prep                                                    (h1)
+8 accounts are in onboarding. 3 are behind on their plan.          (t-xl, the same sentence style as My book)
+
+  Brindle Studio        ▲ At risk    Day 80 of 90    ●●○○○○  2 of 6 done, 1 overdue    Prepare brief
+  Dunmere Legal         ▲ At risk    Day 41 of 90    ●●●○○   3 of 5 done, 1 overdue    Prepare brief
+  …                                                  (onboarding accounts in book order)
+
+Another account                                                    (h2, t-md)
+  [ Choose an account ▾ ]  [ Open brief ]                          (GET form, works without JS)
+```
+- The list is a `<table>` (caption visually hidden) with columns Account, Health, Day, Plan and
+  an action column.
+- **Account** links to the brief. "Prepare brief" is a second link with an `aria-label` that names
+  the account.
+- **Plan dots:** one 8px circle per milestone.
+  - Done: filled `--ink-muted`.
+  - Overdue: a filled `--ink` square, so it reads by shape as well as tone.
+  - Everything else: a hollow `--control` ring.
+  - Each dot is `aria-hidden`; the words beside it carry the meaning.
+- **Another account:** a `<select>` with two `<optgroup>`s, "In onboarding" and "Other accounts".
+  The form is GET `/onboarding/open?account=…`, which redirects to `/onboarding/{id}`.
+- **Empty book:** "No accounts are in onboarding right now." Keep the "Another account" form.
+
+#### Brief (`/onboarding/{id}`)
+```
+Back to onboarding prep                                            (t-sm link)
+
+Brindle Studio onboarding brief                                    (h1, t-lg)
+Day 80 of 90     ▲ At risk     $543,000 ARR     Corin Vashti        (facts row, same as the account page)
+[ Print or save as PDF ]   [ Copy as text ]                        (outlined buttons, js-only)
+
+Behind on the plan with 10 days left. No one has logged in for 44 days.   (summary, t-md weight 400)
+
+The plan                                                           (h2)
+  1  Kickoff call              Done
+  2  Admins set up             Done
+  3  Data imported             Overdue
+  4  Integrations connected    Next
+  5  Pilot team trained        Upcoming
+  6  Onboarding review         Upcoming
+  Steps from the standard onboarding plan.                         (t-sm muted note)
+
+Agenda for the call                                                (h2)
+  1. Progress on the plan
+     2 of 6 steps are done and Data imported is overdue. Agree a new date for it.
+  2. Logins
+     No one has logged in for 44 days. Find out who should be using it this week.
+  …
+
+Questions to ask                                                   (h2)
+  • Who on your team should be logging in this week?
+  • What is blocking Data imported?
+
+Signals to watch                                                   (h2)
+  (the account page's breakdown table, limited to the onboarding signals, with the same bars)
+
+Next step                                                          (accent-ruled block, as on the account page)
+  Book a check-in with the onboarding lead to review progress this week.
+```
+- **The plan** is an `<ol>` (a real sequence).
+  - The status is a word with a small icon: check (Done), filled square (Overdue), arrow (Next),
+    hollow circle (Upcoming).
+  - **Next** is set in `--ink` weight 600 and **Overdue** in `--ink` weight 600. Done and Upcoming
+    are `--ink-muted`.
+  - No health colours here, because plan status isn't account health.
+- **The agenda** is an `<ol>`: the topic in weight 600, with the detail on the next line.
+- **The questions** are a `<ul>`.
+- **Not in onboarding:** when `in_onboarding` is false, a `role="note"` line under the facts reads
+  "{Name} isn't in onboarding right now. This brief shows its plan for reference." The rest of the
+  brief still renders.
+- **Copy as text** (`data-copy-target`, wired in `app.js`) copies a plain-text version of the
+  brief: the title, the facts line, the summary, then the plan, agenda and questions as numbered
+  and bulleted lines. The plain text sits in a hidden `<template>` rendered by the server, so the
+  copied text matches the page. After copying, a `role="status"` line says "Copied." If the
+  clipboard isn't available it says "Copy didn't work. Select the text and copy it instead."
+- **Print:** fits on one A4 page for the demo accounts, and hides the buttons and the back link.
+
 ### Settings (`/settings/appearance`, `/settings/scoring`)
 Settings is a quiet workshop page, with no decoration. `/settings` redirects to
 `/settings/appearance`.
