@@ -24,13 +24,22 @@ before changing them.
 
 from __future__ import annotations
 
-from datetime import date, datetime
+import json
+import os
+import re
+import secrets
+import shutil
+from collections.abc import Callable
+from datetime import UTC, date, datetime
 from enum import StrEnum
 from pathlib import Path
+from typing import Any
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, TypeAdapter
 
+from cs_brief.core.config import write_atomic
 from cs_brief.core.models import Account, Signal
+from cs_brief.core.secrets import secrets_dir
 
 ENV_DATA_DIR = "CS_BRIEF_DATA_DIR"
 MANUAL_CONNECTION_ID = "manual"
@@ -64,6 +73,30 @@ FIELD_LABELS: dict[str, str] = {
 }
 
 EditValue = str | float | int | date | None
+
+# File names inside data_dir(), and the folder of spreadsheet snapshots.
+_CONNECTIONS_FILE = "connections.json"
+_MANUAL_FILE = "manual.json"
+_EDITS_FILE = "edits.json"
+_NOTICES_FILE = "notices.json"
+_LINKS_FILE = "links.json"
+_HIDDEN_FILE = "hidden.json"
+_SHEETS_DIR = "sheets"
+_ALL_FILES = (
+    _CONNECTIONS_FILE,
+    _MANUAL_FILE,
+    _EDITS_FILE,
+    _NOTICES_FILE,
+    _LINKS_FILE,
+    _HIDDEN_FILE,
+)
+
+_SAFE_ID = re.compile(r"[A-Za-z0-9_-]+")  # connection ids, used in file names
+_SHEET_ID = re.compile(r"sheet-([1-9][0-9]*)")
+_SHEET_PREFIX = re.compile(r"sp([1-9][0-9]*)-")
+_DATE_FIELDS = frozenset({"start_date", "renewal_date"})
+_HUBSPOT_NAME = "HubSpot"
+_MANUAL_NAME = "Added by hand"
 
 
 class ConnectionKind(StrEnum):
@@ -139,93 +172,297 @@ class LinkData(BaseModel):
     #                                                                each sorted
 
 
+_CONNECTIONS_ADAPTER: TypeAdapter[Any] = TypeAdapter(list[ConnectionConfig])
+_MANUAL_ADAPTER: TypeAdapter[Any] = TypeAdapter(ManualData)
+_SNAPSHOT_ADAPTER: TypeAdapter[Any] = TypeAdapter(ImportSnapshot)
+_EDITS_ADAPTER: TypeAdapter[Any] = TypeAdapter(dict[str, dict[str, FieldEdit]])
+_NOTICES_ADAPTER: TypeAdapter[Any] = TypeAdapter(list[Notice])
+_LINKS_ADAPTER: TypeAdapter[Any] = TypeAdapter(LinkData)
+_HIDDEN_ADAPTER: TypeAdapter[Any] = TypeAdapter(list[str])
+
+
 def data_dir() -> Path:
     """CS_BRIEF_DATA_DIR if set, else secrets.secrets_dir() / "data". Not created here."""
-    raise NotImplementedError
+    override = os.environ.get(ENV_DATA_DIR, "").strip()
+    if override:
+        return Path(override)
+    return secrets_dir() / "data"
+
+
+def _now() -> datetime:
+    """Now as a naive UTC datetime, the same shape as the demo data."""
+    return datetime.now(UTC).replace(tzinfo=None)
+
+
+def _load(path: Path, adapter: TypeAdapter[Any], empty: Callable[[], Any]) -> Any:
+    """The validated content of path, or empty() when it is missing, unreadable or wrong-shaped."""
+    try:
+        raw = json.loads(path.read_text(encoding="utf-8"))
+        return adapter.validate_python(raw)
+    except (OSError, ValueError, TypeError):  # ValidationError and JSONDecodeError are ValueErrors
+        return empty()
+
+
+def _save(path: Path, adapter: TypeAdapter[Any], value: Any) -> None:
+    payload = adapter.dump_python(value, mode="json")
+    write_atomic(path, json.dumps(payload, indent=2, ensure_ascii=False) + "\n")
+
+
+def _as_date(value: Any) -> Any:
+    """An ISO string from the JSON file back to a date, for the two date fields. Anything else
+    (including a string that isn't a date) is returned unchanged."""
+    if isinstance(value, str):
+        try:
+            return date.fromisoformat(value)
+        except ValueError:
+            return value
+    return value
 
 
 class LocalStore:
     """Typed access to the files above. Every write is atomic; reads never raise."""
 
     def __init__(self, root: Path | None = None) -> None:
-        raise NotImplementedError
+        self._root = Path(root) if root is not None else data_dir()
 
     @property
     def root(self) -> Path:
-        raise NotImplementedError
+        return self._root
+
+    def _path(self, name: str) -> Path:
+        return self._root / name
+
+    def _sheet_path(self, connection_id: str) -> Path | None:
+        """sheets/<id>.json, or None for an id that isn't safe to use as a file name."""
+        if not _SAFE_ID.fullmatch(connection_id):
+            return None
+        return self._root / _SHEETS_DIR / f"{connection_id}.json"
 
     # Connections -----------------------------------------------------------------------------
     def connections(self) -> list[ConnectionConfig]:
-        raise NotImplementedError
+        return _load(self._path(_CONNECTIONS_FILE), _CONNECTIONS_ADAPTER, list)
 
     def get_connection(self, connection_id: str) -> ConnectionConfig | None:
-        raise NotImplementedError
+        return next((c for c in self.connections() if c.id == connection_id), None)
 
     def add_connection(self, kind: ConnectionKind, name: str) -> ConnectionConfig:
         """HUBSPOT and MANUAL use their fixed ids and are returned as-is if they already exist.
         SPREADSHEET gets the next free "sheet-<n>" id."""
-        raise NotImplementedError
+        configs = self.connections()
+        if kind in (ConnectionKind.HUBSPOT, ConnectionKind.MANUAL):
+            fixed_id = (
+                HUBSPOT_CONNECTION_ID if kind is ConnectionKind.HUBSPOT else MANUAL_CONNECTION_ID
+            )
+            for existing in configs:
+                if existing.id == fixed_id:
+                    return existing
+            fixed_name = _HUBSPOT_NAME if kind is ConnectionKind.HUBSPOT else _MANUAL_NAME
+            config = ConnectionConfig(id=fixed_id, kind=kind, name=fixed_name, created_at=_now())
+        else:
+            # The highest number in use, plus one. Counting connections would reuse a number
+            # after a removal from the middle (sheet-1, sheet-3 would give sheet-3 again).
+            number = self._next_sheet_number(configs)
+            config = ConnectionConfig(
+                id=f"sheet-{number}",
+                kind=ConnectionKind.SPREADSHEET,
+                name=name.strip() or f"Spreadsheet {number}",
+                created_at=_now(),
+            )
+        configs.append(config)
+        _save(self._path(_CONNECTIONS_FILE), _CONNECTIONS_ADAPTER, configs)
+        return config
+
+    def _next_sheet_number(self, configs: list[ConnectionConfig]) -> int:
+        numbers = [int(m.group(1)) for c in configs if (m := _SHEET_ID.fullmatch(c.id))]
+        sheets = self._root / _SHEETS_DIR
+        if sheets.is_dir():  # a snapshot left without its connection still holds its number
+            for path in sheets.glob("sheet-*.json"):
+                if m := _SHEET_ID.fullmatch(path.stem):
+                    numbers.append(int(m.group(1)))
+        return max(numbers, default=0) + 1
 
     def update_connection(self, config: ConnectionConfig) -> None:
-        raise NotImplementedError
+        """Replace the connection with the same id. An unknown id is ignored, so a stale copy
+        can't bring back a removed connection."""
+        configs = self.connections()
+        if not any(c.id == config.id for c in configs):
+            return
+        configs = [config if c.id == config.id else c for c in configs]
+        _save(self._path(_CONNECTIONS_FILE), _CONNECTIONS_ADAPTER, configs)
 
     def remove_connection(self, connection_id: str) -> None:
         """Remove it and its sheet snapshot. Edits, notices, hidden ids and link members that
         point at its accounts are removed too (ids are prefixed per connection, see ids below)."""
-        raise NotImplementedError
+
+        def owned(account_id: str) -> bool:
+            return connection_for(account_id) == connection_id
+
+        configs = self.connections()
+        remaining = [c for c in configs if c.id != connection_id]
+        if len(remaining) != len(configs):
+            _save(self._path(_CONNECTIONS_FILE), _CONNECTIONS_ADAPTER, remaining)
+
+        sheet = self._sheet_path(connection_id)
+        if sheet is not None:
+            sheet.unlink(missing_ok=True)
+
+        edits = self.edits()
+        kept_edits = {acc: fields for acc, fields in edits.items() if not owned(acc)}
+        if len(kept_edits) != len(edits):
+            _save(self._path(_EDITS_FILE), _EDITS_ADAPTER, kept_edits)
+
+        notices = _load(self._path(_NOTICES_FILE), _NOTICES_ADAPTER, list)
+        kept_notices = [n for n in notices if not owned(n.account_id)]
+        if len(kept_notices) != len(notices):
+            _save(self._path(_NOTICES_FILE), _NOTICES_ADAPTER, kept_notices)
+
+        hidden = self.hidden()
+        kept_hidden = [acc for acc in hidden if not owned(acc)]
+        if len(kept_hidden) != len(hidden):
+            _save(self._path(_HIDDEN_FILE), _HIDDEN_ADAPTER, kept_hidden)
+
+        links = self.links()
+        groups: list[LinkGroup] = []
+        for group in links.groups:
+            members = [m for m in group.members if not owned(m)]
+            if len(members) < 2:
+                continue  # a group with fewer than 2 members is no longer a link
+            primary = group.primary if group.primary in members else members[0]
+            groups.append(LinkGroup(primary=primary, members=members))
+        dismissed = [pair for pair in links.dismissed if not owned(pair[0]) and not owned(pair[1])]
+        if groups != links.groups or dismissed != links.dismissed:
+            _save(
+                self._path(_LINKS_FILE),
+                _LINKS_ADAPTER,
+                LinkData(groups=groups, dismissed=dismissed),
+            )
+
+        manual = self.manual()
+        if connection_id == MANUAL_CONNECTION_ID:
+            if manual.accounts or manual.signals:
+                self.save_manual(ManualData())
+        else:
+            kept_readings = [s for s in manual.signals if not owned(s.account_id)]
+            if len(kept_readings) != len(manual.signals):
+                self.save_manual(manual.model_copy(update={"signals": kept_readings}))
 
     # Manual accounts and readings ------------------------------------------------------------
     def manual(self) -> ManualData:
-        raise NotImplementedError
+        return _load(self._path(_MANUAL_FILE), _MANUAL_ADAPTER, ManualData)
 
     def save_manual(self, data: ManualData) -> None:
-        raise NotImplementedError
+        _save(self._path(_MANUAL_FILE), _MANUAL_ADAPTER, data)
 
     # Spreadsheet snapshots -------------------------------------------------------------------
     def snapshot(self, connection_id: str) -> ImportSnapshot | None:
-        raise NotImplementedError
+        path = self._sheet_path(connection_id)
+        if path is None:
+            return None
+        return _load(path, _SNAPSHOT_ADAPTER, lambda: None)
 
     def save_snapshot(self, snapshot: ImportSnapshot) -> None:
-        raise NotImplementedError
+        path = self._sheet_path(snapshot.connection_id)
+        if path is None:
+            raise ValueError(f"{snapshot.connection_id!r} can't be used as a connection id")
+        _save(path, _SNAPSHOT_ADAPTER, snapshot)
 
     # Edits and notices -----------------------------------------------------------------------
     def edits(self) -> dict[str, dict[str, FieldEdit]]:
-        raise NotImplementedError
+        data: dict[str, dict[str, FieldEdit]] = _load(self._path(_EDITS_FILE), _EDITS_ADAPTER, dict)
+        # JSON has no date type, so a date edit comes back as its ISO string. Restore the date.
+        for fields in data.values():
+            for field, edit in list(fields.items()):
+                if field in _DATE_FIELDS:
+                    fields[field] = edit.model_copy(
+                        update={
+                            "value": _as_date(edit.value),
+                            "base_value": _as_date(edit.base_value),
+                        }
+                    )
+        return data
 
     def set_edit(self, account_id: str, field: str, edit: FieldEdit) -> None:
-        raise NotImplementedError
+        if field not in EDITABLE_FIELDS:
+            raise ValueError(f"{field!r} can't be edited")
+        data = self.edits()
+        data.setdefault(account_id, {})[field] = edit
+        _save(self._path(_EDITS_FILE), _EDITS_ADAPTER, data)
 
     def clear_edit(self, account_id: str, field: str) -> None:
-        raise NotImplementedError
+        data = self.edits()
+        fields = data.get(account_id)
+        if fields is None or field not in fields:
+            return
+        del fields[field]
+        if not fields:
+            del data[account_id]
+        _save(self._path(_EDITS_FILE), _EDITS_ADAPTER, data)
 
     def notices(
         self, account_id: str | None = None, *, include_dismissed: bool = False
     ) -> list[Notice]:
-        raise NotImplementedError
+        found: list[Notice] = _load(self._path(_NOTICES_FILE), _NOTICES_ADAPTER, list)
+        return [
+            notice
+            for notice in found
+            if (account_id is None or notice.account_id == account_id)
+            and (include_dismissed or not notice.dismissed)
+        ]
 
     def add_notice(self, account_id: str, field: str, message: str) -> Notice:
-        raise NotImplementedError
+        found: list[Notice] = _load(self._path(_NOTICES_FILE), _NOTICES_ADAPTER, list)
+        taken = {notice.id for notice in found}
+        notice_id = secrets.token_hex(4)  # the stdlib secrets module, not cs_brief.core.secrets
+        while notice_id in taken:
+            notice_id = secrets.token_hex(4)
+        notice = Notice(
+            id=notice_id,
+            account_id=account_id,
+            field=field,
+            message=message,
+            created_at=_now(),
+        )
+        found.append(notice)
+        _save(self._path(_NOTICES_FILE), _NOTICES_ADAPTER, found)
+        return notice
 
     def dismiss_notice(self, notice_id: str) -> None:
-        raise NotImplementedError
+        found: list[Notice] = _load(self._path(_NOTICES_FILE), _NOTICES_ADAPTER, list)
+        if not any(notice.id == notice_id for notice in found):
+            return
+        updated = [
+            notice.model_copy(update={"dismissed": True}) if notice.id == notice_id else notice
+            for notice in found
+        ]
+        _save(self._path(_NOTICES_FILE), _NOTICES_ADAPTER, updated)
 
     # Links and hidden accounts ---------------------------------------------------------------
     def links(self) -> LinkData:
-        raise NotImplementedError
+        return _load(self._path(_LINKS_FILE), _LINKS_ADAPTER, LinkData)
 
     def save_links(self, data: LinkData) -> None:
-        raise NotImplementedError
+        _save(self._path(_LINKS_FILE), _LINKS_ADAPTER, data)
 
     def hidden(self) -> list[str]:
-        raise NotImplementedError
+        return _load(self._path(_HIDDEN_FILE), _HIDDEN_ADAPTER, list)
 
     def set_hidden(self, account_id: str, hidden: bool) -> None:
-        raise NotImplementedError
+        ids = self.hidden()
+        if hidden and account_id not in ids:
+            ids.append(account_id)
+        elif not hidden and account_id in ids:
+            ids = [acc for acc in ids if acc != account_id]
+        else:
+            return  # already in the wanted state
+        _save(self._path(_HIDDEN_FILE), _HIDDEN_ADAPTER, ids)
 
     # Everything ------------------------------------------------------------------------------
     def clear_all(self) -> None:
         """Delete every file this store owns (used by "Clear local data")."""
-        raise NotImplementedError
+        for name in _ALL_FILES:
+            self._path(name).unlink(missing_ok=True)
+            self._path(f".{name}.tmp").unlink(missing_ok=True)
+        shutil.rmtree(self._root / _SHEETS_DIR, ignore_errors=True)
 
 
 # Account ids are prefixed by connection so they never collide across sources:
@@ -233,4 +470,11 @@ class LocalStore:
 #   manual "m-<8 hex>". The demo book ("acc-001") is never combined with these.
 def connection_for(account_id: str) -> str | None:
     """The connection id that owns an account id ("hubspot", "sheet-2", "manual"), else None."""
-    raise NotImplementedError
+    if account_id.startswith("hs-"):
+        return HUBSPOT_CONNECTION_ID
+    if account_id.startswith("m-"):
+        return MANUAL_CONNECTION_ID
+    match = _SHEET_PREFIX.match(account_id)
+    if match:
+        return f"sheet-{match.group(1)}"
+    return None

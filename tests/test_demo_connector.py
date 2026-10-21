@@ -18,7 +18,7 @@ from cs_brief.core.models import Account, Health, Motion, Signal, SignalKind
 REPO = Path(__file__).resolve().parents[1]
 KINDS = {kind.value for kind in SignalKind}
 # SHA-256 of the committed accounts.json. The realism pass must never change it.
-ACCOUNTS_SHA256 = "473a900adcbd0cdbe2fd03b506e22e8b4e922d7c60a739b2864193ff680aaac3"
+ACCOUNTS_SHA256 = "868acebcbed84ca051e86d140c8be6adb0ea8f9330a02bc9f6fb3c33d1b60efd"
 
 
 def _load_generator() -> ModuleType:
@@ -83,6 +83,14 @@ def test_committed_json_matches_generator():
     committed_signals = json.loads((gen.DATA_DIR / "signals.json").read_text(encoding="utf-8"))
     assert committed_accounts == accounts
     assert committed_signals == signals
+
+
+def test_every_demo_account_has_its_own_invented_website():
+    accounts, _ = gen.generate(ANCHOR)
+    domains = [a["domain"] for a in accounts["accounts"]]
+    assert len(set(domains)) == 40
+    assert all(domain.endswith(".example") for domain in domains)
+    assert domains[0] == "hesslerfitness.example"  # the name, lower case, with no spaces
 
 
 def test_forty_accounts_with_unique_ids():

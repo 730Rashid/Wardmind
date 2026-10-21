@@ -681,6 +681,37 @@ def test_check_connection_never_raises_for_a_hubspot_error():
     assert all(not c.ok for c in result.checks)
 
 
+# Website (the company domain property)
+
+
+def test_the_domain_is_read_normalised_and_missing_gives_none():
+    connector, _ = make()
+    accounts = {account.id: account for account in connector.list_accounts()}
+    assert accounts["hs-1001"].domain == "brightwater-logistics.example"  # a URL, www and a path
+    assert accounts["hs-1002"].domain == "northgate-health.example"  # upper case
+    assert accounts["hs-1003"].domain == "cobaltridge.example"
+    assert accounts["hs-1006"].domain == "pinecrest.example"  # "www." removed
+    assert accounts["hs-1005"].domain is None  # no domain property
+    assert accounts["hs-1007"].domain is None
+
+
+def test_the_domain_property_is_requested_with_the_other_company_properties():
+    connector, seen = make()
+    connector.list_accounts()
+    company_requests = [r for r in seen if "/companies/" in r.url.path and r.content]
+    bodies = [json.loads(request.content) for request in company_requests]
+    requests_with_properties = [body for body in bodies if "properties" in body]
+    assert requests_with_properties
+    assert all("domain" in body["properties"] for body in requests_with_properties)
+
+
+def test_a_mapping_can_name_a_different_domain_property(tmp_path):
+    path = tmp_path / "hubspot.yaml"
+    path.write_text("domain: website_url\n", encoding="utf-8")
+    assert load_mapping(path).domain == "website_url"
+    assert HubSpotMapping().domain == "domain"
+
+
 # End to end
 
 

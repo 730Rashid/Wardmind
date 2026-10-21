@@ -11,6 +11,7 @@ import pytest
 
 from cs_brief.core import service
 from cs_brief.core.secrets import ENV_SECRETS_DIR, ENV_TOKEN
+from cs_brief.core.store import ENV_DATA_DIR
 
 REPO_CONFIG = Path(__file__).resolve().parents[1] / "config"
 ENV_API_BASE = "CS_BRIEF_HUBSPOT_API_BASE"
@@ -21,14 +22,16 @@ def isolated_config_dir(
     tmp_path_factory: pytest.TempPathFactory, monkeypatch: pytest.MonkeyPatch
 ) -> Iterator[Path]:
     """Point CS_BRIEF_CONFIG_DIR at a temp folder holding only a copy of scoring.yaml, and the
-    secrets folder at another temp folder. A stray config/settings.yaml on disk can't change what a
-    test sees, saves never reach config/, and a real token or test base URL is never read."""
+    secrets and local data folders at other temp folders. A stray config/settings.yaml on disk
+    can't change what a test sees, saves never reach config/, the CSM's local store is never
+    written, and a real token or test base URL is never read."""
     folder = tmp_path_factory.mktemp("config")
     source = REPO_CONFIG / "scoring.yaml"
     if source.exists():
         shutil.copy(source, folder / "scoring.yaml")
     monkeypatch.setenv("CS_BRIEF_CONFIG_DIR", str(folder))
     monkeypatch.setenv(ENV_SECRETS_DIR, str(tmp_path_factory.mktemp("secrets")))
+    monkeypatch.setenv(ENV_DATA_DIR, str(tmp_path_factory.mktemp("data")))
     monkeypatch.delenv(ENV_TOKEN, raising=False)
     monkeypatch.delenv(ENV_API_BASE, raising=False)
     service.reset_connectors()

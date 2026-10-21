@@ -39,6 +39,7 @@ from pydantic import BaseModel, Field, ValidationError
 
 from cs_brief.core.config import config_dir
 from cs_brief.core.connectors.errors import ConnectorError
+from cs_brief.core.matching import normalize_domain
 from cs_brief.core.models import Account, Milestones, Signal, SignalKind
 
 API_BASE = "https://api.hubapi.com"
@@ -124,6 +125,7 @@ class HubSpotMapping(BaseModel):
     customer_property: str = "lifecyclestage"
     customer_value: str = "customer"
     name: str = "name"
+    domain: str = "domain"  # HubSpot's standard company domain name, used to spot duplicates
     owner: str = "hubspot_owner_id"
     arr: str = "cs_arr"
     tier: str = "cs_tier"
@@ -277,6 +279,7 @@ def _company_props(mapping: HubSpotMapping) -> list[str]:
     names = [
         mapping.customer_property,
         mapping.name,
+        mapping.domain,
         mapping.owner,
         mapping.arr,
         mapping.tier,
@@ -939,6 +942,7 @@ class HubSpotConnector:
                 ),
                 renewal_date=renewal,
                 milestones=milestones,
+                domain=normalize_domain(_text(props.get(mapping.domain))),
             )
             accounts.append(account)
             signals.extend(self._account_signals(account.id, result, props, kinds, cutoff, now))

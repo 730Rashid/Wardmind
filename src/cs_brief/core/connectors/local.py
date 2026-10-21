@@ -16,14 +16,20 @@ class ManualConnector:
     name = "manual"
 
     def __init__(self, store: LocalStore) -> None:
-        raise NotImplementedError
+        self._store = store
 
     def list_accounts(self) -> list[Account]:
-        raise NotImplementedError
+        return list(self._store.manual().accounts)
 
     def list_signals(self, account_id: str | None = None) -> list[Signal]:
         """Readings whose account_id is one of this connector's accounts."""
-        raise NotImplementedError
+        data = self._store.manual()
+        ids = {account.id for account in data.accounts}
+        return [
+            signal
+            for signal in data.signals
+            if signal.account_id in ids and (account_id is None or signal.account_id == account_id)
+        ]
 
 
 class SpreadsheetConnector:
@@ -32,11 +38,17 @@ class SpreadsheetConnector:
     name = "spreadsheet"
 
     def __init__(self, store: LocalStore, connection_id: str) -> None:
-        raise NotImplementedError
+        self._store = store
+        self._connection_id = connection_id
 
     def list_accounts(self) -> list[Account]:
         """Empty before the first import."""
-        raise NotImplementedError
+        snapshot = self._store.snapshot(self._connection_id)
+        return [] if snapshot is None else list(snapshot.accounts)
 
     def list_signals(self, account_id: str | None = None) -> list[Signal]:
-        raise NotImplementedError
+        snapshot = self._store.snapshot(self._connection_id)
+        signals = [] if snapshot is None else snapshot.signals
+        if account_id is None:
+            return list(signals)
+        return [signal for signal in signals if signal.account_id == account_id]

@@ -35,6 +35,7 @@ the fields you want to change (see "Using your own property names" below).
 |---|---|---|
 | Which companies | `lifecyclestage` = `customer` | `customer_property` / `customer_value` |
 | Name | `name` | standard |
+| Website | `domain` | standard; optional. Helps spot the same customer in another connection |
 | Owner (CSM) | `hubspot_owner_id` | standard; the name comes from the owners API |
 | ARR | `cs_arr` | number, custom |
 | Tier | `cs_tier` | text, custom; "Unknown" when empty |

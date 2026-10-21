@@ -143,6 +143,12 @@ def _motion(account: Account, anchor: date) -> Motion:
     return Motion.CHURN
 
 
+def _demo_domain(name: str) -> str:
+    """An invented website from the account name: "Brindle Studio" gives "brindlestudio.example".
+    The .example TLD can never be a real site. No random draws, so the rest stays the same."""
+    return name.lower().replace(" ", "") + ".example"
+
+
 def _norm(value: float, rule: SignalRule) -> float:
     return min(1.0, max(0.0, (value - rule.start) / (rule.full - rule.start)))
 
@@ -295,6 +301,7 @@ def _build(anchor: date) -> tuple[list[Account], list[Signal], list[Signal]]:
             start_date=start,
             renewal_date=renewal,
             milestones=milestones,
+            domain=_demo_domain(name),
         )
         assert _motion(account, anchor) is motion, f"{acc_id} is not {motion.value}"
 
