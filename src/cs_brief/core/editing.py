@@ -59,7 +59,7 @@ def edit_account(
     changes the manual account directly. Otherwise, for each field whose new value differs
     from what the book shows: if it equals the source value, clear any edit (a revert);
     else store FieldEdit(value, base_value=source value, edited_at=now). Milestones are
-    validated together (done + overdue can't exceed total). Then connector.refresh().
+    validated together (done + overdue can't exceed total). Then connector.invalidate().
     """
     raise NotImplementedError
 
@@ -67,7 +67,7 @@ def edit_account(
 def revert_field(
     store: LocalStore, connector: CombinedConnector, account_id: str, field: str
 ) -> None:
-    """Drop the edit on one field so the connection's value shows again; refresh."""
+    """Drop the edit on one field so the connection's value shows again; invalidate."""
     raise NotImplementedError
 
 
@@ -90,7 +90,7 @@ def add_reading(
 def set_hidden(
     store: LocalStore, connector: CombinedConnector, account_id: str, hidden: bool
 ) -> None:
-    """Hide or show an account; for a linked account, every member id. Refresh."""
+    """Hide or show an account; for a linked account, every member id. Invalidate."""
     raise NotImplementedError
 
 
@@ -98,7 +98,10 @@ def link_accounts(
     store: LocalStore, connector: CombinedConnector, account_ids: list[str], primary: str
 ) -> None:
     """Confirm a duplicate: merge these ids (and any groups they already belong to) into one
-    LinkGroup with `primary`. Ids must exist in the book and come from 2+ connections."""
+    LinkGroup with `primary`. Ids must exist in the book and come from 2+ connections.
+
+    Edits stored under a non-primary member move to the primary (the primary's own edit wins
+    when both edited the same field), and their notices follow. Invalidate."""
     raise NotImplementedError
 
 

@@ -292,7 +292,13 @@ class CombinedConnector:
             book.links,
         )
 
+    def invalidate(self) -> None:
+        """Rebuild the combined book on next use from the members' current data, without asking
+        members to re-fetch. Edits, links and hidden accounts only need this."""
+        self._book = None
+
     def refresh(self) -> None:
+        """invalidate(), and ask every member that can to fetch fresh data (e.g. HubSpot)."""
         self._book = None
         for _config, connector in self._members:
             refresh = getattr(connector, "refresh", None)
