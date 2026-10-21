@@ -260,8 +260,9 @@ Settings is a quiet workshop page, with no decoration. `/settings` redirects to
   don't show them yet.
 - **Forms** are left-aligned in a single column, max 640px. Each group is a `<fieldset>` with a
   visible `<legend>` at `--t-md`.
-- **Save changes** is the **only filled button** in the product (`--accent` background, white
-  text). Other buttons are outlined with `--control`. After a save the page redirects to itself
+- **Save changes** is the **only filled button** in the product: `--accent` background with
+  `--on-accent` text, which is white in light mode and `#171A21` in dark mode. White text fails
+  4.5:1 on the light dark-mode accents. Other buttons are outlined with `--control`. After a save the page redirects to itself
   with a `role="status"` message under the h1: "Appearance saved." or "Scoring saved. Every
   screen and Claude now use it."
 

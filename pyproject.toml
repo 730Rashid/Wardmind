@@ -12,6 +12,7 @@ dependencies = [
     "fastapi>=0.115",
     "jinja2>=3.1",
     "uvicorn>=0.30",
+    "python-multipart>=0.0.9",  # HTML form posts on the Settings page
 ]
 
 [project.scripts]

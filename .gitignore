@@ -12,3 +12,5 @@ build/
 .cache/
 config/settings.local.yaml
 .env
+# per-user UI preferences, written by the Settings page
+config/settings.yaml

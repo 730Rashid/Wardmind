@@ -8,10 +8,12 @@ from __future__ import annotations
 
 from enum import StrEnum
 from pathlib import Path
+from typing import Any
 
-from pydantic import BaseModel
+import yaml
+from pydantic import BaseModel, ValidationError
 
-from cs_brief.core.config import config_dir
+from cs_brief.core.config import config_dir, write_atomic
 
 
 class Theme(StrEnum):
@@ -60,9 +62,31 @@ def load_settings(path: Path | None = None) -> Settings:
     """Read settings.yaml. A missing file gives defaults; an unknown or invalid value falls
     back to that field's default rather than failing, so a hand-edited file can't break the UI.
     """
-    raise NotImplementedError
+    path = path or settings_path()
+    if not path.exists():
+        return Settings()
+    try:
+        data = yaml.safe_load(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError, yaml.YAMLError):
+        return Settings()
+    if not isinstance(data, dict):
+        return Settings()
+    values: dict[str, Any] = {}
+    for name in Settings.model_fields:
+        if name not in data:
+            continue
+        try:
+            checked = Settings.model_validate({name: data[name]})
+        except ValidationError:
+            continue  # this field alone falls back to its default; the others are kept
+        values[name] = getattr(checked, name)
+    return Settings(**values)
 
 
 def save_settings(settings: Settings, path: Path | None = None) -> None:
     """Write settings.yaml atomically via config.write_atomic."""
-    raise NotImplementedError
+    path = path or settings_path()
+    body = yaml.safe_dump(
+        settings.model_dump(mode="json"), sort_keys=False, default_flow_style=False
+    )
+    write_atomic(path, "# cs-brief settings, written by the Settings page.\n" + body)

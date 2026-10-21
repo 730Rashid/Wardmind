@@ -9,12 +9,13 @@ from __future__ import annotations
 import math
 from collections.abc import Awaitable, Callable, Mapping
 from datetime import date
+from enum import StrEnum
 from pathlib import Path
 from typing import Any
 
 from fastapi import FastAPI, Request
 from fastapi.exception_handlers import http_exception_handler
-from fastapi.responses import HTMLResponse, PlainTextResponse, Response
+from fastapi.responses import HTMLResponse, PlainTextResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from jinja2 import Environment, FileSystemLoader
@@ -24,6 +25,15 @@ from starlette.middleware.trustedhost import TrustedHostMiddleware
 from cs_brief.core import briefs, service
 from cs_brief.core.config import load_scoring_config
 from cs_brief.core.models import Health, Motion, ScoredAccount
+from cs_brief.core.settings import (
+    Accent,
+    Density,
+    Landing,
+    Settings,
+    Theme,
+    load_settings,
+    save_settings,
+)
 from cs_brief.web import formatting
 
 HOST = "127.0.0.1"  # fixed: no CLI flag or environment variable may change it
@@ -54,6 +64,14 @@ _BRIEF_MOTION_LABELS: dict[Motion, str] = {
 
 _UNSAFE_METHODS = frozenset({"POST", "PUT", "PATCH", "DELETE"})
 CROSS_SITE_MESSAGE = "Changes can only be made from cs-brief's own pages."
+
+# The Appearance form's fields: the Settings enum each one must belong to, and its error message.
+_APPEARANCE_FIELDS: dict[str, tuple[type[StrEnum], str]] = {
+    "theme": (Theme, "Theme has to be one of the choices shown."),
+    "accent": (Accent, "Accent colour has to be one of the choices shown."),
+    "density": (Density, "Density has to be one of the choices shown."),
+    "landing": (Landing, "Opens on has to be one of the choices shown."),
+}
 
 
 def is_cross_site_write(method: str, headers: Mapping[str, str]) -> bool:
@@ -199,12 +217,36 @@ def _render(
     values: dict[str, Any] = {
         "page": page,
         "active": active,
+        "settings": load_settings(),
         "source_note": _source_note(),
         "today": format_today(today_day),
         "today_day": today_day,
         **context,
     }
     return templates.TemplateResponse(request, template, values, status_code=status_code)
+
+
+def _render_appearance(
+    request: Request,
+    current: Settings,
+    *,
+    saved: bool = False,
+    errors: Mapping[str, str] | None = None,
+    status_code: int = 200,
+) -> HTMLResponse:
+    """The Appearance page. `current` is what the form shows: the saved values, or the choices
+    the person just made where they are valid."""
+    return _render(
+        request,
+        "settings/appearance.html",
+        page="Appearance",
+        active="settings",
+        section="appearance",
+        current=current,
+        errors=dict(errors or {}),
+        notice="Appearance saved." if saved else "",
+        status_code=status_code,
+    )
 
 
 def create_app() -> FastAPI:
@@ -334,8 +376,41 @@ def create_app() -> FastAPI:
         return _render(request, "coming.html", page="Onboarding prep", active="onboarding")
 
     @app.get("/settings")
-    def settings(request: Request) -> HTMLResponse:
-        return _render(request, "coming.html", page="Settings", active="settings")
+    def settings_home() -> RedirectResponse:
+        """Settings opens on Appearance."""
+        return RedirectResponse("/settings/appearance", status_code=303)
+
+    @app.get("/settings/appearance")
+    def appearance(request: Request, saved: str = "") -> HTMLResponse:
+        return _render_appearance(request, load_settings(), saved=saved == "1")
+
+    @app.post("/settings/appearance")
+    async def save_appearance(request: Request) -> Response:
+        """Save the four appearance choices. A choice that isn't valid re-renders the form with a
+        422 and writes nothing. Cross-site posts never get here (see same_origin_writes)."""
+        form = await request.form()
+        chosen: dict[str, Any] = {}
+        errors: dict[str, str] = {}
+        for field, (enum_type, message) in _APPEARANCE_FIELDS.items():
+            try:
+                chosen[field] = enum_type(form.get(field))
+            except ValueError:
+                errors[field] = message
+        if errors:
+            current = load_settings().model_copy(update=chosen)
+            return _render_appearance(request, current, errors=errors, status_code=422)
+        save_settings(Settings(**chosen))
+        return RedirectResponse("/settings/appearance?saved=1", status_code=303)
+
+    @app.get("/settings/scoring")
+    def scoring(request: Request) -> HTMLResponse:
+        return _render(
+            request,
+            "settings/scoring.html",
+            page="Scoring",
+            active="settings",
+            section="scoring",
+        )
 
     @app.get("/accounts/{account_id}")
     def account(request: Request, account_id: str) -> HTMLResponse:

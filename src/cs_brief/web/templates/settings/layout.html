@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% block content %}
+<h1 class="page-title">Settings</h1>
+{% if notice %}<p class="settings-status" role="status">{{ notice }}</p>{% endif %}
+<div class="settings-layout">
+  <nav aria-label="Settings">
+    <ul class="settings-nav-list">
+      <li><a class="settings-link" href="/settings/appearance"{% if section == "appearance" %} aria-current="page"{% endif %}>Appearance</a></li>
+      <li><a class="settings-link" href="/settings/scoring"{% if section == "scoring" %} aria-current="page"{% endif %}>Scoring</a></li>
+    </ul>
+  </nav>
+  <div class="settings-body">
+    {% block settings %}{% endblock %}
+  </div>
+</div>
+{% endblock %}

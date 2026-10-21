@@ -96,6 +96,7 @@ def ui(
 
     import uvicorn
 
+    from cs_brief.core.settings import load_settings
     from cs_brief.web.app import HOST, create_app
 
     try:
@@ -105,7 +106,7 @@ def ui(
         typer.echo(f"Port {port} is in use. Try: cs-brief ui --port {port + 1}", err=True)
         raise typer.Exit(code=1) from None
 
-    url = f"http://{HOST}:{port}/"
+    url = f"http://{HOST}:{port}{load_settings().landing.path}"
     if not no_browser:
         timer = threading.Timer(1.0, webbrowser.open, args=(url,))
         timer.daemon = True

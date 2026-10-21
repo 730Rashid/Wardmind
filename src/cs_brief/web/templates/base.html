@@ -2,7 +2,7 @@
 <a class="nav-link" href="{{ href }}"{% if active == key %} aria-current="page"{% endif %}>{{ label }}</a>
 {%- endmacro -%}
 <!doctype html>
-<html lang="en">
+<html lang="en"{% if settings.theme.value != "system" %} data-theme="{{ settings.theme.value }}"{% endif %} data-accent="{{ settings.accent.value }}" data-density="{{ settings.density.value }}">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -17,7 +17,7 @@
   <a class="skip-link" href="#content">Skip to content</a>
   <header class="top-bar">
     <div class="column top-bar-inner">
-      <a class="brand" href="/">cs-brief</a>
+      <a class="brand" href="{{ settings.landing.path }}">cs-brief</a>
       <nav aria-label="Main">
         <ul class="nav-list">
           <li>{{ nav_link("/", "My book", "book") }}</li>
