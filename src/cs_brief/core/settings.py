@@ -66,6 +66,8 @@ class Settings(BaseModel):
     density: Density = Density.COMFORTABLE
     landing: Landing = Landing.BOOK
     source: DataSource = DataSource.DEMO
+    # Web research (core/research.py): off until the CSM turns it on in Data & privacy.
+    web_research: bool = False
 
     @field_validator("source", mode="before")
     @classmethod

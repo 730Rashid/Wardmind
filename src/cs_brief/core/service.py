@@ -7,9 +7,12 @@ from __future__ import annotations
 
 import hashlib
 import os
-from datetime import date
+from collections.abc import Callable
+from datetime import date, datetime
 
-from cs_brief.core import secrets
+from pydantic import BaseModel
+
+from cs_brief.core import research, secrets
 from cs_brief.core.briefs import AccountDetail, account_detail, suggest_action
 from cs_brief.core.config import ScoringConfig, load_scoring_config
 from cs_brief.core.connectors.base import Connector
@@ -225,3 +228,50 @@ def get_onboarding_brief(
 def find_account(book: list[ScoredAccount], account_id: str) -> ScoredAccount | None:
     """The first account with this id, or None."""
     return next((item for item in book if item.account.id == account_id), None)
+
+
+# --- Web research and the local cache (see core/research.py for the privacy rules) ---------
+
+# Test-only seam: tests replace this with a factory that builds a SiteClient on a MockTransport.
+_site_client_factory: Callable[[], research.SiteClient] = research.SiteClient
+
+
+class CacheCleared(BaseModel):
+    research: int  # saved web research lookups removed
+    drafts: int  # unfinished imports removed (their pasted cells or uploaded file)
+
+
+def research_cache() -> research.ResearchCache:
+    """Saved lookups under store.data_dir() / research.RESEARCH_DIR."""
+    raise NotImplementedError
+
+
+def cached_research(account_id: str, now: datetime | None = None) -> research.SiteResearch | None:
+    """The saved lookup for this account, without any network call. None when web research is
+    off, the account is unknown, it has no saved lookup, or the saved one is stale or was for a
+    different website. In demo mode, None too: sample news is shown only after Look up."""
+    raise NotImplementedError
+
+
+def research_account(
+    account_id: str, *, refresh: bool = False, now: datetime | None = None
+) -> research.SiteResearch:
+    """Look the account up (the CSM asked). Raises research.ResearchOff when the setting is
+    off, LookupError for an unknown id, and the other research.ResearchError types from the
+    lookup. Demo mode returns research.sample_research() and sends nothing. Otherwise uses the
+    cache unless `refresh`, else research.lookup() with a client from _site_client_factory()
+    (always closed), and saves the result. `now` defaults to datetime.now(UTC)."""
+    raise NotImplementedError
+
+
+def set_web_research(on: bool) -> None:
+    """Save Settings.web_research. Turning it off also deletes every saved lookup."""
+    raise NotImplementedError
+
+
+def clear_local_cache(now: datetime | None = None) -> CacheCleared:
+    """Delete what cs-brief keeps only to save time: saved web research and unfinished imports
+    (import_flow drafts). Also forgets in-memory connector caches (reset_connectors), so the
+    next page load re-reads every connection. Never touches connections, imported accounts,
+    hand-added accounts, edits, readings, links, hidden accounts, settings or the token."""
+    raise NotImplementedError
