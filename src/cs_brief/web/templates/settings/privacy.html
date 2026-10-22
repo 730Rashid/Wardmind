@@ -1,0 +1,54 @@
+{% extends "settings/layout.html" %}
+{% block settings %}
+<div class="privacy">
+  <section class="privacy-section" aria-labelledby="web-research-title">
+    <h2 class="section-title" id="web-research-title">Web research</h2>
+    <p class="privacy-status">{% if web_on %}Web research is on.{% else %}Web research is off.{% endif %}</p>
+    <p class="prose">When it's on, each account page gets a Look up their website button. Pressing it visits that account's own website (its Website field), the way your browser would, and reads three things: the home page title, its description, and the news or blog feed the site publishes.</p>
+
+    <dl class="privacy-list">
+      <dt>What is sent</dt>
+      <dd>Only an ordinary visit to the customer's website. Nothing about the account — ARR, owner, health, signals, notes — and nothing about your other accounts. No cookies are kept.</dd>
+      <dt>Who sees it</dt>
+      <dd>Only that customer's website, which sees a visit from your internet address, as with any visit. No search engine or other company is involved.</dd>
+      <dt>When</dt>
+      <dd>Only when you press the button, for that one account. Never in the background.</dd>
+      <dt>What is kept</dt>
+      <dd>The result, on this computer, for 24 hours. Clear local cache removes it, and so does turning web research off.</dd>
+      <dt>Demo data</dt>
+      <dd>Demo accounts are invented, so they show sample news and nothing is sent.</dd>
+      <dt>Safety</dt>
+      <dd>cs-brief won't visit an address on this computer or your private network, even if an imported website points there.</dd>
+    </dl>
+
+    <form class="settings-form" method="post" action="/settings/privacy/research">
+      {% if research_error %}
+      <p class="field-error" role="alert" id="research-error">{{ research_error }}</p>
+      {% endif %}
+      <fieldset{% if research_error %} aria-describedby="research-error"{% endif %}>
+        <legend>Web research</legend>
+        <div class="choices">
+          <div class="choice-option">
+            <label class="choice"><input type="radio" name="research" value="off" aria-describedby="research-off-help"{% if not web_on %} checked{% endif %}> Off</label>
+            <p class="field-help choice-help" id="research-off-help">Nothing is looked up.</p>
+          </div>
+          <div class="choice-option">
+            <label class="choice"><input type="radio" name="research" value="on" aria-describedby="research-on-help"{% if web_on %} checked{% endif %}> On</label>
+            <p class="field-help choice-help" id="research-on-help">Look up an account's own website when I ask.</p>
+          </div>
+        </div>
+      </fieldset>
+      <button type="submit" class="button-primary">Save</button>
+    </form>
+  </section>
+
+  <section class="privacy-section" aria-labelledby="local-cache-title">
+    <h2 class="section-title" id="local-cache-title">Local cache</h2>
+    <p class="prose">cs-brief saves some things only to save time: website lookups and imports you started but didn't finish. Clearing them is safe. It doesn't touch your connections, imported or hand-added accounts, edits or settings.</p>
+    <p>Your data is kept in <code class="data-path">{{ data_folder }}</code></p>
+    <form class="inline-form" method="post" action="/settings/privacy/clear-cache">
+      <button type="submit" class="button">Clear local cache</button>
+    </form>
+  </section>
+</div>
+{% endblock %}

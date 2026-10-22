@@ -2725,6 +2725,122 @@ label.button:focus-within {
   margin: 16mm;
 }
 
+/* From their website (account page) and Data & privacy (settings). Tags carry their label as
+   text, so a topic never depends on colour alone. */
+.research,
+.privacy-section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.research-site {
+  margin: 0;
+  font-size: var(--t-md);
+  line-height: var(--lh-md);
+  font-weight: 600;
+}
+
+.research-description,
+.research-footer,
+.research-date {
+  margin: 0;
+  font-size: var(--t-sm);
+  line-height: var(--lh-sm);
+  color: var(--ink-muted);
+}
+
+.research-sample {
+  margin: 0;
+  padding-inline-start: var(--space-4);
+  border-inline-start: 3px solid var(--accent);
+  font-size: var(--t-sm);
+  line-height: var(--lh-sm);
+}
+
+.research-articles {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.research-article {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.research-article a {
+  color: var(--accent);
+  overflow-wrap: anywhere;
+}
+
+.research-form {
+  margin: 0;
+}
+
+.tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tag {
+  padding: 0 var(--space-2);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-control);
+  font-size: var(--t-sm);
+  line-height: var(--lh-sm);
+  color: var(--ink-muted);
+}
+
+.privacy {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-7);
+  max-inline-size: 44rem;
+}
+
+.privacy-status {
+  margin: 0;
+  font-weight: 600;
+}
+
+.privacy-list {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: var(--space-2) var(--space-4);
+  margin: 0;
+}
+
+.privacy-list dt {
+  font-weight: 600;
+}
+
+.privacy-list dd {
+  margin: 0;
+}
+
+.data-path {
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 559px) {
+  .privacy-list {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .privacy-list dd {
+    margin-block-end: var(--space-2);
+  }
+}
+
 @media print {
   /* html rather than :root, so this is not read as a second light token block. !important is
      what beats the dark rules, which are more specific than a bare element selector. */

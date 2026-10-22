@@ -16,7 +16,7 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import quote, urlencode
 
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Query, Request
 from fastapi.exception_handlers import http_exception_handler
 from fastapi.responses import HTMLResponse, PlainTextResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
@@ -26,7 +26,7 @@ from starlette.datastructures import UploadFile
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 
-from cs_brief.core import briefs, editing, import_flow, importing, secrets, service
+from cs_brief.core import briefs, editing, import_flow, importing, research, secrets, service
 from cs_brief.core.config import ScoringConfig, load_scoring_config, save_scoring_config
 from cs_brief.core.connectors.combined import CombinedConnector, ConnectionProblem, Provenance
 from cs_brief.core.connectors.errors import ConnectorError
@@ -1150,6 +1150,185 @@ def _render_duplicates(
     )
 
 
+# --- Web research: the account page's section and the Data & privacy page -----------------
+
+_RESEARCH_CHOICE_ERROR = "Choose On or Off, then save again."
+_RESEARCH_NOTICES = {
+    "on": "Web research is on.",
+    "off": "Web research is off. Saved lookups were removed.",
+}
+
+
+@dataclass(frozen=True)
+class _ResearchPanel:
+    """What the account page's "From their website" section shows. `state` is one of "off",
+    "no_website", "unchecked" (nothing saved yet), "error" (the last look up failed) or "result"."""
+
+    state: str
+    account_id: str  # quoted for a URL path
+    host: str = ""  # the website a look up visits, e.g. "acme.com"
+    demo: bool = False
+    message: str = ""  # no_website: why there is no website; error: what went wrong
+    add_url: str = ""  # Your data: the edit page's Website field
+    add_label: str = ""  # "Add it" when there is no website, else "Change it"
+    result: research.SiteResearch | None = None
+    looked_up_days: int = 0  # whole days since the saved look up; 0 is today
+
+
+def _research_panel(
+    account: Account,
+    *,
+    editable: bool,
+    result: research.SiteResearch | None = None,
+    error: str = "",
+) -> _ResearchPanel:
+    """The section's state for one account. Nothing here reaches the network."""
+    quoted = _quoted_id(account.id)
+    settings = load_settings()
+    if not settings.web_research:
+        return _ResearchPanel(state="off", account_id=quoted)
+    demo = settings.source is DataSource.DEMO
+    host = ""
+    if not demo:
+        try:
+            host = research.website_host(account.domain)
+        except research.ResearchError as problem:
+            blank = not (account.domain or "").strip()
+            return _ResearchPanel(
+                state="no_website",
+                account_id=quoted,
+                message="This account has no website." if blank else problem.message,
+                add_url=f"/accounts/{quoted}/edit#field-domain" if editable else "",
+                add_label="Add it" if blank else "Change it",
+            )
+    if error:
+        return _ResearchPanel(state="error", account_id=quoted, host=host, demo=demo, message=error)
+    if result is not None:
+        days = (date.today() - result.fetched_at.astimezone().date()).days
+        return _ResearchPanel(
+            state="result",
+            account_id=quoted,
+            host=host,
+            demo=demo,
+            result=result,
+            looked_up_days=days,
+        )
+    return _ResearchPanel(state="unchecked", account_id=quoted, host=host, demo=demo)
+
+
+def _shown_account(account_id: str) -> Account | None:
+    """The account as the book shows it right now (hidden accounts are not shown), or None."""
+    return next(
+        (item for item in service.get_connector().list_accounts() if item.id == account_id),
+        None,
+    )
+
+
+def _research_editable(account_id: str) -> bool:
+    """True when the account is one the CSM can edit (it belongs to Your data)."""
+    combined = _combined_or_none()
+    return combined is not None and combined.provenance(account_id) is not None
+
+
+def _cache_notice(lookups: str, drafts: str) -> str:
+    """What the Data & privacy page says after Clear local cache. The counts are numbers the
+    server wrote into the URL, so they are checked before they are used."""
+    saved = int(lookups) if lookups.isascii() and lookups.isdigit() else 0
+    unfinished = int(drafts) if drafts.isascii() and drafts.isdigit() else 0
+    parts: list[str] = []
+    if saved:
+        parts.append(f"{saved} saved {_word(saved, 'lookup', 'lookups')}")
+    if unfinished:
+        parts.append(f"{unfinished} unfinished {_word(unfinished, 'import', 'imports')}")
+    if not parts:
+        return "There was nothing to clear."
+    return "Removed " + " and ".join(parts) + "."
+
+
+def _render_privacy(
+    request: Request,
+    *,
+    notice: str = "",
+    research_error: str = "",
+    status_code: int = 200,
+) -> HTMLResponse:
+    """The Data & privacy page: web research on or off, and the local cache."""
+    return _render(
+        request,
+        "settings/privacy.html",
+        page="Data & privacy",
+        active="settings",
+        section="privacy",
+        web_on=load_settings().web_research,
+        research_error=research_error,
+        notice=notice,
+        data_folder=str(service.get_store().root),
+        status_code=status_code,
+    )
+
+
+def _render_account(
+    request: Request,
+    account_id: str,
+    *,
+    status: str = "",
+    research_panel: _ResearchPanel | None = None,
+    status_code: int = 200,
+) -> HTMLResponse:
+    """One account's page. Without `research_panel`, the website section shows what is already
+    saved, which is a file read and never a network call."""
+    connector = service.get_connector()
+    detail = service.get_account_detail(account_id, connector)
+    if detail is None:
+        return _render(
+            request,
+            "not_found.html",
+            page="Account not found",
+            status_code=404,
+            message=f"No account with id {account_id}.",
+            book=True,
+        )
+    combined = connector if isinstance(connector, CombinedConnector) else None
+    prov = combined.provenance(account_id) if combined is not None else None
+    notices: list[Notice] = []
+    manual: set[tuple[str, datetime, float]] = set()
+    if combined is not None:
+        notices = service.get_store().notices(account_id)
+        manual = {
+            (signal.kind.value, signal.observed_at, signal.value)
+            for signal in combined.list_signals(account_id)
+            if signal.source == "manual"
+        }
+    edits = prov.edits if prov is not None else {}
+    if research_panel is None:
+        research_panel = _research_panel(
+            detail.scored.account,
+            editable=prov is not None,
+            result=service.cached_research(account_id),
+        )
+    return _render(
+        request,
+        "account.html",
+        page=detail.explanation.name,
+        active="book",
+        book=True,
+        status_code=status_code,
+        detail=detail,
+        thresholds=load_scoring_config().thresholds,
+        timeline_days=formatting.group_by_day(detail.timeline),
+        connector_label=_connector_label(),
+        prov=prov,
+        edits=edits,
+        milestones_edited=any(field.startswith("milestones_") for field in edits),
+        linked=prov is not None and len(prov.member_ids) > 1,
+        source_line=_source_line(prov) if prov is not None else "",
+        notices=notices,
+        manual_readings=manual,
+        status=status,
+        panel=research_panel,
+    )
+
+
 def create_app() -> FastAPI:
     """Build the web app: no API docs, a host allow-list, and security headers on every response."""
     app = FastAPI(docs_url=None, redoc_url=None, openapi_url=None)
@@ -1438,6 +1617,44 @@ def create_app() -> FastAPI:
         save_scoring_config(draft)
         return RedirectResponse("/settings/scoring?saved=1", status_code=303)
 
+    # Data & privacy: web research on or off, and clearing the local cache. The notices are
+    # fixed words chosen by the server, never text from the URL.
+
+    @app.get("/settings/privacy")
+    def privacy(
+        request: Request,
+        research_choice: str = Query("", alias="research"),
+        cleared: str = "",
+        lookups: str = "",
+        drafts: str = "",
+    ) -> HTMLResponse:
+        if cleared == "1":
+            notice = _cache_notice(lookups, drafts)
+        else:
+            notice = _RESEARCH_NOTICES.get(research_choice, "")
+        return _render_privacy(request, notice=notice)
+
+    @app.post("/settings/privacy/research")
+    async def save_web_research(request: Request) -> Response:
+        """Turn web research on or off. Anything but on or off is refused (422) and writes
+        nothing. Turning it off also removes every saved lookup, sample news included."""
+        choice = (await _posted_fields(request)).get("research", "")
+        if choice not in ("on", "off"):
+            return _render_privacy(request, research_error=_RESEARCH_CHOICE_ERROR, status_code=422)
+        service.set_web_research(choice == "on")
+        query = urlencode({"research": choice})
+        return RedirectResponse(f"/settings/privacy?{query}", status_code=303)
+
+    @app.post("/settings/privacy/clear-cache")
+    def clear_cache() -> RedirectResponse:
+        """Remove saved lookups and unfinished imports. Connections, accounts, edits and settings
+        stay as they are."""
+        cleared = service.clear_local_cache()
+        query = urlencode(
+            {"cleared": "1", "lookups": str(cleared.research), "drafts": str(cleared.drafts)}
+        )
+        return RedirectResponse(f"/settings/privacy?{query}", status_code=303)
+
     # Your data: add an account. It works in demo mode too, and switches the book to Your data.
     # /accounts/new is declared before /accounts/{account_id}, which would otherwise match "new".
 
@@ -1473,49 +1690,43 @@ def create_app() -> FastAPI:
     ) -> HTMLResponse:
         """One account's call prep: summary, next step, score breakdown and signal history. With
         Your data showing, it also has the edit link, where each figure came from, the notices
-        and the readings added by hand."""
-        connector = service.get_connector()
-        detail = service.get_account_detail(account_id, connector)
-        if detail is None:
-            return _render(
-                request,
-                "not_found.html",
-                page="Account not found",
-                status_code=404,
-                message=f"No account with id {account_id}.",
-                book=True,
-            )
-        combined = connector if isinstance(connector, CombinedConnector) else None
-        prov = combined.provenance(account_id) if combined is not None else None
-        notices: list[Notice] = []
-        manual: set[tuple[str, datetime, float]] = set()
-        if combined is not None:
-            notices = service.get_store().notices(account_id)
-            manual = {
-                (signal.kind.value, signal.observed_at, signal.value)
-                for signal in combined.list_signals(account_id)
-                if signal.source == "manual"
-            }
-        edits = prov.edits if prov is not None else {}
-        return _render(
-            request,
-            "account.html",
-            page=detail.explanation.name,
-            active="book",
-            book=True,
-            detail=detail,
-            thresholds=load_scoring_config().thresholds,
-            timeline_days=formatting.group_by_day(detail.timeline),
-            connector_label=_connector_label(),
-            prov=prov,
-            edits=edits,
-            milestones_edited=any(field.startswith("milestones_") for field in edits),
-            linked=prov is not None and len(prov.member_ids) > 1,
-            source_line=_source_line(prov) if prov is not None else "",
-            notices=notices,
-            manual_readings=manual,
-            status=_account_status(added, edited, reading, unlinked),
+        and the readings added by hand. The website section shows only what is already saved."""
+        return _render_account(
+            request, account_id, status=_account_status(added, edited, reading, unlinked)
         )
+
+    @app.post("/accounts/{account_id}/research")
+    async def look_up_website(request: Request, account_id: str) -> Response:
+        """Look up this one account's own website, because the CSM asked. With web research off,
+        the section says so. A failed look up shows its reason in the section. htmx gets the
+        section alone; a plain form post goes back to the section on the account page, or, when
+        the look up failed, shows the account page with the section in its failed state."""
+        account = _shown_account(account_id)
+        if account is None:
+            return _missing(request, "Account not found", f"No account with id {account_id}.")
+        fields = await _posted_fields(request)
+        result: research.SiteResearch | None = None
+        error = ""
+        try:
+            result = service.research_account(account_id, refresh=fields.get("refresh") == "1")
+        except LookupError:
+            return _missing(request, "Account not found", f"No account with id {account_id}.")
+        except research.ResearchOff:
+            pass  # the section shows the off state
+        except research.ResearchError as problem:
+            error = problem.message
+        panel = _research_panel(
+            account, editable=_research_editable(account_id), result=result, error=error
+        )
+        if request.headers.get("HX-Request") == "true":
+            response = templates.TemplateResponse(
+                request, "partials/research.html", {"panel": panel, "today_day": date.today()}
+            )
+            response.headers["Vary"] = "HX-Request"
+            return response
+        if error:
+            return _render_account(request, account_id, research_panel=panel)
+        return RedirectResponse(f"/accounts/{_quoted_id(account_id)}#research", status_code=303)
 
     # Your data: edit an account. Every route checks the id against the book first.
 

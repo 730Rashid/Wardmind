@@ -144,6 +144,7 @@ def test_appearance_marks_settings_current_and_lists_the_sub_navigation(client: 
         "/settings/appearance",
         "/settings/scoring",
         "/settings/connections",
+        "/settings/privacy",
     ]
     assert [a["href"] for a in links if a.get("aria-current") == "page"] == ["/settings/appearance"]
 

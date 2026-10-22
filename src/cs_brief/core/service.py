@@ -8,11 +8,11 @@ from __future__ import annotations
 import hashlib
 import os
 from collections.abc import Callable
-from datetime import date, datetime
+from datetime import UTC, date, datetime
 
 from pydantic import BaseModel
 
-from cs_brief.core import research, secrets
+from cs_brief.core import import_flow, research, secrets
 from cs_brief.core.briefs import AccountDetail, account_detail, suggest_action
 from cs_brief.core.config import ScoringConfig, load_scoring_config
 from cs_brief.core.connectors.base import Connector
@@ -29,7 +29,7 @@ from cs_brief.core.connectors.local import ManualConnector, SpreadsheetConnector
 from cs_brief.core.models import Account, Motion, ScoredAccount, Signal
 from cs_brief.core.onboarding import OnboardingBrief, onboarding_brief
 from cs_brief.core.scoring import score_book
-from cs_brief.core.settings import DataSource, load_settings
+from cs_brief.core.settings import DataSource, load_settings, save_settings
 from cs_brief.core.store import ConnectionConfig, ConnectionKind, LocalStore
 
 # Test-only: points the HubSpot client at a local fake server. HubSpotClient refuses other hosts.
@@ -234,6 +234,7 @@ def find_account(book: list[ScoredAccount], account_id: str) -> ScoredAccount | 
 
 # Test-only seam: tests replace this with a factory that builds a SiteClient on a MockTransport.
 _site_client_factory: Callable[[], research.SiteClient] = research.SiteClient
+_RESEARCH_OFF = "Web research is off. Turn it on in Settings > Data & privacy to use it."
 
 
 class CacheCleared(BaseModel):
@@ -243,14 +244,41 @@ class CacheCleared(BaseModel):
 
 def research_cache() -> research.ResearchCache:
     """Saved lookups under store.data_dir() / research.RESEARCH_DIR."""
-    raise NotImplementedError
+    return research.ResearchCache(get_store().root / research.RESEARCH_DIR)
+
+
+def _book_account(account_id: str) -> Account | None:
+    """The account as the current book shows it (hidden accounts are not in the book), or None."""
+    return next((item for item in get_connector().list_accounts() if item.id == account_id), None)
+
+
+def _saved_website(account: Account, moment: datetime) -> str | None:
+    """The website a saved lookup of this account is filed under. Demo accounts file their
+    sample under the sample's website, the same one research_account() uses. None when a real
+    account has no website to look up."""
+    if load_settings().source is DataSource.DEMO:
+        return research.sample_research(account, moment).website
+    try:
+        return research.website_host(account.domain)
+    except research.ResearchError:
+        return None
 
 
 def cached_research(account_id: str, now: datetime | None = None) -> research.SiteResearch | None:
     """The saved lookup for this account, without any network call. None when web research is
     off, the account is unknown, it has no saved lookup, or the saved one is stale or was for a
-    different website. In demo mode, None too: sample news is shown only after Look up."""
-    raise NotImplementedError
+    different website. Demo samples are saved like real lookups, so they show here too once
+    looked up (the no-JavaScript redirect after a look up reads them from here)."""
+    if not load_settings().web_research:
+        return None
+    account = _book_account(account_id)
+    if account is None:
+        return None
+    moment = now if now is not None else datetime.now(UTC)
+    website = _saved_website(account, moment)
+    if website is None:
+        return None
+    return research_cache().get(account_id, website, moment)
 
 
 def research_account(
@@ -258,20 +286,58 @@ def research_account(
 ) -> research.SiteResearch:
     """Look the account up (the CSM asked). Raises research.ResearchOff when the setting is
     off, LookupError for an unknown id, and the other research.ResearchError types from the
-    lookup. Demo mode returns research.sample_research() and sends nothing. Otherwise uses the
-    cache unless `refresh`, else research.lookup() with a client from _site_client_factory()
-    (always closed), and saves the result. `now` defaults to datetime.now(UTC)."""
-    raise NotImplementedError
+    lookup. Demo mode returns research.sample_research(), saved like a real lookup: a saved
+    sample is reused unless `refresh`, and nothing is sent. Otherwise uses the cache unless
+    `refresh`, else research.lookup() with a client from _site_client_factory() (always
+    closed), and saves the result. `now` defaults to datetime.now(UTC)."""
+    settings = load_settings()
+    if not settings.web_research:
+        raise research.ResearchOff(_RESEARCH_OFF)
+    moment = now if now is not None else datetime.now(UTC)
+    account = _book_account(account_id)
+    if account is None:
+        raise LookupError(f"No account with id {account_id}.")
+    cache = research_cache()
+    if settings.source is DataSource.DEMO:
+        sample = research.sample_research(account, moment)
+        if not refresh:
+            saved = cache.get(account_id, sample.website, moment)
+            if saved is not None:
+                return saved
+        cache.put(sample)
+        return sample
+    website = research.website_host(account.domain)
+    if not refresh:
+        saved = cache.get(account_id, website, moment)
+        if saved is not None:
+            return saved
+    client = _site_client_factory()
+    try:
+        result = research.lookup(account, client, moment)
+    finally:
+        client.close()
+    cache.put(result)
+    return result
 
 
 def set_web_research(on: bool) -> None:
-    """Save Settings.web_research. Turning it off also deletes every saved lookup."""
-    raise NotImplementedError
+    """Save Settings.web_research. Turning it off also deletes every saved lookup, sample news
+    included."""
+    save_settings(load_settings().model_copy(update={"web_research": on}))
+    if not on:
+        research_cache().clear()
 
 
 def clear_local_cache(now: datetime | None = None) -> CacheCleared:
-    """Delete what cs-brief keeps only to save time: saved web research and unfinished imports
-    (import_flow drafts). Also forgets in-memory connector caches (reset_connectors), so the
-    next page load re-reads every connection. Never touches connections, imported accounts,
-    hand-added accounts, edits, readings, links, hidden accounts, settings or the token."""
-    raise NotImplementedError
+    """Delete what cs-brief keeps only to save time: saved web research (sample news included)
+    and unfinished imports (import_flow drafts). Also forgets in-memory connector caches
+    (reset_connectors), so the next page load re-reads every connection. Never touches
+    connections, imported accounts, hand-added accounts, edits, readings, links, hidden accounts,
+    settings or the token."""
+    store = get_store()
+    cleared = CacheCleared(
+        research=research_cache().clear(),
+        drafts=import_flow.clear_drafts(store),
+    )
+    reset_connectors()
+    return cleared

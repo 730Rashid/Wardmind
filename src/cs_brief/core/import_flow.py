@@ -226,6 +226,24 @@ def purge_old_drafts(store: LocalStore, *, now: datetime | None = None) -> int:
     return removed
 
 
+def clear_drafts(store: LocalStore) -> int:
+    """Delete every unfinished import, however new, and return how many were removed. Only
+    Clear local cache uses this; the drafts folder holds nothing else."""
+    folder = store.root / _DRAFTS_DIR
+    if not folder.is_dir():
+        return 0
+    removed = 0
+    for path in folder.glob("*.json"):
+        if not is_draft_id(path.stem):
+            continue
+        try:
+            path.unlink()
+        except OSError:
+            continue
+        removed += 1
+    return removed
+
+
 def remember_choices(
     store: LocalStore,
     draft: Draft,

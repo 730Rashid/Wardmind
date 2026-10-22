@@ -24,18 +24,28 @@ GuardedTransport) is security code: do not change it without escalating.
 
 from __future__ import annotations
 
+import codecs
+import hashlib
+import html
 import ipaddress
+import random
+import re
 import socket
+import xml.etree.ElementTree as ET
 from collections.abc import Callable
-from datetime import date, datetime
+from datetime import UTC, date, datetime, timedelta
+from email.utils import parsedate_to_datetime
 from enum import StrEnum
+from html.parser import HTMLParser
 from pathlib import Path
 from typing import Any
+from urllib.parse import urljoin, urlsplit
 
 import httpcore
 import httpx
 from pydantic import BaseModel
 
+from cs_brief.core.config import write_atomic
 from cs_brief.core.matching import normalize_domain
 from cs_brief.core.models import Account
 
@@ -139,8 +149,9 @@ _BLOCKED_MESSAGE = (
 
 def website_host(domain: str | None) -> str:
     """The host to visit for an account's website field, e.g. "https://www.Acme.com/x" gives
-    "acme.com" (via matching.normalize_domain). Raises NoWebsite when blank or not a host name,
-    and BlockedWebsite for an IP address, "localhost", or a private-network suffix."""
+    "acme.com" (via matching.normalize_domain). Raises NoWebsite when blank or not a host name
+    with a dot in it (so "localhost" is NoWebsite), and BlockedWebsite for an IP address or a
+    private-network suffix."""
     raw = (domain or "").strip()
     if not raw:
         raise NoWebsite("This account has no website. Add one to look it up.")
@@ -222,11 +233,176 @@ class GuardedTransport(httpx.HTTPTransport):
 
 # --- Reading pages and feeds -------------------------------------------------------------
 
+# Whole words or phrases per Topic. Leadership is handled below, because it needs two words.
+_TOPIC_WORDS: dict[Topic, tuple[str, ...]] = {
+    Topic.ACQUISITION: (
+        "acquired",
+        "acquires",
+        "acquire",
+        "acquisition",
+        "merger",
+        "mergers",
+        "merge",
+        "merges",
+        "merged",
+        "takeover",
+    ),
+    Topic.FUNDING: (
+        "raises",
+        "raised",
+        "funding",
+        "investment",
+        "investments",
+        "IPO",
+        *(f"series {letter}" for letter in "abcdef"),
+    ),
+    Topic.RESTRUCTURING: (
+        "layoffs",
+        "layoff",
+        "lay off",
+        "laid off",
+        "job cuts",
+        "restructuring",
+        "reorganisation",
+        "reorganization",
+    ),
+}
+
+
+def _whole_words(phrases: tuple[str, ...]) -> re.Pattern[str]:
+    """One pattern that matches any of the phrases as whole words, ignoring case."""
+    alternatives = "|".join(r"\s+".join(map(re.escape, phrase.split())) for phrase in phrases)
+    return re.compile(rf"\b(?:{alternatives})\b", re.IGNORECASE)
+
+
+_TOPIC_PATTERNS: dict[Topic, re.Pattern[str]] = {
+    topic: _whole_words(words) for topic, words in _TOPIC_WORDS.items()
+}
+# Leadership: "new CEO", "appoints" or "steps down" on their own, or a C-level title together
+# with a verb such as "names ... as CEO" or "joins as CFO".
+_LEADERSHIP_PHRASES: tuple[re.Pattern[str], ...] = (
+    re.compile(r"\bnew\s+(?:ceo|cfo|cto|coo|cro)\b", re.IGNORECASE),
+    re.compile(r"\bappoints?\b|\bappointed\b", re.IGNORECASE),
+    re.compile(r"\bsteps?\s+down\b", re.IGNORECASE),
+)
+_C_LEVEL_TITLE = re.compile(r"\b(?:ceo|cfo|cto|coo|cro)\b", re.IGNORECASE)
+_LEADERSHIP_VERB = re.compile(r"\b(?:names?|named|joins?|hires?|hired)\b", re.IGNORECASE)
+
+
+def _mentions(topic: Topic, title: str) -> bool:
+    if topic is Topic.LEADERSHIP:
+        if any(pattern.search(title) for pattern in _LEADERSHIP_PHRASES):
+            return True
+        return (
+            _C_LEVEL_TITLE.search(title) is not None and _LEADERSHIP_VERB.search(title) is not None
+        )
+    return _TOPIC_PATTERNS[topic].search(title) is not None
+
 
 def tag_topics(title: str) -> list[Topic]:
     """The topics a headline mentions, in Topic order, each at most once. Whole-word,
     case-insensitive matching, so "Mergers" counts but "emerge" doesn't."""
-    raise NotImplementedError
+    return [topic for topic in Topic if _mentions(topic, title)]
+
+
+_TAG = re.compile(r"</?[A-Za-z][^>]*>")
+_SPACE = re.compile(r"\s+")
+
+
+def _plain(text: str) -> str:
+    """Tags removed, entities decoded, whitespace collapsed. Tags go first, so an escaped tag
+    in a feed title stays text and is never read as markup."""
+    return _SPACE.sub(" ", html.unescape(_TAG.sub(" ", text))).strip()
+
+
+def _clean(text: str | None) -> str | None:
+    """_plain(text), cut to MAX_TEXT characters: at a word boundary when there is one, with an
+    ellipsis."""
+    if text is None:
+        return None
+    plain = _plain(text)
+    if len(plain) <= MAX_TEXT:
+        return plain
+    cut = plain[: MAX_TEXT - 1]
+    if " " in cut:
+        cut = cut[: cut.rindex(" ")]
+    return cut.rstrip() + "…"
+
+
+def _absolute(href: str, base_url: str, schemes: tuple[str, ...]) -> str | None:
+    """`href` resolved against base_url, or None when it is blank, isn't a URL, or its scheme
+    isn't one of `schemes` (javascript: and data: are dropped this way)."""
+    if not href.strip():
+        return None
+    try:
+        url = urljoin(base_url, href.strip())
+        parts = urlsplit(url)
+    except ValueError:
+        return None
+    if parts.scheme not in schemes or not parts.netloc:
+        return None
+    return url
+
+
+_FEED_TYPES = frozenset({"application/rss+xml", "application/atom+xml"})
+
+
+class _PageParser(HTMLParser):
+    """Collects what parse_page needs. Nothing is run or fetched."""
+
+    def __init__(self, base_url: str) -> None:
+        super().__init__(convert_charrefs=True)
+        self._base = base_url
+        self._title_open = False
+        self._title_seen = False
+        self._title_text: list[str] = []
+        self.title: str | None = None
+        self.description: str | None = None
+        self.og_description: str | None = None
+        self.feeds: list[str] = []
+
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        values = {name: value or "" for name, value in attrs}
+        if tag == "title" and not self._title_seen:
+            self._title_open = True
+            self._title_seen = True
+        elif tag == "meta":
+            self._meta(values)
+        elif tag == "link":
+            self._link(values)
+
+    def handle_endtag(self, tag: str) -> None:
+        if tag == "title":
+            self.end_title()
+
+    def handle_data(self, data: str) -> None:
+        if self._title_open:
+            self._title_text.append(data)
+
+    def end_title(self) -> None:
+        if self._title_open:
+            self._title_open = False
+            self.title = _clean("".join(self._title_text)) or None
+
+    def _meta(self, values: dict[str, str]) -> None:
+        content = _clean(values.get("content"))
+        if not content:
+            return
+        name = values.get("name", "").strip().lower()
+        prop = values.get("property", "").strip().lower()
+        if name == "description" and self.description is None:
+            self.description = content
+        if prop == "og:description" and self.og_description is None:
+            self.og_description = content
+
+    def _link(self, values: dict[str, str]) -> None:
+        rel = values.get("rel", "").lower().split()
+        kind = values.get("type", "").split(";")[0].strip().lower()
+        if "alternate" not in rel or kind not in _FEED_TYPES:
+            return
+        url = _absolute(values.get("href", ""), self._base, ("https",))
+        if url is not None and url not in self.feeds:
+            self.feeds.append(url)
 
 
 def parse_page(html: bytes, base_url: str) -> PageInfo:
@@ -234,7 +410,124 @@ def parse_page(html: bytes, base_url: str) -> PageInfo:
     run, nothing else fetched). Text is unescaped, tag-free, whitespace-collapsed and cut to
     MAX_TEXT. Feed hrefs are resolved against base_url; only https ones are kept, deduplicated.
     Never raises on malformed HTML."""
-    raise NotImplementedError
+    parser = _PageParser(base_url)
+    try:
+        parser.feed(html.decode("utf-8", errors="replace"))
+        parser.close()
+    except (AssertionError, ValueError):  # html.parser gives up on some broken markup
+        pass
+    parser.end_title()
+    return PageInfo(
+        title=parser.title,
+        description=parser.description or parser.og_description,
+        feeds=parser.feeds,
+    )
+
+
+_ATOM = "{http://www.w3.org/2005/Atom}"
+
+
+def _element_text(element: ET.Element | None) -> str:
+    return "".join(element.itertext()) if element is not None else ""
+
+
+def _rfc822_day(text: str) -> date | None:
+    """An RSS pubDate such as "Tue, 21 Oct 2026 09:00:00 GMT", as a date."""
+    value = text.strip()
+    if not value:
+        return None
+    try:
+        return parsedate_to_datetime(value).date()
+    except (TypeError, ValueError, IndexError):
+        return None
+
+
+def _iso_day(text: str) -> date | None:
+    """An Atom timestamp such as "2026-10-21T09:00:00Z", as a date."""
+    value = text.strip()
+    if not value:
+        return None
+    if value[-1:] in ("Z", "z"):
+        value = value[:-1] + "+00:00"
+    try:
+        return datetime.fromisoformat(value).date()
+    except ValueError:
+        return None
+
+
+def _atom_href(entry: ET.Element) -> str:
+    """The entry's alternate link: a link with rel="alternate" or with no rel at all."""
+    for link in entry.findall(f"{_ATOM}link"):
+        if link.get("rel", "alternate").strip().lower() == "alternate":
+            return link.get("href", "")
+    return ""
+
+
+def _entry(element: ET.Element) -> tuple[str, str, date | None]:
+    """(title, link, published) for one RSS item or Atom entry."""
+    if element.tag == "item":
+        return (
+            _element_text(element.find("title")),
+            _element_text(element.find("link")),
+            _rfc822_day(_element_text(element.find("pubDate"))),
+        )
+    published = _iso_day(_element_text(element.find(f"{_ATOM}published"))) or _iso_day(
+        _element_text(element.find(f"{_ATOM}updated"))
+    )
+    return (_element_text(element.find(f"{_ATOM}title")), _atom_href(element), published)
+
+
+def _has_doctype(xml: bytes) -> bool:
+    """True when the prolog (before the root element) declares a DOCTYPE. Only the prolog is
+    checked: a "<!DOCTYPE" inside an item (escaped or CDATA post HTML) is just text."""
+    text = xml.removeprefix(codecs.BOM_UTF8)
+    position = 0
+    while True:
+        while position < len(text) and text[position : position + 1].isspace():
+            position += 1
+        rest = text[position:]
+        if rest.startswith(b"<?"):
+            closer = b"?>"
+        elif rest.startswith(b"<!--"):
+            closer = b"-->"
+        else:
+            return rest[:9].lower() == b"<!doctype"
+        end = rest.find(closer)
+        if end < 0:
+            return False  # an unclosed prolog: the parser will refuse it
+        position += end + len(closer)
+
+
+_FEED_ROOTS = ("rss", f"{_ATOM}feed")
+_ENTRY_TAGS = ("item", f"{_ATOM}entry")
+
+
+def _entries(xml: bytes) -> list[tuple[str, str, date | None]]:
+    """(title, link, published) for each complete RSS item or Atom entry, in document order.
+    The body may have been cut off at MAX_BYTES (feeds that carry whole posts are big), so it
+    is parsed incrementally and the entries finished before the cut are kept."""
+    parser = ET.XMLPullParser(events=("start", "end"))
+    root_tag: str | None = None
+    entries: list[tuple[str, str, date | None]] = []
+    try:
+        parser.feed(xml)
+        parser.close()
+    except ET.ParseError:
+        pass  # a cut-off body: the events before the error are still read below
+    try:
+        # A parse error is queued as an event and raised here, after the good events.
+        for event, element in parser.read_events():
+            if root_tag is None:
+                root_tag = element.tag
+                if root_tag not in _FEED_ROOTS:
+                    raise ValueError("not an RSS or Atom feed")
+            elif event == "end" and element.tag in _ENTRY_TAGS:
+                entries.append(_entry(element))
+    except ET.ParseError:
+        pass
+    if root_tag is None:
+        raise ValueError("not an XML document")
+    return entries
 
 
 def parse_feed(xml: bytes, base_url: str) -> list[Article]:
@@ -242,8 +535,53 @@ def parse_feed(xml: bytes, base_url: str) -> list[Article]:
     deduplicated by URL. Uses xml.etree.ElementTree; a document with a DOCTYPE is refused (no
     entity tricks). Links are resolved against base_url; non-http(s) links drop the item.
     Dates: RSS pubDate (RFC 822) or Atom published/updated (ISO 8601). Raises ValueError when
-    the bytes aren't a feed at all; a feed with no usable items gives []."""
-    raise NotImplementedError
+    the bytes aren't a feed at all; a feed with no usable items gives []. A feed cut off part
+    way (at MAX_BYTES) gives the items that were complete."""
+    if _has_doctype(xml):
+        raise ValueError("feeds with a DOCTYPE are refused")
+    entries = _entries(xml)
+    articles: list[Article] = []
+    seen: set[str] = set()
+    for raw_title, raw_link, published in entries:
+        title = _clean(raw_title)
+        url = _absolute(raw_link, base_url, ("http", "https"))
+        if not title or url is None or url in seen:
+            continue
+        seen.add(url)
+        articles.append(
+            Article(title=title, url=url, published=published, topics=tag_topics(title))
+        )
+    dated = sorted(
+        (article for article in articles if article.published is not None),
+        key=lambda article: article.published or date.min,
+        reverse=True,
+    )
+    undated = [article for article in articles if article.published is None]
+    return (dated + undated)[:MAX_ARTICLES]
+
+
+_REDIRECT_CODES = frozenset({301, 302, 303, 307, 308})
+
+
+def _https_host(url: str) -> str:
+    """The host of an https URL on the standard port. SiteUnreachable for anything else."""
+    try:
+        parts = urlsplit(url)
+        port = parts.port
+    except ValueError:
+        raise SiteUnreachable("That address isn't one cs-brief can read.") from None
+    host = parts.hostname or ""
+    if parts.scheme != "https" or not host:
+        raise SiteUnreachable(f"{host or 'That website'} can only be read over https.")
+    if port not in (None, 443):
+        raise SiteUnreachable(f"{host} can only be read on the standard https port.")
+    return host
+
+
+def _unreachable(host: str, error: Exception) -> SiteUnreachable:
+    if isinstance(error, httpx.TimeoutException):
+        return SiteUnreachable(f"{host} didn't answer in time.")
+    return SiteUnreachable(f"cs-brief couldn't read {host}. Check the account's website.")
 
 
 class SiteClient:
@@ -253,16 +591,78 @@ class SiteClient:
     GuardedTransport(); tests pass an httpx.MockTransport."""
 
     def __init__(self, transport: httpx.BaseTransport | None = None) -> None:
-        raise NotImplementedError
+        self._client = httpx.Client(
+            transport=transport if transport is not None else GuardedTransport(),
+            timeout=TIMEOUT_SECONDS,
+            follow_redirects=False,
+            trust_env=False,
+            headers={"User-Agent": USER_AGENT},
+        )
+        self._requests = 0
 
     def fetch(self, url: str) -> Fetched:
         """GET an https URL. Raises SiteUnreachable for a non-https URL, a redirect to one,
         too many redirects, the request budget used up, a non-2xx status, a timeout or any
         transport error. BlockedWebsite from the guard propagates unchanged."""
-        raise NotImplementedError
+        target = url
+        redirects = 0
+        while True:
+            host = _https_host(target)
+            response = self._send(target, host)
+            try:
+                if response.status_code in _REDIRECT_CODES:
+                    location = response.headers.get("location", "").strip()
+                    if not location or redirects == MAX_REDIRECTS:
+                        raise SiteUnreachable(f"{host} redirects in a way cs-brief won't follow.")
+                    target = urljoin(target, location)
+                    redirects += 1
+                    continue  # the next loop checks that the new address is https
+                if not 200 <= response.status_code < 300:
+                    raise SiteUnreachable(
+                        f"{host} answered with an error ({response.status_code})."
+                    )
+                body = self._read(response, host)
+                media_type = response.headers.get("content-type", "").split(";")[0]
+                return Fetched(url=target, content_type=media_type.strip().lower(), body=body)
+            finally:
+                response.close()
 
     def close(self) -> None:
-        raise NotImplementedError
+        self._client.close()
+
+    def _send(self, url: str, host: str) -> httpx.Response:
+        """One request, with the body still unread: the caller closes the response."""
+        if self._requests >= MAX_REQUESTS:
+            raise SiteUnreachable(f"Too many requests to {host} for one look up.")
+        self._requests += 1
+        self._client.cookies.clear()  # no cookie a site sets is sent back, on any request
+        request = self._client.build_request("GET", url)
+        try:
+            return self._client.send(request, stream=True)
+        except (httpx.HTTPError, OSError) as error:
+            raise _unreachable(host, error) from error
+
+    def _read(self, response: httpx.Response, host: str) -> bytes:
+        body = bytearray()
+        try:
+            for chunk in response.iter_bytes():
+                body.extend(chunk[: MAX_BYTES - len(body)])
+                if len(body) >= MAX_BYTES:
+                    break
+        except (httpx.HTTPError, OSError) as error:
+            raise _unreachable(host, error) from error
+        return bytes(body)
+
+
+def _aware(moment: datetime) -> datetime:
+    return moment if moment.tzinfo is not None else moment.replace(tzinfo=UTC)
+
+
+def _same_site(url: str, hosts: tuple[str, ...]) -> bool:
+    """True when the URL's host is one of `hosts` or a subdomain of one. A feed on another
+    company's host is never fetched: the lookup only talks to the customer's own site."""
+    host = urlsplit(url).hostname or ""
+    return any(host == known or host.endswith("." + known) for known in hosts)
 
 
 def lookup(account: Account, client: SiteClient, now: datetime) -> SiteResearch:
@@ -274,7 +674,66 @@ def lookup(account: Account, client: SiteClient, now: datetime) -> SiteResearch:
        final host, until one parses with at least one article. Feed failures are not errors.
     3. Return SiteResearch with fetched_at=now, website=host, feed_url of the feed used.
     The client is not closed here."""
-    raise NotImplementedError
+    host = website_host(account.domain)
+    home = client.fetch(f"https://{host}/")
+    if home.content_type not in ("text/html", "application/xhtml+xml"):
+        raise SiteUnreachable(f"{host} didn't send a web page cs-brief could read.")
+    page = parse_page(home.body, home.url)
+    final_host = urlsplit(home.url).hostname or host
+    hosts = (host, final_host)
+    advertised = [url for url in page.feeds if _same_site(url, hosts)][:2]
+    candidates = advertised or [urljoin(home.url, path) for path in FALLBACK_FEEDS]
+    for feed_url in candidates:
+        try:
+            feed = client.fetch(feed_url)
+            if not _same_site(feed.url, hosts):
+                continue
+            articles = parse_feed(feed.body, feed.url)
+        except (ResearchError, ValueError):
+            continue  # a feed that is missing, blocked or unreadable just means no feed
+        if articles:
+            return SiteResearch(
+                account_id=account.id,
+                website=host,
+                fetched_at=_aware(now),
+                site_title=page.title,
+                site_description=page.description,
+                feed_url=feed.url,
+                articles=articles,
+            )
+    return SiteResearch(
+        account_id=account.id,
+        website=host,
+        fetched_at=_aware(now),
+        site_title=page.title,
+        site_description=page.description,
+        feed_url=None,
+        articles=[],
+    )
+
+
+_SAMPLE_HEADLINES: tuple[str, ...] = (
+    "{name} raises a Series B to hire in support",
+    "{name} acquires a smaller rival in the same market",
+    "{name} appoints a new CFO",
+    "{name} names a new COO to lead operations",
+    "{name} announces job cuts in its support team",
+    "{name} opens a new office in Leeds",
+    "{name} launches a customer portal for partners",
+    "{name} publishes its annual impact report",
+    "{name} wins a regional innovation award",
+)
+
+
+def _slug(text: str) -> str:
+    return re.sub(r"[^a-z0-9]+", "-", text.lower()).strip("-")[:60]
+
+
+def _sample_website(account: Account) -> str:
+    try:
+        return website_host(account.domain)
+    except ResearchError:
+        return f"{_slug(account.name) or 'example-company'}.example"
 
 
 def sample_research(account: Account, now: datetime) -> SiteResearch:
@@ -282,7 +741,36 @@ def sample_research(account: Account, now: datetime) -> SiteResearch:
     account's domain (or "<name>.example"), a site title and description built from the name,
     and 3 or 4 invented articles dated before `now`, deterministic per account id, covering
     some Topics. Nothing is fetched."""
-    raise NotImplementedError
+    seed = int.from_bytes(hashlib.sha256(account.id.encode("utf-8")).digest()[:8], "big")
+    rng = random.Random(seed)
+    website = _sample_website(account)
+    headlines = rng.sample(_SAMPLE_HEADLINES, rng.choice((3, 4)))
+    articles = []
+    for headline in headlines:
+        title = _clean(headline.format(name=account.name)) or ""
+        published = (_aware(now) - timedelta(days=rng.randint(5, 80))).date()
+        articles.append(
+            Article(
+                title=title,
+                url=f"https://{website}/news/{_slug(title)}",
+                published=published,
+                topics=tag_topics(title),
+            )
+        )
+    articles.sort(key=lambda article: article.published or date.min, reverse=True)
+    name = _clean(account.name) or ""
+    return SiteResearch(
+        account_id=account.id,
+        website=website,
+        fetched_at=_aware(now),
+        site_title=name or None,
+        site_description=(
+            f"Sample text for {name}. Demo accounts are invented, so nothing was fetched."
+        ),
+        feed_url=f"https://{website}/news/feed",
+        articles=articles,
+        sample=True,
+    )
 
 
 class ResearchCache:
@@ -290,17 +778,41 @@ class ResearchCache:
     file per account, named by a hash of the account id so ids never become paths."""
 
     def __init__(self, root: Path) -> None:
-        raise NotImplementedError
+        self._root = Path(root)
+
+    def _path(self, account_id: str) -> Path:
+        digest = hashlib.sha256(account_id.encode("utf-8")).hexdigest()[:32]
+        return self._root / f"{digest}.json"
 
     def get(self, account_id: str, website: str, now: datetime) -> SiteResearch | None:
         """The saved lookup, or None if there isn't one, it is older than CACHE_HOURS, it was
         for a different website, or the file can't be read."""
-        raise NotImplementedError
+        try:
+            saved = SiteResearch.model_validate_json(
+                self._path(account_id).read_text(encoding="utf-8")
+            )
+        except (OSError, ValueError):  # a bad JSON or a bad shape is a ValueError too
+            return None
+        if saved.account_id != account_id or saved.website != website:
+            return None
+        age = _aware(now) - _aware(saved.fetched_at)
+        if age < timedelta(0) or age >= timedelta(hours=CACHE_HOURS):
+            return None
+        return saved
 
     def put(self, result: SiteResearch) -> None:
         """Save atomically (config.write_atomic)."""
-        raise NotImplementedError
+        write_atomic(self._path(result.account_id), result.model_dump_json(indent=2) + "\n")
 
     def clear(self) -> int:
         """Delete every saved lookup; return how many were removed. A missing folder is 0."""
-        raise NotImplementedError
+        if not self._root.is_dir():
+            return 0
+        removed = 0
+        for path in self._root.glob("*.json"):
+            try:
+                path.unlink()
+            except OSError:
+                continue
+            removed += 1
+        return removed

@@ -9,7 +9,7 @@ from pathlib import Path
 
 import pytest
 
-from cs_brief.core import service
+from cs_brief.core import research, service
 from cs_brief.core.secrets import ENV_SECRETS_DIR, ENV_TOKEN
 from cs_brief.core.store import ENV_DATA_DIR
 
@@ -37,3 +37,14 @@ def isolated_config_dir(
     service.reset_connectors()
     yield folder
     service.reset_connectors()
+
+
+@pytest.fixture(autouse=True)
+def no_website_lookups(monkeypatch: pytest.MonkeyPatch) -> None:
+    """No test can reach a customer's website by accident. Tests that look sites up give
+    service a SiteClient on an httpx.MockTransport (see tests/research_fake.py) instead."""
+
+    def refuse() -> research.SiteClient:
+        pytest.fail("A test tried to open a website connection. Give it a MockTransport client.")
+
+    monkeypatch.setattr(service, "_site_client_factory", refuse)

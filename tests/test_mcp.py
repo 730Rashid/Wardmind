@@ -14,10 +14,18 @@ from cs_brief.core import briefs, service
 from cs_brief.core.connectors.demo import DemoConnector
 from cs_brief.core.connectors.errors import ConnectionNotReady
 from cs_brief.core.models import Motion
+from cs_brief.core.settings import DataSource, Settings, save_settings
 from cs_brief.mcp import server
 
 REPO = Path(__file__).resolve().parents[1]
-TOOLS = {"list_book", "get_account", "explain_score", "weekly_brief", "onboarding_brief"}
+TOOLS = {
+    "list_book",
+    "get_account",
+    "explain_score",
+    "weekly_brief",
+    "onboarding_brief",
+    "research_account",
+}
 ROW_KEYS = {
     "rank",
     "id",
@@ -52,11 +60,11 @@ def _error_text(result: CallToolResult) -> str:
     return result.content[0].text
 
 
-async def test_lists_the_five_tools_with_descriptions():
+async def test_lists_the_six_tools_with_descriptions():
     async with Client(server.mcp) as client:
         tools = (await client.list_tools()).tools
     assert {tool.name for tool in tools} == TOOLS
-    assert len(tools) == 5
+    assert len(tools) == 6
     assert all(tool.description for tool in tools)
 
 
@@ -215,3 +223,41 @@ async def test_every_book_tool_reports_a_connector_error_as_its_message(no_token
 def test_a_python_caller_gets_the_connector_message_as_a_value_error(no_token):
     with pytest.raises(ValueError, match="no access token is saved"):
         server.list_book()
+
+
+def _research_on(source: DataSource = DataSource.DEMO) -> None:
+    save_settings(Settings(web_research=True, source=source))
+
+
+async def test_research_account_is_off_until_the_csm_turns_it_on():
+    async with Client(server.mcp) as client:
+        text = _error_text(await client.call_tool("research_account", {"account_id": "acc-001"}))
+    assert "Web research is off" in text
+    assert "Data & privacy" in text
+
+
+async def test_research_account_on_demo_data_returns_a_sample_and_sends_nothing(monkeypatch):
+    def refuse():
+        raise AssertionError("the MCP tool must not open a website connection in demo mode")
+
+    monkeypatch.setattr(service, "_site_client_factory", refuse)
+    _research_on()
+    async with Client(server.mcp) as client:
+        data = _data(await client.call_tool("research_account", {"account_id": "acc-001"}))
+    assert data["sample"] is True
+    assert data["account_id"] == "acc-001"
+    assert data["articles"]
+    assert set(data) >= {"website", "fetched_at", "site_title", "articles", "feed_url"}
+
+
+def test_research_account_python_caller_gets_a_value_error_when_off():
+    with pytest.raises(ValueError, match="Web research is off"):
+        server.research_account("acc-001")
+
+
+async def test_research_account_unknown_id_is_an_error_result():
+    _research_on()
+    async with Client(server.mcp) as client:
+        text = _error_text(await client.call_tool("research_account", {"account_id": "acc-nope"}))
+    assert "No account with id 'acc-nope'" in text
+    assert "Use list_book" in text

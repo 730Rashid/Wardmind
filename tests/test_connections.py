@@ -208,6 +208,7 @@ def test_the_page_has_its_title_and_the_sub_navigation(client: TestClient) -> No
         "/settings/appearance",
         "/settings/scoring",
         "/settings/connections",
+        "/settings/privacy",
     ]
     assert [a["href"] for a in links if a.get("aria-current") == "page"] == [
         "/settings/connections"
