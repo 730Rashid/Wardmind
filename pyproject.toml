@@ -1,6 +1,6 @@
 [project]
 name = "cs-brief"
-version = "0.0.1"
+version = "0.1.0"
 description = "Rank a Customer Success book of business and explain why each account needs attention."
 readme = "README.md"
 requires-python = ">=3.11"

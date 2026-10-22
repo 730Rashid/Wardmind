@@ -3,6 +3,8 @@
 Rank a Customer Success book of business and explain, in plain English, why each account needs
 attention this week. It is reachable three ways, all backed by the same core code:
 
+![cs-brief: the ranked book, an account page, the weekly brief and onboarding prep](docs/demo.gif)
+
 - **Web dashboard:** `cs-brief ui` opens a local page at http://127.0.0.1:8000 with:
   - **My book:** the ranked list
   - **Account pages:** the score breakdown, signal history and next step
@@ -15,6 +17,8 @@ attention this week. It is reachable three ways, all backed by the same core cod
       to `config/settings.yaml`.
     - Scoring: sliders for every weight and threshold, with a live preview of how your top 10
       would reorder. These are saved to `config/scoring.yaml`.
+    - Connections: demo data or your data, HubSpot, spreadsheets and accounts added by hand.
+    - Data & privacy: turn web research on or off, and clear the local cache.
 - **Claude (MCP):** `cs-brief mcp` serves the book to Claude over stdio
 - **Terminal:** `cs-brief score` prints the top of the book
 
@@ -50,7 +54,7 @@ uv run cs-brief ui         # dashboard at http://127.0.0.1:8000
 claude mcp add cs-brief -- uv --directory "<path to this folder>" run cs-brief mcp
 ```
 
-The server exposes five tools:
+The server exposes six tools:
 
 | Tool | What it returns |
 |---|---|
@@ -59,6 +63,19 @@ The server exposes five tools:
 | `explain_score` | why the account ranks where it does, with a short summary |
 | `weekly_brief` | totals, counts by health and motion, call-outs, and the top accounts |
 | `onboarding_brief` | a prep brief for an onboarding call: plan status, agenda, questions |
+| `research_account` | what the customer's own website says: title, description, recent news (only when web research is on) |
+
+## Web research (optional, off by default)
+
+Turn it on in **Settings > Data & privacy**. Each account page then gets a **Look up their
+website** button. It visits that customer's own website (the account's Website field) and shows:
+- the site's title and description
+- the latest posts from the news or blog feed it publishes, tagged when they mention funding,
+  an acquisition, a leadership change or restructuring
+
+No search engine is involved, and nothing about the account is sent. Results are kept on your
+computer for 24 hours. With demo data, you see invented sample news and nothing is sent.
+[PRIVACY.md](PRIVACY.md) has the details.
 
 ## How scoring works
 
@@ -90,7 +107,10 @@ All weights, thresholds and windows live in [`config/scoring.yaml`](config/scori
   calls to `api.hubapi.com`. Your access token is stored in your user profile
   (`%LOCALAPPDATA%\cs-brief`), never in this folder, and the UI only ever shows its last 4
   characters.
-- Web research, a later and optional phase, will be off by default.
+- Web research is off by default. When on, it visits only the customer's own public website,
+  only when you ask, and never an address on your computer or private network.
+- No analytics or telemetry. [PRIVACY.md](PRIVACY.md) lists everything that is stored and
+  everything that leaves your computer.
 
 ## Development
 
