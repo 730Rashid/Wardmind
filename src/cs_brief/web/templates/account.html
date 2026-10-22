@@ -1,20 +1,55 @@
 {% extends "base.html" %}
 {% from "partials/breakdown_table.html" import breakdown_table %}
+{% from "partials/edited.html" import edited_marker %}
 {% block content %}
 {% set account = detail.scored.account %}
 {% set health = detail.scored.health %}
+{% set motion_field = 'start_date' if detail.scored.motion.value == 'onboarding' else 'renewal_date' %}
 <div class="account-layout">
   <div class="account-main">
     <p class="account-back no-print"><a href="/">Back to My book</a></p>
+    {% if status %}
+    <p class="status-line" role="status">{{ status }}</p>
+    {% endif %}
 
     <header class="account-head">
-      <h1 class="account-name">{{ account.name }}</h1>
+      <div class="account-title">
+        <h1 class="account-name">{{ account.name }}</h1>
+        {% if 'name' in edits %}{{ edited_marker() }}{% endif %}
+        {% if prov %}
+        <a class="button button--small no-print" href="/accounts/{{ account.id | urlencode }}/edit">Edit account</a>
+        {% endif %}
+      </div>
       <ul class="facts">
         <li><span class="health health--{{ health.value }}"><svg class="icon" aria-hidden="true" focusable="false"><use href="/static/icons.svg#health-{{ health.value | replace('_', '-') }}"/></svg> {{ health.label }}</span></li>
-        <li>{{ detail | motion_fact }}</li>
-        <li>{{ account.arr | money }} ARR</li>
-        <li>{{ account.owner }}</li>
+        <li>{{ detail | motion_fact }}{% if motion_field in edits %} {{ edited_marker() }}{% endif %}</li>
+        <li>{{ account.arr | money }} ARR{% if 'arr' in edits %} {{ edited_marker() }}{% endif %}</li>
+        <li>{{ account.owner }}{% if 'owner' in edits %} {{ edited_marker() }}{% endif %}</li>
       </ul>
+      {% if prov %}
+      <div class="source-row">
+        <p class="source-line">{{ source_line }}</p>
+        {% if linked %}
+        <form class="inline-form" method="post" action="/accounts/{{ account.id | urlencode }}/unlink">
+          <button type="submit" class="button button--small">Unlink</button>
+        </form>
+        {% endif %}
+      </div>
+      {% if notices %}
+      <ul class="notice-list" role="status">
+        {% for notice in notices %}
+        <li class="notice">
+          <span>{{ notice.message }}</span>
+          <form class="inline-form" method="post" action="/accounts/{{ account.id | urlencode }}/notices/{{ notice.id | urlencode }}/dismiss">
+            <button type="submit" class="button button--small">Dismiss</button>
+          </form>
+        </li>
+        {% endfor %}
+      </ul>
+      {% endif %}
+      {% else %}
+      <p class="field-help">Editing is available for your own data.</p>
+      {% endif %}
       <p class="account-summary">{{ detail.explanation.summary }}</p>
     </header>
 
@@ -37,10 +72,11 @@
         {% for day, entries in timeline_days %}
         <dt><time datetime="{{ day.isoformat() }}">{{ day | day_label(today_day) }}</time></dt>
         {% for entry in entries %}
+        {% set added = (entry.kind.value, entry.observed_at, entry.value) in manual_readings %}
         <dd>
           <span class="timeline-label">{{ entry.label }}</span>
           <span class="timeline-sentence{% if not entry.is_latest %} timeline-sentence--older{% endif %}">{{ entry.plain_english }}</span>
-          {% if entry.is_latest %}<span class="timeline-current">Current</span>{% endif %}
+          {% if entry.is_latest %}<span class="timeline-current">Current{% if added %}. Added by you.{% endif %}</span>{% elif added %}<span class="timeline-current">Added by you</span>{% endif %}
         </dd>
         {% endfor %}
         {% endfor %}
@@ -55,15 +91,15 @@
     <h2 class="section-title" id="facts-heading">Account facts</h2>
     <dl class="facts-list">
       <dt>Tier</dt>
-      <dd>{{ account.tier }}</dd>
+      <dd>{{ account.tier }}{% if 'tier' in edits %} {{ edited_marker() }}{% endif %}</dd>
       <dt>Owner</dt>
-      <dd>{{ account.owner }}</dd>
+      <dd>{{ account.owner }}{% if 'owner' in edits %} {{ edited_marker() }}{% endif %}</dd>
       <dt>Started</dt>
-      <dd>{{ account.start_date | day_label(today_day) }}, {{ detail.days_since_start | ago }}</dd>
+      <dd>{{ account.start_date | day_label(today_day) }}, {{ detail.days_since_start | ago }}{% if 'start_date' in edits %} {{ edited_marker() }}{% endif %}</dd>
       <dt>Renews</dt>
-      <dd>{{ account.renewal_date | day_label(today_day) }}</dd>
+      <dd>{{ account.renewal_date | day_label(today_day) }}{% if 'renewal_date' in edits %} {{ edited_marker() }}{% endif %}</dd>
       <dt>Onboarding milestones</dt>
-      <dd>{{ account.milestones.done }} of {{ account.milestones.total }} done{% if account.milestones.overdue > 0 %}, {{ account.milestones.overdue }} overdue{% endif %}</dd>
+      <dd>{{ account.milestones.done }} of {{ account.milestones.total }} done{% if account.milestones.overdue > 0 %}, {{ account.milestones.overdue }} overdue{% endif %}{% if milestones_edited %} {{ edited_marker() }}{% endif %}</dd>
       <dt>Data source</dt>
       <dd>{{ connector_label }}</dd>
     </dl>

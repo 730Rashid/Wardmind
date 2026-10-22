@@ -28,7 +28,7 @@ from starlette.middleware.trustedhost import TrustedHostMiddleware
 
 from cs_brief.core import briefs, editing, import_flow, importing, secrets, service
 from cs_brief.core.config import ScoringConfig, load_scoring_config, save_scoring_config
-from cs_brief.core.connectors.combined import CombinedConnector, ConnectionProblem
+from cs_brief.core.connectors.combined import CombinedConnector, ConnectionProblem, Provenance
 from cs_brief.core.connectors.errors import ConnectorError
 from cs_brief.core.connectors.hubspot import (
     ConnectionCheck,
@@ -40,7 +40,7 @@ from cs_brief.core.connectors.hubspot import (
 from cs_brief.core.connectors.local import ManualConnector, SpreadsheetConnector
 from cs_brief.core.import_flow import Draft
 from cs_brief.core.importing import DateOrder
-from cs_brief.core.models import Health, Motion, ScoredAccount, SignalKind
+from cs_brief.core.models import Account, Health, Motion, ScoredAccount, SignalKind
 from cs_brief.core.onboarding import OnboardingBrief
 from cs_brief.core.settings import (
     Accent,
@@ -52,7 +52,14 @@ from cs_brief.core.settings import (
     load_settings,
     save_settings,
 )
-from cs_brief.core.store import ConnectionConfig, ConnectionKind, LocalStore, connection_for
+from cs_brief.core.store import (
+    EDITABLE_FIELDS,
+    ConnectionConfig,
+    ConnectionKind,
+    LocalStore,
+    Notice,
+    connection_for,
+)
 from cs_brief.web import formatting
 from cs_brief.web.scoring_form import (
     FIELD_NAMES,
@@ -303,9 +310,12 @@ def _combined_or_none() -> CombinedConnector | None:
 
 
 def _needs_setup() -> bool:
-    """True when Your data is showing and nothing is connected, so My book becomes Setup."""
+    """True when Your data is showing and nothing is connected, so My book becomes Setup. A book
+    whose accounts are all hidden is not empty of setup: My book keeps the hidden notice."""
     combined = _combined_or_none()
-    return combined is not None and not combined.list_accounts() and not combined.problems
+    if combined is None or combined.list_accounts() or combined.problems:
+        return False
+    return not service.get_store().hidden()
 
 
 def _duplicate_count() -> int:
@@ -889,6 +899,242 @@ def _render_mapping(
     )
 
 
+# Your data: editing an account, adding one, and possible duplicates ---------------------------
+
+_EDIT_DEMO = "Editing is available for your own data."
+_DUPLICATES_DEMO = "Possible duplicates are shown for your own data."
+_NOT_IN_BOOK_FORM = "That account isn't in your book."
+_NOT_SUGGESTED = "Those accounts aren't suggested as duplicates any more."
+_NO_NOTICE = "That message isn't on this account any more."
+_UNCHANGED = "unchanged"  # ?edited= value when the saved form had no changes
+_NEW_READING = {"kind": SignalKind.USAGE_TREND_30D.value, "value": "", "yes_no": "yes"}
+_UNKNOWN_SIGNAL = "That signal isn't one cs-brief knows."
+_NO_FIELD = "That field can't be edited."
+_HAND_ADDED_ONLY = "Only accounts you added by hand can be deleted. Hide it instead."
+
+
+def _your_book() -> CombinedConnector | None:
+    """The combined book while Your data is showing, else None. A book that can't load raises
+    ConnectorError, which the app shows on its own error page."""
+    if load_settings().source is not DataSource.MINE:
+        return None
+    return service.get_combined()
+
+
+def _editable_account(
+    request: Request, account_id: str
+) -> tuple[CombinedConnector, Account, Provenance] | HTMLResponse:
+    """The account's shown values and provenance, or a 404 page. Demo data has no editing, and an
+    id that isn't in the book (hidden accounts included) is unknown."""
+    combined = _your_book()
+    if combined is None:
+        return _missing(request, "Page not found", _EDIT_DEMO)
+    prov = combined.provenance(account_id)
+    account = next((item for item in combined.list_accounts() if item.id == account_id), None)
+    if prov is None or account is None:
+        return _missing(request, "Account not found", f"No account with id {account_id}.")
+    return combined, account, prov
+
+
+def _quoted_id(account_id: str) -> str:
+    """An account id as a URL path segment."""
+    return quote(account_id, safe="")
+
+
+def _arr_text(value: float) -> str:
+    """ARR as the edit form shows it: "$135,000", with cents only when the value has them."""
+    return f"${value:,.0f}" if float(value).is_integer() else f"${value:,.2f}"
+
+
+def _form_values(account: Account) -> dict[str, str]:
+    """The edit form's fields as the book shows them now."""
+    milestones = account.milestones
+    return {
+        "name": account.name,
+        "domain": account.domain or "",
+        "arr": _arr_text(account.arr),
+        "tier": account.tier,
+        "owner": account.owner,
+        "start_date": account.start_date.isoformat(),
+        "renewal_date": account.renewal_date.isoformat(),
+        "milestones_total": str(milestones.total),
+        "milestones_done": str(milestones.done),
+        "milestones_overdue": str(milestones.overdue),
+    }
+
+
+def _source_text(field: str, value: Any) -> str:
+    """A connection's value for one field, as the note says it: "$120,000", "1 December 2026"."""
+    if value is None or value == "":
+        return "nothing"
+    if field in ("start_date", "renewal_date") and isinstance(value, date):
+        return formatting.long_date(value)
+    if field == "arr":
+        return _arr_text(float(value))
+    if field.startswith("milestones_"):
+        return str(int(value))
+    return str(value)
+
+
+def _edit_notes(prov: Provenance) -> dict[str, dict[str, str]]:
+    """For each applied edit: the connection that owns the value and what that connection says.
+    Hand-added accounts never have edits, so they get none."""
+    if prov.editable_in_place or not prov.connections:
+        return {}
+    connection = prov.connections[0]
+    return {
+        field: {"connection": connection, "source": _source_text(field, prov.source_values[field])}
+        for field in EDITABLE_FIELDS
+        if field in prov.edits
+    }
+
+
+def _joined(names: list[str]) -> str:
+    """"A", "A and B", "A, B and C"."""
+    if len(names) <= 1:
+        return "".join(names)
+    return f"{', '.join(names[:-1])} and {names[-1]}"
+
+
+def _source_line(prov: Provenance) -> str:
+    """Where an account comes from: "From HubSpot.", "From HubSpot and Q4 renewals sheet (linked)."
+    or "Added by hand."."""
+    if prov.editable_in_place:
+        return "Added by hand."
+    linked = " (linked)" if len(prov.member_ids) > 1 else ""
+    return f"From {_joined(prov.connections)}{linked}."
+
+
+def _account_status(added: str, edited: str, reading: str, unlinked: str) -> str:
+    """The status line on the account page, for the query that the last action redirected with."""
+    if added == "1":
+        return "Account added."
+    if edited == "1":
+        return "Changes saved."
+    if edited == _UNCHANGED:
+        return "Nothing changed."
+    if reading == "1":
+        return "Reading added."
+    if unlinked == "1":
+        return "Unlinked. The accounts show separately again."
+    return ""
+
+
+def _revert_status(prov: Provenance, reverted: str) -> str:
+    """The edit page's status after a revert: which connection's value shows again."""
+    if reverted in EDITABLE_FIELDS and reverted not in prov.edits and prov.connections:
+        return f"Using {prov.connections[0]}'s value."
+    return ""
+
+
+def _render_edit(
+    request: Request,
+    account: Account,
+    prov: Provenance,
+    *,
+    values: Mapping[str, str],
+    errors: Mapping[str, str] | None = None,
+    refused: bool = False,
+    notice: str = "",
+    reading: Mapping[str, str] | None = None,
+    reading_error: str = "",
+    status_code: int = 200,
+) -> HTMLResponse:
+    """The edit page for one account. `values` is what each field shows; `errors` by field."""
+    return _render(
+        request,
+        "accounts/edit.html",
+        page=f"Edit {account.name}",
+        active="book",
+        account=account,
+        prov=prov,
+        values=dict(values),
+        errors=dict(errors or {}),
+        notes=_edit_notes(prov),
+        refused=refused,
+        notice=notice,
+        source_line=_source_line(prov),
+        kinds=list(SignalKind),
+        signal_labels=briefs.SIGNAL_LABELS,
+        reading=dict(reading or _NEW_READING),
+        reading_error=reading_error,
+        status_code=status_code,
+    )
+
+
+def _render_new(
+    request: Request,
+    *,
+    values: Mapping[str, str],
+    errors: Mapping[str, str],
+    refused: bool = False,
+    status_code: int = 200,
+) -> HTMLResponse:
+    """The add-an-account page, with the typed values kept when it is refused."""
+    return _render(
+        request,
+        "accounts/new.html",
+        page="Add an account",
+        active="book",
+        values=dict(values),
+        errors=dict(errors),
+        refused=refused,
+        status_code=status_code,
+    )
+
+
+def _refused(request: Request, page: str, message: str) -> HTMLResponse:
+    """A plain 422 page for an action the book won't take, with the reason in the layout."""
+    return _render(request, "not_found.html", page=page, status_code=422, message=message)
+
+
+def _duplicate_pairs(combined: CombinedConnector) -> list[dict[str, Any]]:
+    """Each suggested pair as two sides (name, connection, ARR, renewal, owner, website) and the
+    reason it was suggested."""
+    accounts = {account.id: account for account in combined.list_accounts()}
+    today = date.today()
+    pairs: list[dict[str, Any]] = []
+    for suggestion in combined.duplicate_suggestions():
+        sides = []
+        for account_id in suggestion.account_ids:
+            account = accounts[account_id]
+            prov = combined.provenance(account_id)
+            sides.append(
+                {
+                    "id": account_id,
+                    "name": account.name,
+                    "connection": _joined(prov.connections) if prov else "",
+                    "arr": money(account.arr),
+                    "renewal": formatting.day_label(account.renewal_date, today),
+                    "owner": account.owner,
+                    "website": account.domain or "Not given",
+                }
+            )
+        pairs.append({"reason": suggestion.reason, "sides": sides})
+    return pairs
+
+
+def _render_duplicates(
+    request: Request,
+    combined: CombinedConnector,
+    *,
+    status: str = "",
+    error: str = "",
+    status_code: int = 200,
+) -> HTMLResponse:
+    """The possible-duplicates page: each pair side by side, with its link and dismiss forms."""
+    return _render(
+        request,
+        "duplicates.html",
+        page="Possible duplicates",
+        active="book",
+        pairs=_duplicate_pairs(combined),
+        status=status,
+        error=error,
+        status_code=status_code,
+    )
+
+
 def create_app() -> FastAPI:
     """Build the web app: no API docs, a host allow-list, and security headers on every response."""
     app = FastAPI(docs_url=None, redoc_url=None, openapi_url=None)
@@ -946,6 +1192,8 @@ def create_app() -> FastAPI:
         q: str = "",
         imported: str = "",
         removed: str = "",
+        hidden: str = "",
+        deleted: str = "",
     ) -> Response:
         """My book. An htmx refresh gets only the results partial, not on a history restore.
         With Your data and nothing connected, this is the Setup page instead."""
@@ -1000,6 +1248,8 @@ def create_app() -> FastAPI:
             oob=partial,
             duplicate_count=0 if partial else _duplicate_count(),
             import_notice=[] if partial else _import_notice(imported, removed),
+            hidden_name="" if partial else hidden,
+            deleted_name="" if partial else deleted,
         )
         response.headers["Vary"] = "HX-Request, HX-History-Restore-Request"
         return response
@@ -1173,10 +1423,44 @@ def create_app() -> FastAPI:
         save_scoring_config(draft)
         return RedirectResponse("/settings/scoring?saved=1", status_code=303)
 
+    # Your data: add an account. It works in demo mode too, and switches the book to Your data.
+    # /accounts/new is declared before /accounts/{account_id}, which would otherwise match "new".
+
+    @app.get("/accounts/new")
+    def new_account_page(request: Request) -> HTMLResponse:
+        """Add an account by hand. Name, ARR and renewal date are required."""
+        return _render_new(request, values={}, errors={})
+
+    @app.post("/accounts/new")
+    async def create_account_route(request: Request) -> Response:
+        """Save a hand-added account. A refusal re-renders the form with each message (422)."""
+        fields = await _posted_fields(request)
+        typed = {name: fields.get(name, "") for name in EDITABLE_FIELDS}
+        try:
+            account = editing.create_account(service.get_store(), typed, today=date.today())
+        except editing.EditError as error:
+            return _render_new(
+                request, values=typed, errors=error.errors, refused=True, status_code=422
+            )
+        if load_settings().source is DataSource.DEMO:
+            save_settings(load_settings().model_copy(update={"source": DataSource.MINE}))
+        service.reset_connectors()
+        return RedirectResponse(f"/accounts/{_quoted_id(account.id)}?added=1", status_code=303)
+
     @app.get("/accounts/{account_id}")
-    def account(request: Request, account_id: str) -> HTMLResponse:
-        """One account's call prep: summary, next step, score breakdown and signal history."""
-        detail = service.get_account_detail(account_id)
+    def account(
+        request: Request,
+        account_id: str,
+        edited: str = "",
+        reading: str = "",
+        added: str = "",
+        unlinked: str = "",
+    ) -> HTMLResponse:
+        """One account's call prep: summary, next step, score breakdown and signal history. With
+        Your data showing, it also has the edit link, where each figure came from, the notices
+        and the readings added by hand."""
+        connector = service.get_connector()
+        detail = service.get_account_detail(account_id, connector)
         if detail is None:
             return _render(
                 request,
@@ -1186,6 +1470,18 @@ def create_app() -> FastAPI:
                 message=f"No account with id {account_id}.",
                 book=True,
             )
+        combined = connector if isinstance(connector, CombinedConnector) else None
+        prov = combined.provenance(account_id) if combined is not None else None
+        notices: list[Notice] = []
+        manual: set[tuple[str, datetime, float]] = set()
+        if combined is not None:
+            notices = service.get_store().notices(account_id)
+            manual = {
+                (signal.kind.value, signal.observed_at, signal.value)
+                for signal in combined.list_signals(account_id)
+                if signal.source == "manual"
+            }
+        edits = prov.edits if prov is not None else {}
         return _render(
             request,
             "account.html",
@@ -1196,7 +1492,239 @@ def create_app() -> FastAPI:
             thresholds=load_scoring_config().thresholds,
             timeline_days=formatting.group_by_day(detail.timeline),
             connector_label=_connector_label(),
+            prov=prov,
+            edits=edits,
+            milestones_edited=any(field.startswith("milestones_") for field in edits),
+            linked=prov is not None and len(prov.member_ids) > 1,
+            source_line=_source_line(prov) if prov is not None else "",
+            notices=notices,
+            manual_readings=manual,
+            status=_account_status(added, edited, reading, unlinked),
         )
+
+    # Your data: edit an account. Every route checks the id against the book first.
+
+    @app.get("/accounts/{account_id}/edit")
+    def edit_account_page(request: Request, account_id: str, reverted: str = "") -> HTMLResponse:
+        """The edit form, with the values the book shows and each edit's connection value."""
+        found = _editable_account(request, account_id)
+        if isinstance(found, HTMLResponse):
+            return found
+        _, account, prov = found
+        return _render_edit(
+            request,
+            account,
+            prov,
+            values=_form_values(account),
+            notice=_revert_status(prov, reverted),
+        )
+
+    @app.post("/accounts/{account_id}/edit")
+    async def save_account(request: Request, account_id: str) -> Response:
+        """Save the edit form. Every message comes back with the form (422), and nothing is kept."""
+        found = _editable_account(request, account_id)
+        if isinstance(found, HTMLResponse):
+            return found
+        combined, account, prov = found
+        fields = await _posted_fields(request)
+        submitted = {name: fields[name] for name in EDITABLE_FIELDS if name in fields}
+        try:
+            changed = editing.edit_account(
+                service.get_store(), combined, account_id, submitted, now=datetime.now(UTC)
+            )
+        except editing.EditError as error:
+            return _render_edit(
+                request,
+                account,
+                prov,
+                values={**_form_values(account), **submitted},
+                errors=error.errors,
+                refused=True,
+                status_code=422,
+            )
+        status = "1" if changed else _UNCHANGED
+        return RedirectResponse(
+            f"/accounts/{_quoted_id(account_id)}?{urlencode({'edited': status})}", status_code=303
+        )
+
+    @app.post("/accounts/{account_id}/revert/{field}")
+    def revert_field(request: Request, account_id: str, field: str) -> Response:
+        """Drop one edit, so the connection's value shows again."""
+        if field not in EDITABLE_FIELDS:
+            return _missing(request, "Field not found", _NO_FIELD)
+        found = _editable_account(request, account_id)
+        if isinstance(found, HTMLResponse):
+            return found
+        combined, _, _ = found
+        editing.revert_field(service.get_store(), combined, account_id, field)
+        return RedirectResponse(
+            f"/accounts/{_quoted_id(account_id)}/edit?{urlencode({'reverted': field})}",
+            status_code=303,
+        )
+
+    @app.post("/accounts/{account_id}/readings")
+    async def add_reading_route(request: Request, account_id: str) -> Response:
+        """Add a signal reading by hand. Champion left reads its Yes or No choice; every other
+        signal reads the value box. A refusal shows the message with the form (422)."""
+        found = _editable_account(request, account_id)
+        if isinstance(found, HTMLResponse):
+            return found
+        combined, account, prov = found
+        fields = await _posted_fields(request)
+        reading = {
+            "kind": fields.get("kind", ""),
+            "value": fields.get("value", ""),
+            "yes_no": fields.get("yes_no", "") or "yes",
+        }
+
+        def refuse(message: str) -> HTMLResponse:
+            return _render_edit(
+                request,
+                account,
+                prov,
+                values=_form_values(account),
+                reading=reading,
+                reading_error=message,
+                status_code=422,
+            )
+
+        try:
+            kind = SignalKind(reading["kind"])
+        except ValueError:
+            return refuse(_UNKNOWN_SIGNAL)
+        typed = reading["yes_no"] if kind is SignalKind.CHAMPION_LEFT else reading["value"]
+        try:
+            editing.add_reading(
+                service.get_store(),
+                combined,
+                account_id,
+                kind,
+                typed,
+                now=datetime.now(UTC),
+            )
+        except editing.EditError as error:
+            return refuse(str(error))
+        return RedirectResponse(
+            f"/accounts/{_quoted_id(account_id)}?{urlencode({'reading': '1'})}", status_code=303
+        )
+
+    @app.post("/accounts/{account_id}/notices/{notice_id}/dismiss")
+    def dismiss_notice(request: Request, account_id: str, notice_id: str) -> Response:
+        """Dismiss one notice on an account. The id must belong to that account."""
+        found = _editable_account(request, account_id)
+        if isinstance(found, HTMLResponse):
+            return found
+        store = service.get_store()
+        if notice_id not in {notice.id for notice in store.notices(account_id)}:
+            return _missing(request, "Message not found", _NO_NOTICE)
+        store.dismiss_notice(notice_id)
+        return RedirectResponse(f"/accounts/{_quoted_id(account_id)}", status_code=303)
+
+    @app.post("/accounts/{account_id}/hide")
+    def hide_account(request: Request, account_id: str) -> Response:
+        """Hide an account, and every account linked to it. My book says so, with a way back."""
+        found = _editable_account(request, account_id)
+        if isinstance(found, HTMLResponse):
+            return found
+        combined, account, _ = found
+        editing.set_hidden(service.get_store(), combined, account_id, True)
+        return RedirectResponse(f"/?{urlencode({'hidden': account.name})}", status_code=303)
+
+    @app.get("/accounts/{account_id}/delete")
+    def delete_account_page(request: Request, account_id: str) -> HTMLResponse:
+        """The confirmation page. Only accounts added by hand can be deleted."""
+        found = _editable_account(request, account_id)
+        if isinstance(found, HTMLResponse):
+            return found
+        _, account, prov = found
+        if not prov.editable_in_place:
+            return _refused(request, f"Can't delete {account.name}", _HAND_ADDED_ONLY)
+        return _render(
+            request,
+            "accounts/delete.html",
+            page=f"Delete {account.name}",
+            active="book",
+            account=account,
+        )
+
+    @app.post("/accounts/{account_id}/delete")
+    def delete_account(request: Request, account_id: str) -> Response:
+        """Delete a hand-added account with its readings. Anything synced is refused (422)."""
+        found = _editable_account(request, account_id)
+        if isinstance(found, HTMLResponse):
+            return found
+        _, account, prov = found
+        if not prov.editable_in_place:
+            return _refused(request, f"Can't delete {account.name}", _HAND_ADDED_ONLY)
+        try:
+            editing.delete_account(service.get_store(), account_id)
+        except editing.EditError as error:
+            return _refused(request, f"Can't delete {account.name}", str(error))
+        return RedirectResponse(f"/?{urlencode({'deleted': account.name})}", status_code=303)
+
+    @app.post("/accounts/{account_id}/unlink")
+    def unlink_account(request: Request, account_id: str) -> Response:
+        """Undo a link: the accounts it merged show separately again."""
+        found = _editable_account(request, account_id)
+        if isinstance(found, HTMLResponse):
+            return found
+        combined, account, _ = found
+        try:
+            editing.unlink(service.get_store(), combined, account_id)
+        except editing.EditError as error:
+            return _refused(request, f"Can't unlink {account.name}", str(error))
+        return RedirectResponse(
+            f"/accounts/{_quoted_id(account_id)}?{urlencode({'unlinked': '1'})}", status_code=303
+        )
+
+    # Your data: possible duplicates. Both ids of a link or a dismissal are checked first.
+
+    @app.get("/duplicates")
+    def duplicates_page(request: Request, linked: str = "", dismissed: str = "") -> HTMLResponse:
+        """Accounts from different connections that look like the same customer."""
+        combined = _your_book()
+        if combined is None:
+            return _missing(request, "Page not found", _DUPLICATES_DEMO)
+        status = ""
+        if linked:
+            status = f"Linked {linked}."
+        elif dismissed == "1":
+            status = "Got it. They won't be suggested again."
+        return _render_duplicates(request, combined, status=status)
+
+    @app.post("/duplicates/link")
+    async def link_duplicates(request: Request) -> Response:
+        """Link two accounts into one, keeping the name of the one chosen."""
+        combined = _your_book()
+        if combined is None:
+            return _missing(request, "Page not found", _DUPLICATES_DEMO)
+        fields = await _posted_fields(request)
+        first = fields.get("first", "")
+        second = fields.get("second", "")
+        primary = fields.get("primary", "")
+        accounts = {account.id: account for account in combined.list_accounts()}
+        if first not in accounts or second not in accounts:
+            return _render_duplicates(request, combined, error=_NOT_IN_BOOK_FORM, status_code=422)
+        name = accounts[primary].name if primary in accounts else accounts[first].name
+        try:
+            editing.link_accounts(service.get_store(), combined, [first, second], primary)
+        except editing.EditError as error:
+            return _render_duplicates(request, combined, error=str(error), status_code=422)
+        return RedirectResponse(f"/duplicates?{urlencode({'linked': name})}", status_code=303)
+
+    @app.post("/duplicates/dismiss")
+    async def dismiss_duplicate_route(request: Request) -> Response:
+        """Mark a suggested pair as not the same, so it is not suggested again."""
+        combined = _your_book()
+        if combined is None:
+            return _missing(request, "Page not found", _DUPLICATES_DEMO)
+        fields = await _posted_fields(request)
+        first, second = sorted((fields.get("first", ""), fields.get("second", "")))
+        suggested = {suggestion.account_ids for suggestion in combined.duplicate_suggestions()}
+        if (first, second) not in suggested:
+            return _render_duplicates(request, combined, error=_NOT_SUGGESTED, status_code=422)
+        editing.dismiss_duplicate(service.get_store(), combined, (first, second))
+        return RedirectResponse("/duplicates?dismissed=1", status_code=303)
 
     @app.get("/settings/connections")
     def connections(

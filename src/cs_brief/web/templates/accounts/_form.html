@@ -1,0 +1,50 @@
+{# The fields of the edit page and the add-an-account page. Each label sits above its input. An error
+   is linked to its input with aria-describedby and aria-invalid. An applied edit shows its note
+   under the input, with a button that sends the revert form (the form is outside this one). #}
+{% from "partials/edited.html" import edited_marker %}
+
+{% macro note(name, notes) -%}
+{% set item = notes.get(name) %}
+{% if item %}
+<div class="edit-note">
+  <p>{{ edited_marker() }}. {{ item.connection }} says {{ item.source }}.</p>
+  <button type="submit" class="button button--small" form="revert-{{ name | replace('_', '-') }}">Use {{ item.connection }}'s value</button>
+</div>
+{% endif %}
+{%- endmacro %}
+
+{% macro field(name, label, values, errors, notes, kind="text", required=false) -%}
+{% set id = "field-" ~ (name | replace('_', '-')) %}
+<div class="field account-field">
+  <label for="{{ id }}">{{ label }}{% if required %} <span class="required-word">Required</span>{% endif %}</label>
+  <input type="{{ kind }}" id="{{ id }}" name="{{ name }}" value="{{ values.get(name, '') }}" autocomplete="off"{% if required %} aria-required="true"{% endif %}{% if errors.get(name) %} aria-invalid="true" aria-describedby="{{ id }}-error"{% endif %}>
+  {% if errors.get(name) %}<p class="field-error" id="{{ id }}-error">{{ errors.get(name) }}</p>{% endif %}
+  {{ note(name, notes) }}
+</div>
+{%- endmacro %}
+
+{% macro milestones(values, errors, notes) -%}
+<fieldset class="milestones">
+  <legend>Onboarding milestones</legend>
+  {% for name, label in [('milestones_total', 'Total'), ('milestones_done', 'Done'), ('milestones_overdue', 'Overdue')] %}
+  {% set id = "field-" ~ (name | replace('_', '-')) %}
+  <div class="milestone">
+    <label for="{{ id }}">{{ label }}</label>
+    <input type="number" id="{{ id }}" name="{{ name }}" min="0" step="1" value="{{ values.get(name, '') }}"{% if errors.get(name) %} aria-invalid="true" aria-describedby="{{ id }}-error"{% endif %}>
+    {% if errors.get(name) %}<p class="field-error" id="{{ id }}-error">{{ errors.get(name) }}</p>{% endif %}
+    {{ note(name, notes) }}
+  </div>
+  {% endfor %}
+</fieldset>
+{%- endmacro %}
+
+{% macro account_fields(values, errors, notes, new) -%}
+{{ field('name', 'Name', values, errors, notes, required=new) }}
+{{ field('domain', 'Website', values, errors, notes) }}
+{{ field('arr', 'ARR', values, errors, notes, required=new) }}
+{{ field('tier', 'Tier', values, errors, notes) }}
+{{ field('owner', 'Owner', values, errors, notes) }}
+{{ field('start_date', 'Customer since', values, errors, notes, kind='date') }}
+{{ field('renewal_date', 'Renewal date', values, errors, notes, kind='date', required=new) }}
+{{ milestones(values, errors, notes) }}
+{%- endmacro %}

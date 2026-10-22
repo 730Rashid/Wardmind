@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% from "accounts/_form.html" import account_fields %}
+{% block content %}
+<div class="account-edit">
+  <header class="edit-head">
+    <h1 class="page-title">Add an account</h1>
+    <p class="field-help">Name, ARR and renewal date are required. You can add the rest now or later.</p>
+  </header>
+  {% if refused %}<p class="field-error" role="alert">Nothing was saved. Fix the marked fields, then save again.</p>{% endif %}
+
+  <form class="account-form" method="post" action="/accounts/new">
+    {{ account_fields(values, errors, {}, true) }}
+    <div class="form-actions">
+      <button type="submit" class="button-primary">Save account</button>
+      <a class="button" href="/">Cancel</a>
+    </div>
+  </form>
+</div>
+{% endblock %}

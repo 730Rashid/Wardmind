@@ -2403,6 +2403,317 @@ label.button:focus-within {
   }
 }
 
+/* Your data: the account page additions, the edit and add pages, and possible duplicates. Forms are
+   one column of at most 40rem, with each label above its input. The edited marker and the notes
+   are ink with a pencil, so they never rely on colour. */
+[hidden] {
+  display: none !important;
+}
+
+.button--small {
+  padding: var(--space-1) var(--space-3);
+  font-size: var(--t-sm);
+  line-height: var(--lh-sm);
+}
+
+.status-line {
+  font-size: var(--t-sm);
+  line-height: var(--lh-sm);
+  color: var(--ink);
+}
+
+.account-title {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-4);
+}
+
+.edited {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  font-size: var(--t-sm);
+  line-height: var(--lh-sm);
+  color: var(--ink);
+  white-space: nowrap;
+}
+
+.source-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+}
+
+.source-line {
+  font-size: var(--t-sm);
+  line-height: var(--lh-sm);
+  color: var(--ink-muted);
+}
+
+/* Notices are sentences in the body size, each with its Dismiss button beside it. */
+.notice-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.notice {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2) var(--space-4);
+  padding-inline-start: var(--space-4);
+  border-inline-start: 3px solid var(--ink);
+}
+
+.account-edit {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+  max-inline-size: 40rem;
+}
+
+.edit-head {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.account-form,
+.reading-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+  margin: 0;
+}
+
+.account-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.account-form input,
+.account-form select,
+.reading-form input,
+.reading-form select {
+  padding-block: var(--space-2);
+  padding-inline: var(--space-3);
+}
+
+.account-form input:not([type="number"]) {
+  inline-size: 100%;
+  max-inline-size: 24rem;
+}
+
+.milestones {
+  min-inline-size: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.milestones legend {
+  padding: 0;
+  margin-block-end: var(--space-2);
+  font-weight: 600;
+}
+
+.milestone {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-1);
+  max-inline-size: 12rem;
+  margin-inline-end: var(--space-5);
+  margin-block-end: var(--space-3);
+  vertical-align: top;
+}
+
+.milestone input {
+  inline-size: 6.5rem;
+  padding-block: var(--space-2);
+  padding-inline: var(--space-3);
+}
+
+/* The note under an applied edit: the pencil and the words, then the revert button. */
+.edit-note {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-2);
+  font-size: var(--t-sm);
+  line-height: var(--lh-sm);
+  color: var(--ink);
+}
+
+.edit-note p {
+  margin: 0;
+}
+
+/* The revert forms only carry the action for the buttons above; nothing is drawn for them. */
+.revert-form {
+  display: none;
+}
+
+.reading-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--space-3) var(--space-4);
+}
+
+.reading-row .field {
+  min-inline-size: 0;
+}
+
+.reading-row input[type="text"] {
+  inline-size: 10rem;
+}
+
+/* Hide, delete: one sentence on the left, its button on the right, above a rule. */
+.action-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3) var(--space-5);
+  padding-block: var(--space-4);
+  border-block-start: 1px solid var(--line);
+}
+
+.action-row p,
+.action-row form {
+  margin: 0;
+}
+
+/* Possible duplicates: each pair is two columns split by a rule, with no card around it. */
+.duplicates-page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+
+.duplicate-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.duplicate-pair {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  padding-block: var(--space-5);
+  border-block-end: 1px solid var(--line);
+}
+
+.duplicate-pair:first-child {
+  padding-block-start: 0;
+}
+
+.duplicate-sides {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+}
+
+.duplicate-side {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-inline-size: 0;
+  padding-inline-end: var(--space-5);
+}
+
+.duplicate-side + .duplicate-side {
+  padding-inline-start: var(--space-5);
+  padding-inline-end: 0;
+  border-inline-start: 1px solid var(--line);
+}
+
+.duplicate-name {
+  font-size: var(--t-md);
+  line-height: var(--lh-md);
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.duplicate-facts {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: var(--space-1) var(--space-4);
+  margin: 0;
+}
+
+.duplicate-facts dt {
+  font-size: var(--t-sm);
+  line-height: var(--lh-sm);
+  color: var(--ink-muted);
+}
+
+.duplicate-facts dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.duplicate-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: var(--space-4) var(--space-5);
+}
+
+.duplicate-link {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin: 0;
+}
+
+.keep-name {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-inline-size: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.keep-name legend {
+  padding: 0;
+  margin-block-end: var(--space-1);
+  font-size: var(--t-sm);
+  line-height: var(--lh-sm);
+  color: var(--ink-muted);
+}
+
+.duplicate-actions .inline-form {
+  margin: 0;
+}
+
+@media (max-width: 767px) {
+  .duplicate-sides {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .duplicate-side,
+  .duplicate-side + .duplicate-side {
+    padding-inline: 0;
+    border-inline-start: 0;
+  }
+
+  .duplicate-side + .duplicate-side {
+    padding-block-start: var(--space-4);
+    border-block-start: 1px solid var(--line);
+  }
+}
+
 /* Print and save as PDF: light tokens always, on A4 with 16mm margins. */
 @page {
   size: A4;

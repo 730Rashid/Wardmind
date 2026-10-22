@@ -135,3 +135,22 @@ document.querySelectorAll("[data-dropzone]").forEach((zone) => {
 ["dragover", "drop"].forEach((type) => {
   window.addEventListener(type, (event) => event.preventDefault());
 });
+
+// Add a signal reading on the edit page. The chosen signal decides which value box shows: Champion
+// left takes Yes or No, every other signal takes a number. Each option names its box in a data
+// attribute. Without JavaScript both boxes stay on the page, and the server reads the matching one.
+function showReadingInput(select) {
+  const wanted = select.selectedOptions[0]?.dataset.readingInput;
+  if (!wanted || !select.form) return;
+  select.form.querySelectorAll("[data-reading-field]").forEach((field) => {
+    field.hidden = field.dataset.readingField !== wanted;
+  });
+}
+
+document.querySelectorAll("select[data-reading-kind]").forEach(showReadingInput);
+document.addEventListener("change", (event) => {
+  const select = event.target;
+  if (select instanceof HTMLSelectElement && select.hasAttribute("data-reading-kind")) {
+    showReadingInput(select);
+  }
+});

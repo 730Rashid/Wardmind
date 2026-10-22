@@ -8,6 +8,12 @@
     {% for sentence in import_notice %}<p>{{ sentence }}</p>{% endfor %}
   </div>
   {% endif %}
+  {% if hidden_name %}
+  <p class="import-notice" role="status">{{ hidden_name }} is hidden. <a href="/settings/connections">Show it again from Connections.</a></p>
+  {% endif %}
+  {% if deleted_name %}
+  <p class="import-notice" role="status">{{ deleted_name }} was deleted.</p>
+  {% endif %}
   <p class="summary">
     <span class="summary-line">{{ summary_first }}</span>
     <span class="summary-line summary-line--muted">{{ summary_second }}</span>

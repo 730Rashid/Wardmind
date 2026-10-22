@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="duplicates-page">
+  <h1 class="page-title">Possible duplicates</h1>
+  {% if status %}<p class="status-line" role="status">{{ status }}</p>{% endif %}
+  {% if error %}<p class="field-error" role="alert">{{ error }}</p>{% endif %}
+
+  {% if pairs %}
+  <p class="prose field-help">These accounts come from different connections and look like the same customer. Link them to keep one account, or mark them as not the same.</p>
+  <div class="duplicate-list">
+    {% for pair in pairs %}
+    {% set first, second = pair.sides %}
+    <section class="duplicate-pair" aria-labelledby="pair-{{ loop.index }}">
+      <p class="duplicate-reason" id="pair-{{ loop.index }}">{{ pair.reason }}</p>
+      <div class="duplicate-sides">
+        {% for side in pair.sides %}
+        <div class="duplicate-side">
+          <p class="duplicate-name">{{ side.name }}</p>
+          <dl class="duplicate-facts">
+            <dt>Connection</dt>
+            <dd>{{ side.connection }}</dd>
+            <dt>ARR</dt>
+            <dd>{{ side.arr }}</dd>
+            <dt>Renewal date</dt>
+            <dd>{{ side.renewal }}</dd>
+            <dt>Owner</dt>
+            <dd>{{ side.owner }}</dd>
+            <dt>Website</dt>
+            <dd>{{ side.website }}</dd>
+          </dl>
+        </div>
+        {% endfor %}
+      </div>
+      <div class="duplicate-actions">
+        <form class="duplicate-link" method="post" action="/duplicates/link">
+          <input type="hidden" name="first" value="{{ first.id }}">
+          <input type="hidden" name="second" value="{{ second.id }}">
+          <fieldset class="keep-name">
+            <legend>Name to keep</legend>
+            {% for side in pair.sides %}
+            <label class="choice"><input type="radio" name="primary" value="{{ side.id }}"{% if loop.first %} checked{% endif %}> {{ side.name }} from {{ side.connection }}</label>
+            {% endfor %}
+          </fieldset>
+          <button type="submit" class="button">Link these</button>
+        </form>
+        <form class="inline-form" method="post" action="/duplicates/dismiss">
+          <input type="hidden" name="first" value="{{ first.id }}">
+          <input type="hidden" name="second" value="{{ second.id }}">
+          <button type="submit" class="button">Not the same</button>
+        </form>
+      </div>
+    </section>
+    {% endfor %}
+  </div>
+  {% else %}
+  <div class="empty">
+    <p>No possible duplicates right now.</p>
+    <p><a href="/">Back to My book</a></p>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}
