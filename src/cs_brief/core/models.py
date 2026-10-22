@@ -70,7 +70,9 @@ class Account(BaseModel):
     arr: float = Field(ge=0)
     tier: str
     owner: str
-    start_date: date
+    # When they became a customer. None when no source knows it: cs-brief never invents one,
+    # because a made-up date would read as "started today" and could trigger onboarding.
+    start_date: date | None = None
     renewal_date: date
     milestones: Milestones
     domain: str | None = None  # website, e.g. "acme.com"; the strongest duplicate-matching key

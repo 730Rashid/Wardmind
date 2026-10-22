@@ -69,7 +69,7 @@ class OnboardingBrief(BaseModel):
     health: Health
     motion: Motion
     in_onboarding: bool  # motion is Motion.ONBOARDING
-    day: int  # days_since_start + 1, so the start date is day 1
+    day: int | None  # days_since_start + 1, so the start date is day 1; None if it isn't known
     window_days: int  # MotionWindows.onboarding_days
     milestones: list[PlanMilestone]  # this account's plan, in order
     signals: list[BreakdownRow]  # the account's ONBOARDING_SIGNALS breakdown rows, in that order

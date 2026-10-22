@@ -78,7 +78,7 @@ class AccountDetail(BaseModel):
     explanation: Explanation
     rank: int  # 1-based position in the full book
     book_size: int
-    days_since_start: int
+    days_since_start: int | None  # None when the account's start date isn't known
     days_to_renewal: int  # negative once the renewal date has passed
     # Every SignalKind: contribution desc, then kind value asc (the same tie-break as
     # ScoredAccount.reasons, so the non-zero rows match the reasons exactly).

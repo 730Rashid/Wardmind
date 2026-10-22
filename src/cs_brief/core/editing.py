@@ -84,7 +84,8 @@ class EditError(ValueError):
 
 def parse_edit_value(field: str, raw: str) -> EditValue:
     """Parse a form value for one of store.EDITABLE_FIELDS. Money accepts the same forms as
-    importing ("$120,000", "120k"); dates are ISO from <input type="date">; milestones are
+    importing ("$120,000", "120k"); dates are ISO from <input type="date">, and a blank start
+    date means "not known" (None) while a blank renewal date is an error; milestones are
     whole numbers 0 or more; name can't be blank; domain is normalized with
     matching.normalize_domain (blank means none). Raises EditError(field=field)."""
     if field not in EDITABLE_FIELDS:
@@ -127,7 +128,8 @@ def parse_edit_value(field: str, raw: str) -> EditValue:
 
 def create_account(store: LocalStore, values: dict[str, str], *, today: date) -> Account:
     """Add an account by hand (enabling the manual connection if needed). Name, ARR and
-    renewal date are required; the rest default as in importing.build_import. Returns it."""
+    renewal date are required; the rest default as in importing.build_import (no start date
+    unless one is given). Returns it."""
     parsed, errors = _parse_submitted(values, skip_blank=True)
     for field in _REQUIRED_ON_CREATE:
         if not values.get(field, "").strip():

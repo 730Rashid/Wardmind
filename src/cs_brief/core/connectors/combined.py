@@ -7,8 +7,9 @@ Order of work on each load:
    skipped and recorded in `problems`; the book is built from the rest.
 2. Drop hidden accounts (store.hidden()).
 3. Apply confirmed links: each LinkGroup becomes one account with the primary's id. Fields come
-   from the primary; a field the primary lacks (None domain, "Unknown" tier, "Unassigned" owner,
-   0 ARR, 0-total milestones) is filled from the other members in group order. Every member's
+   from the primary; a field the primary lacks (None domain, None start date, "Unknown" tier,
+   "Unassigned" owner, 0 ARR, 0-total milestones) is filled from the other members in group
+   order. Every member's
    signals are re-keyed to the primary id. Members not present this load are ignored.
 4. Add hand-entered readings from store.manual().signals for any account id, re-keyed through
    links.

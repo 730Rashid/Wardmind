@@ -1380,7 +1380,8 @@ def build_import(
       (connection "sheet-<n>"). A repeated id within the file skips the later row.
     - Missing or invalid required field: the row is skipped with an issue per problem.
     - Invalid optional field: the row is kept, that field is left empty, an issue is recorded.
-    - start_date defaults to today when absent; tier to "Unknown"; owner to "Unassigned".
+    - start_date stays None when the column is unmapped or the cell is blank (never today);
+      tier defaults to "Unknown"; owner to "Unassigned".
     - Milestones are clamped to a valid Milestones with an issue when they don't add up.
     - Each mapped signal with a value becomes Signal(source="spreadsheet",
       observed_at=imported_at as naive UTC). The import field "signal:open_tickets_sev1"

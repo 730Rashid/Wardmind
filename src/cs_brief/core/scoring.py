@@ -44,7 +44,10 @@ def normalise(value: float, rule: SignalRule) -> float:
 
 
 def classify_motion(account: Account, as_of: date, windows: MotionWindows) -> Motion:
-    """Onboarding, then Renewal, then Churn; first match wins (see config.MotionWindows)."""
+    """Onboarding, then Renewal, then Churn; first match wins (see config.MotionWindows).
+
+    Onboarding needs a known start date: an account without one is never in onboarding,
+    because there is no way to tell it is in its first `onboarding_days` days."""
     days_since_start = (as_of - account.start_date).days
     if days_since_start < windows.onboarding_days and not account.milestones.complete:
         return Motion.ONBOARDING
