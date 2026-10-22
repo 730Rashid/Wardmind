@@ -92,9 +92,13 @@ def _member(config: ConnectionConfig, store: LocalStore) -> Connector:
 
 
 def _add_legacy_hubspot(store: LocalStore) -> None:
-    """The HubSpot-only setting of earlier versions: a saved token with no connections at all
-    becomes a HubSpot connection. It happens once, because the connection then exists."""
-    if not store.connections() and secrets.get_hubspot_token() is not None:
+    """The HubSpot-only setting of earlier versions: a token saved from the page, with no
+    connections at all, becomes a HubSpot connection. It happens once, because the connection
+    then exists. A token from the environment variable doesn't count: otherwise removing the
+    HubSpot connection would undo itself on the next load while the variable is still set."""
+    if store.connections():
+        return
+    if secrets.token_status().source is secrets.TokenSource.FILE:
         store.add_connection(ConnectionKind.HUBSPOT, _HUBSPOT_NAME)
 
 

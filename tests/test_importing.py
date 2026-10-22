@@ -1283,3 +1283,22 @@ def test_issues_csv_skips_an_issue_with_no_matching_row():
     issues = [ImportIssue(row=3, field="name", message="Account name is empty.")]
     rows_out = list(csv.reader(io.StringIO(issues_csv(table, issues))))
     assert rows_out == [["Account name", "ARR", "Renewal date", "Problems"]]
+
+
+@pytest.mark.parametrize(
+    ("cell", "written"),
+    [
+        ('=HYPERLINK("http://evil.example","x")', '\'=HYPERLINK("http://evil.example","x")'),
+        ("+1+2", "'+1+2"),
+        ("@SUM(A1:A2)", "'@SUM(A1:A2)"),
+        ("-2+3", "'-2+3"),
+        ("-25", "-25"),
+        ("-1,200.5", "-1,200.5"),
+        ("Larkspur Freight", "Larkspur Freight"),
+    ],
+)
+def test_issues_csv_neutralises_cells_a_spreadsheet_would_run_as_formulas(cell, written):
+    table = _table(BASE, [[cell, "TBC", "2026-12-01"]])
+    issues = [ImportIssue(row=2, field="arr", message='ARR "TBC" isn\'t an amount.')]
+    rows_out = list(csv.reader(io.StringIO(issues_csv(table, issues))))
+    assert rows_out[1][0] == written

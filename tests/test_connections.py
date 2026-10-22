@@ -12,7 +12,7 @@ import os
 import re
 import time
 from collections.abc import Iterator
-from datetime import date
+from datetime import UTC, date, datetime
 from html.parser import HTMLParser
 from pathlib import Path
 from typing import Any
@@ -20,12 +20,14 @@ from typing import Any
 import pytest
 from fastapi.testclient import TestClient
 
-from cs_brief.core import secrets, service
+from cs_brief.core import editing, import_flow, importing, secrets, service
 from cs_brief.core.config import ScoringConfig
 from cs_brief.core.connectors.demo import DemoConnector
 from cs_brief.core.connectors.errors import ConnectionNotReady, ConnectorError
 from cs_brief.core.connectors.hubspot import API_BASE, CheckResult, ConnectionCheck, HubSpotMapping
+from cs_brief.core.importing import DateOrder
 from cs_brief.core.settings import DataSource, Settings, Theme, load_settings, save_settings
+from cs_brief.core.store import ConnectionKind, LocalStore
 from cs_brief.web import app as web
 from cs_brief.web import formatting
 from cs_brief.web.scoring_form import form_values
@@ -900,3 +902,227 @@ def test_a_cross_site_post_is_refused_and_changes_nothing(
     assert hub.checks_run == 0
     assert hub.tokens == []
     assert resets == []
+
+
+# Your connections: the list, include, rename, remove and hidden accounts
+
+SHEET_CSV = (
+    "Company,ARR,Renewal date,Website\n"
+    '"Larkspur Freight","$184,000",2026-12-01,larkspur.example\n'
+    '"Quillon Health","$96,500",2026-11-15,quillon.example\n'
+)
+_IMPORTED_AT = datetime(2026, 10, 22, 9, 0)
+
+
+def _sheet(store: LocalStore, name: str = "Q4 renewals") -> None:
+    """Import SHEET_CSV as a new spreadsheet connection, through the core import steps."""
+    table = importing.read_csv(SHEET_CSV.encode("utf-8"), "renewals.csv")
+    draft = import_flow.save_draft(
+        store, table=table, file_bytes=SHEET_CSV.encode("utf-8"), new_name=name, now=_IMPORTED_AT
+    )
+    import_flow.commit(
+        draft,
+        importing.auto_map(table.headers),
+        DateOrder.YMD,
+        store,
+        now=datetime.now(UTC),
+        today=date.today(),
+    )
+
+
+def test_the_list_shows_each_connection_with_its_status_and_count(client: TestClient) -> None:
+    store = service.get_store()
+    _sheet(store)
+    editing.create_account(
+        store,
+        {"name": "Acme Freight", "arr": "$1,000", "renewal_date": "2027-01-01"},
+        today=date.today(),
+    )
+    response = client.get("/settings/connections")
+    text = _text(response)
+    assert "Q4 renewals" in text
+    assert "2 accounts. Imported " in text
+    assert " from renewals.csv." in text
+    assert "Added by hand" in text
+    assert "1 account." in text
+    assert 'href="/accounts/new"' in response.text
+    assert 'href="/import?target=sheet-1&amp;back=connections"' in response.text
+    assert 'href="/settings/connections/sheet-1/remove"' in response.text
+
+
+def test_the_list_says_when_there_are_no_connections(client: TestClient) -> None:
+    assert "No connections yet. Add one below." in client.get("/settings/connections").text
+
+
+def test_a_hubspot_row_shows_its_problem_in_an_alert(client: TestClient) -> None:
+    _use(DataSource.MINE)
+    service.get_store().add_connection(ConnectionKind.HUBSPOT, "HubSpot")
+    response = client.get("/settings/connections")
+    assert '<p class="connection-problem" role="alert">' in response.text
+    assert NO_TOKEN_MESSAGE in html.unescape(response.text)
+
+
+def test_a_connection_can_be_left_out_of_the_book(client: TestClient) -> None:
+    store = service.get_store()
+    _sheet(store)
+    off = client.post(
+        "/settings/connections/sheet-1/enabled", data={}, headers=ORIGIN, follow_redirects=False
+    )
+    assert off.status_code == 303
+    assert off.headers["location"] == "/settings/connections?saved=connection"
+    connection = store.get_connection("sheet-1")
+    assert connection is not None and connection.enabled is False
+    assert "Not included in your book." in client.get("/settings/connections").text
+
+    client.post("/settings/connections/sheet-1/enabled", data={"enabled": "1"}, headers=ORIGIN)
+    connection = store.get_connection("sheet-1")
+    assert connection is not None and connection.enabled is True
+    assert "Connection saved." in _text(client.get("/settings/connections?saved=connection"))
+
+
+def test_a_connection_can_be_renamed_and_the_name_is_checked(client: TestClient) -> None:
+    store = service.get_store()
+    _sheet(store)
+    renamed = client.post(
+        "/settings/connections/sheet-1/rename",
+        data={"name": "  Renewals 2027  "},
+        headers=ORIGIN,
+        follow_redirects=False,
+    )
+    assert renamed.status_code == 303
+    connection = store.get_connection("sheet-1")
+    assert connection is not None and connection.name == "Renewals 2027"
+
+    blank = client.post(
+        "/settings/connections/sheet-1/rename", data={"name": "   "}, headers=ORIGIN
+    )
+    assert blank.status_code == 422
+    assert "Give it a name." in _text(blank)
+    assert 'aria-invalid="true"' in blank.text
+
+    long_name = "x" * 61
+    long = client.post(
+        "/settings/connections/sheet-1/rename", data={"name": long_name}, headers=ORIGIN
+    )
+    assert long.status_code == 422
+    assert "A name can be at most 60 characters." in _text(long)
+    connection = store.get_connection("sheet-1")
+    assert connection is not None and connection.name == "Renewals 2027"
+
+
+def test_only_a_spreadsheet_can_be_renamed(client: TestClient) -> None:
+    store = service.get_store()
+    editing.create_account(
+        store, {"name": "Acme", "arr": "1000", "renewal_date": "2027-01-01"}, today=date.today()
+    )
+    manual = next(c.id for c in store.connections() if c.kind is ConnectionKind.MANUAL)
+    refused = client.post(
+        f"/settings/connections/{manual}/rename", data={"name": "Mine"}, headers=ORIGIN
+    )
+    assert refused.status_code == 422
+    assert "Only spreadsheets can be renamed." in _text(refused)
+
+
+def test_removing_a_sheet_asks_first_with_its_real_counts(client: TestClient) -> None:
+    _sheet(service.get_store())
+    response = client.get("/settings/connections/sheet-1/remove")
+    assert response.status_code == 200
+    text = _text(response)
+    assert "<title>Remove Q4 renewals - cs-brief</title>" in response.text
+    assert "Remove Q4 renewals?" in text
+    assert (
+        "Its 2 accounts and their history leave your book. Edits you made to them are deleted too."
+    ) in text
+    assert "The saved access token" not in text
+    assert "Remove sheet" in text
+    assert "Keep it" in text
+
+
+def test_removing_a_sheet_deletes_its_accounts_and_history(client: TestClient) -> None:
+    store = service.get_store()
+    _sheet(store)
+    response = client.post(
+        "/settings/connections/sheet-1/remove", headers=ORIGIN, follow_redirects=False
+    )
+    assert response.status_code == 303
+    assert response.headers["location"].startswith("/settings/connections?removed=Q4")
+    assert store.get_connection("sheet-1") is None
+    assert store.snapshot("sheet-1") is None
+    assert "Removed Q4 renewals." in _text(client.get(response.headers["location"]))
+
+
+def test_removing_hubspot_deletes_the_saved_token_too(
+    client: TestClient, secrets_folder: Path
+) -> None:
+    _use(DataSource.MINE)
+    _save_token()
+    service.get_store().add_connection(ConnectionKind.HUBSPOT, "HubSpot")
+    confirm = _text(client.get("/settings/connections/hubspot/remove"))
+    assert "The saved access token is deleted too." in confirm
+    response = client.post(
+        "/settings/connections/hubspot/remove", headers=ORIGIN, follow_redirects=False
+    )
+    assert response.status_code == 303
+    assert not (secrets_folder / secrets.TOKEN_FILE).exists()
+    assert service.get_store().get_connection("hubspot") is None
+    _assert_no_token(client.get("/settings/connections?removed=HubSpot"))
+
+
+def test_a_hidden_account_can_be_shown_again(client: TestClient) -> None:
+    store = service.get_store()
+    _sheet(store)
+    store.set_hidden("sp1-larkspur-freight", True)
+    response = client.get("/settings/connections")
+    assert "Hidden accounts (1)" in _text(response)
+    assert "Larkspur Freight" in _text(response)
+    assert '<details class="hidden-accounts">' in response.text
+
+    shown = client.post(
+        "/settings/connections/hidden/sp1-larkspur-freight/show",
+        headers=ORIGIN,
+        follow_redirects=False,
+    )
+    assert shown.status_code == 303
+    assert shown.headers["location"] == "/settings/connections?shown=1"
+    assert store.hidden() == []
+    assert "Account shown again." in _text(client.get("/settings/connections?shown=1"))
+
+
+def test_showing_an_account_that_is_not_hidden_is_a_404(client: TestClient) -> None:
+    response = client.post(
+        "/settings/connections/hidden/sp1-nothing/show", headers=ORIGIN, follow_redirects=False
+    )
+    assert response.status_code == 404
+
+
+@pytest.mark.parametrize(
+    ("method", "suffix", "data"),
+    [
+        ("get", "/remove", None),
+        ("post", "/enabled", {"enabled": "1"}),
+        ("post", "/rename", {"name": "New"}),
+        ("post", "/remove", {}),
+    ],
+)
+def test_an_unknown_connection_id_is_a_404(
+    client: TestClient, method: str, suffix: str, data: dict[str, str] | None
+) -> None:
+    path = f"/settings/connections/sheet-99{suffix}"
+    if method == "get":
+        response = client.get(path)
+    else:
+        response = client.post(path, data=data, headers=ORIGIN)
+    assert response.status_code == 404
+    assert "Back to My book" in _text(response)
+
+
+def test_the_add_a_connection_links_go_where_the_design_says(client: TestClient) -> None:
+    text = client.get("/settings/connections").text
+    for href in (
+        'href="/import?back=connections"',
+        'href="/import?paste=1&amp;back=connections"',
+        'href="#hubspot-access"',
+        'href="/accounts/new"',
+    ):
+        assert href in text
+    assert 'id="hubspot-access"' in text

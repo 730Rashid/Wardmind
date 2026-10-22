@@ -3,10 +3,18 @@
 <h1 class="visually-hidden">{{ page }}</h1>
 <div class="stack">
   <p class="date-line">{{ today }}</p>
+  {% if import_notice %}
+  <div class="import-notice" role="status">
+    {% for sentence in import_notice %}<p>{{ sentence }}</p>{% endfor %}
+  </div>
+  {% endif %}
   <p class="summary">
     <span class="summary-line">{{ summary_first }}</span>
     <span class="summary-line summary-line--muted">{{ summary_second }}</span>
   </p>
+  {% if duplicate_count %}
+  <p class="duplicates" role="status">{{ duplicate_count }} {{ 'account' if duplicate_count == 1 else 'accounts' }} might be duplicates. <a href="/duplicates">Review them.</a></p>
+  {% endif %}
   <form id="book-filter" class="book-controls" method="get" action="/" role="search"
         hx-get="/" hx-target="#results" hx-swap="outerHTML" hx-push-url="true"
         hx-trigger="change from:.motion-radio, input changed delay:250ms from:#q, submit">

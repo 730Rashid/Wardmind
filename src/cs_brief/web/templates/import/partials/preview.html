@@ -1,0 +1,4 @@
+{% for row in rows %}<td class="cell-example" id="example-{{ row.index }}" hx-swap-oob="true">{{ row.example }}</td>
+{% endfor %}
+{% include "import/partials/what_happens.html" %}
+{% include "import/partials/action.html" %}

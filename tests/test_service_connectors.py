@@ -330,3 +330,17 @@ def test_hubspot_connector_is_none_without_a_token(built: _Built) -> None:
 def test_the_default_base_is_hubspots_own_host(monkeypatch) -> None:
     monkeypatch.delenv("CS_BRIEF_HUBSPOT_API_BASE", raising=False)
     assert service.hubspot_api_base() == API_BASE
+
+
+def test_an_environment_token_never_recreates_a_removed_hubspot_connection(
+    built: _Built, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # Removing the HubSpot connection must stick. With the token in the environment variable,
+    # the legacy migration would otherwise re-add it on the very next load.
+    _use(DataSource.MINE)
+    monkeypatch.setenv(secrets.ENV_TOKEN, TOKEN)
+
+    connector = service.get_connector()
+
+    assert service.get_store().connections() == []
+    assert connector.list_accounts() == []

@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+{% block content %}
+{% macro file_section() %}
+    <section class="import-part" aria-labelledby="file-title">
+      <h2 class="section-title" id="file-title">Your file</h2>
+      <p class="field-help">CSV, TSV or Excel (.xlsx). Old .xls files need saving as .xlsx first.</p>
+      <label class="button file-button">Choose a file<input class="visually-hidden" type="file" name="file" accept=".csv,.tsv,.txt,.xlsx" data-fill-name></label>
+    </section>
+{% endmacro %}
+{% macro paste_section() %}
+    <section class="import-part" aria-labelledby="paste-title">
+      <h2 class="section-title" id="paste-title">Paste cells</h2>
+      <div class="field">
+        <label for="pasted">Paste cells here</label>
+        <textarea id="pasted" name="pasted" rows="8" spellcheck="false"{% if paste_first %} autofocus{% endif %}>{{ pasted }}</textarea>
+        <p class="field-help">Copy the cells in Excel or Google Sheets, then paste them here. The first row holds the column names.</p>
+      </div>
+    </section>
+{% endmacro %}
+<div class="import-page">
+  <h1 class="page-title">Import a spreadsheet</h1>
+  <p class="prose field-help">Choose a file, or paste cells from a spreadsheet. You match the columns on the next page.</p>
+  {% if error %}<p class="field-error" role="alert">{{ error }}</p>{% endif %}
+
+  <form class="import-form settings-form" method="post" action="/import" enctype="multipart/form-data">
+    <input type="hidden" name="back" value="{{ back }}">
+    {% if paste_first %}
+    {{ paste_section() }}
+    {{ file_section() }}
+    {% else %}
+    {{ file_section() }}
+    {{ paste_section() }}
+    {% endif %}
+
+    <fieldset class="import-target">
+      <legend>Import into</legend>
+      {% for option in options %}
+      <label class="choice"><input type="radio" name="target" value="{{ option.value }}"{% if option.checked %} checked{% endif %}> {{ option.label }}</label>
+      {% endfor %}
+      <div class="field">
+        <label for="new-name">Name</label>
+        <input type="text" id="new-name" name="new_name" value="{{ new_name }}" maxlength="60" autocomplete="off">
+        <p class="field-help">For a new sheet. Leave it blank to use the file name.</p>
+      </div>
+    </fieldset>
+
+    <div class="form-actions">
+      <button type="submit" class="button-primary">Match columns</button>
+    </div>
+  </form>
+</div>
+{% endblock %}

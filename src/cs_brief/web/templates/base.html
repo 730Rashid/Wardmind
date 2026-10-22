@@ -29,6 +29,15 @@
       <p class="source-note">{{ source_note }}</p>
     </div>
   </header>
+  {% if problems %}
+  <div class="column banner-column">
+    {% for problem in problems %}
+    <div class="banner" role="alert">
+      <p>{{ problem.name }} couldn't load: {{ problem.message }} Your other connections are still shown. <a href="/settings/connections">Check Connections</a></p>
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
   <main id="content" tabindex="-1" class="column page">
     {% block content %}{% endblock %}
   </main>

@@ -1926,6 +1926,483 @@ a.button {
   }
 }
 
+/* Your data: banners and notices on the book pages. A failing connection is a single rule-marked
+   line, and the notices are sentences in the body size. */
+.banner-column {
+  padding-block-start: var(--space-4);
+}
+
+.banner {
+  padding-inline-start: var(--space-4);
+  border-inline-start: 3px solid var(--ink);
+}
+
+.import-notice,
+.duplicates {
+  font-size: var(--t-sm);
+  line-height: var(--lh-sm);
+}
+
+.import-notice {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  color: var(--ink);
+}
+
+.duplicates {
+  color: var(--ink-muted);
+}
+
+/* A button-styled label opens the file picker, so it behaves as a button. */
+label.button {
+  display: inline-block;
+  cursor: pointer;
+}
+
+label.button:focus-within {
+  outline: var(--focus-width) solid var(--accent);
+  outline-offset: 2px;
+}
+
+.button:disabled,
+.button-primary:disabled {
+  color: var(--ink-muted);
+  border-color: var(--control);
+  background: transparent;
+  cursor: not-allowed;
+}
+
+/* A text button that looks like a link: for the demo-data choice on Set up. */
+.link-button {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--accent);
+  text-decoration: underline;
+  text-underline-offset: 0.2em;
+  cursor: pointer;
+}
+
+/* Set up your book: four rows separated by rules, each with one button on the right. */
+.setup {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+
+.setup-lede {
+  max-inline-size: 60ch;
+  font-size: var(--t-md);
+  line-height: var(--lh-md);
+  color: var(--ink-muted);
+}
+
+.setup-options {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border-block-start: 1px solid var(--line);
+}
+
+.setup-option {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3) var(--space-5);
+  padding-block: var(--space-4);
+  border-block-end: 1px solid var(--line);
+}
+
+.setup-option.is-dragging {
+  outline: 2px dashed var(--accent);
+  outline-offset: -2px;
+}
+
+.setup-copy {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  flex: 1 1 18rem;
+  min-inline-size: 0;
+}
+
+.setup-title {
+  margin: 0;
+  font-size: var(--t-body);
+  line-height: var(--lh-body);
+  font-weight: 600;
+}
+
+.setup-detail {
+  color: var(--ink-muted);
+}
+
+/* The drop copy stands in for the description while a file is over the row. */
+.drop-copy {
+  display: none;
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.setup-option.is-dragging .drop-copy {
+  display: block;
+}
+
+.setup-option.is-dragging .setup-detail {
+  display: none;
+}
+
+.setup-action {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0;
+}
+
+.setup-aside,
+.setup-demo {
+  margin: 0;
+  font-size: var(--t-sm);
+  line-height: var(--lh-sm);
+}
+
+@media (max-width: 767px) {
+  .setup-option {
+    flex-direction: column;
+    align-items: stretch;
+  }
+}
+
+/* Import: the upload-or-paste form, then the mapping and its preview. */
+.import-page,
+.import-map {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+
+.import-form {
+  max-inline-size: 40rem;
+}
+
+.import-part {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding-block-end: var(--space-5);
+  border-block-end: 1px solid var(--line);
+}
+
+.import-part .section-title {
+  margin: 0;
+}
+
+#pasted {
+  inline-size: 100%;
+  min-block-size: 8rem;
+  padding: var(--space-2) var(--space-3);
+  color: var(--ink);
+  background: var(--surface);
+  border: 1px solid var(--control);
+  border-radius: var(--radius-control);
+  font: inherit;
+  resize: vertical;
+}
+
+.import-target .field input[type="text"] {
+  inline-size: 100%;
+  max-inline-size: 24rem;
+  padding-block: var(--space-2);
+  padding-inline: var(--space-3);
+}
+
+.form-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}
+
+.import-head {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.file-rows {
+  margin-inline-start: var(--space-5);
+}
+
+.sheet-form {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+  margin: 0;
+}
+
+.sheet-form select {
+  min-inline-size: 12rem;
+  padding: var(--space-2) var(--space-3);
+}
+
+.import-mapping {
+  margin: 0;
+}
+
+.mapping-fields {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+
+.match-table {
+  inline-size: 100%;
+  border-collapse: collapse;
+  background: var(--surface);
+}
+
+.match-table th,
+.match-table td {
+  padding: var(--cell-pad);
+  vertical-align: top;
+  text-align: start;
+  border-block-end: 1px solid var(--line);
+}
+
+.match-table thead th {
+  font-size: var(--t-sm);
+  line-height: var(--lh-sm);
+  font-weight: 600;
+  color: var(--ink-muted);
+}
+
+.match-table tbody .cell-field {
+  font-weight: 400;
+}
+
+.match-table .cell-field label {
+  font-weight: 600;
+}
+
+.match-table .field-help {
+  display: block;
+  font-size: var(--t-sm);
+  line-height: var(--lh-sm);
+  color: var(--ink-muted);
+}
+
+.required-word {
+  margin-inline-start: var(--space-2);
+  font-size: var(--t-sm);
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.cell-column select {
+  min-inline-size: 12rem;
+  max-inline-size: 100%;
+  padding: var(--space-2) var(--space-3);
+}
+
+.cell-example {
+  color: var(--ink-muted);
+  overflow-wrap: anywhere;
+}
+
+.date-order {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.date-order legend {
+  margin-block-end: var(--space-1);
+  font-weight: 600;
+}
+
+.what-happens {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  max-inline-size: 70ch;
+}
+
+.happens-count {
+  font-size: var(--t-md);
+  line-height: var(--lh-md);
+}
+
+.issue-list {
+  margin: 0;
+  padding-inline-start: var(--space-5);
+  font-size: var(--t-sm);
+  line-height: var(--lh-sm);
+}
+
+.import-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.import-action {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-1);
+}
+
+/* Settings > Connections: the connection table and the rename and hidden-account controls. */
+.connection-table {
+  inline-size: 100%;
+  border-collapse: collapse;
+  background: var(--surface);
+}
+
+.connection-table th,
+.connection-table td {
+  padding: var(--cell-pad);
+  vertical-align: top;
+  text-align: start;
+  border-block-end: 1px solid var(--line);
+}
+
+.connection-table thead th {
+  font-size: var(--t-sm);
+  line-height: var(--lh-sm);
+  font-weight: 600;
+  color: var(--ink-muted);
+}
+
+.connection-table tbody .cell-connection {
+  font-weight: 400;
+}
+
+.connection-table .button {
+  white-space: normal;
+}
+
+.connection-name {
+  display: block;
+  font-weight: 600;
+}
+
+.include-form {
+  margin: var(--space-2) 0 0;
+}
+
+.cell-status p {
+  margin: 0;
+}
+
+.connection-problem {
+  font-weight: 600;
+}
+
+.cell-actions .button,
+.cell-actions .inline-form,
+.cell-actions .rename {
+  display: inline-block;
+  margin: 0 var(--space-2) var(--space-2) 0;
+  vertical-align: top;
+}
+
+.rename > summary {
+  display: inline-block;
+  list-style: none;
+  cursor: pointer;
+}
+
+.rename > summary::-webkit-details-marker {
+  display: none;
+}
+
+.rename-form {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+  margin-block-start: var(--space-2);
+}
+
+.rename-form input[type="text"] {
+  inline-size: min(18rem, 100%);
+  padding-block: var(--space-2);
+  padding-inline: var(--space-3);
+}
+
+.add-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.hidden-accounts > summary {
+  cursor: pointer;
+}
+
+.hidden-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin: var(--space-3) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.hidden-list li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.hidden-list .inline-form {
+  margin: 0;
+}
+
+@media (max-width: 639px) {
+  .match-table thead {
+    position: absolute;
+    inline-size: 1px;
+    block-size: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  .match-table,
+  .match-table tbody,
+  .match-table tr,
+  .match-table th,
+  .match-table td {
+    display: block;
+  }
+
+  .match-table tr {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    padding-block: var(--cell-pad);
+  }
+
+  .match-table th,
+  .match-table td {
+    padding: 0;
+    border: 0;
+  }
+}
+
 /* Print and save as PDF: light tokens always, on A4 with 16mm margins. */
 @page {
   size: A4;

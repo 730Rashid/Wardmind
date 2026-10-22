@@ -88,3 +88,50 @@ document.addEventListener("input", (event) => {
   const slider = event.target;
   if (slider instanceof HTMLInputElement && slider.type === "range") showSliderValue(slider);
 });
+
+// Controls marked data-autosubmit submit their form when they change: a connection's include
+// checkbox, the sheet picker, and the file input on Set up. Each keeps a submit button for
+// browsers without JavaScript.
+document.addEventListener("change", (event) => {
+  const control = event.target;
+  if (!(control instanceof HTMLElement) || !control.hasAttribute("data-autosubmit")) return;
+  if (control.form) control.form.requestSubmit();
+});
+
+// On the import form, choosing a file fills the Name box with the file's name, as long as the
+// CSM hasn't typed a name yet.
+document.addEventListener("change", (event) => {
+  const input = event.target;
+  if (!(input instanceof HTMLInputElement) || input.type !== "file") return;
+  if (!input.hasAttribute("data-fill-name")) return;
+  const name = input.form?.querySelector('input[name="new_name"]');
+  const file = input.files?.[0];
+  if (!(name instanceof HTMLInputElement) || !file || name.value.trim()) return;
+  name.value = file.name.replace(/\.[^.]+$/, "");
+});
+
+// Set up: a file dropped on an import row is imported at once. The row shows an outline while a
+// file is over it. Anywhere else on the page a dropped file is ignored, so the browser never
+// opens it in place of the page.
+document.querySelectorAll("[data-dropzone]").forEach((zone) => {
+  const input = zone.querySelector('input[type="file"]');
+  const over = (event) => {
+    event.preventDefault();
+    zone.classList.add("is-dragging");
+  };
+  const leave = () => zone.classList.remove("is-dragging");
+  zone.addEventListener("dragenter", over);
+  zone.addEventListener("dragover", over);
+  zone.addEventListener("dragleave", leave);
+  zone.addEventListener("drop", (event) => {
+    event.preventDefault();
+    leave();
+    const files = event.dataTransfer?.files;
+    if (!(input instanceof HTMLInputElement) || !files || files.length === 0) return;
+    input.files = files;
+    input.form?.requestSubmit();
+  });
+});
+["dragover", "drop"].forEach((type) => {
+  window.addEventListener(type, (event) => event.preventDefault());
+});

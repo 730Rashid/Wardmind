@@ -1521,8 +1521,21 @@ def issues_csv(table: Table, issues: list[ImportIssue]) -> str:
     writer.writerow([*table.headers, "Problems"])
     for number, row in zip(_row_numbers(table), table.rows, strict=True):
         if number in messages:
-            writer.writerow([*row, " ".join(messages[number])])
+            writer.writerow([_formula_safe(cell) for cell in [*row, " ".join(messages[number])]])
     return buffer.getvalue()
+
+
+_FORMULA_STARTS = ("=", "+", "-", "@", "\t", "\r")
+_PLAIN_NUMBER = re.compile(r"-?\d[\d,]*(\.\d+)?%?")
+
+
+def _formula_safe(cell: str) -> str:
+    """Neutralise a cell that a spreadsheet would run as a formula ("=HYPERLINK(...)", "+1",
+    "@SUM(...)") by prefixing an apostrophe. A plain negative number like "-25" or "-1,200.5"
+    is left alone, so the downloaded rows still import cleanly after they're fixed."""
+    if cell.startswith(_FORMULA_STARTS) and not _PLAIN_NUMBER.fullmatch(cell):
+        return "'" + cell
+    return cell
 
 
 SIGNAL_FIELD_KINDS: dict[str, SignalKind] = {

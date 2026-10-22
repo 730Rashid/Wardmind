@@ -10,11 +10,11 @@ import math
 import time
 from collections.abc import Awaitable, Callable, Mapping
 from dataclasses import dataclass
-from datetime import date, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 from enum import StrEnum
 from pathlib import Path
 from typing import Any
-from urllib.parse import quote
+from urllib.parse import quote, urlencode
 
 from fastapi import FastAPI, Request
 from fastapi.exception_handlers import http_exception_handler
@@ -22,11 +22,13 @@ from fastapi.responses import HTMLResponse, PlainTextResponse, RedirectResponse,
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from jinja2 import Environment, FileSystemLoader
+from starlette.datastructures import UploadFile
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 
-from cs_brief.core import briefs, secrets, service
+from cs_brief.core import briefs, editing, import_flow, importing, secrets, service
 from cs_brief.core.config import ScoringConfig, load_scoring_config, save_scoring_config
+from cs_brief.core.connectors.combined import CombinedConnector, ConnectionProblem
 from cs_brief.core.connectors.errors import ConnectorError
 from cs_brief.core.connectors.hubspot import (
     ConnectionCheck,
@@ -35,6 +37,9 @@ from cs_brief.core.connectors.hubspot import (
     HubSpotMapping,
     load_mapping,
 )
+from cs_brief.core.connectors.local import ManualConnector, SpreadsheetConnector
+from cs_brief.core.import_flow import Draft
+from cs_brief.core.importing import DateOrder
 from cs_brief.core.models import Health, Motion, ScoredAccount, SignalKind
 from cs_brief.core.onboarding import OnboardingBrief
 from cs_brief.core.settings import (
@@ -47,7 +52,7 @@ from cs_brief.core.settings import (
     load_settings,
     save_settings,
 )
-from cs_brief.core.store import ConnectionKind
+from cs_brief.core.store import ConnectionConfig, ConnectionKind, LocalStore, connection_for
 from cs_brief.web import formatting
 from cs_brief.web.scoring_form import (
     FIELD_NAMES,
@@ -244,11 +249,21 @@ def _render(
     page: str,
     active: str | None = None,
     status_code: int = 200,
+    book: bool = False,
     **context: Any,
 ) -> HTMLResponse:
-    """Render one page in the shared layout, with the context every page needs."""
+    """Render one page in the shared layout, with the context every page needs.
+
+    `book=True` marks a page that shows the book (My book, the brief, onboarding, an account).
+    On those pages, with Your data showing, each connection that failed to load gets a banner.
+    """
     today_day = date.today()
     current = load_settings()
+    problems: list[ConnectionProblem] = []
+    if book:
+        combined = _combined_or_none()
+        if combined is not None:
+            problems = combined.problems
     values: dict[str, Any] = {
         "page": page,
         "active": active,
@@ -256,9 +271,80 @@ def _render(
         "source_note": _source_note(current),
         "today": format_today(today_day),
         "today_day": today_day,
+        "problems": problems,
         **context,
     }
     return templates.TemplateResponse(request, template, values, status_code=status_code)
+
+
+def _missing(request: Request, page: str, message: str) -> HTMLResponse:
+    """The plain 404 page, in the layout, with the message."""
+    return _render(request, "not_found.html", page=page, status_code=404, message=message)
+
+
+def _text_field(value: object) -> str:
+    """A posted field as text. A file where text was expected counts as blank."""
+    return value if isinstance(value, str) else ""
+
+
+def _accounts(count: int) -> str:
+    """'1 account' or '42 accounts'."""
+    return f"{count} {_word(count, 'account', 'accounts')}"
+
+
+def _combined_or_none() -> CombinedConnector | None:
+    """The combined book while Your data is showing, or None (demo data, or it can't be built)."""
+    if load_settings().source is not DataSource.MINE:
+        return None
+    try:
+        return service.get_combined()
+    except ConnectorError:
+        return None
+
+
+def _needs_setup() -> bool:
+    """True when Your data is showing and nothing is connected, so My book becomes Setup."""
+    combined = _combined_or_none()
+    return combined is not None and not combined.list_accounts() and not combined.problems
+
+
+def _duplicate_count() -> int:
+    """How many distinct accounts the duplicate suggestions name, for the line on My book."""
+    combined = _combined_or_none()
+    if combined is None:
+        return 0
+    return len({acc for item in combined.duplicate_suggestions() for acc in item.account_ids})
+
+
+def _import_notice(imported: str, removed: str) -> list[str]:
+    """What My book says after a commit: the accounts that came in, rows skipped, accounts that
+    left. Only for a spreadsheet connection that has an import on record."""
+    if not imported:
+        return []
+    store = service.get_store()
+    config = store.get_connection(imported)
+    if config is None or config.kind is not ConnectionKind.SPREADSHEET:
+        return []
+    snapshot = store.snapshot(config.id)
+    if snapshot is None or not snapshot.history:
+        return []
+    last = snapshot.history[-1]
+    sentences = [
+        f"Imported {_accounts(last.accounts)} from {config.last_file_name or config.name}."
+    ]
+    if last.skipped_rows:
+        verb = "was" if last.skipped_rows == 1 else "were"
+        rows = f"{last.skipped_rows} {_word(last.skipped_rows, 'row', 'rows')}"
+        sentences.append(f"{rows} {verb} skipped.")
+    left = int(removed) if removed.isdigit() else 0
+    if left:
+        if left == 1:
+            sentences.append("1 account from last time wasn't in the file, so it left your book.")
+        else:
+            sentences.append(
+                f"{left} accounts from last time weren't in the file, so they left your book."
+            )
+    return sentences
 
 
 def _render_appearance(
@@ -406,6 +492,99 @@ def _mapping_rows(mapping: HubSpotMapping) -> list[tuple[str, str]]:
     return rows
 
 
+@dataclass(frozen=True)
+class _ConnectionLine:
+    """One row of "Your connections": the connection, its status sentence and its count."""
+
+    config: ConnectionConfig
+    status: str  # the plain sentence the row shows, or the connector's message when it failed
+    problem: str  # the connector's message when the connection can't load, else ""
+    accounts: int | None  # None when the count isn't known right now
+
+
+def _hubspot_line(
+    config: ConnectionConfig, combined: CombinedConnector | None, book_ids: list[str]
+) -> _ConnectionLine:
+    """The HubSpot row: its count in the combined book and when it was fetched, or its problem."""
+    if combined is None:
+        return _ConnectionLine(config, "Not used while demo data is showing.", "", None)
+    problem = {p.connection_id: p.message for p in combined.problems}.get(config.id, "")
+    if problem:
+        return _ConnectionLine(config, problem, problem, None)
+    count = sum(1 for account_id in book_ids if connection_for(account_id) == config.id)
+    try:
+        loaded_at = getattr(service.hubspot_connector(), "loaded_at", None)
+    except ConnectorError:
+        loaded_at = None
+    clock = _fetched_clock(loaded_at)
+    status = f"{_accounts(count)}." + (f" Fetched {clock}." if clock else "")
+    return _ConnectionLine(config, status, "", count)
+
+
+def _fetched_clock(loaded_at: float | None) -> str:
+    """The wall-clock time (14:02) a HubSpot fetch happened, or "" when it hasn't."""
+    if loaded_at is None:
+        return ""
+    return f"{datetime.now() - timedelta(seconds=time.monotonic() - loaded_at):%H:%M}"
+
+
+def _connection_lines(
+    store: LocalStore, combined: CombinedConnector | None
+) -> list[_ConnectionLine]:
+    """One line per connection, in the order the store keeps them."""
+    today = date.today()
+    book_ids = [account.id for account in combined.list_accounts()] if combined else []
+    lines: list[_ConnectionLine] = []
+    for config in store.connections():
+        if config.kind is ConnectionKind.HUBSPOT:
+            line = _hubspot_line(config, combined, book_ids)
+        elif config.kind is ConnectionKind.SPREADSHEET:
+            snapshot = store.snapshot(config.id)
+            count = 0 if snapshot is None else len(snapshot.accounts)
+            if config.last_imported_at is None:
+                status = "Not imported yet. Import a file to fill it."
+            else:
+                day = formatting.day_label(config.last_imported_at, today)
+                source = config.last_file_name or config.name
+                status = f"{_accounts(count)}. Imported {day} from {source}."
+            line = _ConnectionLine(config, status, "", count)
+        else:
+            count = len(store.manual().accounts)
+            line = _ConnectionLine(config, f"{_accounts(count)}.", "", count)
+        if not config.enabled and not line.problem:
+            line = _ConnectionLine(
+                config,
+                f"{line.status} Not included in your book.",
+                "",
+                line.accounts,
+            )
+        lines.append(line)
+    return lines
+
+
+def _hidden_accounts(store: LocalStore) -> list[tuple[str, str]]:
+    """Each hidden account as (id, name). The name comes from the connections' own accounts when
+    they can be read, else the id is shown."""
+    hidden = store.hidden()
+    if not hidden:
+        return []
+    names: dict[str, str] = {}
+    for config in store.connections():
+        try:
+            if config.kind is ConnectionKind.HUBSPOT:
+                member = service.hubspot_connector()
+            elif config.kind is ConnectionKind.SPREADSHEET:
+                member = SpreadsheetConnector(store, config.id)
+            else:
+                member = ManualConnector(store)
+            accounts = [] if member is None else member.list_accounts()
+        except ConnectorError:
+            continue
+        for account in accounts:
+            names.setdefault(account.id, account.name)
+    return [(account_id, names.get(account_id, account_id)) for account_id in hidden]
+
+
 def _render_connections(
     request: Request,
     *,
@@ -414,6 +593,8 @@ def _render_connections(
     token_error: str = "",
     test_check: ConnectionCheck | None = None,
     test_error: str = "",
+    rename_errors: Mapping[str, str] | None = None,
+    rename_values: Mapping[str, str] | None = None,
     status_code: int = 200,
 ) -> HTMLResponse:
     """Settings > Connections. The source form shows the saved choice, or the one just refused."""
@@ -431,6 +612,8 @@ def _render_connections(
         mapping_error = ""
     except ConnectorError as error:
         mapping_rows, mapping_error = [], error.message
+    store = service.get_store()
+    combined = _combined_or_none()
     return _render(
         request,
         "settings/connections.html",
@@ -458,6 +641,10 @@ def _render_connections(
         fetched=_fetched_line(getattr(hubspot, "loaded_at", None)),
         mapping_rows=mapping_rows,
         mapping_error=mapping_error,
+        lines=_connection_lines(store, combined),
+        hidden_accounts=_hidden_accounts(store),
+        rename_errors=dict(rename_errors or {}),
+        rename_values=dict(rename_values or {}),
         status_code=status_code,
     )
 
@@ -546,6 +733,162 @@ def _other_accounts(book: list[ScoredAccount]) -> list[ScoredAccount]:
     return sorted(others, key=lambda item: item.account.name.casefold())
 
 
+# Your data: setup and the import flow ----------------------------------------------------------
+
+_CHOOSE_FILE_OR_PASTE = "Choose a file or paste some cells."
+_CHOOSE_ONE_SOURCE = "Choose a file or paste some cells, not both."
+_NO_DRAFT = "That import has expired or was removed. Start the import again from Set up your book."
+_NO_CONNECTION = "That connection isn't in your list."
+_NOT_HIDDEN = "That account isn't hidden."
+_FORM_PART_LIMIT = importing.MAX_BYTES + 1  # a pasted block over the limit is refused
+
+
+def _too_large_paste() -> str:
+    """The importing module's own message for a paste over the size limit."""
+    try:
+        importing.read_pasted("x" * (importing.MAX_BYTES + 1))
+    except importing.ImportError_ as error:
+        return str(error)
+    return "That paste is too large to read. Split it or remove extra columns."
+
+
+def _back_value(text: str) -> str:
+    """Where Cancel goes: the Connections page when asked for, else Setup."""
+    if text == import_flow.BACK_CONNECTIONS:
+        return import_flow.BACK_CONNECTIONS
+    return import_flow.BACK_SETUP
+
+
+def _chosen_target(store: LocalStore, text: str) -> str:
+    """The "Import into" choice when it names a spreadsheet connection, else a new sheet."""
+    config = store.get_connection(text)
+    if config is not None and config.kind is ConnectionKind.SPREADSHEET:
+        return config.id
+    return import_flow.NEW_TARGET
+
+
+def _as_order(text: str) -> DateOrder | None:
+    try:
+        return DateOrder(text)
+    except ValueError:
+        return None
+
+
+def _submitted_mapping(fields: Mapping[str, str]) -> dict[str, str]:
+    """The mapping selects, keyed by import field: column-<index> is the header chosen."""
+    return {
+        spec.key: fields.get(f"column-{index}", "")
+        for index, spec in enumerate(importing.IMPORT_FIELDS)
+    }
+
+
+def _current_mapping(store: LocalStore, draft: Draft) -> dict[str, str]:
+    """The mapping the page shows: the CSM's last choice, else the suggested one."""
+    if draft.mapping is not None:
+        return dict(draft.mapping)
+    return import_flow.suggested_mapping(draft, store)
+
+
+def _mapping_view(
+    store: LocalStore, draft: Draft, mapping: Mapping[str, str], submitted_order: str
+) -> dict[str, Any]:
+    """Everything the mapping page and its preview partial show, for one mapping."""
+    cleaned = import_flow.clean_mapping(draft.table, mapping)
+    order = import_flow.resolve_date_order(draft, cleaned, submitted_order)
+    result = import_flow.preview(
+        draft, cleaned, order, store, now=datetime.now(UTC), today=date.today()
+    )
+    implied = import_flow.suggested_date_order(draft, cleaned)
+    chosen = _as_order(submitted_order) or import_flow.date_order_choice(draft, store)
+    if chosen is DateOrder.YMD:  # the radios only offer day or month first
+        chosen = DateOrder.DMY
+    rows = [
+        {
+            "index": index,
+            "label": spec.label,
+            "help": spec.help,
+            "required": spec.required,
+            "selected": cleaned.get(spec.key, ""),
+            "example": result.examples.get(spec.key, ""),
+        }
+        for index, spec in enumerate(importing.IMPORT_FIELDS)
+    ]
+    return {
+        "rows": rows,
+        "headers": draft.table.headers,
+        "preview": result,
+        "show_date_order": implied is None and bool(import_flow.date_columns(draft, cleaned)),
+        "date_choice": chosen.value,
+        "accounts": _accounts(result.ready_rows),
+    }
+
+
+def _render_import_form(
+    request: Request,
+    store: LocalStore,
+    *,
+    target: str,
+    new_name: str = "",
+    pasted: str = "",
+    back: str = import_flow.BACK_SETUP,
+    paste_first: bool = False,
+    error: str = "",
+    status_code: int = 200,
+) -> HTMLResponse:
+    """The upload-or-paste form. `target` is the "Import into" choice that starts checked."""
+    options: list[dict[str, Any]] = [
+        {"value": import_flow.NEW_TARGET, "label": "A new sheet", "checked": target == "new"}
+    ]
+    for config in store.connections():
+        if config.kind is ConnectionKind.SPREADSHEET:
+            options.append(
+                {
+                    "value": config.id,
+                    "label": f"Update {config.name}",
+                    "checked": target == config.id,
+                }
+            )
+    return _render(
+        request,
+        "import/form.html",
+        page="Import a spreadsheet",
+        active="book",
+        options=options,
+        new_name=new_name,
+        pasted=pasted,
+        back=back,
+        paste_first=paste_first or bool(pasted),
+        error=error,
+        status_code=status_code,
+    )
+
+
+def _render_mapping(
+    request: Request,
+    store: LocalStore,
+    draft: Draft,
+    mapping: Mapping[str, str],
+    submitted_order: str,
+    *,
+    error: str = "",
+    status_code: int = 200,
+) -> HTMLResponse:
+    """The mapping and preview page for a draft."""
+    names = draft.table.sheet_names if len(draft.table.sheet_names) > 1 else []
+    return _render(
+        request,
+        "import/map.html",
+        page="Match your columns",
+        active="book",
+        draft=draft,
+        sheet_names=names,
+        row_count=len(draft.table.rows),
+        error=error,
+        status_code=status_code,
+        **_mapping_view(store, draft, mapping, submitted_order),
+    )
+
+
 def create_app() -> FastAPI:
     """Build the web app: no API docs, a host allow-list, and security headers on every response."""
     app = FastAPI(docs_url=None, redoc_url=None, openapi_url=None)
@@ -597,8 +940,17 @@ def create_app() -> FastAPI:
         )
 
     @app.get("/")
-    def my_book(request: Request, motion: str = "", q: str = "") -> HTMLResponse:
-        """My book. An htmx refresh gets only the results partial, not on a history restore."""
+    def my_book(
+        request: Request,
+        motion: str = "",
+        q: str = "",
+        imported: str = "",
+        removed: str = "",
+    ) -> Response:
+        """My book. An htmx refresh gets only the results partial, not on a history restore.
+        With Your data and nothing connected, this is the Setup page instead."""
+        if _needs_setup():
+            return RedirectResponse("/setup", status_code=303)
         book = service.get_book()
         brief = briefs.weekly_brief(book, as_of=date.today())
         selected = _selected_motion(motion)
@@ -636,6 +988,7 @@ def create_app() -> FastAPI:
             "partials/book_results.html" if partial else "book.html",
             page="My book",
             active="book",
+            book=not partial,
             summary_first=first,
             summary_second=second,
             motion_options=options,
@@ -645,6 +998,8 @@ def create_app() -> FastAPI:
             count_text=result_count_text(len(rows)),
             intro=not partial,
             oob=partial,
+            duplicate_count=0 if partial else _duplicate_count(),
+            import_notice=[] if partial else _import_notice(imported, removed),
         )
         response.headers["Vary"] = "HX-Request, HX-History-Restore-Request"
         return response
@@ -672,6 +1027,7 @@ def create_app() -> FastAPI:
             "brief.html",
             page="Weekly brief",
             active="brief",
+            book=True,
             brief=brief,
             summary_first=first,
             summary_second=second,
@@ -701,6 +1057,7 @@ def create_app() -> FastAPI:
             "onboarding.html",
             page="Onboarding prep",
             active="onboarding",
+            book=True,
             summary=formatting.onboarding_summary(len(rows), behind),
             rows=rows,
             other_accounts=_other_accounts(book),
@@ -727,6 +1084,7 @@ def create_app() -> FastAPI:
                 page="Account not found",
                 status_code=404,
                 message=f"No account with id {account_id}.",
+                book=True,
             )
         # The signals table scales its bars to the largest weight in the scoring config, as the
         # account page does, so the same signal is drawn the same width on both pages.
@@ -736,6 +1094,7 @@ def create_app() -> FastAPI:
             "onboarding_brief.html",
             page=f"{brief.account.name} onboarding brief",
             active="onboarding",
+            book=True,
             brief=brief,
             longest=longest,
             plain_text=formatting.onboarding_plain_text(brief),
@@ -825,12 +1184,14 @@ def create_app() -> FastAPI:
                 page="Account not found",
                 status_code=404,
                 message=f"No account with id {account_id}.",
+                book=True,
             )
         return _render(
             request,
             "account.html",
             page=detail.explanation.name,
             active="book",
+            book=True,
             detail=detail,
             thresholds=load_scoring_config().thresholds,
             timeline_days=formatting.group_by_day(detail.timeline),
@@ -839,16 +1200,26 @@ def create_app() -> FastAPI:
 
     @app.get("/settings/connections")
     def connections(
-        request: Request, saved: str = "", removed: str = "", refreshed: str = ""
+        request: Request,
+        saved: str = "",
+        removed: str = "",
+        refreshed: str = "",
+        shown: str = "",
     ) -> HTMLResponse:
-        """Where the data comes from, whether HubSpot is set up and working, and what it reads."""
+        """Where the data comes from, the connections, whether HubSpot works, and what it reads."""
         notice = ""
         if saved == "source":
             notice = "Data source saved."
         elif saved == "token":
             notice = "Token saved."
+        elif saved == "connection":
+            notice = "Connection saved."
+        elif shown == "1":
+            notice = "Account shown again."
         elif removed == "token":
             notice = "Token removed."
+        elif removed:
+            notice = f"Removed {removed}."
         elif refreshed == "1":
             notice = "Data refreshed."
         return _render_connections(request, notice=notice)
@@ -924,5 +1295,325 @@ def create_app() -> FastAPI:
         save_settings(load_settings().model_copy(update={"source": DataSource.DEMO}))
         service.reset_connectors()
         return RedirectResponse("/", status_code=303)
+
+    # Your data: setup and the import flow. Draft ids are checked before any file is touched.
+
+    @app.get("/setup")
+    def setup(request: Request) -> HTMLResponse:
+        """Set up your book: the ways to bring accounts in. My book shows this while it is empty."""
+        return _render(request, "setup.html", page="Set up your book", active="book")
+
+    @app.get("/import/template.csv")
+    def import_template() -> Response:
+        """The CSV template: every import field as a column, with two example rows."""
+        return Response(
+            importing.template_csv(),
+            media_type="text/csv",
+            headers={"Content-Disposition": 'attachment; filename="cs-brief-template.csv"'},
+        )
+
+    @app.get("/import")
+    def import_form(
+        request: Request, target: str = "", paste: str = "", back: str = ""
+    ) -> HTMLResponse:
+        """The upload-or-paste form. ?paste=1 puts the paste section first; ?target= picks the
+        connection to update."""
+        store = service.get_store()
+        return _render_import_form(
+            request,
+            store,
+            target=_chosen_target(store, target),
+            back=_back_value(back),
+            paste_first=paste == "1",
+        )
+
+    @app.post("/import")
+    async def import_upload(request: Request) -> Response:
+        """Store the upload (or the pasted cells) as a draft, then go to the mapping page.
+        Exactly one of the two is needed. Nothing is stored when the file can't be read."""
+        store = service.get_store()
+        try:
+            form = await request.form(max_part_size=_FORM_PART_LIMIT)
+        except StarletteHTTPException as error:
+            # Starlette reports a part over the limit as a 400 with a size message.
+            too_large = error.status_code == 400 and "size" in str(error.detail)
+            message = _too_large_paste() if too_large else _CHOOSE_FILE_OR_PASTE
+            return _render_import_form(request, store, target="new", error=message, status_code=422)
+        upload = form.get("file")
+        has_file = isinstance(upload, UploadFile) and bool(upload.filename)
+        pasted = _text_field(form.get("pasted"))
+        has_paste = bool(pasted.strip())
+        target = _chosen_target(store, _text_field(form.get("target")))
+        back = _back_value(_text_field(form.get("back")))
+        new_name = _text_field(form.get("new_name")).strip()
+
+        def refuse(message: str) -> HTMLResponse:
+            return _render_import_form(
+                request,
+                store,
+                target=target,
+                new_name=new_name,
+                pasted=pasted,
+                back=back,
+                error=message,
+                status_code=422,
+            )
+
+        if has_file and has_paste:
+            return refuse(_CHOOSE_ONE_SOURCE)
+        if not has_file and not has_paste:
+            return refuse(_CHOOSE_FILE_OR_PASTE)
+        if target == import_flow.NEW_TARGET and new_name:
+            try:
+                import_flow.validate_name(new_name)
+            except ValueError as error:
+                return refuse(str(error))
+        try:
+            if has_file and isinstance(upload, UploadFile):
+                # Read one byte past the limit: the reader then refuses an over-size file itself.
+                data = await upload.read(importing.MAX_BYTES + 1)
+                table = importing.read_upload(data, upload.filename or "")
+                draft = import_flow.save_draft(
+                    store,
+                    table=table,
+                    file_bytes=data,
+                    target=target,
+                    new_name=new_name,
+                    back=back,
+                )
+            else:
+                table = importing.read_pasted(pasted)
+                draft = import_flow.save_draft(
+                    store,
+                    table=table,
+                    pasted_text=pasted,
+                    target=target,
+                    new_name=new_name,
+                    back=back,
+                )
+        except (importing.ImportError_, ValueError) as error:
+            return refuse(str(error))
+        return RedirectResponse(f"/import/{draft.id}", status_code=303)
+
+    @app.get("/import/{draft_id}")
+    def import_map(request: Request, draft_id: str) -> Response:
+        """The mapping and preview for a draft: the CSM's last choices, else the suggested ones."""
+        store = service.get_store()
+        draft = import_flow.load_draft(store, draft_id)
+        if draft is None:
+            return _missing(request, "Import not found", _NO_DRAFT)
+        return _render_mapping(
+            request,
+            store,
+            draft,
+            _current_mapping(store, draft),
+            draft.date_order or "",
+        )
+
+    @app.post("/import/{draft_id}")
+    async def import_update(request: Request, draft_id: str) -> Response:
+        """The mapping page without JavaScript: save the choices and show the page again."""
+        store = service.get_store()
+        draft = import_flow.load_draft(store, draft_id)
+        if draft is None:
+            return _missing(request, "Import not found", _NO_DRAFT)
+        fields = await _posted_fields(request)
+        mapping = _submitted_mapping(fields)
+        order_text = fields.get("date_order", "")
+        draft = import_flow.remember_choices(
+            store, draft, mapping=mapping, date_order=_as_order(order_text)
+        )
+        return _render_mapping(request, store, draft, mapping, order_text)
+
+    @app.post("/import/{draft_id}/preview")
+    async def import_preview(request: Request, draft_id: str) -> Response:
+        """The htmx partial: the examples and "What will happen", for the mapping as chosen."""
+        store = service.get_store()
+        draft = import_flow.load_draft(store, draft_id)
+        if draft is None:
+            return _missing(request, "Import not found", _NO_DRAFT)
+        fields = await _posted_fields(request)
+        mapping = _submitted_mapping(fields)
+        order_text = fields.get("date_order", "")
+        draft = import_flow.remember_choices(
+            store, draft, mapping=mapping, date_order=_as_order(order_text)
+        )
+        view = _mapping_view(store, draft, mapping, order_text)
+        return templates.TemplateResponse(
+            request,
+            "import/partials/preview.html",
+            {"draft_id": draft.id, "oob": True, **view},
+        )
+
+    @app.post("/import/{draft_id}/sheet")
+    async def import_sheet(request: Request, draft_id: str) -> Response:
+        """Switch to another sheet of the same Excel file, then back to the mapping page."""
+        store = service.get_store()
+        draft = import_flow.load_draft(store, draft_id)
+        if draft is None:
+            return _missing(request, "Import not found", _NO_DRAFT)
+        fields = await _posted_fields(request)
+        try:
+            import_flow.reread_sheet(store, draft, fields.get("sheet", ""))
+        except importing.ImportError_ as error:
+            return _render_mapping(
+                request,
+                store,
+                draft,
+                _current_mapping(store, draft),
+                draft.date_order or "",
+                error=str(error),
+                status_code=422,
+            )
+        return RedirectResponse(f"/import/{draft_id}", status_code=303)
+
+    @app.post("/import/{draft_id}/commit")
+    async def import_commit(request: Request, draft_id: str) -> Response:
+        """Import the draft. A refusal re-renders the mapping page with the reason (422)."""
+        store = service.get_store()
+        draft = import_flow.load_draft(store, draft_id)
+        if draft is None:
+            return _missing(request, "Import not found", _NO_DRAFT)
+        fields = await _posted_fields(request)
+        mapping = _submitted_mapping(fields)
+        order_text = fields.get("date_order", "")
+        order = import_flow.resolve_date_order(draft, mapping, order_text)
+        try:
+            outcome = import_flow.commit(
+                draft, mapping, order, store, now=datetime.now(UTC), today=date.today()
+            )
+        except ValueError as error:
+            return _render_mapping(
+                request, store, draft, mapping, order_text, error=str(error), status_code=422
+            )
+        if load_settings().source is DataSource.DEMO:
+            save_settings(load_settings().model_copy(update={"source": DataSource.MINE}))
+        service.reset_connectors()
+        query = urlencode({"imported": outcome.connection.id, "removed": outcome.removed})
+        return RedirectResponse(f"/?{query}", status_code=303)
+
+    @app.post("/import/{draft_id}/cancel")
+    def import_cancel(request: Request, draft_id: str) -> Response:
+        """Delete the draft and go back to where the import started."""
+        store = service.get_store()
+        draft = import_flow.load_draft(store, draft_id)
+        if draft is None:
+            return _missing(request, "Import not found", _NO_DRAFT)
+        import_flow.delete_draft(store, draft_id)
+        if draft.back == import_flow.BACK_CONNECTIONS:
+            return RedirectResponse("/settings/connections", status_code=303)
+        return RedirectResponse("/setup", status_code=303)
+
+    @app.get("/import/{draft_id}/problems.csv")
+    def import_problems(request: Request, draft_id: str) -> Response:
+        """The rows with problems: their own cells and a Problems column, to fix and re-import."""
+        store = service.get_store()
+        draft = import_flow.load_draft(store, draft_id)
+        if draft is None:
+            return _missing(request, "Import not found", _NO_DRAFT)
+        mapping = _current_mapping(store, draft)
+        order = import_flow.resolve_date_order(draft, mapping, draft.date_order)
+        result = import_flow.preview(
+            draft, mapping, order, store, now=datetime.now(UTC), today=date.today()
+        )
+        return Response(
+            importing.issues_csv(draft.table, result.issues),
+            media_type="text/csv",
+            headers={"Content-Disposition": 'attachment; filename="rows-with-problems.csv"'},
+        )
+
+    # Your connections: include, rename, remove and show again. Every id is checked first.
+
+    @app.post("/settings/connections/{connection_id}/enabled")
+    async def set_connection_enabled(request: Request, connection_id: str) -> Response:
+        """Include a connection in the book, or leave it out. The checkbox submits this form."""
+        store = service.get_store()
+        config = store.get_connection(connection_id)
+        if config is None:
+            return _missing(request, "Connection not found", _NO_CONNECTION)
+        fields = await _posted_fields(request)
+        enabled = fields.get("enabled") == "1"
+        store.update_connection(config.model_copy(update={"enabled": enabled}))
+        return RedirectResponse("/settings/connections?saved=connection", status_code=303)
+
+    @app.post("/settings/connections/{connection_id}/rename")
+    async def rename_connection(request: Request, connection_id: str) -> Response:
+        """Rename a spreadsheet connection. A blank name, or one over 60 characters, is refused."""
+        store = service.get_store()
+        config = store.get_connection(connection_id)
+        if config is None:
+            return _missing(request, "Connection not found", _NO_CONNECTION)
+        if config.kind is not ConnectionKind.SPREADSHEET:
+            return _render_connections(
+                request,
+                rename_errors={connection_id: "Only spreadsheets can be renamed."},
+                status_code=422,
+            )
+        fields = await _posted_fields(request)
+        typed = fields.get("name", "")
+        try:
+            name = import_flow.validate_name(typed)
+        except ValueError as error:
+            return _render_connections(
+                request,
+                rename_errors={connection_id: str(error)},
+                rename_values={connection_id: typed},
+                status_code=422,
+            )
+        store.update_connection(config.model_copy(update={"name": name}))
+        return RedirectResponse("/settings/connections?saved=connection", status_code=303)
+
+    @app.get("/settings/connections/{connection_id}/remove")
+    def remove_connection_page(request: Request, connection_id: str) -> HTMLResponse:
+        """The confirmation page. It says exactly what leaves the book."""
+        store = service.get_store()
+        config = store.get_connection(connection_id)
+        if config is None:
+            return _missing(request, "Connection not found", _NO_CONNECTION)
+        line = next(
+            (
+                item
+                for item in _connection_lines(store, _combined_or_none())
+                if item.config.id == config.id
+            ),
+            None,
+        )
+        count = line.accounts if line is not None else None
+        leaving = f"Its {_accounts(count)}" if count is not None else "Its accounts"
+        return _render(
+            request,
+            "settings/remove.html",
+            page=f"Remove {config.name}",
+            active="settings",
+            config=config,
+            leaving=f"{leaving} and their history",
+            is_hubspot=config.kind is ConnectionKind.HUBSPOT,
+            is_sheet=config.kind is ConnectionKind.SPREADSHEET,
+        )
+
+    @app.post("/settings/connections/{connection_id}/remove")
+    def remove_connection(request: Request, connection_id: str) -> Response:
+        """Remove a connection and what came with it. HubSpot's saved token goes too."""
+        store = service.get_store()
+        config = store.get_connection(connection_id)
+        if config is None:
+            return _missing(request, "Connection not found", _NO_CONNECTION)
+        store.remove_connection(config.id)
+        if config.kind is ConnectionKind.HUBSPOT:
+            secrets.delete_hubspot_token()
+        service.reset_connectors()
+        return RedirectResponse(
+            f"/settings/connections?{urlencode({'removed': config.name})}", status_code=303
+        )
+
+    @app.post("/settings/connections/hidden/{account_id}/show")
+    async def show_hidden_account(request: Request, account_id: str) -> Response:
+        """Bring a hidden account back into the book."""
+        store = service.get_store()
+        if account_id not in store.hidden():
+            return _missing(request, "Account not found", _NOT_HIDDEN)
+        connector = _combined_or_none() or CombinedConnector([], store)
+        editing.set_hidden(store, connector, account_id, False)
+        return RedirectResponse("/settings/connections?shown=1", status_code=303)
 
     return app
