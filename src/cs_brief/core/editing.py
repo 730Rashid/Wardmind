@@ -116,6 +116,8 @@ def parse_edit_value(field: str, raw: str) -> EditValue:
             return text
         return _UNKNOWN_TIER if field == "tier" else _UNASSIGNED
     if field in _DATE_FIELDS:
+        if field == "start_date" and not text:
+            return None  # the CSM doesn't know it, or cleared it
         try:
             return date.fromisoformat(text)
         except ValueError:
@@ -147,7 +149,7 @@ def create_account(store: LocalStore, values: dict[str, str], *, today: date) ->
         arr=parsed["arr"],
         tier=parsed.get("tier", _UNKNOWN_TIER),
         owner=parsed.get("owner", _UNASSIGNED),
-        start_date=parsed.get("start_date", today),
+        start_date=parsed.get("start_date"),
         renewal_date=parsed["renewal_date"],
         milestones=Milestones(
             done=parsed.get("milestones_done", 0),

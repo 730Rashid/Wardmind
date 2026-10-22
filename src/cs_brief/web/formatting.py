@@ -62,6 +62,8 @@ def _ago_phrase(count: int, unit: str) -> str:
 def motion_fact(detail: AccountDetail) -> str:
     """The facts-row phrase: the onboarding day, or where the renewal stands."""
     if detail.scored.motion is Motion.ONBOARDING:
+        if detail.days_since_start is None:
+            return "Start date not known"
         return f"Day {detail.days_since_start + 1} of onboarding"
     days = detail.days_to_renewal
     if days > 1:
@@ -217,10 +219,11 @@ def plan_dots(milestones: Sequence[PlanMilestone]) -> list[str]:
 def onboarding_plain_text(brief: OnboardingBrief) -> str:
     """The brief as plain text, for Copy as text. Sections are separated by a blank line."""
     account = brief.account
-    facts = (
-        f"Day {brief.day} of {brief.window_days}. {brief.health.label}. "
-        f"${account.arr:,.0f} ARR. {account.owner}."
-    )
+    if brief.day is None:
+        timing = "Start date not known."
+    else:
+        timing = f"Day {brief.day} of {brief.window_days}."
+    facts = f"{timing} {brief.health.label}. ${account.arr:,.0f} ARR. {account.owner}."
     plan = [f"{step.position}. {step.name}: {step.status.label}" for step in brief.milestones]
     agenda = [
         f"{number}. {item.topic}: {item.detail}"

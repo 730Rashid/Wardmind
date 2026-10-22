@@ -68,7 +68,7 @@ class OnboardingBrief(BaseModel):
     account: Account
     health: Health
     motion: Motion
-    in_onboarding: bool  # motion is Motion.ONBOARDING
+    in_onboarding: bool  # motion is Motion.ONBOARDING, and the start date (so the day) is known
     day: int | None  # days_since_start + 1, so the start date is day 1; None if it isn't known
     window_days: int  # MotionWindows.onboarding_days
     milestones: list[PlanMilestone]  # this account's plan, in order
@@ -115,12 +115,13 @@ def onboarding_brief(detail: AccountDetail, windows: MotionWindows) -> Onboardin
     """Build the call brief from an account's detail (see briefs.account_detail)."""
     scored = detail.scored
     window_days = windows.onboarding_days
-    day = detail.days_since_start + 1
-    days_left = window_days - day + 1
+    # Without a start date there is no day, and the account can't be in onboarding either.
+    day = None if detail.days_since_start is None else detail.days_since_start + 1
+    days_left = 0 if day is None else window_days - day + 1  # only read when in_onboarding
     milestones = plan_for(scored.account)
     risks = scored.reasons[:_MAX_RISKS]
     rows = {row.kind: row for row in detail.breakdown}
-    in_onboarding = scored.motion is Motion.ONBOARDING
+    in_onboarding = scored.motion is Motion.ONBOARDING and day is not None
     return OnboardingBrief(
         account=scored.account,
         health=scored.health,

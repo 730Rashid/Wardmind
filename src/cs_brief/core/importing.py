@@ -1434,7 +1434,7 @@ def build_import(
             arr=parsed.values["arr"],
             tier=parsed.values.get("tier") or "Unknown",
             owner=parsed.values.get("owner") or "Unassigned",
-            start_date=today if start is None else start,
+            start_date=start,
             renewal_date=parsed.values["renewal_date"],
             milestones=milestones,
             domain=parsed.values.get("domain"),

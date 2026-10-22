@@ -68,7 +68,7 @@ class Provenance(BaseModel):
 
 
 # Account fields that a linked account fills in from its other members when the primary lacks them.
-_MERGE_ATTRS: tuple[str, ...] = ("domain", "tier", "owner", "arr", "milestones")
+_MERGE_ATTRS: tuple[str, ...] = ("domain", "tier", "owner", "arr", "milestones", "start_date")
 _DATE_FIELDS = frozenset({"start_date", "renewal_date"})
 _MILESTONE_ATTRS: dict[str, str] = {
     "milestones_total": "total",
@@ -151,6 +151,8 @@ def _display(field_name: str, value: Any) -> str:
 def _coerce(field_name: str, value: Any) -> Any:
     """The edited value in the type its Account attribute needs. Raises ValueError if it can't."""
     if field_name in _DATE_FIELDS:
+        if field_name == "start_date" and value in (None, ""):
+            return None  # the CSM cleared it: the start date is not known
         day = _as_day(value)
         if day is None:
             raise ValueError(field_name)
@@ -184,6 +186,8 @@ def _is_missing(account: Account, attr: str) -> bool:
         return account.owner == _UNASSIGNED
     if attr == "arr":
         return account.arr == 0
+    if attr == "start_date":
+        return account.start_date is None
     return account.milestones.total == 0
 
 

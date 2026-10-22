@@ -56,7 +56,9 @@ class DemoConnector:
             accounts.append(
                 account.model_copy(
                     update={
-                        "start_date": account.start_date + delta,
+                        "start_date": (
+                            None if account.start_date is None else account.start_date + delta
+                        ),
                         "renewal_date": account.renewal_date + delta,
                     }
                 )

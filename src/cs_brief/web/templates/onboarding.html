@@ -23,7 +23,7 @@
       <tr>
         <th scope="row" class="cell-account"><a class="account-link" href="/onboarding/{{ item.account.id | urlencode }}">{{ item.account.name }}</a></th>
         <td class="cell-health"><span class="health health--{{ item.health.value }}"><svg class="icon" aria-hidden="true" focusable="false"><use href="/static/icons.svg#health-{{ item.health.value | replace('_', '-') }}"/></svg> {{ item.health.label }}</span></td>
-        <td class="cell-day">Day {{ brief.day }} of {{ brief.window_days }}</td>
+        <td class="cell-day">{% if brief.day is none %}Start date not known{% else %}Day {{ brief.day }} of {{ brief.window_days }}{% endif %}</td>
         <td class="cell-plan">
           <span class="plan-cell">
             <span class="plan-dots">{% for state in plan_dots(brief.milestones) %}<span class="plan-dot plan-dot--{{ state }}" aria-hidden="true"></span>{% endfor %}</span>

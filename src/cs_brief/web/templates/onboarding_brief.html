@@ -8,7 +8,7 @@
   <header class="onboarding-head">
     <h1 class="page-title">{{ account.name }} onboarding brief</h1>
     <ul class="facts">
-      <li>Day {{ brief.day }} of {{ brief.window_days }}</li>
+      <li>{% if brief.day is none %}Start date not known{% else %}Day {{ brief.day }} of {{ brief.window_days }}{% endif %}</li>
       <li><span class="health health--{{ brief.health.value }}"><svg class="icon" aria-hidden="true" focusable="false"><use href="/static/icons.svg#health-{{ brief.health.value | replace('_', '-') }}"/></svg> {{ brief.health.label }}</span></li>
       <li>{{ account.arr | money }} ARR</li>
       <li>{{ account.owner }}</li>

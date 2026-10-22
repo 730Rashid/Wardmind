@@ -528,7 +528,7 @@ def test_optional_fields_take_defaults_when_blank():
     account = result.accounts[0]
     assert account.tier == "Unknown"
     assert account.owner == "Unassigned"
-    assert account.start_date == TODAY
+    assert account.start_date is None  # a blank cell is not known, so never today
     assert account.domain is None
     assert account.milestones == Milestones(done=0, total=0, overdue=0)
     assert result.signals == []
@@ -593,7 +593,7 @@ def test_a_row_with_only_optional_problems_is_still_imported():
     assert result.skipped_rows == 0
     account = result.accounts[0]
     assert account.domain is None
-    assert account.start_date == TODAY
+    assert account.start_date is None  # the invalid date is dropped, not replaced by today
     assert _messages(result) == [
         'Website "N/A" isn\'t a web address.',
         'Customer since "31/31/2026" isn\'t a date.',

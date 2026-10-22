@@ -969,7 +969,8 @@ def _form_values(account: Account) -> dict[str, str]:
         "arr": _arr_text(account.arr),
         "tier": account.tier,
         "owner": account.owner,
-        "start_date": account.start_date.isoformat(),
+        # A date input shows nothing for a blank value, so an unknown start date is "".
+        "start_date": "" if account.start_date is None else account.start_date.isoformat(),
         "renewal_date": account.renewal_date.isoformat(),
         "milestones_total": str(milestones.total),
         "milestones_done": str(milestones.done),

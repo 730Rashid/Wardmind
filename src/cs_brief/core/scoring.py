@@ -48,8 +48,11 @@ def classify_motion(account: Account, as_of: date, windows: MotionWindows) -> Mo
 
     Onboarding needs a known start date: an account without one is never in onboarding,
     because there is no way to tell it is in its first `onboarding_days` days."""
-    days_since_start = (as_of - account.start_date).days
-    if days_since_start < windows.onboarding_days and not account.milestones.complete:
+    if (
+        account.start_date is not None
+        and (as_of - account.start_date).days < windows.onboarding_days
+        and not account.milestones.complete
+    ):
         return Motion.ONBOARDING
     days_to_renewal = (account.renewal_date - as_of).days
     if 0 <= days_to_renewal <= windows.renewal_window_days:

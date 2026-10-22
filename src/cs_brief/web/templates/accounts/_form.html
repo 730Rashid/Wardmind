@@ -13,11 +13,13 @@
 {% endif %}
 {%- endmacro %}
 
-{% macro field(name, label, values, errors, notes, kind="text", required=false) -%}
+{% macro field(name, label, values, errors, notes, kind="text", required=false, help="") -%}
 {% set id = "field-" ~ (name | replace('_', '-')) %}
+{% set described = [id ~ '-help' if help else '', id ~ '-error' if errors.get(name) else ''] | select | join(' ') %}
 <div class="field account-field">
   <label for="{{ id }}">{{ label }}{% if required %} <span class="required-word">Required</span>{% endif %}</label>
-  <input type="{{ kind }}" id="{{ id }}" name="{{ name }}" value="{{ values.get(name, '') }}" autocomplete="off"{% if required %} aria-required="true"{% endif %}{% if errors.get(name) %} aria-invalid="true" aria-describedby="{{ id }}-error"{% endif %}>
+  <input type="{{ kind }}" id="{{ id }}" name="{{ name }}" value="{{ values.get(name, '') }}" autocomplete="off"{% if required %} aria-required="true"{% endif %}{% if errors.get(name) %} aria-invalid="true"{% endif %}{% if described %} aria-describedby="{{ described }}"{% endif %}>
+  {% if help %}<p class="field-help" id="{{ id }}-help">{{ help }}</p>{% endif %}
   {% if errors.get(name) %}<p class="field-error" id="{{ id }}-error">{{ errors.get(name) }}</p>{% endif %}
   {{ note(name, notes) }}
 </div>
@@ -44,7 +46,7 @@
 {{ field('arr', 'ARR', values, errors, notes, required=new) }}
 {{ field('tier', 'Tier', values, errors, notes) }}
 {{ field('owner', 'Owner', values, errors, notes) }}
-{{ field('start_date', 'Customer since', values, errors, notes, kind='date') }}
+{{ field('start_date', 'Customer since', values, errors, notes, kind='date', help="Leave blank if you don't know it.") }}
 {{ field('renewal_date', 'Renewal date', values, errors, notes, kind='date', required=new) }}
 {{ milestones(values, errors, notes) }}
 {%- endmacro %}

@@ -938,7 +938,6 @@ class HubSpotConnector:
                 start_date=(
                     _parse_date(props.get(mapping.start_date))
                     or _parse_date(props.get("createdate"))
-                    or self._today
                 ),
                 renewal_date=renewal,
                 milestones=milestones,

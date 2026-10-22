@@ -207,7 +207,7 @@ def test_create_adds_a_hand_account_with_the_defaults(store):
     assert account.name == "Larkspur Freight"
     assert account.arr == 184000.0
     assert account.renewal_date == date(2026, 12, 1)
-    assert account.start_date == TODAY
+    assert account.start_date is None  # not known, so never today
     assert account.tier == "Unknown"
     assert account.owner == "Unassigned"
     assert account.domain is None
@@ -259,7 +259,7 @@ def test_blank_optional_fields_on_create_take_their_defaults(store):
         },
         today=TODAY,
     )
-    assert account.start_date == TODAY
+    assert account.start_date is None
     assert (account.tier, account.owner, account.domain) == ("Unknown", "Unassigned", None)
     assert account.milestones.done == 0
 

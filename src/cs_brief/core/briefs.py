@@ -158,7 +158,9 @@ def account_detail(
         explanation=explain(scored),
         rank=position + 1,
         book_size=len(book),
-        days_since_start=(as_of - account.start_date).days,
+        days_since_start=(
+            None if account.start_date is None else (as_of - account.start_date).days
+        ),
         days_to_renewal=(account.renewal_date - as_of).days,
         breakdown=_breakdown(latest, config),
         timeline=_timeline(readings, latest, config),
