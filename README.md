@@ -18,8 +18,20 @@ attention this week. It is reachable three ways, all backed by the same core cod
 - **Claude (MCP):** `cs-brief mcp` serves the book to Claude over stdio
 - **Terminal:** `cs-brief score` prints the top of the book
 
-It runs on bundled demo data (40 invented accounts) or reads your HubSpot portal. The HubSpot
-connection is read-only; see [docs/hubspot.md](docs/hubspot.md) for setup.
+It runs on bundled demo data (40 invented accounts), or on **your data**, which can mix these
+connections:
+- **HubSpot:** read-only; see [docs/hubspot.md](docs/hubspot.md) for setup
+- **Spreadsheets:**
+  - import a CSV or Excel file, or paste cells copied from Excel or Google Sheets
+  - columns are matched for you, and only name, ARR and renewal date are required
+  - import again whenever the sheet changes, and the signal history builds up
+- **Accounts added by hand**
+
+You can edit any account. An edit to a value that came from a connection lasts until that
+connection changes the value; then the new value wins and the account page tells you. When the
+same customer turns up in two connections, cs-brief suggests linking them, and you confirm.
+Everything you add or change is stored in your user profile (`%LOCALAPPDATA%\cs-brief\data`),
+not in this folder.
 
 ## Quickstart (Windows, PowerShell)
 
