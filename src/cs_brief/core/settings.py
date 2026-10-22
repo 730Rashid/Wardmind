@@ -7,6 +7,7 @@ before changing it.
 
 from __future__ import annotations
 
+import re
 from enum import StrEnum
 from pathlib import Path
 from typing import Any
@@ -15,6 +16,10 @@ import yaml
 from pydantic import BaseModel, ValidationError, field_validator
 
 from cs_brief.core.config import config_dir, write_atomic
+
+# Fast and cheap, and good at short factual summaries. Any OpenRouter model id can be chosen.
+DEFAULT_AI_MODEL = "anthropic/claude-haiku-5.5"
+_MODEL_ID = re.compile(r"~?[a-z0-9][a-z0-9._-]*/[a-z0-9][a-z0-9._:-]{0,99}")
 
 
 class Theme(StrEnum):
@@ -68,6 +73,20 @@ class Settings(BaseModel):
     source: DataSource = DataSource.DEMO
     # Web research (core/research.py): off until the CSM turns it on in Data & privacy.
     web_research: bool = False
+    # AI summaries of what web research read (core/summaries.py): off until turned on, and only
+    # used while web_research is on too. ai_model is an OpenRouter model id.
+    ai_summaries: bool = False
+    ai_model: str = DEFAULT_AI_MODEL
+
+    @field_validator("ai_model")
+    @classmethod
+    def _model_id(cls, value: str) -> str:
+        """An OpenRouter model id such as "anthropic/claude-haiku-5.5". Anything else is refused
+        (load_settings then falls back to the default for this field alone)."""
+        value = value.strip()
+        if not _MODEL_ID.fullmatch(value):
+            raise ValueError("That isn't an OpenRouter model id, like anthropic/claude-haiku-5.5.")
+        return value
 
     @field_validator("source", mode="before")
     @classmethod

@@ -12,7 +12,7 @@ from datetime import UTC, date, datetime
 
 from pydantic import BaseModel
 
-from cs_brief.core import import_flow, research, secrets
+from cs_brief.core import bulk, import_flow, research, secrets, summaries
 from cs_brief.core.briefs import AccountDetail, account_detail, suggest_action
 from cs_brief.core.config import ScoringConfig, load_scoring_config
 from cs_brief.core.connectors.base import Connector
@@ -240,6 +240,7 @@ _RESEARCH_OFF = "Web research is off. Turn it on in Settings > Data & privacy to
 class CacheCleared(BaseModel):
     research: int  # saved web research lookups removed
     drafts: int  # unfinished imports removed (their pasted cells or uploaded file)
+    summaries: int = 0  # saved AI summaries removed
 
 
 def research_cache() -> research.ResearchCache:
@@ -341,3 +342,78 @@ def clear_local_cache(now: datetime | None = None) -> CacheCleared:
     )
     reset_connectors()
     return cleared
+
+
+# --- AI summaries and looking up every account (see core/summaries.py and core/bulk.py) -----
+
+# Test-only seam: tests replace this with a factory that builds a client on a MockTransport.
+# The real one reads secrets.get_openrouter_key() and summaries.ENV_API_BASE (localhost only).
+_openrouter_factory: Callable[[], summaries.OpenRouterClient] | None = None
+
+# The one job runner for this process (the web app's "Look up all websites").
+_runner = bulk.JobRunner(clock=lambda: datetime.now(UTC))
+
+
+def ai_ready() -> str | None:
+    """None when AI summaries can be used; else the plain-English reason they can't (web
+    research off, AI summaries off, or no OpenRouter key). Demo mode needs no key."""
+    raise NotImplementedError
+
+
+def summary_store() -> summaries.SummaryStore:
+    """Saved summaries under store.data_dir() / summaries.SUMMARIES_DIR."""
+    raise NotImplementedError
+
+
+def saved_summary(account_id: str) -> summaries.Summary | None:
+    """The saved summary for this account, without any network call. None when AI summaries or
+    web research are off, or there isn't one."""
+    raise NotImplementedError
+
+
+def summarise_account(account_id: str, *, refresh: bool = False) -> summaries.Summary:
+    """Summarise one account (the CSM asked). Raises summaries.SummariesOff / NoKey (see
+    ai_ready), LookupError for an unknown id, research.ResearchError when the website can't be
+    looked up, and the other summaries.SummaryError types. Uses research_account() (so its
+    cache), then the saved summary if it is fresh for this text and model, unless `refresh`;
+    else summaries.summarise() (demo: summaries.sample_summary(), nothing sent), saved."""
+    raise NotImplementedError
+
+
+def account_flags() -> dict[str, list[research.Topic]]:
+    """Topics to show next to each account in My book, without any network call: the saved
+    summary's highlight topics, else the topics of saved lookup articles from the last 90 days.
+    Each list is in Topic order without repeats; accounts with none are left out. Empty when
+    web research is off."""
+    raise NotImplementedError
+
+
+def start_bulk_research(*, summarise: bool, refresh: bool) -> bulk.Job:
+    """Start (or return the running) job over every account in the current book, in book
+    order. Raises research.ResearchOff when web research is off, and summaries.SummariesOff /
+    NoKey (from ai_ready) when `summarise` is asked for but can't be done. Each account reuses
+    the same caches as research_account() and summarise_account()."""
+    raise NotImplementedError
+
+
+def bulk_job(job_id: str | None = None) -> bulk.Job | None:
+    """The current or last job (see JobRunner.job)."""
+    raise NotImplementedError
+
+
+def set_ai_summaries(on: bool) -> None:
+    """Save Settings.ai_summaries. Turning it off also deletes every saved summary."""
+    raise NotImplementedError
+
+
+def set_ai_model(model: str) -> None:
+    """Save Settings.ai_model. Raises ValueError (the Settings validator's message) for an id
+    that isn't an OpenRouter model id. Saved summaries are kept; they are rewritten the next
+    time each account is summarised, because a summary is only fresh for its own model."""
+    raise NotImplementedError
+
+
+def check_openrouter_key() -> summaries.KeyInfo:
+    """GET /key with the saved key, for "Test key". Raises summaries.NoKey without one, and the
+    client's errors otherwise."""
+    raise NotImplementedError

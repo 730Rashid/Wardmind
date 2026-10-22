@@ -1,4 +1,5 @@
-"""Where the HubSpot access token lives, and how it is shown (never in full).
+"""Where the HubSpot access token and the OpenRouter API key live, and how they are shown
+(never in full).
 
 Lookup order: the CS_BRIEF_HUBSPOT_TOKEN environment variable, then a file in a per-user,
 local-only folder. That folder is never the project's config/ (which sits in a synced OneDrive
@@ -150,3 +151,38 @@ def delete_hubspot_token() -> bool:
     except FileNotFoundError:
         return False
     return True
+
+
+# --- OpenRouter API key (AI summaries; see core/summaries.py) ------------------------------
+# Same rules as the HubSpot token: the environment variable wins, else a file in secrets_dir();
+# shown only through mask_token; never logged, printed or put in an error message.
+
+ENV_OPENROUTER_KEY = "CS_BRIEF_OPENROUTER_KEY"
+OPENROUTER_KEY_FILE = "openrouter-key"
+
+
+def get_openrouter_key() -> str | None:
+    """The key from ENV_OPENROUTER_KEY if set and non-blank, else from the key file, else None."""
+    raise NotImplementedError
+
+
+def openrouter_key_status() -> TokenStatus:
+    """Like token_status(), for the OpenRouter key."""
+    raise NotImplementedError
+
+
+def validate_openrouter_key(key: str) -> str:
+    """Like validate_token (same length limits and messages' style, never echoing the key), with
+    OpenRouter wording: e.g. "Paste an OpenRouter API key first."."""
+    raise NotImplementedError
+
+
+def save_openrouter_key(key: str) -> None:
+    """validate_openrouter_key, then write atomically to secrets_dir()/OPENROUTER_KEY_FILE, the
+    same way save_hubspot_token does (share the helper rather than copying it)."""
+    raise NotImplementedError
+
+
+def delete_openrouter_key() -> bool:
+    """Remove the key file. True if a file was removed. The environment variable is untouched."""
+    raise NotImplementedError
