@@ -31,24 +31,32 @@
         </div>
         {% endfor %}
       </div>
-      <div class="duplicate-actions">
-        <form class="duplicate-link" method="post" action="/duplicates/link">
-          <input type="hidden" name="first" value="{{ first.id }}">
-          <input type="hidden" name="second" value="{{ second.id }}">
-          <fieldset class="keep-name">
-            <legend>Name to keep</legend>
-            {% for side in pair.sides %}
-            <label class="choice"><input type="radio" name="primary" value="{{ side.id }}"{% if loop.first %} checked{% endif %}> {{ side.name }} from {{ side.connection }}</label>
-            {% endfor %}
-          </fieldset>
+      {% set differs = [] %}
+      {% for label, key in [("ARR", "arr"), ("renewal date", "renewal"), ("owner", "owner"), ("website", "website")] %}
+      {% if first[key] != second[key] %}{% set _ = differs.append(label) %}{% endif %}
+      {% endfor %}
+      {% if differs %}
+      <p class="duplicate-differs">They differ on {{ differs[:-1]|join(", ") ~ (" and " if differs|length > 1 else "") ~ differs[-1] }}.</p>
+      {% endif %}
+      <form class="duplicate-link" method="post" action="/duplicates/link">
+        <input type="hidden" name="first" value="{{ first.id }}">
+        <input type="hidden" name="second" value="{{ second.id }}">
+        <fieldset class="keep-name">
+          <legend>Account to keep</legend>
+          {% for side in pair.sides %}
+          <label class="choice"><input type="radio" name="primary" value="{{ side.id }}"{% if loop.first %} checked{% endif %}> {{ side.name }} from {{ side.connection }}</label>
+          {% endfor %}
+          <p class="field-help">The one you keep supplies the name, ARR, dates and owner. The other fills in anything it's missing, and both keep their signal history.</p>
+        </fieldset>
+        <div class="duplicate-actions">
           <button type="submit" class="button">Link these</button>
-        </form>
-        <form class="inline-form" method="post" action="/duplicates/dismiss">
-          <input type="hidden" name="first" value="{{ first.id }}">
-          <input type="hidden" name="second" value="{{ second.id }}">
-          <button type="submit" class="button">Not the same</button>
-        </form>
-      </div>
+          <button type="submit" class="button" form="dismiss-{{ loop.index }}">Not the same</button>
+        </div>
+      </form>
+      <form id="dismiss-{{ loop.index }}" class="visually-hidden" method="post" action="/duplicates/dismiss">
+        <input type="hidden" name="first" value="{{ first.id }}">
+        <input type="hidden" name="second" value="{{ second.id }}">
+      </form>
     </section>
     {% endfor %}
   </div>

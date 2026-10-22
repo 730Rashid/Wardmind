@@ -21,7 +21,7 @@ from fastapi.exception_handlers import http_exception_handler
 from fastapi.responses import HTMLResponse, PlainTextResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
-from jinja2 import Environment, FileSystemLoader
+from jinja2 import Environment, FileSystemLoader, Undefined
 from starlette.datastructures import UploadFile
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.middleware.trustedhost import TrustedHostMiddleware
@@ -228,7 +228,18 @@ def _brief_source() -> str:
     return {"demo": "demo data", "combined": "your data"}.get(name, name)
 
 
-_env = Environment(loader=FileSystemLoader(TEMPLATES_DIR), autoescape=True)
+class _LoudUndefined(Undefined):
+    """A missing template variable may be tested (`{% if notice %}`), but printing one raises.
+    Jinja's default prints "", which once turned a form action into "/import//commit"."""
+
+    def __str__(self) -> str:
+        self._fail_with_undefined_error()
+        return ""  # unreachable; keeps type checkers happy
+
+
+_env = Environment(
+    loader=FileSystemLoader(TEMPLATES_DIR), autoescape=True, undefined=_LoudUndefined
+)
 _env.filters["money"] = money
 _env.filters["money_short"] = money_short
 _env.filters["whole"] = whole
@@ -830,6 +841,9 @@ def _mapping_view(
         "show_date_order": implied is None and bool(import_flow.date_columns(draft, cleaned)),
         "date_choice": chosen.value,
         "accounts": _accounts(result.ready_rows),
+        # The examples come from the first data row; show its real spreadsheet row number.
+        "example_row": draft.table.row_numbers[0] if draft.table.row_numbers else 2,
+        "draft_id": draft.id,
     }
 
 

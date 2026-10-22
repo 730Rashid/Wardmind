@@ -614,9 +614,14 @@ def test_the_duplicates_page_lists_each_pair_with_its_reason(
     assert "Same website: larkspur.example" in text
     assert "Larkspur Freight" in text and "Acme Corporation" in text
     assert "Link these" in text and "Not the same" in text
-    assert "Name to keep" in text
+    assert "They differ on ARR and renewal date." in text
+    assert "Account to keep" in text
+    assert "The one you keep supplies the name, ARR, dates and owner." in text
     assert "Other sheet" in text
     _assert_clean(response)
+    # "Not the same" sits beside "Link these" but submits its own dismiss form.
+    assert re.search(r'<button[^>]*form="dismiss-1"[^>]*>Not the same</button>', response.text)
+    assert 'id="dismiss-1"' in response.text and 'action="/duplicates/dismiss"' in response.text
 
 
 def test_linking_merges_the_accounts_and_unlink_restores_them(

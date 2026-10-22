@@ -2664,8 +2664,13 @@ label.button:focus-within {
 .duplicate-actions {
   display: flex;
   flex-wrap: wrap;
-  align-items: flex-start;
-  gap: var(--space-4) var(--space-5);
+  align-items: center;
+  gap: var(--space-3);
+}
+
+/* Which values clash, so the CSM knows what "the one you keep" decides. */
+.duplicate-differs {
+  font-weight: 600;
 }
 
 .duplicate-link {

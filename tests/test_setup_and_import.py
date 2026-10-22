@@ -712,3 +712,25 @@ def test_the_token_is_in_no_new_page(client: TestClient, store: LocalStore) -> N
         assert "SECRETTEST" not in response.text, path
         assert TOKEN not in response.text, path
         assert TOKEN.encode() not in response.content, path
+
+
+def test_the_import_button_posts_to_the_drafts_own_commit_address(client: TestClient) -> None:
+    # Follow the form exactly as a browser would. The page once rendered action="/import//commit"
+    # because the template asked for a variable the route didn't pass, and every test posted to
+    # a hand-built URL instead of the form's real one.
+    _use(DataSource.MINE)
+    pasted = (
+        "Company\tARR\tRenewal date\n\n"
+        "Acme Freight\t$12,000\t2027-03-01\n"
+        "Bolt Co\tTBC\t2027-04-01\n"
+    )
+    draft_id = _draft_id(_paste(client, pasted, new_name="Pasted renewals"))
+    page = client.get(f"/import/{draft_id}").text
+
+    actions = re.findall(r'<form id="import-mapping"[^>]*action="([^"]+)"', page)
+    assert actions == [f"/import/{draft_id}/commit"]
+    addresses = re.findall(r'(?:action|href|hx-post|formaction)="(/[^"]*)"', page)
+    assert addresses and not [address for address in addresses if "//" in address]
+    # The examples come from the first data row, which is row 3 here because of the blank line.
+    assert "Example from row 3" in page
+    assert "Download the row with a problem (CSV)" in page

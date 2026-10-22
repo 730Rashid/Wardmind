@@ -17,7 +17,7 @@
       "runtimeArgs": [
         "-NoProfile",
         "-Command",
-        "$d = Join-Path $env:TEMP 'cs-brief-sandbox'; New-Item -ItemType Directory -Force $d | Out-Null; Copy-Item config\\scoring.yaml $d -Force; Remove-Item (Join-Path $d 'settings.yaml') -ErrorAction SilentlyContinue; $env:CS_BRIEF_CONFIG_DIR = $d; $env:UV_PROJECT_ENVIRONMENT = Join-Path $env:LOCALAPPDATA 'cs-brief\\venv'; uv run cs-brief ui --no-browser --port 8001"
+        "$d = Join-Path $env:TEMP 'cs-brief-sandbox'; New-Item -ItemType Directory -Force $d | Out-Null; Copy-Item config\\scoring.yaml $d -Force; Remove-Item (Join-Path $d 'settings.yaml') -ErrorAction SilentlyContinue; Remove-Item (Join-Path $d 'secrets'), (Join-Path $d 'data') -Recurse -Force -ErrorAction SilentlyContinue; $env:CS_BRIEF_CONFIG_DIR = $d; $env:CS_BRIEF_SECRETS_DIR = Join-Path $d 'secrets'; $env:CS_BRIEF_DATA_DIR = Join-Path $d 'data'; Remove-Item Env:CS_BRIEF_HUBSPOT_TOKEN -ErrorAction SilentlyContinue; $env:UV_PROJECT_ENVIRONMENT = Join-Path $env:LOCALAPPDATA 'cs-brief\\venv'; uv run cs-brief ui --no-browser --port 8001"
       ],
       "port": 8001
     },
@@ -37,7 +37,7 @@
       "runtimeArgs": [
         "-NoProfile",
         "-Command",
-        "$d = Join-Path $env:TEMP 'cs-brief-fake-hubspot'; Remove-Item $d -Recurse -Force -ErrorAction SilentlyContinue; New-Item -ItemType Directory -Force (Join-Path $d 'config'), (Join-Path $d 'secrets') | Out-Null; Copy-Item config\\scoring.yaml (Join-Path $d 'config') -Force; $env:CS_BRIEF_CONFIG_DIR = Join-Path $d 'config'; $env:CS_BRIEF_SECRETS_DIR = Join-Path $d 'secrets'; Remove-Item Env:CS_BRIEF_HUBSPOT_TOKEN -ErrorAction SilentlyContinue; $env:CS_BRIEF_HUBSPOT_API_BASE = 'http://127.0.0.1:8799'; $env:UV_PROJECT_ENVIRONMENT = Join-Path $env:LOCALAPPDATA 'cs-brief\\venv'; uv run cs-brief ui --no-browser --port 8002"
+        "$d = Join-Path $env:TEMP 'cs-brief-fake-hubspot'; Remove-Item $d -Recurse -Force -ErrorAction SilentlyContinue; New-Item -ItemType Directory -Force (Join-Path $d 'config'), (Join-Path $d 'secrets'), (Join-Path $d 'data') | Out-Null; Copy-Item config\\scoring.yaml (Join-Path $d 'config') -Force; $env:CS_BRIEF_CONFIG_DIR = Join-Path $d 'config'; $env:CS_BRIEF_SECRETS_DIR = Join-Path $d 'secrets'; $env:CS_BRIEF_DATA_DIR = Join-Path $d 'data'; Remove-Item Env:CS_BRIEF_HUBSPOT_TOKEN -ErrorAction SilentlyContinue; $env:CS_BRIEF_HUBSPOT_API_BASE = 'http://127.0.0.1:8799'; $env:UV_PROJECT_ENVIRONMENT = Join-Path $env:LOCALAPPDATA 'cs-brief\\venv'; uv run cs-brief ui --no-browser --port 8002"
       ],
       "port": 8002
     }
