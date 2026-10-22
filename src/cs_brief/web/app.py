@@ -990,7 +990,7 @@ def _edit_notes(prov: Provenance) -> dict[str, dict[str, str]]:
 
 
 def _joined(names: list[str]) -> str:
-    """"A", "A and B", "A, B and C"."""
+    """Joins names as "A", "A and B" or "A, B and C"."""
     if len(names) <= 1:
         return "".join(names)
     return f"{', '.join(names[:-1])} and {names[-1]}"
