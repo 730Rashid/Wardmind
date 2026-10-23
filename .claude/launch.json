@@ -22,6 +22,16 @@
       "port": 8001
     },
     {
+      "name": "cs-brief-ui-sandbox-keep",
+      "runtimeExecutable": "powershell",
+      "runtimeArgs": [
+        "-NoProfile",
+        "-Command",
+        "$d = Join-Path $env:TEMP 'cs-brief-sandbox'; New-Item -ItemType Directory -Force $d | Out-Null; $env:CS_BRIEF_CONFIG_DIR = $d; $env:CS_BRIEF_SECRETS_DIR = Join-Path $d 'secrets'; $env:CS_BRIEF_DATA_DIR = Join-Path $d 'data'; Remove-Item Env:CS_BRIEF_HUBSPOT_TOKEN -ErrorAction SilentlyContinue; Remove-Item Env:CS_BRIEF_OPENROUTER_KEY, Env:CS_BRIEF_OPENROUTER_API_BASE -ErrorAction SilentlyContinue; $env:UV_PROJECT_ENVIRONMENT = Join-Path $env:LOCALAPPDATA 'cs-brief\\venv'; uv run cs-brief ui --no-browser --port 8001"
+      ],
+      "port": 8001
+    },
+    {
       "name": "fake-hubspot",
       "runtimeExecutable": "powershell",
       "runtimeArgs": [

@@ -659,6 +659,91 @@ def test_without_an_advertised_feed_the_fallbacks_are_tried_in_order() -> None:
     ]
 
 
+_SECTIONS_HOME = b"""<!doctype html><html><head><title>Acme</title></head><body>
+<a href="/gb/blog/our-new-office">Our new office</a>
+<a href="https://acme.example/gb/newsroom">Newsroom</a>
+<a href="https://other.example/news">Someone else's news</a>
+</body></html>"""
+
+_NEWSROOM_NO_FEED = b"""<!doctype html><html><head><title>Newsroom</title></head><body>
+<a href="/gb/newsroom">Newsroom</a>
+<a href="/gb/newsroom/news/series-c"><span>Acme raises a Series C</span> to expand in Europe</a>
+<a href="/gb/newsroom/news/cfo">Acme appoints Jo Park as Chief Financial Officer</a>
+<a href="/gb/newsroom/news/cfo#top">Acme appoints Jo Park as Chief Financial Officer</a>
+<a href="/gb/newsroom/news/short">Read more</a>
+<a href="https://other.example/gb/newsroom/news/x">A long headline on someone else's site</a>
+<a href="/gb/pricing">Pricing plans for teams of every size</a>
+</body></html>"""
+
+_BLOG_WITH_FEEDS = b"""<!doctype html><html><head><title>Blog</title>
+<link rel="alternate" type="application/rss+xml" href="/gb/blog/comments/feed">
+<link rel="alternate" type="application/atom+xml" href="/gb/blog/feed.atom">
+</head><body></body></html>"""
+
+
+def test_news_pages_finds_section_indexes_in_order_including_from_deeper_links() -> None:
+    page = parse_page(_SECTIONS_HOME, "https://acme.example/")
+    assert research.news_pages(page, ("acme.example",)) == [
+        "https://acme.example/gb/newsroom",
+        "https://acme.example/gb/blog",
+    ]
+
+
+def test_a_section_must_be_a_whole_path_segment() -> None:
+    html = b'<a href="/newsletter">Sign up</a><a href="/blogs-we-like/x">Links</a>'
+    page = parse_page(html, "https://acme.example/")
+    assert research.news_pages(page, ("acme.example",)) == []
+
+
+def test_headlines_come_from_links_under_the_news_page() -> None:
+    page = parse_page(_NEWSROOM_NO_FEED, "https://acme.example/gb/newsroom")
+    articles = research.page_headlines(page, "https://acme.example/gb/newsroom")
+    assert [(a.title, a.url) for a in articles] == [
+        (
+            "Acme raises a Series C to expand in Europe",
+            "https://acme.example/gb/newsroom/news/series-c",
+        ),
+        (
+            "Acme appoints Jo Park as Chief Financial Officer",
+            "https://acme.example/gb/newsroom/news/cfo",
+        ),
+    ]
+    assert all(a.published is None for a in articles)
+    assert articles[0].topics == [research.Topic.FUNDING]
+
+
+def test_without_a_home_feed_the_newsroom_headlines_are_used() -> None:
+    site = FakeSite(
+        {
+            "https://acme.example/": reply(_SECTIONS_HOME),
+            "https://acme.example/gb/newsroom": reply(_NEWSROOM_NO_FEED),
+        }
+    )
+    result = lookup(account(), site.client(), NOW)
+    assert result.feed_url == "https://acme.example/gb/newsroom"
+    assert len(result.articles) == 2
+    assert "https://other.example/news" not in site.seen
+
+
+def test_a_news_page_with_nothing_usable_moves_on_to_the_blog_and_its_feed() -> None:
+    site = FakeSite(
+        {
+            "https://acme.example/": reply(_SECTIONS_HOME),
+            "https://acme.example/gb/newsroom": reply(NO_FEED_HOME),
+            "https://acme.example/gb/blog": reply(_BLOG_WITH_FEEDS),
+            "https://acme.example/gb/blog/feed.atom": reply(
+                ATOM, content_type="application/atom+xml"
+            ),
+        }
+    )
+    result = lookup(account(), site.client(), NOW)
+    assert result.feed_url == "https://acme.example/gb/blog/feed.atom"
+    assert [a.title for a in result.articles][0] == "Acme acquires Beta Logistics"
+    # The comments feed is never read, and no fallback feed is guessed.
+    assert "https://acme.example/gb/blog/comments/feed" not in site.seen
+    assert not any(url.endswith(FALLBACK_FEEDS) for url in site.seen)
+
+
 def test_no_feed_at_all_still_gives_the_title_and_an_empty_article_list() -> None:
     site = FakeSite({"https://acme.example/": reply(NO_FEED_HOME)})
     result = lookup(account(), site.client(), NOW)

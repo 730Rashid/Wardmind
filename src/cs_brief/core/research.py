@@ -52,13 +52,17 @@ from cs_brief.core.models import Account
 USER_AGENT = "cs-brief (local customer success tool)"
 TIMEOUT_SECONDS = 8.0
 MAX_BYTES = 1_000_000  # per response; a longer body is cut off there
-MAX_REQUESTS = 6  # per lookup, redirects included
+MAX_REQUESTS = 8  # per lookup, redirects included
 MAX_REDIRECTS = 3  # per fetch
 MAX_ARTICLES = 8
 MAX_TEXT = 300  # characters kept of a title or description
 CACHE_HOURS = 24
-# Tried in order, only when the home page advertises no feed.
+# Tried in order, only when neither the home page nor a news page found there has a feed.
 FALLBACK_FEEDS = ("/feed", "/rss.xml", "/blog/rss.xml")
+# Sections a home page may link to, most useful to a CSM first: company news, then the blog.
+NEWS_SECTIONS = ("newsroom", "news", "press", "blog")
+# A link on a news page counts as a headline when its text is this long (shorter is navigation).
+HEADLINE_CHARS = (25, 200)
 RESEARCH_DIR = "research"  # under store.data_dir()
 
 # Hosts that are never public websites, whatever DNS says.
@@ -96,7 +100,9 @@ class SiteResearch(BaseModel):
     fetched_at: datetime  # timezone-aware UTC
     site_title: str | None  # the home page's <title>, plain text, None if missing
     site_description: str | None  # meta description, else og:description, else None
-    feed_url: str | None  # the feed the articles came from; None if none was found or readable
+    # The feed the articles came from, or the news page whose headlines were used when the site
+    # has no feed; None if neither was found or readable.
+    feed_url: str | None
     articles: list[Article]  # newest first (undated last), at most MAX_ARTICLES
     sample: bool = False  # demo sample news: invented, nothing was sent
 
@@ -105,6 +111,7 @@ class PageInfo(BaseModel):
     title: str | None
     description: str | None
     feeds: list[str]  # absolute https URLs of <link rel="alternate"> RSS/Atom feeds, in order
+    links: list[tuple[str, str]] = []  # (text, absolute https URL) of every <a href>, in order
 
 
 class Fetched(BaseModel):
@@ -345,6 +352,12 @@ def _absolute(href: str, base_url: str, schemes: tuple[str, ...]) -> str | None:
 
 
 _FEED_TYPES = frozenset({"application/rss+xml", "application/atom+xml"})
+# "/newsroom", "/blog/", "/gb/news", "/en-us/press/2026/x": a section, optionally after a locale;
+# matched from the start of the path, and the section must be a whole segment.
+_SECTION_PATH = re.compile(
+    r"/(?:[a-z]{2}(?:[-_][a-z]{2})?/)?(" + "|".join(NEWS_SECTIONS) + r")(?=/|$)", re.IGNORECASE
+)
+MAX_NEWS_PAGES = 2  # news pages tried per lookup, in NEWS_SECTIONS order
 
 
 class _PageParser(HTMLParser):
@@ -360,6 +373,9 @@ class _PageParser(HTMLParser):
         self.description: str | None = None
         self.og_description: str | None = None
         self.feeds: list[str] = []
+        self.links: list[tuple[str, str]] = []
+        self._anchor: str | None = None  # the open <a>'s URL, while its text is collected
+        self._anchor_text: list[str] = []
 
     def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
         values = {name: value or "" for name, value in attrs}
@@ -370,14 +386,27 @@ class _PageParser(HTMLParser):
             self._meta(values)
         elif tag == "link":
             self._link(values)
+        elif tag == "a":
+            self.end_anchor()  # an unclosed <a> ends where the next one starts
+            self._anchor = _absolute(values.get("href", ""), self._base, ("https",))
+            self._anchor_text = []
 
     def handle_endtag(self, tag: str) -> None:
         if tag == "title":
             self.end_title()
+        elif tag == "a":
+            self.end_anchor()
 
     def handle_data(self, data: str) -> None:
         if self._title_open:
             self._title_text.append(data)
+        if self._anchor is not None:
+            self._anchor_text.append(data)
+
+    def end_anchor(self) -> None:
+        if self._anchor is not None:
+            self.links.append((_clean(" ".join(self._anchor_text)), self._anchor))
+            self._anchor = None
 
     def end_title(self) -> None:
         if self._title_open:
@@ -417,11 +446,54 @@ def parse_page(html: bytes, base_url: str) -> PageInfo:
     except (AssertionError, ValueError):  # html.parser gives up on some broken markup
         pass
     parser.end_title()
+    parser.end_anchor()
     return PageInfo(
         title=parser.title,
         description=parser.description or parser.og_description,
         feeds=parser.feeds,
+        links=parser.links,
     )
+
+
+def news_pages(page: PageInfo, hosts: tuple[str, ...]) -> list[str]:
+    """The site's own newsroom, news, press and blog index pages that this page links to, in
+    NEWS_SECTIONS order, one per section, e.g. ["https://stripe.com/gb/newsroom",
+    "https://stripe.com/gb/blog"]. A locale segment such as "/gb/" or "/en-us/" before the
+    section is allowed. A deeper link (an article such as "/blog/ai-research") counts as a
+    link to its section's index ("/blog")."""
+    found: dict[str, str] = {}
+    for _, url in page.links:
+        if not _same_site(url, hosts):
+            continue
+        parts = urlsplit(url)
+        match = _SECTION_PATH.match(parts.path)
+        if match is not None and match.group(1).lower() not in found:
+            index = f"{parts.scheme}://{parts.netloc}{match.group(0).rstrip('/')}"
+            found[match.group(1).lower()] = index
+    return [found[section] for section in NEWS_SECTIONS if section in found]
+
+
+def page_headlines(page: PageInfo, page_url: str) -> list[Article]:
+    """Headlines from a news page that has no feed: links to pages under it (e.g.
+    /newsroom/news/<slug> under /newsroom) whose text is HEADLINE_CHARS long, in page order,
+    deduplicated by URL, at most MAX_ARTICLES. They have no dates."""
+    base = urlsplit(page_url)
+    prefix = base.path.rstrip("/") + "/"
+    articles: list[Article] = []
+    seen: set[str] = set()
+    low, high = HEADLINE_CHARS
+    for text, url in page.links:
+        parts = urlsplit(url)
+        url = url.split("#", 1)[0]
+        if parts.hostname != base.hostname or not parts.path.startswith(prefix):
+            continue
+        if not low <= len(text) <= high or url in seen:
+            continue
+        seen.add(url)
+        articles.append(Article(title=text, url=url, published=None, topics=tag_topics(text)))
+        if len(articles) == MAX_ARTICLES:
+            break
+    return articles
 
 
 _ATOM = "{http://www.w3.org/2005/Atom}"
@@ -670,19 +742,75 @@ def lookup(account: Account, client: SiteClient, now: datetime) -> SiteResearch:
 
     1. host = website_host(account.domain); fetch https://{host}/ (SiteUnreachable if it fails
        or isn't HTML).
-    2. parse_page; then try its advertised feeds (at most 2), or else FALLBACK_FEEDS on the
-       final host, until one parses with at least one article. Feed failures are not errors.
-    3. Return SiteResearch with fetched_at=now, website=host, feed_url of the feed used.
-    The client is not closed here."""
+    2. parse_page; try its advertised feeds (at most 2) until one parses with an article.
+    3. Else follow news_pages() (the site's own newsroom, news, press or blog index, at most
+       MAX_NEWS_PAGES of them, in order): try each one's
+       advertised feeds (at most 2), else take page_headlines() from it.
+    4. Else, when no news page was found, try FALLBACK_FEEDS on the final host.
+    Feed and news page failures are not errors: the result then has no articles. Returns
+    SiteResearch with fetched_at=now, website=host, and feed_url of the feed or news page used.
+    Everything fetched must be on the same site (see _same_site). The client is not closed."""
     host = website_host(account.domain)
     home = client.fetch(f"https://{host}/")
-    if home.content_type not in ("text/html", "application/xhtml+xml"):
+    if not _is_html(home):
         raise SiteUnreachable(f"{host} didn't send a web page cs-brief could read.")
     page = parse_page(home.body, home.url)
     final_host = urlsplit(home.url).hostname or host
     hosts = (host, final_host)
-    advertised = [url for url in page.feeds if _same_site(url, hosts)][:2]
-    candidates = advertised or [urljoin(home.url, path) for path in FALLBACK_FEEDS]
+
+    def result(source: str | None, articles: list[Article]) -> SiteResearch:
+        return SiteResearch(
+            account_id=account.id,
+            website=host,
+            fetched_at=_aware(now),
+            site_title=page.title,
+            site_description=page.description,
+            feed_url=source,
+            articles=articles,
+        )
+
+    found = _first_feed(client, _news_feeds(page, hosts), hosts)
+    if found is not None:
+        return result(*found)
+    sections = news_pages(page, hosts)[:MAX_NEWS_PAGES]
+    for section in sections:
+        try:
+            listing = client.fetch(section)
+        except ResearchError:
+            continue
+        if not _is_html(listing) or not _same_site(listing.url, hosts):
+            continue
+        index = parse_page(listing.body, listing.url)
+        found = _first_feed(client, _news_feeds(index, hosts), hosts)
+        if found is not None:
+            return result(*found)
+        headlines = page_headlines(index, listing.url)
+        if headlines:
+            return result(listing.url, headlines)
+    if sections:
+        return result(None, [])
+    found = _first_feed(client, [urljoin(home.url, path) for path in FALLBACK_FEEDS], hosts)
+    return result(*found) if found is not None else result(None, [])
+
+
+def _news_feeds(page: PageInfo, hosts: tuple[str, ...]) -> list[str]:
+    """The page's advertised feeds worth reading: on this site, not a comments feed, at most 2."""
+    return [
+        url
+        for url in page.feeds
+        if _same_site(url, hosts) and "comment" not in urlsplit(url).path.lower()
+    ][:2]
+
+
+def _is_html(fetched: Fetched) -> bool:
+    return fetched.content_type in ("text/html", "application/xhtml+xml")
+
+
+def _first_feed(
+    client: SiteClient, candidates: list[str], hosts: tuple[str, ...]
+) -> tuple[str, list[Article]] | None:
+    """(feed URL, articles) for the first candidate on this site that parses with at least one
+    article; None if none does. A missing, blocked or unreadable feed just means no feed."""
     for feed_url in candidates:
         try:
             feed = client.fetch(feed_url)
@@ -690,26 +818,10 @@ def lookup(account: Account, client: SiteClient, now: datetime) -> SiteResearch:
                 continue
             articles = parse_feed(feed.body, feed.url)
         except (ResearchError, ValueError):
-            continue  # a feed that is missing, blocked or unreadable just means no feed
+            continue
         if articles:
-            return SiteResearch(
-                account_id=account.id,
-                website=host,
-                fetched_at=_aware(now),
-                site_title=page.title,
-                site_description=page.description,
-                feed_url=feed.url,
-                articles=articles,
-            )
-    return SiteResearch(
-        account_id=account.id,
-        website=host,
-        fetched_at=_aware(now),
-        site_title=page.title,
-        site_description=page.description,
-        feed_url=None,
-        articles=[],
-    )
+            return feed.url, articles
+    return None
 
 
 _SAMPLE_HEADLINES: tuple[str, ...] = (

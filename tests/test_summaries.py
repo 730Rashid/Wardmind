@@ -152,8 +152,15 @@ def test_the_content_hash_is_stable_and_is_the_hash_of_the_sent_text() -> None:
     assert len(content_hash(research)) == 64
     import hashlib
 
-    user = build_messages(research)[1]["content"]
-    assert content_hash(research) == hashlib.sha256(user.encode("utf-8")).hexdigest()
+    system, user = (message["content"] for message in build_messages(research))
+    sent = system + "\n" + user
+    assert content_hash(research) == hashlib.sha256(sent.encode("utf-8")).hexdigest()
+
+
+def test_a_new_prompt_makes_saved_summaries_stale(monkeypatch: pytest.MonkeyPatch) -> None:
+    before = content_hash(_research())
+    monkeypatch.setattr(summaries, "SYSTEM_PROMPT", summaries.SYSTEM_PROMPT + " Be brief.")
+    assert content_hash(_research()) != before
 
 
 def test_the_hash_ignores_when_the_text_was_fetched() -> None:
@@ -274,7 +281,9 @@ def test_the_request_asks_for_the_schema_and_only_providers_that_keep_nothing() 
     body = fake.bodies[0]
     assert body["model"] == "anthropic/claude-haiku-5.5"
     assert body["max_tokens"] == summaries.MAX_OUTPUT_TOKENS == 400
-    assert body["temperature"] == 0.2
+    # No sampling parameters: Claude Haiku 5.5's providers don't list temperature, and with
+    # require_parameters that left no provider at all (found in the live test).
+    assert "temperature" not in body and "top_p" not in body
     assert body["messages"] == build_messages(_research())
     assert body["response_format"] == {
         "type": "json_schema",
@@ -365,11 +374,11 @@ def test_a_rate_limit_that_never_clears_says_so_plainly() -> None:
 
 def test_another_client_error_gives_openrouters_message_without_the_key() -> None:
     fake = FakeOpenRouter()
-    message = f"No endpoints found for model; key {KEY} was checked"
+    message = f"Invalid request for this model; key {KEY} was checked"
     fake.queue.append(lambda request: reply_json(400, {"error": {"code": 400, "message": message}}))
     with pytest.raises(AIUnavailable) as caught:
         fake.client().complete(build_messages(_research()), "m/x")
-    assert "No endpoints found" in caught.value.message
+    assert "Invalid request for this model" in caught.value.message
     assert KEY not in caught.value.message
     assert "FAKEKEYFORTESTS" not in caught.value.message
 
@@ -387,6 +396,47 @@ def test_a_timeout_and_a_network_error_are_unavailable() -> None:
             client.complete(build_messages(_research()), "m/x")
         assert text in caught.value.message
         assert KEY not in caught.value.message
+
+
+_NO_ENDPOINTS = {
+    "error": {
+        "code": 404,
+        "message": "No endpoints found that can handle the requested parameters. To learn more "
+        "about provider routing, visit: https://openrouter.ai/docs/guides/routing",
+    }
+}
+
+
+def test_a_model_without_structured_output_is_asked_again_in_plain_json() -> None:
+    fake = FakeOpenRouter()
+    fake.queue.append(lambda request: reply_json(404, _NO_ENDPOINTS))
+    content, _ = fake.client().complete(build_messages(_research()), "m/no-schema")
+    assert json.loads(content)["about"]
+    first, second = fake.bodies
+    assert "response_format" in first
+    assert "response_format" not in second
+    # The retry still refuses providers that store or train on data.
+    assert second["provider"] == {"data_collection": "deny"}
+    assert second["messages"] == first["messages"] and second["model"] == "m/no-schema"
+
+
+def test_no_endpoints_on_the_plain_retry_too_is_unavailable_with_openrouters_reason() -> None:
+    fake = FakeOpenRouter()
+    fake.queue += [lambda request: reply_json(404, _NO_ENDPOINTS)] * 2
+    with pytest.raises(AIUnavailable) as caught:
+        fake.client().complete(build_messages(_research()), "m/x")
+    assert "No endpoints found" in caught.value.message
+    assert len(fake.requests) == 2
+
+
+def test_an_unknown_model_is_not_retried() -> None:
+    fake = FakeOpenRouter()
+    fake.queue.append(
+        lambda request: reply_json(404, {"error": {"code": 404, "message": "Model not found"}})
+    )
+    with pytest.raises(AIUnavailable, match="Model not found"):
+        fake.client().complete(build_messages(_research()), "m/nope")
+    assert len(fake.requests) == 1
 
 
 def test_an_error_inside_a_200_is_unavailable() -> None:
