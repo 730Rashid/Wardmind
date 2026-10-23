@@ -135,6 +135,9 @@ def research_account(account_id: str, refresh: bool = False) -> dict[str, Any]:
     it on in cs-brief's Settings > Data & privacy. It visits only that account's website, and only
     when called. Nothing about the account is sent. Results are kept for 24 hours.
 
+    The result's "summary" is the AI summary the CSM saved for this website, or null. This tool
+    never asks for a new AI summary, so it spends no OpenRouter credit.
+
     Args:
         account_id: The account id from list_book.
         refresh: True to visit the website again instead of using a saved result.
@@ -148,7 +151,10 @@ def research_account(account_id: str, refresh: bool = False) -> dict[str, Any]:
         raise _BadRequest(
             f"No account with id '{account_id}'. Use list_book to find ids."
         ) from None
-    return result.model_dump(mode="json")
+    data = result.model_dump(mode="json")
+    saved = service.saved_summary(account_id)
+    data["summary"] = None if saved is None else saved.model_dump(mode="json")
+    return data
 
 
 def run() -> None:

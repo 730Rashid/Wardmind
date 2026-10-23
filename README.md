@@ -18,7 +18,8 @@ attention this week. It is reachable three ways, all backed by the same core cod
     - Scoring: sliders for every weight and threshold, with a live preview of how your top 10
       would reorder. These are saved to `config/scoring.yaml`.
     - Connections: demo data or your data, HubSpot, spreadsheets and accounts added by hand.
-    - Data & privacy: turn web research on or off, and clear the local cache.
+    - Data & privacy: web research and AI summaries on or off, your OpenRouter key, and
+      clearing the local cache.
 - **Claude (MCP):** `cs-brief mcp` serves the book to Claude over stdio
 - **Terminal:** `cs-brief score` prints the top of the book
 
@@ -75,6 +76,16 @@ website** button. It visits that customer's own website (the account's Website f
 
 No search engine is involved, and nothing about the account is sent. Results are kept on your
 computer for 24 hours. With demo data, you see invented sample news and nothing is sent.
+
+**Look up all websites** does the whole book at once (8 sites at a time, with a progress bar),
+and My book then shows each account's news topics next to its name.
+
+**AI summaries** (also optional and off by default) use your own
+[OpenRouter](https://openrouter.ai) key to turn each website into a short About and up to three
+highlights. The default model is `anthropic/claude-haiku-5.5`, and you can pick any OpenRouter
+model. Only the website text is sent, never anything from your book, and each summary is reused
+until the website changes, so a book of 40 accounts typically costs a cent or two.
+
 [PRIVACY.md](PRIVACY.md) has the details.
 
 ## How scoring works

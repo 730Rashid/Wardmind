@@ -1,0 +1,42 @@
+{# The progress panel of one website look up. Its root keeps the id bulk-job, so htmx can swap it.
+   While the look up runs, the panel asks for itself again after a second. When it has finished,
+   the response asks htmx to reload the page once, so the table below shows the new lookups.
+   Without JavaScript there is no polling: the page offers a plain link to refresh. #}
+<div id="bulk-job" class="bulk-job"{% if job and job.running %} hx-get="/research/jobs/{{ job.id }}" hx-trigger="load delay:1s" hx-swap="outerHTML"{% endif %}>
+  {% if error %}
+  <p class="alert" role="alert">{{ error }}</p>
+  {% endif %}
+  {% if job and job.running %}
+  <div class="lookup-progress">
+    <progress max="{{ job.total }}" value="{{ job.done }}" aria-label="Accounts looked up so far"></progress>
+    <p class="lookup-count" role="status" aria-live="polite">{{ job.done }} of {{ job.total }} accounts</p>
+  </div>
+  <p class="field-help"><a href="/research?job={{ job.id }}">Refresh to see progress</a></p>
+  {% elif job %}
+  <div class="lookup-result">
+    <p class="lookup-done" role="status">Finished. {{ job.total }} {{ 'account' if job.total == 1 else 'accounts' }} went through the look up.</p>
+    <ul class="lookup-counts">
+      {% for label, count in lookup_counts %}
+      <li>{{ label }}: {{ count }}</li>
+      {% endfor %}
+      {% for label, count in summary_counts %}
+      <li>{{ label }}: {{ count }}</li>
+      {% endfor %}
+      {% if job.summarise %}
+      <li>AI cost: {{ cost_text }}</li>
+      {% endif %}
+    </ul>
+    {% if job.ai_stopped %}
+    <p class="field-error" role="alert">The AI part stopped early. {{ job.ai_stopped }}</p>
+    {% endif %}
+    {% if problems %}
+    <h3 class="lookup-problems-title">Accounts that need attention</h3>
+    <ul class="lookup-problems">
+      {% for problem in problems %}
+      <li><a href="/accounts/{{ problem.id | urlencode }}#research">{{ problem.name }}</a>: {{ problem.message }}</li>
+      {% endfor %}
+    </ul>
+    {% endif %}
+  </div>
+  {% endif %}
+</div>

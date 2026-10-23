@@ -5,12 +5,13 @@ from __future__ import annotations
 
 import shutil
 from collections.abc import Iterator
+from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
 
-from cs_brief.core import research, service
-from cs_brief.core.secrets import ENV_SECRETS_DIR, ENV_TOKEN
+from cs_brief.core import bulk, research, service, summaries
+from cs_brief.core.secrets import ENV_OPENROUTER_KEY, ENV_SECRETS_DIR, ENV_TOKEN
 from cs_brief.core.store import ENV_DATA_DIR
 
 REPO_CONFIG = Path(__file__).resolve().parents[1] / "config"
@@ -34,6 +35,8 @@ def isolated_config_dir(
     monkeypatch.setenv(ENV_DATA_DIR, str(tmp_path_factory.mktemp("data")))
     monkeypatch.delenv(ENV_TOKEN, raising=False)
     monkeypatch.delenv(ENV_API_BASE, raising=False)
+    monkeypatch.delenv(ENV_OPENROUTER_KEY, raising=False)
+    monkeypatch.delenv(summaries.ENV_API_BASE, raising=False)
     service.reset_connectors()
     yield folder
     service.reset_connectors()
@@ -48,3 +51,24 @@ def no_website_lookups(monkeypatch: pytest.MonkeyPatch) -> None:
         pytest.fail("A test tried to open a website connection. Give it a MockTransport client.")
 
     monkeypatch.setattr(service, "_site_client_factory", refuse)
+
+
+@pytest.fixture(autouse=True)
+def no_openrouter_calls(monkeypatch: pytest.MonkeyPatch) -> None:
+    """No test can reach OpenRouter by accident. Tests that summarise give service an
+    OpenRouterClient on an httpx.MockTransport (through service._openrouter_factory)."""
+
+    def refuse() -> summaries.OpenRouterClient:
+        pytest.fail("A test tried to call OpenRouter. Give it a MockTransport client.")
+
+    monkeypatch.setattr(service, "_openrouter_factory", refuse)
+
+
+@pytest.fixture(autouse=True)
+def fresh_job_runner(monkeypatch: pytest.MonkeyPatch) -> Iterator[bulk.JobRunner]:
+    """Every test gets its own runner for "Look up all websites", and waits for any job thread it
+    started, so no background thread outlives its test."""
+    runner = bulk.JobRunner(clock=lambda: datetime.now(UTC))
+    monkeypatch.setattr(service, "_runner", runner)
+    yield runner
+    runner.wait(timeout=30)

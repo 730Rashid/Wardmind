@@ -773,6 +773,12 @@ def sample_research(account: Account, now: datetime) -> SiteResearch:
     )
 
 
+def account_file_name(account_id: str) -> str:
+    """The file name for one account's saved data (research, summaries): a hash of the id, so an
+    id never becomes part of a path."""
+    return hashlib.sha256(account_id.encode("utf-8")).hexdigest()[:32] + ".json"
+
+
 class ResearchCache:
     """Saved lookups under `root` (service passes store.data_dir() / RESEARCH_DIR), one JSON
     file per account, named by a hash of the account id so ids never become paths."""
@@ -781,19 +787,24 @@ class ResearchCache:
         self._root = Path(root)
 
     def _path(self, account_id: str) -> Path:
-        digest = hashlib.sha256(account_id.encode("utf-8")).hexdigest()[:32]
-        return self._root / f"{digest}.json"
+        return self._root / account_file_name(account_id)
 
-    def get(self, account_id: str, website: str, now: datetime) -> SiteResearch | None:
-        """The saved lookup, or None if there isn't one, it is older than CACHE_HOURS, it was
-        for a different website, or the file can't be read."""
+    def saved(self, account_id: str) -> SiteResearch | None:
+        """The saved lookup whatever its age, or None if there isn't one or the file can't be
+        read. Used for what the book shows from earlier lookups; `get` is the freshness check."""
         try:
             saved = SiteResearch.model_validate_json(
                 self._path(account_id).read_text(encoding="utf-8")
             )
         except (OSError, ValueError):  # a bad JSON or a bad shape is a ValueError too
             return None
-        if saved.account_id != account_id or saved.website != website:
+        return saved if saved.account_id == account_id else None
+
+    def get(self, account_id: str, website: str, now: datetime) -> SiteResearch | None:
+        """The saved lookup, or None if there isn't one, it is older than CACHE_HOURS, it was
+        for a different website, or the file can't be read."""
+        saved = self.saved(account_id)
+        if saved is None or saved.website != website:
             return None
         age = _aware(now) - _aware(saved.fetched_at)
         if age < timedelta(0) or age >= timedelta(hours=CACHE_HOURS):

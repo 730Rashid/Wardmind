@@ -21,6 +21,9 @@
   {% if duplicate_count %}
   <p class="duplicates" role="status">{{ duplicate_count }} {{ 'account' if duplicate_count == 1 else 'accounts' }} might be duplicates. <a href="/duplicates">Review them.</a></p>
   {% endif %}
+  {% if settings.web_research %}
+  <p class="lookup-link"><a href="/research">Look up all websites</a></p>
+  {% endif %}
   <form id="book-filter" class="book-controls" method="get" action="/" role="search"
         hx-get="/" hx-target="#results" hx-swap="outerHTML" hx-push-url="true"
         hx-trigger="change from:.motion-radio, input changed delay:250ms from:#q, submit">

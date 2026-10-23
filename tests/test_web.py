@@ -151,6 +151,9 @@ def test_htmx_integrity_matches_the_vendored_file(client: TestClient) -> None:
 
 URL_PATTERN = re.compile(r"https?://[^\s\"'<>)]+")
 ALLOWED_URLS = {"http://www.w3.org/2000/svg"}
+# Pages may link out (navigation only, never loaded) to these addresses, and nowhere else.
+ALLOWED_LINK_TARGETS = {"https://openrouter.ai/models"}
+LINK_TARGET_PATTERN = re.compile(r'<a\b[^>]*\bhref="(https?://[^"]+)"')
 
 
 def test_no_external_origins_in_templates_css_or_icons() -> None:
@@ -160,7 +163,10 @@ def test_no_external_origins_in_templates_css_or_icons() -> None:
         STATIC / "icons.svg",
     ]
     for file in files:
-        found = set(URL_PATTERN.findall(file.read_text(encoding="utf-8"))) - ALLOWED_URLS
+        text = file.read_text(encoding="utf-8")
+        links = set(LINK_TARGET_PATTERN.findall(text))
+        assert links <= ALLOWED_LINK_TARGETS, f"{file.name} links to {links}"
+        found = set(URL_PATTERN.findall(text)) - ALLOWED_URLS - links
         assert not found, f"{file.name} refers to {found}"
 
 

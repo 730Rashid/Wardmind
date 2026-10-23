@@ -34,6 +34,13 @@
         </td>
         <td role="cell" class="cell-account">
           <a class="account-link" href="/accounts/{{ item.account.id | urlencode }}">{{ item.account.name }}</a>
+          {% if flags.get(item.account.id) %}
+          <ul class="tags" aria-label="Topics from their website">
+            {% for topic in flags.get(item.account.id) %}
+            <li class="tag">{{ topic.label }}</li>
+            {% endfor %}
+          </ul>
+          {% endif %}
           <span class="owner">{{ item.account.owner }}</span>
         </td>
         <td role="cell" class="cell-motion">{{ item.motion.label }}</td>

@@ -8,9 +8,9 @@ from __future__ import annotations
 import hashlib
 import os
 from collections.abc import Callable
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, timedelta
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ValidationError
 
 from cs_brief.core import bulk, import_flow, research, secrets, summaries
 from cs_brief.core.briefs import AccountDetail, account_detail, suggest_action
@@ -29,7 +29,7 @@ from cs_brief.core.connectors.local import ManualConnector, SpreadsheetConnector
 from cs_brief.core.models import Account, Motion, ScoredAccount, Signal
 from cs_brief.core.onboarding import OnboardingBrief, onboarding_brief
 from cs_brief.core.scoring import score_book
-from cs_brief.core.settings import DataSource, load_settings, save_settings
+from cs_brief.core.settings import DataSource, Settings, load_settings, save_settings
 from cs_brief.core.store import ConnectionConfig, ConnectionKind, LocalStore
 
 # Test-only: points the HubSpot client at a local fake server. HubSpotClient refuses other hosts.
@@ -282,6 +282,37 @@ def cached_research(account_id: str, now: datetime | None = None) -> research.Si
     return research_cache().get(account_id, website, moment)
 
 
+def _research_one(
+    account: Account, refresh: bool, moment: datetime
+) -> tuple[research.SiteResearch, bool]:
+    """The lookup for one account the book already has: (the lookup, whether a saved one was
+    reused). The same rules as research_account(), which calls this."""
+    settings = load_settings()
+    if not settings.web_research:
+        raise research.ResearchOff(_RESEARCH_OFF)
+    cache = research_cache()
+    if settings.source is DataSource.DEMO:
+        sample = research.sample_research(account, moment)
+        if not refresh:
+            saved = cache.get(account.id, sample.website, moment)
+            if saved is not None:
+                return saved, True
+        cache.put(sample)
+        return sample, False
+    website = research.website_host(account.domain)
+    if not refresh:
+        saved = cache.get(account.id, website, moment)
+        if saved is not None:
+            return saved, True
+    client = _site_client_factory()
+    try:
+        result = research.lookup(account, client, moment)
+    finally:
+        client.close()
+    cache.put(result)
+    return result, False
+
+
 def research_account(
     account_id: str, *, refresh: bool = False, now: datetime | None = None
 ) -> research.SiteResearch:
@@ -298,26 +329,7 @@ def research_account(
     account = _book_account(account_id)
     if account is None:
         raise LookupError(f"No account with id {account_id}.")
-    cache = research_cache()
-    if settings.source is DataSource.DEMO:
-        sample = research.sample_research(account, moment)
-        if not refresh:
-            saved = cache.get(account_id, sample.website, moment)
-            if saved is not None:
-                return saved
-        cache.put(sample)
-        return sample
-    website = research.website_host(account.domain)
-    if not refresh:
-        saved = cache.get(account_id, website, moment)
-        if saved is not None:
-            return saved
-    client = _site_client_factory()
-    try:
-        result = research.lookup(account, client, moment)
-    finally:
-        client.close()
-    cache.put(result)
+    result, _ = _research_one(account, refresh, moment)
     return result
 
 
@@ -339,6 +351,7 @@ def clear_local_cache(now: datetime | None = None) -> CacheCleared:
     cleared = CacheCleared(
         research=research_cache().clear(),
         drafts=import_flow.clear_drafts(store),
+        summaries=summary_store().clear(),
     )
     reset_connectors()
     return cleared
@@ -353,22 +366,90 @@ _openrouter_factory: Callable[[], summaries.OpenRouterClient] | None = None
 # The one job runner for this process (the web app's "Look up all websites").
 _runner = bulk.JobRunner(clock=lambda: datetime.now(UTC))
 
+_RESEARCH_FIRST_MESSAGE = "Turn on web research first, in Settings > Data & privacy."
+_AI_OFF_MESSAGE = "AI summaries are off. Turn them on in Settings > Data & privacy."
+_NO_KEY_MESSAGE = "Add your OpenRouter API key in Settings > Data & privacy."
+_MODEL_MESSAGE = "That isn't an OpenRouter model id, like anthropic/claude-haiku-5.5."
+# Topics next to My book come from articles no older than this many days.
+_FLAG_DAYS = 90
+
+
+def _ai_problem() -> summaries.SummaryError | None:
+    """Why AI summaries can't be used right now, as the error to raise; None when they can.
+    Demo mode needs no key, because it invents its summaries and sends nothing."""
+    settings = load_settings()
+    if not settings.web_research:
+        return summaries.SummariesOff(_RESEARCH_FIRST_MESSAGE)
+    if not settings.ai_summaries:
+        return summaries.SummariesOff(_AI_OFF_MESSAGE)
+    if settings.source is DataSource.DEMO:
+        return None
+    if secrets.get_openrouter_key() is None:
+        return summaries.NoKey(_NO_KEY_MESSAGE)
+    return None
+
 
 def ai_ready() -> str | None:
     """None when AI summaries can be used; else the plain-English reason they can't (web
     research off, AI summaries off, or no OpenRouter key). Demo mode needs no key."""
-    raise NotImplementedError
+    problem = _ai_problem()
+    return None if problem is None else problem.message
 
 
 def summary_store() -> summaries.SummaryStore:
     """Saved summaries under store.data_dir() / summaries.SUMMARIES_DIR."""
-    raise NotImplementedError
+    return summaries.SummaryStore(get_store().root / summaries.SUMMARIES_DIR)
 
 
 def saved_summary(account_id: str) -> summaries.Summary | None:
     """The saved summary for this account, without any network call. None when AI summaries or
     web research are off, or there isn't one."""
-    raise NotImplementedError
+    settings = load_settings()
+    if not (settings.web_research and settings.ai_summaries):
+        return None
+    return summary_store().get(account_id)
+
+
+def _client() -> summaries.OpenRouterClient:
+    """A client for one call. Callers check _ai_problem() first, so a missing key is only
+    reported here as a guard for the real factory."""
+    if _openrouter_factory is not None:
+        return _openrouter_factory()
+    key = secrets.get_openrouter_key()
+    if key is None:
+        raise summaries.NoKey(_NO_KEY_MESSAGE)
+    base = os.environ.get(summaries.ENV_API_BASE) or summaries.API_BASE
+    return summaries.OpenRouterClient(key, base_url=base)
+
+
+def _summary_one(
+    account: Account, found: research.SiteResearch, refresh: bool
+) -> tuple[summaries.Summary, bool]:
+    """The summary for one account's lookup: (the summary, whether a saved one was reused). The
+    saved summary is used while it matches this website text and model, unless `refresh`.
+    Demo mode uses summaries.sample_summary(); nothing is sent. Every new summary is saved."""
+    problem = _ai_problem()
+    if problem is not None:
+        raise problem
+    settings = load_settings()
+    store = summary_store()
+    demo = settings.source is DataSource.DEMO
+    model = summaries.SAMPLE_MODEL if demo else settings.ai_model
+    if not refresh:
+        saved = store.fresh(account.id, found, model)
+        if saved is not None:
+            return saved, True
+    now = datetime.now(UTC)
+    if demo:
+        summary = summaries.sample_summary(account, found, now)
+    else:
+        client = _client()
+        try:
+            summary = summaries.summarise(account.id, found, client, model, now)
+        finally:
+            client.close()
+    store.put(summary)
+    return summary, False
 
 
 def summarise_account(account_id: str, *, refresh: bool = False) -> summaries.Summary:
@@ -377,7 +458,32 @@ def summarise_account(account_id: str, *, refresh: bool = False) -> summaries.Su
     looked up, and the other summaries.SummaryError types. Uses research_account() (so its
     cache), then the saved summary if it is fresh for this text and model, unless `refresh`;
     else summaries.summarise() (demo: summaries.sample_summary(), nothing sent), saved."""
-    raise NotImplementedError
+    problem = _ai_problem()
+    if problem is not None:
+        raise problem
+    account = _book_account(account_id)
+    if account is None:
+        raise LookupError(f"No account with id {account_id}.")
+    found, _ = _research_one(account, False, datetime.now(UTC))
+    summary, _ = _summary_one(account, found, refresh)
+    return summary
+
+
+def saved_lookup(account: Account, now: datetime | None = None) -> research.SiteResearch | None:
+    """The saved lookup for this account whatever its age, when it is for the website the account
+    has now. Nothing is fetched. None when web research is off, or there isn't one."""
+    if not load_settings().web_research:
+        return None
+    return _saved_lookup_for(account, now if now is not None else datetime.now(UTC))
+
+
+def _saved_lookup_for(account: Account, moment: datetime) -> research.SiteResearch | None:
+    """saved_lookup() without the setting check, for callers that have checked it once."""
+    website = _saved_website(account, moment)
+    if website is None:
+        return None
+    saved = research_cache().saved(account.id)
+    return saved if saved is not None and saved.website == website else None
 
 
 def account_flags() -> dict[str, list[research.Topic]]:
@@ -385,7 +491,35 @@ def account_flags() -> dict[str, list[research.Topic]]:
     summary's highlight topics, else the topics of saved lookup articles from the last 90 days.
     Each list is in Topic order without repeats; accounts with none are left out. Empty when
     web research is off."""
-    raise NotImplementedError
+    settings = load_settings()
+    if not settings.web_research:
+        return {}
+    store = summary_store()
+    now = datetime.now(UTC)
+    cutoff = now.date() - timedelta(days=_FLAG_DAYS)
+    flags: dict[str, list[research.Topic]] = {}
+    for account in get_connector().list_accounts():
+        topics: set[research.Topic] = set()
+        summary = store.get(account.id) if settings.ai_summaries else None
+        if summary is not None and summary.highlights:
+            topics.update(item.topic for item in summary.highlights)
+        else:
+            saved = _saved_lookup_for(account, now)
+            if saved is not None:
+                for article in saved.articles:
+                    if article.published is not None and article.published >= cutoff:
+                        topics.update(article.topics)
+        if topics:
+            flags[account.id] = [topic for topic in research.Topic if topic in topics]
+    return flags
+
+
+def _bulk_research(account: Account, refresh: bool) -> tuple[research.SiteResearch, bool]:
+    return _research_one(account, refresh, datetime.now(UTC))
+
+
+def _bulk_summary(account: Account, found: research.SiteResearch) -> tuple[summaries.Summary, bool]:
+    return _summary_one(account, found, refresh=False)
 
 
 def start_bulk_research(*, summarise: bool, refresh: bool) -> bulk.Job:
@@ -393,27 +527,58 @@ def start_bulk_research(*, summarise: bool, refresh: bool) -> bulk.Job:
     order. Raises research.ResearchOff when web research is off, and summaries.SummariesOff /
     NoKey (from ai_ready) when `summarise` is asked for but can't be done. Each account reuses
     the same caches as research_account() and summarise_account()."""
-    raise NotImplementedError
+    if not load_settings().web_research:
+        raise research.ResearchOff(_RESEARCH_OFF)
+    if summarise:
+        problem = _ai_problem()
+        if problem is not None:
+            raise problem
+    accounts = [item.account for item in get_book()]
+    return _runner.start(
+        accounts,
+        _bulk_research,
+        _bulk_summary if summarise else None,
+        refresh=refresh,
+    )
 
 
 def bulk_job(job_id: str | None = None) -> bulk.Job | None:
     """The current or last job (see JobRunner.job)."""
-    raise NotImplementedError
+    return _runner.job(job_id)
 
 
 def set_ai_summaries(on: bool) -> None:
     """Save Settings.ai_summaries. Turning it off also deletes every saved summary."""
-    raise NotImplementedError
+    save_settings(load_settings().model_copy(update={"ai_summaries": on}))
+    if not on:
+        summary_store().clear()
+
+
+def checked_ai_model(model: str) -> str:
+    """The model id stripped, or ValueError with the Settings validator's message. Saves nothing,
+    so a form can check its model before it saves anything else."""
+    try:
+        return Settings(ai_model=model).ai_model
+    except ValidationError as error:
+        cause = error.errors()[0].get("ctx", {}).get("error")
+        raise ValueError(str(cause) if cause else _MODEL_MESSAGE) from None
 
 
 def set_ai_model(model: str) -> None:
     """Save Settings.ai_model. Raises ValueError (the Settings validator's message) for an id
     that isn't an OpenRouter model id. Saved summaries are kept; they are rewritten the next
     time each account is summarised, because a summary is only fresh for its own model."""
-    raise NotImplementedError
+    value = checked_ai_model(model)
+    save_settings(load_settings().model_copy(update={"ai_model": value}))
 
 
 def check_openrouter_key() -> summaries.KeyInfo:
     """GET /key with the saved key, for "Test key". Raises summaries.NoKey without one, and the
     client's errors otherwise."""
-    raise NotImplementedError
+    if secrets.get_openrouter_key() is None:
+        raise summaries.NoKey(_NO_KEY_MESSAGE)
+    client = _client()
+    try:
+        return client.key_info()
+    finally:
+        client.close()

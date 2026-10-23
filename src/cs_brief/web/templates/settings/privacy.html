@@ -40,11 +40,102 @@
       </fieldset>
       <button type="submit" class="button-primary">Save</button>
     </form>
+    <p><a href="/research">Look up all websites</a></p>
+  </section>
+
+  <section class="privacy-section" aria-labelledby="ai-summaries-title">
+    <h2 class="section-title" id="ai-summaries-title">AI summaries</h2>
+    <p class="privacy-status">{{ ai_status }}</p>
+    <p class="prose">When it's on, cs-brief can turn what web research read from a customer's website into a short About and up to three highlights a CSM should know: acquisitions, funding, leadership changes or restructuring. It uses your own OpenRouter account, so you choose the model and pay OpenRouter directly.</p>
+
+    <dl class="privacy-list">
+      <dt>What is sent</dt>
+      <dd>Only the text web research read from the customer's public website: its address, title, description and recent headlines. Nothing from your book: not your account name, ARR, owner, health, signals, notes or other accounts.</dd>
+      <dt>Who sees it</dt>
+      <dd>OpenRouter, and the company that runs the model you chose. cs-brief asks OpenRouter to use only providers that don't store or train on the data.</dd>
+      <dt>Cost</dt>
+      <dd>A summary is a few thousand tokens. With the default model, a book of 40 accounts usually costs about a cent or two. A summary is reused until the website or the model changes, so running it again only pays for what changed.</dd>
+      <dt>When</dt>
+      <dd>Only when you press Summarise on an account, or tick Also summarise with AI when looking up all websites. Never in the background.</dd>
+      <dt>What is kept</dt>
+      <dd>The summaries, on this computer, until the website or model changes. Clear local cache removes them, and so does turning AI summaries off.</dd>
+      <dt>Demo data</dt>
+      <dd>Demo accounts get invented sample summaries, and nothing is sent.</dd>
+    </dl>
+
+    <form class="settings-form" method="post" action="/settings/privacy/ai">
+      {% if ai_error %}
+      <p class="field-error" role="alert" id="ai-error">{{ ai_error }}</p>
+      {% endif %}
+      <fieldset{% if ai_error %} aria-describedby="ai-error"{% endif %}>
+        <legend>AI summaries</legend>
+        <div class="choices">
+          <div class="choice-option">
+            <label class="choice"><input type="radio" name="ai_summaries" value="off" aria-describedby="ai-off-help"{% if not ai_on %} checked{% endif %}> Off</label>
+            <p class="field-help choice-help" id="ai-off-help">Nothing is sent to OpenRouter.</p>
+          </div>
+          <div class="choice-option">
+            <label class="choice"><input type="radio" name="ai_summaries" value="on" aria-describedby="ai-on-help"{% if ai_on %} checked{% endif %}> On</label>
+            <p class="field-help choice-help" id="ai-on-help">Summarise when I ask.</p>
+          </div>
+        </div>
+      </fieldset>
+
+      <div class="field">
+        <label for="field-ai-model">Model</label>
+        <input type="text" name="ai_model" id="field-ai-model" value="{{ ai_model }}" autocomplete="off" spellcheck="false"{% if ai_model_error %} aria-invalid="true" aria-describedby="field-ai-model-error field-ai-model-help"{% else %} aria-describedby="field-ai-model-help"{% endif %}>
+        {% if ai_model_error %}
+        <p class="field-error" role="alert" id="field-ai-model-error">{{ ai_model_error }}</p>
+        {% endif %}
+        <p class="field-help" id="field-ai-model-help">An OpenRouter model id. The default, anthropic/claude-haiku-5.5, is fast and cheap. <a href="https://openrouter.ai/models" rel="noopener noreferrer">Browse models</a></p>
+      </div>
+
+      <button type="submit" class="button-primary">Save</button>
+    </form>
+
+    <section class="privacy-key" aria-labelledby="openrouter-key-title">
+      <h3 class="privacy-subtitle" id="openrouter-key-title">OpenRouter API key</h3>
+      <div class="token-row">
+        <p class="token-status">{{ key_line }}</p>
+        {% if key_from_file %}
+        <form class="inline-form" method="post" action="/settings/privacy/ai/key/delete">
+          <button type="submit" class="button">Remove key</button>
+        </form>
+        {% endif %}
+      </div>
+
+      <form class="token-form" method="post" action="/settings/privacy/ai/key">
+        <div class="field">
+          <label for="field-ai-key">API key</label>
+          <div class="token-input">
+            <input type="password" name="key" id="field-ai-key" autocomplete="off" spellcheck="false" aria-describedby="field-ai-key-help"{% if key_error %} aria-invalid="true" aria-errormessage="field-ai-key-error"{% endif %}>
+            <button type="submit" class="button">Save key</button>
+          </div>
+          {% if key_error %}
+          <p class="field-error" role="alert" id="field-ai-key-error">{{ key_error }}</p>
+          {% endif %}
+          <p class="field-help" id="field-ai-key-help">Create one at openrouter.ai/keys. It's stored in your user profile, never in this folder, and only its last 4 characters are ever shown.</p>
+        </div>
+      </form>
+
+      <div class="connection-test">
+        <form class="inline-form" method="post" action="/settings/privacy/ai/key/test">
+          <button type="submit" class="button">Test key</button>
+        </form>
+        {% if key_result %}
+        {% if key_result_ok %}
+        <p class="connection-result" role="status">{{ key_result }}</p>
+        {% else %}
+        <p class="alert" role="alert">{{ key_result }}</p>
+        {% endif %}
+        {% endif %}
+      </div>
+    </section>
   </section>
 
   <section class="privacy-section" aria-labelledby="local-cache-title">
     <h2 class="section-title" id="local-cache-title">Local cache</h2>
-    <p class="prose">cs-brief saves some things only to save time: website lookups and imports you started but didn't finish. Clearing them is safe. It doesn't touch your connections, imported or hand-added accounts, edits or settings.</p>
+    <p class="prose">cs-brief saves some things only to save time: website lookups, AI summaries and imports you started but didn't finish. Clearing them is safe. It doesn't touch your connections, imported or hand-added accounts, edits or settings.</p>
     <p>Your data is kept in <code class="data-path">{{ data_folder }}</code></p>
     <form class="inline-form" method="post" action="/settings/privacy/clear-cache">
       <button type="submit" class="button">Clear local cache</button>

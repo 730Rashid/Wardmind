@@ -3011,3 +3011,217 @@ label.button:focus-within {
     break-inside: avoid;
   }
 }
+
+/* Website lookups (/research), AI summaries on the account page and Data & privacy, and the topic
+   tags on My book. Colours are the tokens above, and every state is also written in words. */
+.lookup-link,
+.research-links {
+  margin: 0;
+  font-size: var(--t-sm);
+  line-height: var(--lh-sm);
+}
+
+.lookup-form {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-4);
+  max-inline-size: 40rem;
+  margin: 0;
+}
+
+.field-check {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.field-check .field-help {
+  margin-inline-start: 1.75rem;
+}
+
+.choice:has(input:disabled) {
+  color: var(--ink-muted);
+  cursor: not-allowed;
+}
+
+.bulk-job {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  max-inline-size: 40rem;
+}
+
+.lookup-progress {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.lookup-progress progress {
+  inline-size: 100%;
+  block-size: 0.75rem;
+  accent-color: var(--accent);
+}
+
+.lookup-count,
+.lookup-done {
+  margin: 0;
+  font-weight: 600;
+}
+
+.lookup-counts {
+  margin: 0;
+  padding-inline-start: var(--space-5);
+}
+
+.lookup-problems-title {
+  margin: var(--space-2) 0 0;
+  font-size: var(--t-md);
+  line-height: var(--lh-md);
+  font-weight: 600;
+}
+
+.lookup-problems {
+  margin: 0;
+  padding-inline-start: var(--space-5);
+  overflow-wrap: anywhere;
+}
+
+.lookup-badge {
+  display: inline-block;
+  padding: 0 var(--space-2);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-control);
+  font-size: var(--t-sm);
+  line-height: var(--lh-sm);
+  color: var(--ink);
+}
+
+.lookups {
+  inline-size: 100%;
+  border-collapse: collapse;
+  background: var(--surface);
+}
+
+.lookups th,
+.lookups td {
+  padding: var(--cell-pad);
+  vertical-align: top;
+  text-align: start;
+  overflow-wrap: anywhere;
+}
+
+.lookups thead th {
+  padding-block-end: var(--space-2);
+  font-size: var(--t-sm);
+  line-height: var(--lh-sm);
+  font-weight: 600;
+  color: var(--ink-muted);
+  border-block-end: 1px solid var(--line);
+}
+
+.lookups tbody tr {
+  border-block-end: 1px solid var(--line);
+}
+
+.lookups tbody tr:hover {
+  background: var(--paper);
+}
+
+.lookups .cell-account {
+  font-weight: 400;
+}
+
+.lookups .tags {
+  margin-block-start: var(--space-1);
+}
+
+.research-summary {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding-inline-start: var(--space-4);
+  border-inline-start: 3px solid var(--accent);
+}
+
+.research-summary-title {
+  margin: 0;
+  font-size: var(--t-md);
+  line-height: var(--lh-md);
+  font-weight: 600;
+}
+
+.research-about,
+.research-summary .research-footer {
+  margin: 0;
+}
+
+.research-highlights {
+  margin: 0;
+  padding-inline-start: var(--space-5);
+}
+
+.research-hint {
+  margin: 0;
+}
+
+.privacy-subtitle {
+  margin: 0;
+  font-size: var(--t-md);
+  line-height: var(--lh-md);
+  font-weight: 600;
+}
+
+.privacy-key {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding-block-start: var(--space-5);
+  border-block-start: 1px solid var(--line);
+}
+
+.privacy-key .token-form {
+  margin: 0;
+}
+
+.book .tags {
+  margin-block-start: var(--space-1);
+}
+
+@media (max-width: 767px) {
+  /* Each look up becomes a labelled block: the header row is hidden, as on My book. */
+  .lookups thead {
+    position: absolute;
+    inline-size: 1px;
+    block-size: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  .lookups,
+  .lookups tbody {
+    display: block;
+  }
+
+  .lookups tbody tr {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+    padding-block: var(--space-3);
+  }
+
+  .lookups th,
+  .lookups td {
+    padding: 0;
+  }
+
+  .lookups td::before {
+    content: attr(data-label);
+    display: block;
+    font-size: var(--t-sm);
+    line-height: var(--lh-sm);
+    color: var(--ink-muted);
+  }
+}

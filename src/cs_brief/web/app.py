@@ -7,6 +7,7 @@ and the MCP server use.
 from __future__ import annotations
 
 import math
+import re
 import time
 from collections.abc import Awaitable, Callable, Mapping
 from dataclasses import dataclass
@@ -26,7 +27,17 @@ from starlette.datastructures import UploadFile
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 
-from cs_brief.core import briefs, editing, import_flow, importing, research, secrets, service
+from cs_brief.core import (
+    briefs,
+    bulk,
+    editing,
+    import_flow,
+    importing,
+    research,
+    secrets,
+    service,
+    summaries,
+)
 from cs_brief.core.config import ScoringConfig, load_scoring_config, save_scoring_config
 from cs_brief.core.connectors.combined import CombinedConnector, ConnectionProblem, Provenance
 from cs_brief.core.connectors.errors import ConnectorError
@@ -1162,7 +1173,10 @@ _RESEARCH_NOTICES = {
 @dataclass(frozen=True)
 class _ResearchPanel:
     """What the account page's "From their website" section shows. `state` is one of "off",
-    "no_website", "unchecked" (nothing saved yet), "error" (the last look up failed) or "result"."""
+    "no_website", "unchecked" (nothing saved yet), "error" (the last look up failed) or "result".
+    The AI fields matter in "result": `ai_ready` says whether the summary button works, `ai_hint`
+    says why it doesn't ("off" or "key"), `summary` is the saved summary, and `ai_error` is what
+    the last summary attempt said."""
 
     state: str
     account_id: str  # quoted for a URL path
@@ -1173,6 +1187,11 @@ class _ResearchPanel:
     add_label: str = ""  # "Add it" when there is no website, else "Change it"
     result: research.SiteResearch | None = None
     looked_up_days: int = 0  # whole days since the saved look up; 0 is today
+    ai_ready: bool = False  # AI summaries can be used right now
+    ai_hint: str = ""  # "off" or "key" when they can't yet, else ""
+    summary: summaries.Summary | None = None  # the saved AI summary of this website, if any
+    ai_error: str = ""  # what the last summary attempt said
+    ai_error_link: bool = False  # the problem is the key or its credit: link to Data & privacy
 
 
 def _research_panel(
@@ -1181,8 +1200,11 @@ def _research_panel(
     editable: bool,
     result: research.SiteResearch | None = None,
     error: str = "",
+    ai_error: str = "",
+    ai_error_link: bool = False,
 ) -> _ResearchPanel:
-    """The section's state for one account. Nothing here reaches the network."""
+    """The section's state for one account. Nothing here reaches the network: a saved summary is
+    a file read, and a new summary is only asked for by the summarise button."""
     quoted = _quoted_id(account.id)
     settings = load_settings()
     if not settings.web_research:
@@ -1201,19 +1223,23 @@ def _research_panel(
                 add_url=f"/accounts/{quoted}/edit#field-domain" if editable else "",
                 add_label="Add it" if blank else "Change it",
             )
+    ai_ok = service.ai_ready() is None
+    shared: dict[str, Any] = {
+        "account_id": quoted,
+        "host": host,
+        "demo": demo,
+        "ai_ready": ai_ok,
+        "ai_hint": "" if ai_ok else ("off" if not settings.ai_summaries else "key"),
+        "summary": service.saved_summary(account.id) if ai_ok and result is not None else None,
+        "ai_error": ai_error,
+        "ai_error_link": ai_error_link,
+    }
     if error:
-        return _ResearchPanel(state="error", account_id=quoted, host=host, demo=demo, message=error)
+        return _ResearchPanel(state="error", message=error, **shared)
     if result is not None:
         days = (date.today() - result.fetched_at.astimezone().date()).days
-        return _ResearchPanel(
-            state="result",
-            account_id=quoted,
-            host=host,
-            demo=demo,
-            result=result,
-            looked_up_days=days,
-        )
-    return _ResearchPanel(state="unchecked", account_id=quoted, host=host, demo=demo)
+        return _ResearchPanel(state="result", result=result, looked_up_days=days, **shared)
+    return _ResearchPanel(state="unchecked", **shared)
 
 
 def _shown_account(account_id: str) -> Account | None:
@@ -1245,25 +1271,212 @@ def _cache_notice(lookups: str, drafts: str) -> str:
     return "Removed " + " and ".join(parts) + "."
 
 
+_AI_CHOICE_ERROR = "Choose On or Off, then save again."
+_AI_WEB_NOTE = " Turn on web research too to use them."
+_KEY_NOTICES = {"saved": "OpenRouter key saved.", "removed": "OpenRouter key removed."}
+_KEY_SAVE_FAILED = (
+    "cs-brief couldn't save the key. Check that your user profile folder is writable, "
+    "then try again."
+)
+_JOB_ID = re.compile(r"[0-9a-f]{16}")  # what bulk.JobRunner makes: secrets.token_hex(8)
+
+
+def _ai_status(settings: Settings) -> str:
+    """The AI summaries status sentence on Data & privacy, with the web research note."""
+    if settings.ai_summaries:
+        status = f"AI summaries are on, using {settings.ai_model}."
+    else:
+        status = "AI summaries are off."
+    if not settings.web_research:
+        status += " They need web research to be on too."
+    return status
+
+
+def _ai_notice(choice: str) -> str:
+    """What Data & privacy says after the AI summaries choice is saved."""
+    if choice == "off":
+        return "AI summaries are off. Saved summaries were removed."
+    return "AI summaries are on." + ("" if load_settings().web_research else _AI_WEB_NOTE)
+
+
+def _key_line(status: secrets.TokenStatus, today: date) -> str:
+    """The OpenRouter key's status sentence. Only the masked form (the last 4 characters) shows."""
+    tail = status.masked or ""
+    if status.source is secrets.TokenSource.ENV:
+        return f"Set by the {secrets.ENV_OPENROUTER_KEY} environment variable ({tail})."
+    if status.source is secrets.TokenSource.FILE:
+        added = f", added {formatting.day_label(status.saved_at, today)}" if status.saved_at else ""
+        return f"Saved key {tail}{added}."
+    return "No key saved."
+
+
 def _render_privacy(
     request: Request,
     *,
     notice: str = "",
     research_error: str = "",
+    ai_choice: bool | None = None,
+    ai_error: str = "",
+    ai_model_value: str | None = None,
+    ai_model_error: str = "",
+    key_error: str = "",
+    key_result: str = "",
+    key_result_ok: bool = True,
     status_code: int = 200,
 ) -> HTMLResponse:
-    """The Data & privacy page: web research on or off, and the local cache."""
+    """The Data & privacy page: web research, AI summaries and their key, and the local cache.
+    A refused form passes back what was typed (the model), never the key."""
+    current = load_settings()
+    key_status = secrets.openrouter_key_status()
     return _render(
         request,
         "settings/privacy.html",
         page="Data & privacy",
         active="settings",
         section="privacy",
-        web_on=load_settings().web_research,
+        web_on=current.web_research,
         research_error=research_error,
         notice=notice,
         data_folder=str(service.get_store().root),
+        ai_on=current.ai_summaries if ai_choice is None else ai_choice,
+        ai_status=_ai_status(current),
+        ai_model=current.ai_model if ai_model_value is None else ai_model_value,
+        ai_error=ai_error,
+        ai_model_error=ai_model_error,
+        key_line=_key_line(key_status, date.today()),
+        key_from_file=key_status.source is secrets.TokenSource.FILE,
+        key_error=key_error,
+        key_result=key_result,
+        key_result_ok=key_result_ok,
         status_code=status_code,
+    )
+
+
+# --- Website lookups: every account at once (the /research page) -------------------------
+
+
+def _is_htmx(request: Request) -> bool:
+    return request.headers.get("HX-Request") == "true"
+
+
+def _cost_text(value: float) -> str:
+    """The job's AI cost: $0.00 for nothing, four decimals under a dollar (small summaries cost
+    fractions of a cent), else two."""
+    if value <= 0:
+        return "$0.00"
+    if value < 1:
+        return f"${value:.4f}"
+    return f"${value:.2f}"
+
+
+def _job_facts(job: bulk.Job | None) -> dict[str, Any]:
+    """What the progress panel shows of a job, as plain values: the non-zero counts for each
+    result, the AI cost, and every account with a message (a problem, a block or a skip)."""
+    if job is None:
+        return {"lookup_counts": [], "summary_counts": [], "cost_text": "", "problems": []}
+    lookup_counts = []
+    for result in bulk.LookupResult:
+        count = sum(1 for outcome in job.outcomes if outcome.lookup is result)
+        if count:
+            lookup_counts.append((result.label, count))
+    summary_counts = []
+    if job.summarise:
+        for result in bulk.SummaryResult:
+            count = sum(1 for outcome in job.outcomes if outcome.summary is result)
+            if count:
+                summary_counts.append((result.label, count))
+    problems = [
+        {"id": outcome.account_id, "name": outcome.account_name, "message": outcome.message}
+        for outcome in job.outcomes
+        if outcome.message
+    ]
+    return {
+        "lookup_counts": lookup_counts,
+        "summary_counts": summary_counts,
+        "cost_text": _cost_text(job.cost_usd) if job.summarise else "",
+        "problems": problems,
+    }
+
+
+def _lookup_rows(book: list[ScoredAccount], flags: Mapping[str, list[Any]]) -> list[dict[str, Any]]:
+    """One row per account in book order, from saved data only (no network): the website, when it
+    was last looked up, the saved summary (or the site's description), and the topics."""
+    today = date.today()
+    now = datetime.now(UTC)
+    rows: list[dict[str, Any]] = []
+    for item in book:
+        account = item.account
+        saved = service.saved_lookup(account, now)
+        summary = service.saved_summary(account.id)
+        if summary is not None:
+            about, badge = summary.about, "Sample" if summary.sample else "AI"
+        else:
+            about, badge = (saved.site_description or "") if saved else "", ""
+        if saved is not None:
+            website = saved.website
+            looked_up = formatting.ago((today - saved.fetched_at.astimezone().date()).days)
+        else:
+            try:
+                website = research.website_host(account.domain)
+            except research.ResearchError:
+                website = "No website"
+            looked_up = "Not yet"
+        rows.append(
+            {
+                "account_id": _quoted_id(account.id),
+                "name": account.name,
+                "website": website,
+                "looked_up": looked_up,
+                "about": about,
+                "badge": badge,
+                "topics": flags.get(account.id, []),
+            }
+        )
+    return rows
+
+
+def _job_panel(
+    request: Request, job: bulk.Job | None, *, error: str = "", status_code: int = 200
+) -> HTMLResponse:
+    """The progress panel for htmx: while the job runs it polls itself; when it has finished, the
+    response asks htmx to reload the page once, so the table below shows the new lookups."""
+    response = templates.TemplateResponse(
+        request,
+        "partials/bulk_job.html",
+        {"job": job, "error": error, **_job_facts(job)},
+        status_code=status_code,
+    )
+    response.headers["Vary"] = "HX-Request"
+    if job is not None and not job.running:
+        response.headers["HX-Refresh"] = "true"
+    return response
+
+
+def _render_research(
+    request: Request, *, job_id: str = "", error: str = "", status_code: int = 200
+) -> HTMLResponse:
+    """The Website lookups page: the form, the progress panel, and what is saved for every account.
+    A job named in the URL is shown; otherwise the current or last job. Nothing here reaches the
+    network."""
+    settings = load_settings()
+    if job_id:
+        job = service.bulk_job(job_id) if _JOB_ID.fullmatch(job_id) else None
+    else:
+        job = service.bulk_job()
+    book = service.get_book() if settings.web_research else []
+    flags = service.account_flags() if settings.web_research else {}
+    return _render(
+        request,
+        "research.html",
+        page="Website lookups",
+        status_code=status_code,
+        web_on=settings.web_research,
+        count=len(book),
+        ai_reason=service.ai_ready() or "",
+        rows=_lookup_rows(book, flags) if settings.web_research else [],
+        job=job,
+        error=error,
+        **_job_facts(job),
     )
 
 
@@ -1425,6 +1638,7 @@ def create_app() -> FastAPI:
         partial = request.headers.get("HX-Request") == "true" and (
             "HX-History-Restore-Request" not in request.headers
         )
+        flags = service.account_flags()
         response = _render(
             request,
             "partials/book_results.html" if partial else "book.html",
@@ -1444,6 +1658,7 @@ def create_app() -> FastAPI:
             import_notice=[] if partial else _import_notice(imported, removed),
             hidden_name="" if partial else hidden,
             deleted_name="" if partial else deleted,
+            flags=flags,
         )
         response.headers["Vary"] = "HX-Request, HX-History-Restore-Request"
         return response
@@ -1627,9 +1842,15 @@ def create_app() -> FastAPI:
         cleared: str = "",
         lookups: str = "",
         drafts: str = "",
+        ai: str = "",
+        key: str = "",
     ) -> HTMLResponse:
         if cleared == "1":
             notice = _cache_notice(lookups, drafts)
+        elif ai in ("on", "off"):
+            notice = _ai_notice(ai)
+        elif key in _KEY_NOTICES:
+            notice = _KEY_NOTICES[key]
         else:
             notice = _RESEARCH_NOTICES.get(research_choice, "")
         return _render_privacy(request, notice=notice)
@@ -1654,6 +1875,147 @@ def create_app() -> FastAPI:
             {"cleared": "1", "lookups": str(cleared.research), "drafts": str(cleared.drafts)}
         )
         return RedirectResponse(f"/settings/privacy?{query}", status_code=303)
+
+    # AI summaries and the OpenRouter key. The key is never echoed: not in a page, notice or URL.
+
+    @app.post("/settings/privacy/ai")
+    async def save_ai_summaries(request: Request) -> Response:
+        """Turn AI summaries on or off, and save the model. Anything invalid re-renders the form
+        (422) and nothing is saved. Turning them off also removes every saved summary."""
+        fields = await _posted_fields(request)
+        choice = fields.get("ai_summaries", "")
+        model_text = fields.get("ai_model", "")
+        choice_error = "" if choice in ("on", "off") else _AI_CHOICE_ERROR
+        model = ""
+        model_error = ""
+        try:
+            model = service.checked_ai_model(model_text)
+        except ValueError as error:
+            model_error = str(error)
+        if choice_error or model_error:
+            return _render_privacy(
+                request,
+                ai_choice=None if choice_error else choice == "on",
+                ai_error=choice_error,
+                ai_model_value=model_text,
+                ai_model_error=model_error,
+                status_code=422,
+            )
+        service.set_ai_model(model)
+        service.set_ai_summaries(choice == "on")
+        return RedirectResponse(f"/settings/privacy?{urlencode({'ai': choice})}", status_code=303)
+
+    @app.post("/settings/privacy/ai/key")
+    async def save_openrouter_key(request: Request) -> Response:
+        """Store the OpenRouter key in the user profile. An invalid key re-renders the field with
+        the reason (422) and an empty input; the key is never shown back."""
+        fields = await _posted_fields(request)
+        try:
+            secrets.save_openrouter_key(fields.get("key", ""))
+        except ValueError as error:
+            return _render_privacy(request, key_error=str(error), status_code=422)
+        except OSError:
+            return _render_privacy(request, key_error=_KEY_SAVE_FAILED, status_code=500)
+        return RedirectResponse("/settings/privacy?key=saved", status_code=303)
+
+    @app.post("/settings/privacy/ai/key/delete")
+    def remove_openrouter_key() -> RedirectResponse:
+        """Remove the saved key file. A key set in the environment is not touched."""
+        secrets.delete_openrouter_key()
+        return RedirectResponse("/settings/privacy?key=removed", status_code=303)
+
+    @app.post("/settings/privacy/ai/key/test")
+    def test_openrouter_key(request: Request) -> HTMLResponse:
+        """Ask OpenRouter about the saved key (GET /key) and say what it answers. The key itself
+        is never shown."""
+        try:
+            info = service.check_openrouter_key()
+        except summaries.SummaryError as error:
+            return _render_privacy(request, key_result=error.message, key_result_ok=False)
+        except ValueError as error:  # a bad base URL in the environment
+            return _render_privacy(request, key_result=str(error), key_result_ok=False)
+        if info.limit_remaining_usd is None:
+            text = "The key works. It has no credit limit."
+        else:
+            text = f"The key works. ${info.limit_remaining_usd:.2f} of credit left."
+        return _render_privacy(request, key_result=text)
+
+    # Website lookups: every account's website at once, in a background job with progress.
+
+    @app.get("/research")
+    def research_page(request: Request, job: str = "") -> HTMLResponse:
+        """The Website lookups page. ?job=<id> shows that look up's progress."""
+        return _render_research(request, job_id=job)
+
+    @app.post("/research/all")
+    async def start_lookups(request: Request) -> Response:
+        """Start looking up every account's website, and summarise them with AI if asked. htmx
+        gets the progress panel; a plain form post goes to the page with the job in its URL. A
+        refusal shows its reason in the panel (role=alert), with 200 so htmx swaps it in."""
+        fields = await _posted_fields(request)
+        try:
+            job = service.start_bulk_research(
+                summarise=fields.get("summarise") == "1",
+                refresh=fields.get("refresh") == "1",
+            )
+        except (research.ResearchOff, summaries.SummaryError) as problem:
+            if _is_htmx(request):
+                return _job_panel(request, None, error=problem.message)
+            return _render_research(request, error=problem.message)
+        if _is_htmx(request):
+            return _job_panel(request, job)
+        return RedirectResponse(f"/research?{urlencode({'job': job.id})}", status_code=303)
+
+    @app.get("/research/jobs/{job_id}")
+    def research_job(request: Request, job_id: str) -> Response:
+        """The progress panel for one look up: polled by htmx while it runs. Any id that isn't a
+        look up's own 16-character id is a 404."""
+        job = service.bulk_job(job_id) if _JOB_ID.fullmatch(job_id) else None
+        if job is None:
+            return _missing(request, "Look up not found", "That look up isn't known here.")
+        return _job_panel(request, job)
+
+    # One account's AI summary, asked for by its button. Errors show in the section.
+
+    @app.post("/accounts/{account_id}/summarise")
+    async def summarise_website(request: Request, account_id: str) -> Response:
+        """Summarise this account's website with AI, or again when refresh=1. A failure shows its
+        reason in the section; a plain form post goes back to the section on success."""
+        account = _shown_account(account_id)
+        if account is None:
+            return _missing(request, "Account not found", f"No account with id {account_id}.")
+        fields = await _posted_fields(request)
+        lookup_error = ""
+        ai_error = ""
+        ai_error_link = False
+        try:
+            service.summarise_account(account_id, refresh=fields.get("refresh") == "1")
+        except LookupError:
+            return _missing(request, "Account not found", f"No account with id {account_id}.")
+        except research.ResearchError as problem:
+            lookup_error = problem.message
+        except summaries.SummaryError as problem:
+            ai_error = problem.message
+            ai_error_link = isinstance(
+                problem, summaries.NoKey | summaries.KeyRejected | summaries.OutOfCredit
+            )
+        panel = _research_panel(
+            account,
+            editable=_research_editable(account_id),
+            result=service.cached_research(account_id),
+            error=lookup_error,
+            ai_error=ai_error,
+            ai_error_link=ai_error_link,
+        )
+        if _is_htmx(request):
+            response = templates.TemplateResponse(
+                request, "partials/research.html", {"panel": panel, "today_day": date.today()}
+            )
+            response.headers["Vary"] = "HX-Request"
+            return response
+        if lookup_error or ai_error:
+            return _render_account(request, account_id, research_panel=panel)
+        return RedirectResponse(f"/accounts/{_quoted_id(account_id)}#research", status_code=303)
 
     # Your data: add an account. It works in demo mode too, and switches the book to Your data.
     # /accounts/new is declared before /accounts/{account_id}, which would otherwise match "new".

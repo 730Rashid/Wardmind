@@ -1,0 +1,30 @@
+{# Every account in book order, from saved data only. Stacks into labelled rows on narrow screens. #}
+<div id="lookup-table" class="lookup-table">
+  {% if rows %}
+  <table class="lookups">
+    <caption class="visually-hidden">Each account's website lookup, in book order</caption>
+    <thead>
+      <tr>
+        <th scope="col">Account</th>
+        <th scope="col">Website</th>
+        <th scope="col">Looked up</th>
+        <th scope="col">About</th>
+        <th scope="col">Topics</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for row in rows %}
+      <tr>
+        <th scope="row" class="cell-account"><a class="account-link" href="/accounts/{{ row.account_id }}#research">{{ row.name }}</a></th>
+        <td data-label="Website">{{ row.website }}</td>
+        <td data-label="Looked up">{{ row.looked_up }}</td>
+        <td data-label="About">{% if row.badge %}<span class="lookup-badge">{{ row.badge }}</span> {% endif %}{{ row.about }}</td>
+        <td data-label="Topics">{% if row.topics %}<ul class="tags" aria-label="Topics">{% for topic in row.topics %}<li class="tag">{{ topic.label }}</li>{% endfor %}</ul>{% endif %}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p class="empty">No accounts to show. Add accounts, or pick a data source in Settings.</p>
+  {% endif %}
+</div>

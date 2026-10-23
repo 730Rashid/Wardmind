@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import os
 import sys
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -10,10 +11,11 @@ import pytest
 from mcp import Client, StdioServerParameters
 from mcp.types import CallToolResult
 
-from cs_brief.core import briefs, service
+from cs_brief.core import briefs, service, summaries
 from cs_brief.core.connectors.demo import DemoConnector
 from cs_brief.core.connectors.errors import ConnectionNotReady
 from cs_brief.core.models import Motion
+from cs_brief.core.research import Topic
 from cs_brief.core.settings import DataSource, Settings, save_settings
 from cs_brief.mcp import server
 
@@ -261,3 +263,45 @@ async def test_research_account_unknown_id_is_an_error_result():
         text = _error_text(await client.call_tool("research_account", {"account_id": "acc-nope"}))
     assert "No account with id 'acc-nope'" in text
     assert "Use list_book" in text
+
+
+async def test_research_account_says_the_summary_is_null_when_none_is_saved():
+    _research_on()
+    async with Client(server.mcp) as client:
+        data = _data(await client.call_tool("research_account", {"account_id": "acc-001"}))
+    assert "summary" in data
+    assert data["summary"] is None
+
+
+async def test_research_account_returns_the_saved_summary_and_never_asks_for_one(monkeypatch):
+    def refuse():
+        raise AssertionError("the MCP tool must never ask OpenRouter for a summary")
+
+    monkeypatch.setattr(service, "_openrouter_factory", refuse)
+    save_settings(Settings(web_research=True, ai_summaries=True, source=DataSource.DEMO))
+    service.summary_store().put(
+        summaries.Summary(
+            account_id="acc-001",
+            about="Makes freight software.",
+            highlights=[summaries.Highlight(topic=Topic.FUNDING, note="Raised a round")],
+            model="anthropic/claude-haiku-5.5",
+            content_hash="h",
+            created_at=datetime(2026, 10, 22, 9, 0, tzinfo=UTC),
+            sample=True,
+        )
+    )
+    async with Client(server.mcp) as client:
+        data = _data(await client.call_tool("research_account", {"account_id": "acc-001"}))
+    assert data["summary"]["about"] == "Makes freight software."
+    assert data["summary"]["highlights"] == [{"topic": "funding", "note": "Raised a round"}]
+    assert data["summary"]["model"] == "anthropic/claude-haiku-5.5"
+    assert data["summary"]["sample"] is True
+
+
+async def test_the_research_tool_says_it_spends_no_credit():
+    async with Client(server.mcp) as client:
+        tools = {tool.name: tool for tool in (await client.list_tools()).tools}
+    description = tools["research_account"].description or ""
+    assert "summary" in description
+    assert "spends no OpenRouter credit" in description
+    assert "summarise" not in " ".join(tools).lower()
