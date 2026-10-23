@@ -1,9 +1,10 @@
 {% extends "base.html" %}
+{% block main_class %}page page--catalog{% endblock %}
 {% block content %}
-<h1 class="page-title">Settings</h1>
-{% if notice %}<p class="settings-status" role="status">{{ notice }}</p>{% endif %}
-<div class="settings-layout{% if section == "scoring" %} settings-layout--wide{% endif %}">
-  <nav aria-label="Settings">
+{# The same frame as My book: a full-height sidebar with the sections, the page beside it. #}
+<div class="catalog settings-shell">
+  <nav class="filters settings-sidebar" aria-labelledby="settings-title">
+    <h1 class="filters-title" id="settings-title">Settings</h1>
     <ul class="settings-nav-list">
       <li><a class="settings-link" href="/settings/appearance"{% if section == "appearance" %} aria-current="page"{% endif %}>Appearance</a></li>
       <li><a class="settings-link" href="/settings/scoring"{% if section == "scoring" %} aria-current="page"{% endif %}>Scoring</a></li>
@@ -11,8 +12,11 @@
       <li><a class="settings-link" href="/settings/privacy"{% if section == "privacy" %} aria-current="page"{% endif %}>Data &amp; privacy</a></li>
     </ul>
   </nav>
-  <div class="settings-body">
-    {% block settings %}{% endblock %}
+  <div class="catalog-main settings-main{% if section == "scoring" %} settings-main--wide{% endif %}">
+    {% if notice %}<p class="settings-status" role="status">{{ notice }}</p>{% endif %}
+    <div class="settings-body">
+      {% block settings %}{% endblock %}
+    </div>
   </div>
 </div>
 {% endblock %}

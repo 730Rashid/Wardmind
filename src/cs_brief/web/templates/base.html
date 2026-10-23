@@ -17,7 +17,7 @@
   <a class="skip-link" href="#content">Skip to content</a>
   <header class="top-bar">
     <div class="column top-bar-inner">
-      <a class="brand" href="{{ settings.landing.path }}">cs-brief</a>
+      <a class="brand" href="{{ settings.landing.path }}"><svg class="icon" aria-hidden="true" focusable="false"><use href="/static/icons.svg#brand"/></svg>cs-brief</a>
       <nav aria-label="Main">
         <ul class="nav-list">
           <li>{{ nav_link("/", "My book", "book") }}</li>
@@ -38,7 +38,7 @@
     {% endfor %}
   </div>
   {% endif %}
-  <main id="content" tabindex="-1" class="column page">
+  <main id="content" tabindex="-1" class="{% block main_class %}column page{% endblock %}">
     {% block content %}{% endblock %}
   </main>
 </body>

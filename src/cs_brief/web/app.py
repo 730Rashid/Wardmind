@@ -14,7 +14,7 @@ from dataclasses import dataclass
 from datetime import UTC, date, datetime, timedelta
 from enum import StrEnum
 from pathlib import Path
-from typing import Any
+from typing import Any, TypeVar
 from urllib.parse import quote, urlencode
 
 from fastapi import FastAPI, Query, Request
@@ -212,12 +212,84 @@ def _word(count: int, singular: str, plural: str) -> str:
     return singular if count == 1 else plural
 
 
-def _selected_motion(value: str) -> Motion | None:
-    """The motion named in the query string, or None (all) when it is missing or not a motion."""
-    try:
-        return Motion(value)
-    except ValueError:
-        return None
+_HEALTH_ORDER = (Health.AT_RISK, Health.WATCH, Health.HEALTHY)  # the order on the filter
+_E = TypeVar("_E", bound=StrEnum)
+
+
+def _chosen(values: list[str], kind: type[_E]) -> set[_E]:
+    """The values in the query string that name a member of `kind`; the rest are ignored."""
+    chosen: set[_E] = set()
+    for value in values:
+        try:
+            chosen.add(kind(value))
+        except ValueError:
+            continue
+    return chosen
+
+
+def _filter_groups(
+    brief: briefs.WeeklyBrief,
+    flags: dict[str, list[research.Topic]],
+    motions: set[Motion],
+    healths: set[Health],
+    topics: set[research.Topic],
+) -> list[dict[str, Any]]:
+    """The filter sidebar: each group's checkboxes, with the tag style, icon and count to show.
+    Counts come from the whole book, so they don't change as filters are ticked. The news group
+    is there only when some account has a topic from its website."""
+    groups: list[dict[str, Any]] = [
+        {
+            "name": "motion",
+            "legend": "Motion",
+            "options": [
+                {
+                    "value": motion.value,
+                    "label": motion.label,
+                    "tag": f"pill pill--{motion.value}",
+                    "icon": f"motion-{motion.value}",
+                    "count": brief.counts_by_motion[motion],
+                    "checked": motion in motions,
+                }
+                for motion in _MOTION_ORDER
+            ],
+        },
+        {
+            "name": "health",
+            "legend": "Health",
+            "options": [
+                {
+                    "value": health.value,
+                    "label": health.label,
+                    "tag": f"health health--{health.value}",
+                    "icon": f"health-{health.value.replace('_', '-')}",
+                    "count": brief.counts_by_health[health],
+                    "checked": health in healths,
+                }
+                for health in _HEALTH_ORDER
+            ],
+        },
+    ]
+    counts = {topic: sum(topic in found for found in flags.values()) for topic in research.Topic}
+    if any(counts.values()):
+        groups.append(
+            {
+                "name": "topic",
+                "legend": "News from their website",
+                "options": [
+                    {
+                        "value": topic.value,
+                        "label": topic.label,
+                        "tag": "pill",
+                        "icon": f"topic-{topic.value}",
+                        "count": count,
+                        "checked": topic in topics,
+                    }
+                    for topic, count in counts.items()
+                    if count or topic in topics
+                ],
+            }
+        )
+    return groups
 
 
 def _source_note(settings: Settings) -> str:
@@ -1595,50 +1667,43 @@ def create_app() -> FastAPI:
     @app.get("/")
     def my_book(
         request: Request,
-        motion: str = "",
         q: str = "",
         imported: str = "",
         removed: str = "",
         hidden: str = "",
         deleted: str = "",
     ) -> Response:
-        """My book. An htmx refresh gets only the results partial, not on a history restore.
-        With Your data and nothing connected, this is the Setup page instead."""
+        """My book. Filters come from the query string, each one repeatable (motion=churn&
+        motion=renewal): motion, health and, with web research, topic; view=list shows the
+        table instead of cards. An htmx refresh gets only the results partial, not on a history
+        restore. With Your data and nothing connected, this is the Setup page instead."""
         if _needs_setup():
             return RedirectResponse("/setup", status_code=303)
         book = service.get_book()
         brief = briefs.weekly_brief(book, as_of=date.today())
-        selected = _selected_motion(motion)
+        params = request.query_params
+        motions = _chosen(params.getlist("motion"), Motion)
+        healths = _chosen(params.getlist("health"), Health)
+        topics = _chosen(params.getlist("topic"), research.Topic)
+        view = "list" if params.get("view") == "list" else "cards"
+        flags = service.account_flags()
         ranks = {item.account.id: rank for rank, item in enumerate(book, start=1)}
         rows: list[tuple[int, ScoredAccount]] = [
-            (ranks[item.account.id], item) for item in service.filter_book(book, selected, q)
+            (ranks[item.account.id], item)
+            for item in service.filter_book(book, None, q)
+            if (not motions or item.motion in motions)
+            and (not healths or item.health in healths)
+            and (not topics or not topics.isdisjoint(flags.get(item.account.id, [])))
         ]
         first, second = summary_sentences(
             brief.counts_by_health[Health.AT_RISK],
             brief.arr_at_risk,
             brief.counts_by_health[Health.WATCH],
         )
-        options: list[dict[str, Any]] = [
-            {
-                "value": "",
-                "label": "All",
-                "count": brief.total_accounts,
-                "checked": selected is None,
-            },
-            *(
-                {
-                    "value": motion_kind.value,
-                    "label": motion_kind.label,
-                    "count": brief.counts_by_motion[motion_kind],
-                    "checked": selected == motion_kind,
-                }
-                for motion_kind in _MOTION_ORDER
-            ),
-        ]
+        groups = _filter_groups(brief, flags, motions, healths, topics)
         partial = request.headers.get("HX-Request") == "true" and (
             "HX-History-Restore-Request" not in request.headers
         )
-        flags = service.account_flags()
         response = _render(
             request,
             "partials/book_results.html" if partial else "book.html",
@@ -1647,8 +1712,9 @@ def create_app() -> FastAPI:
             book=not partial,
             summary_first=first,
             summary_second=second,
-            motion_options=options,
-            selected_value="" if selected is None else selected.value,
+            filter_groups=groups,
+            filtered=bool(motions or healths or topics),
+            view=view,
             rows=rows,
             q=q,
             count_text=result_count_text(len(rows)),

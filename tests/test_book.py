@@ -1,4 +1,5 @@
-"""The My book screen: the summary, the filter, the ranked table and the htmx partial."""
+"""The My book screen: the summary, the filter sidebar, the cards (or the ranked table in the list
+view) and the htmx partial."""
 
 from __future__ import annotations
 
@@ -43,11 +44,23 @@ def _text(response: Any) -> str:
 
 
 def _row_ranks(markup: str) -> list[int]:
-    return [int(rank) for rank in re.findall(r'class="cell-rank num">(\d+)<', markup)]
+    """Ranks in page order, from the cards (the rank tile) or the list view's rank cells."""
+    found = re.findall(
+        r'rank-tile"><span class="visually-hidden">Rank </span>(\d+)<|class="cell-rank num">(\d+)<',
+        markup,
+    )
+    return [int(card or row) for card, row in found]
 
 
 def _account_links(markup: str) -> list[str]:
     return [a["href"] or "" for a in _tags(markup, "a") if a.get("class") == "account-link"]
+
+
+def _checked(markup: str, name: str) -> list[str]:
+    """The values of the ticked inputs called `name` (checkboxes and radios)."""
+    return [
+        t["value"] or "" for t in _tags(markup, "input") if t.get("name") == name and "checked" in t
+    ]
 
 
 @pytest.fixture
@@ -73,55 +86,90 @@ def test_full_page_has_the_summary_and_every_account(client: TestClient) -> None
     assert f"{watching} more are worth watching this week." in text
 
     markup = response.text
-    body = re.search(r"<tbody>(.*?)</tbody>", markup, re.S)
-    assert body is not None
-    assert len(re.findall(r"<tr\b", body.group(1))) == 40
+    assert markup.count('class="account-card"') == 40
     assert _account_links(markup) == [f"/accounts/{item.account.id}" for item in book]
-    assert _row_ranks(markup)[0] == 1
+    assert _row_ranks(markup) == list(range(1, 41))
     assert "Showing 40 accounts" in text
 
 
-def test_rows_show_health_label_bar_and_reason(client: TestClient) -> None:
+def test_cards_show_health_motion_priority_arr_and_reason(client: TestClient) -> None:
     book = service.get_book()
     markup = client.get("/").text
+    markup = markup[markup.index('id="results"') :]  # past the sidebar's own health tags
 
     labels = re.findall(r'health--\w+">\s*<svg.*?</svg>\s*([^<]+?)\s*</span>', markup, re.S)
     assert labels == [item.health.label for item in book]
-    assert "At risk" in labels
+    motions = re.findall(r'<li class="pill pill--(\w+)">', markup)
+    assert motions == [item.motion.value for item in book]
 
     widths = re.findall(r'class="bar-fill" width="([^"]+)"', markup)
     assert [float(width) for width in widths] == [item.priority for item in book]
-    assert f'aria-label="Priority {web.whole(book[0].priority)} of 100"' in markup
+    first = book[0]
+    assert f"Priority <strong>{web.whole(first.priority)}</strong>" in markup
+    assert f"<strong>{web.money(first.account.arr)}</strong> ARR" in markup
 
     text = _text(client.get("/"))
     for item in book:
-        assert item.top_reason in text
-    multi = sum(1 for item in book if len(item.reasons) > 1)
-    assert markup.count('class="more-signals"') == multi
+        others = len(item.reasons) - 1
+        if others <= 0:
+            assert f"{item.top_reason}." in text
+        else:
+            noun = "signal" if others == 1 else "signals"
+            assert f"{item.top_reason}, and {others} other {noun}." in text
 
 
-def test_motion_counts_come_from_the_unfiltered_book(client: TestClient) -> None:
-    labels = ["All 40", "Churn 20", "Renewal 12", "Onboarding 8"]
-    for path in ["/", "/?motion=renewal", "/?q=zzz"]:
-        markup = client.get(path).text
-        counts = re.findall(r'segment-count">(\d+)<', markup)
-        assert counts == [label.split()[-1] for label in labels], path
-
-
-def test_renewal_filter_shows_twelve_rows_and_checks_its_radio(client: TestClient) -> None:
-    markup = client.get("/?motion=renewal").text
+def test_the_list_view_keeps_the_ranked_table(client: TestClient) -> None:
+    book = service.get_book()
+    markup = client.get("/?view=list").text
     body = re.search(r"<tbody>(.*?)</tbody>", markup, re.S)
     assert body is not None
-    assert len(re.findall(r"<tr\b", body.group(1))) == 12
-    radios = [t for t in _tags(markup, "input") if t.get("type") == "radio"]
-    assert [t["value"] for t in radios if "checked" in t] == ["renewal"]
+    assert len(re.findall(r"<tr\b", body.group(1))) == 40
+    assert 'class="account-card"' not in markup
+    assert _row_ranks(markup) == list(range(1, 41))
+    assert f'aria-label="Priority {web.whole(book[0].priority)} of 100"' in markup
+    multi = sum(1 for item in book if len(item.reasons) > 1)
+    assert markup.count('class="more-signals"') == multi
+    assert _checked(markup, "view") == ["list"]
+    assert _checked(client.get("/").text, "view") == ["cards"]
 
 
-def test_unknown_motion_is_treated_as_all(client: TestClient) -> None:
-    markup = client.get("/?motion=bogus").text
+def test_filter_counts_come_from_the_unfiltered_book(client: TestClient) -> None:
+    # Motion (churn, renewal, onboarding), then health (at risk, watch, healthy).
+    expected = ["20", "12", "8", "10", "12", "18"]
+    for path in ["/", "/?motion=renewal", "/?health=watch", "/?q=zzz"]:
+        markup = client.get(path).text
+        assert re.findall(r'filter-count">(\d+)<', markup) == expected, path
+
+
+def test_renewal_filter_shows_twelve_cards_and_ticks_its_box(client: TestClient) -> None:
+    markup = client.get("/?motion=renewal").text
+    assert markup.count('class="account-card"') == 12
+    assert _checked(markup, "motion") == ["renewal"]
+    assert _checked(markup, "health") == []
+
+
+def test_several_motions_and_a_health_combine(client: TestClient) -> None:
+    book = service.get_book()
+    markup = client.get("/?motion=renewal&motion=onboarding").text
+    assert markup.count('class="account-card"') == 20
+    assert _checked(markup, "motion") == ["renewal", "onboarding"]
+
+    markup = client.get("/?motion=churn&health=at_risk").text
+    expected = [
+        item.account.id
+        for item in book
+        if item.motion is Motion.CHURN and item.health is Health.AT_RISK
+    ]
+    assert _account_links(markup) == [f"/accounts/{account_id}" for account_id in expected]
+    assert "Clear filters" in markup
+
+
+def test_unknown_filter_values_are_ignored(client: TestClient) -> None:
+    markup = client.get("/?motion=bogus&health=fine&topic=gossip&view=grid").text
     assert len(_row_ranks(markup)) == 40
-    radios = [t for t in _tags(markup, "input") if t.get("type") == "radio"]
-    assert [t["value"] for t in radios if "checked" in t] == [""]
+    assert _checked(markup, "motion") == []
+    assert _checked(markup, "view") == ["cards"]
+    assert "Clear filters" not in markup
 
 
 def test_search_matches_account_names_only(client: TestClient) -> None:
@@ -139,14 +187,14 @@ def test_search_with_no_match_shows_the_empty_copy_and_clear_link(client: TestCl
     response = client.get("/?q=zzz")
     assert response.status_code == 200
     assert 'No accounts match "zzz".' in _text(response)
-    assert re.search(r'<a href="/\?motion=">Clear search</a>', response.text)
+    assert '<a href="/">Clear search</a>' in response.text
 
 
-def test_empty_motion_says_so(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_filters_with_no_match_say_so(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
     renewals = [item for item in service.get_book() if item.motion is Motion.RENEWAL]
     monkeypatch.setattr(service, "get_book", lambda: renewals)
     text = _text(client.get("/?motion=churn"))
-    assert "No accounts are in churn right now." in text
+    assert "No accounts match these filters." in text
     assert "Clear search" not in text
 
 
@@ -184,6 +232,7 @@ def test_ranks_stay_global_when_filtered(client: TestClient) -> None:
     position = {item.account.id: rank for rank, item in enumerate(book, start=1)}
     expected = [position[item.account.id] for item in book if item.motion is Motion.RENEWAL]
     assert _row_ranks(client.get("/?motion=renewal").text) == expected
+    assert _row_ranks(client.get("/?motion=renewal&view=list").text) == expected
 
 
 @pytest.mark.parametrize(
@@ -244,7 +293,9 @@ def test_invalid_search_and_motion_render_without_error(client: TestClient) -> N
 
 def test_no_js_submit_button_and_app_js_are_served(client: TestClient) -> None:
     markup = client.get("/").text
-    assert re.search(r'<button type="submit" class="no-js-only">Show accounts</button>', markup)
+    assert re.search(
+        r'<button type="submit" class="button no-js-only">Show accounts</button>', markup
+    )
     assert 'src="/static/js/app.js"' in markup
     response = client.get("/static/js/app.js")
     assert response.status_code == 200
@@ -253,13 +304,25 @@ def test_no_js_submit_button_and_app_js_are_served(client: TestClient) -> None:
 
 def test_accessibility_hooks_are_present(client: TestClient) -> None:
     markup = client.get("/").text
-    assert '<caption class="visually-hidden">Accounts ranked by priority</caption>' in markup
-    assert len(re.findall(r'<th scope="col"', markup)) == 7
-    assert '<legend class="visually-hidden">Filter by motion</legend>' in markup
+    assert '<h2 class="visually-hidden">Accounts ranked by priority</h2>' in markup
+    assert '<h2 class="filters-title" id="filters-title">What needs your attention?</h2>' in markup
+    assert "<legend>Motion</legend>" in markup and "<legend>Health</legend>" in markup
+    assert '<legend class="visually-hidden">Show accounts as</legend>' in markup
+    # Every card is named by its account's heading, and the rank is read out as "Rank 1".
+    cards = [t for t in _tags(markup, "article") if t.get("class") == "account-card"]
+    assert [t["aria-labelledby"] for t in cards][:2] == ["card-1", "card-2"]
+    assert '<h3 class="card-title" id="card-1">' in markup
+    # Each filter checkbox sits inside its label, so its name is the tag text and the count.
+    boxes = [t for t in _tags(markup, "input") if t.get("type") == "checkbox"]
+    assert len(boxes) == 6 and all(t.get("id") for t in boxes)
     labels = [t for t in _tags(markup, "label") if t.get("for") == "q"]
     assert len(labels) == 1
     assert '<p id="result-count" class="result-count" aria-live="polite">' in markup
     assert '<h1 class="visually-hidden">My book</h1>' in markup
+
+    table = client.get("/?view=list").text
+    assert '<caption class="visually-hidden">Accounts ranked by priority</caption>' in table
+    assert len(re.findall(r'<th scope="col"', table)) == 7
 
 
 def test_search_blur_does_not_trigger_a_refresh(client: TestClient) -> None:
@@ -268,4 +331,4 @@ def test_search_blur_does_not_trigger_a_refresh(client: TestClient) -> None:
     form = _tags(client.get("/").text, "form")[0]
     triggers = [part.strip() for part in (form["hx-trigger"] or "").split(",")]
     assert "change" not in triggers
-    assert "change from:.motion-radio" in triggers
+    assert "change from:.filter-input" in triggers

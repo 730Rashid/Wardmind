@@ -727,7 +727,7 @@ def test_the_account_page_with_summaries_never_prints_none(client: TestClient) -
 # --- My book: topics next to each account -----------------------------------------------------
 
 
-def test_my_book_shows_the_topics_next_to_accounts_on_the_full_page_and_the_rows(
+def test_my_book_shows_the_topics_on_the_cards_the_list_and_the_filter(
     client: TestClient,
 ) -> None:
     _on()
@@ -736,11 +736,21 @@ def test_my_book_shows_the_topics_next_to_accounts_on_the_full_page_and_the_rows
     assert flags.get(DEMO_ID), "the demo sample should carry topics"
     full = client.get("/").text
     rows = client.get("/", headers=HTMX).text
-    assert 'aria-label="Topics from their website"' in full
-    assert 'aria-label="Topics from their website"' in rows
     for topic in flags[DEMO_ID]:
-        assert f'<li class="tag">{topic.label}</li>' in full
-        assert f'<li class="tag">{topic.label}</li>' in rows
+        pill = f'<use href="/static/icons.svg#topic-{topic.value}"/></svg>{topic.label}</li>'
+        assert pill in full
+        assert pill in rows
+    listed = client.get("/?view=list").text
+    assert 'aria-label="Topics from their website"' in listed
+    for topic in flags[DEMO_ID]:
+        assert f'<li class="tag">{topic.label}</li>' in listed
+    # The sidebar offers the topics found, and ticking one keeps only the accounts that have it.
+    assert "<legend>News from their website</legend>" in full
+    topic = flags[DEMO_ID][0]
+    filtered = client.get(f"/?topic={topic.value}").text
+    assert f'href="/accounts/{DEMO_ID}"' in filtered
+    having = sum(topic in found for found in flags.values())
+    assert filtered.count('class="account-card"') == having
 
 
 def test_my_book_links_to_the_lookups_only_while_web_research_is_on(client: TestClient) -> None:
@@ -752,7 +762,8 @@ def test_my_book_links_to_the_lookups_only_while_web_research_is_on(client: Test
 
 def test_my_book_has_no_topics_while_web_research_is_off(client: TestClient) -> None:
     _settings(web_research=False)
-    assert "Topics from their website" not in client.get("/").text
+    assert "Topics from their website" not in client.get("/?view=list").text
+    assert "News from their website" not in client.get("/").text
 
 
 # --- Cross-site writes are refused, and change nothing --------------------------------------

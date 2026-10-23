@@ -269,7 +269,7 @@ def test_the_working_connections_still_show_under_the_banner(
 ) -> None:
     response = client.get("/")
     assert "Showing your data" in _text(response)
-    assert '<table class="book' in response.text
+    assert 'class="card-grid' in response.text
 
 
 # Duplicates line -------------------------------------------------------------------------------

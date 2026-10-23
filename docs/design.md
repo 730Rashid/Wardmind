@@ -16,9 +16,10 @@ are the most important text on the page, so they get the most typographic care.
 ## Principles
 1. **The reason is the hero.** In every row the top reason sits in full ink at body size. It is
    never truncated to a chip or a tooltip. Everything else in the row is quieter than it.
-2. **Colour means health, and only health.** Red, amber and green appear only for at risk, watch
-   and healthy, and always alongside a shape and a word. The plum accent is for interaction
-   (links, focus, the selected filter). Motion tags and priority bars are neutral.
+2. **Colour names a kind of thing, never alone.** Red, amber and green are health only. Motions
+   have their own hues (churn pink, renewal blue, onboarding violet) and news topics are slate.
+   Every coloured tag also carries an icon and a word, so nothing rests on colour. The violet
+   accent is for interaction (links, focus, the primary button). Priority bars are neutral.
 3. **Say it in a sentence.** Summaries are sentences, not stat tiles. For example: "9 accounts are
    at risk, carrying $1.4M of ARR."
 4. **Honest state.** The UI always shows where the data comes from ("Showing demo data"), and
@@ -26,23 +27,39 @@ are the most important text on the page, so they get the most typographic care.
 5. **One moment of motion.** On first page load the priority bars fill once (300 ms). Nothing
    else animates unless the user caused it, and `prefers-reduced-motion` turns this off.
 
+## The catalog look (October 2026)
+The user asked for the look of a connector catalog: white surfaces, a light-grey filter sidebar
+with checkbox rows, a full-width search, a grid of rounded cards, and pastel tags with icons.
+It replaced the earlier left-aligned 1200px column, which left a wide empty strip on the right
+of large screens.
+- **Frame:** the page uses the whole window (up to 1680px, centred). My book and Settings share
+  one frame: a full-height `--sunken` sidebar on the left and the page beside it.
+- **Cards:** `--radius-card` 14px, 1px `--line` border, no shadow. Sections on the other screens
+  (account, brief, onboarding, settings, import) use the same card treatment.
+- **Tags:** `--radius-tag` 6px, pastel `--tag-<hue>-bg` with `--tag-<hue>-ink` text, and a faint
+  border in the tag's own ink. Health badges use the same shape.
+- **Controls:** `--radius-control` 8px.
+
 ## Colour tokens
 All colours are defined on `:root` in `web/static/css/app.css`. Contrast is verified by
 `tests/test_contrast.py`: at least 4.5:1 for text and at least 3:1 for UI strokes.
 
 | Token | Light | Dark | Use |
 |---|---|---|---|
-| `--paper` | `#F7F8FA` | `#171A21` | page background |
-| `--surface` | `#FFFFFF` | `#1F232C` | table, inputs |
-| `--ink` | `#1C2430` | `#E6E9EE` | primary text, the reason sentence |
-| `--ink-muted` | `#566173` | `#A0A9B6` | owner, counts, secondary text |
-| `--line` | `#D6DBE3` | `#353B47` | decorative rules and bar tracks only (not a 3:1 boundary) |
-| `--control` | `#7A8494` | `#7D8696` | input, button and filter-segment borders (≥ 3:1) |
-| `--accent` | `#5A3E9B` | `#BBA6F2` | links, focus ring, selected filter (plum ink) |
-| `--risk` | `#B42318` | `#FF8A80` | at risk |
-| `--watch` | `#9A4A05` | `#F7B955` | watch |
-| `--healthy` | `#067647` | `#5FD39A` | healthy |
-| `--bar` | `#7D8696` | `#6F7888` | priority bar fill (neutral, ≥ 3:1 on paper and surface) |
+| `--paper` | `#FFFFFF` | `#16171B` | page background |
+| `--surface` | `#FFFFFF` | `#1C1D22` | cards, tables, inputs |
+| `--sunken` | `#F8F8FA` | `#19191E` | the sidebar, table headers, the selected nav item |
+| `--ink` | `#1D1E24` | `#E7E8EC` | primary text |
+| `--ink-muted` | `#62636E` | `#A3A4AF` | owner, counts, the reason on a card |
+| `--line` | `#E6E6EB` | `#2C2D34` | card borders, rules and bar tracks (not a 3:1 boundary) |
+| `--line-strong` | `#D5D6DD` | `#3A3B44` | secondary buttons, the search box, hovered cards |
+| `--control` | `#8C8D97` | `#858795` | input and checkbox borders (≥ 3:1) |
+| `--accent` | `#6A4BD6` | `#B9A8F5` | links, focus ring, primary button (violet; the "plum" choice) |
+| `--risk` | `#B42318` | `#FF8A80` | at risk text |
+| `--watch` | `#9A4A05` | `#F7B955` | watch text |
+| `--healthy` | `#067647` | `#5FD39A` | healthy text |
+| `--bar` | `#8C8D97` | `#858795` | priority bar fill (neutral, ≥ 3:1 on paper and surface) |
+| `--tag-<hue>-bg` / `-ink` | pastel / deep | deep / pastel | tags: violet, blue, green, pink, orange, red, slate (each pair ≥ 4.5:1) |
 
 Theme selection works like this:
 - With no user choice, `prefers-color-scheme` decides.
@@ -72,12 +89,14 @@ Typography rules:
 - Prose is capped at 70ch.
 
 ## Layout
-- The content column is left-aligned, `max-width: 1200px`, with 32px side padding (16px on mobile).
+- The content column fills the window up to `max-width: 1680px`, centred, with 32px side
+  padding (16px on mobile). My book and Settings use the full-width sidebar frame instead.
 - **Spacing scale:** 4, 8, 12, 16, 24, 32, 48.
 - **Radius follows hierarchy:**
   - 0 on table rows and the page
-  - 4px on inputs, buttons and filter segments
-  - no pill shapes
+  - 6px on tags and health badges
+  - 8px on inputs and buttons, 10px on the search box and the view switch
+  - 14px on cards
 - **Shadows:** none, except the focus ring and popovers.
 - **Focus ring:** 2px `--accent` outline, offset 2px, on every focusable element.
 
@@ -86,57 +105,48 @@ Typography rules:
 cs-brief   My book   Weekly brief   Onboarding prep   Settings              Showing demo data
 ───────────────────────────────────────────────────────────────────────────────────────────
 ```
-- The product name is in `--t-body` weight 700, in ink (not accent).
-- The current page's nav link gets a 2px accent underline and `aria-current="page"`.
+- The product name has a small document mark in the accent colour.
+- The current page's nav link gets a `--sunken` background, a 1px `--line` ring, weight 600 and
+  `aria-current="page"`.
 - The data-source note on the right is `--t-sm`, muted.
 - A skip link ("Skip to content") is the first focusable element.
 
 ### My book
 ```
-Tuesday 21 October                                                   (t-sm, muted)
-
-9 accounts are at risk, carrying $1.4M of ARR.                       (t-xl, ink)
-14 more are worth watching this week.                                (t-xl, ink-muted)
-
-[ All 40 | Churn 20 | Renewal 12 | Onboarding 8 ]          [ Search accounts         ]
-Showing 40 accounts                                          (t-sm, aria-live="polite")
-
-  #  Health        Priority     Account                Motion       ARR      Why it's on your list
- ─────────────────────────────────────────────────────────────────────────────────────────────────
-  1  ▲ At risk     82 ▬▬▬▬▬▬▬░  Larkspur Freight       Renewal  $184,000      Active users down 38% in 30 days
-                                Dana Whitfield                               and 2 other signals
- ─────────────────────────────────────────────────────────────────────────────────────────────────
-  2  ◐ Watch       61 ▬▬▬▬▬░░░  Quillon Health         Churn     $96,500      Champion left the company
+┌ sidebar (sunken) ──────────┐  Friday 23 October
+│ What needs your attention? │  10 accounts are at risk, carrying $1.2M of ARR.
+│ Motion                     │  12 more are worth watching this week.
+│ ☐ [↘ Churn]           20   │  [ Search accounts…                          ] [▦ Cards | ☰ List]
+│ ☐ [⟳ Renewal]         12   │  Showing 40 accounts                       Look up all websites
+│ ☐ [⚑ Onboarding]       8   │  ┌──────────────────────┐ ┌──────────────────────┐ ┌────────…
+│ Health                     │  │ [1]        [▲ At risk]│ │ [2]        [▲ At risk]│ │ …
+│ ☐ [▲ At risk]         10   │  │ Greyholt Studio       │ │ Thistledown Foods     │
+│ ☐ [◐ Watch]           12   │  │ Corin Vashti          │ │ Odelia Fenwrick       │
+│ ☐ [✓ Healthy]         18   │  │ Champion has left the │ │ 3 open severity-1     │
+│ News from their website    │  │ company, and 6 other  │ │ tickets, and 6 other  │
+│ ☐ [Funding]            3   │  │ signals.              │ │ signals.              │
+└────────────────────────────┘  │ Priority 83 ▬▬▬  $167,000 ARR                  │
+                                │ ───────────────────── │
+                                │ [⟳ Renewal] [Funding] │
+                                └───────────────────────┘
 ```
-- **Filter:** a segmented control: one bordered group of 4px-radius buttons, a single row,
-  with counts. The selected one gets an accent border and accent text plus `aria-pressed="true"`.
-  Under the hood it is a `<form method="get">` so it works without JavaScript.
-- **Search:** a labelled input. The visible label "Search accounts" acts as the placeholder-free
-  label above it on mobile and visually hidden on desktop.
-- **Table:** a real `<table>` with a `<caption>` (visually hidden) and `scope="col"` headers.
-  Rows are separated by 1px `--line` rules. There's no zebra striping. Hovering a row gives a
-  `--paper` background.
-- **Account name** is the row's link (to `/accounts/{id}`) in ink weight 600. It gets an underline
-  on hover or focus, and the owner sits under it in `--t-sm` muted.
-- **Health cell:** an icon from the sprite plus its word, both in the health colour.
-  - At risk: a filled triangle with "!"
-  - Watch: a half-filled circle
-  - Healthy: a circle with a check
-- **Priority cell:** the number (tabular, right-aligned) plus a 56×6px bar. The track is `--line`
-  and the fill is `--bar`, so it is neutral and not a health colour. The bar has
-  `role="img" aria-label="Priority 82 of 100"`.
-- **Motion cell:** plain text in ink with no colour or chip. The column header says what it is.
-- **ARR:** right-aligned, formatted with no decimals (`$184,000`).
-- **Why it's on your list:**
-  - the top reason in `--t-body` ink, which makes it the widest column
-  - below it, "and N other signals" in `--t-sm` muted when N > 0
-- **Under 960px** (tablets and phones) each row becomes a stacked block, because seven columns
-  can't leave the reason readable any narrower:
-  ```
-  1  ▲ At risk   Larkspur Freight
-     Active users down 38% in 30 days
-     Renewal   $184,000   Priority 82
-  ```
+- **One form** holds the sidebar checkboxes, the search and the view switch. Any change refreshes
+  the results over htmx and updates the address; without JavaScript, "Show accounts" submits it.
+- **Filters** are checkboxes, any number per group, read from repeatable query parameters
+  (`motion`, `health`, `topic`). Groups combine with AND, choices within a group with OR. Counts
+  come from the whole book, so they don't move as boxes are ticked. The news group appears only
+  when some account has a topic from its website. "Clear filters" shows when any box is ticked.
+- **Cards** fill the width (`repeat(auto-fill, minmax(19rem, 1fr))`), in priority order:
+  - the rank in a tile where a logo would sit (the book is an ordered list), read as "Rank 1"
+  - the health badge top right
+  - the account name as the card's heading and link (the whole card is clickable), then owner
+  - the top reason, with "and N other signals", in muted text
+  - priority with its neutral bar, and ARR
+  - a divider, then the motion tag and any news topic tags
+- **List view** (`view=list`) keeps the ranked table, inside a card, with the same columns as
+  before; the motion cell now uses its tag.
+- **Under 900px** the sidebar becomes a panel above the results; under 560px the cards are one
+  column and the search takes the full width.
 
 ### Account detail (`/accounts/{id}`)
 This is call prep: the page a CSM opens just before speaking to the customer. It answers three

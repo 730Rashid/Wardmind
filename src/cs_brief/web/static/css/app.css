@@ -40,22 +40,38 @@
    <html data-theme="dark"> is set. data-theme="light" pins the light values. */
 :root {
   color-scheme: light dark;
-  --paper: #F7F8FA;
+  --paper: #FFFFFF;
   --surface: #FFFFFF;
-  --ink: #1C2430;
-  --ink-muted: #566173;
-  --line: #D6DBE3;
-  --control: #7A8494;
-  --accent-plum: #5A3E9B;
+  --sunken: #F8F8FA;
+  --ink: #1D1E24;
+  --ink-muted: #62636E;
+  --line: #E6E6EB;
+  --line-strong: #D5D6DD;
+  --control: #8C8D97;
+  --accent-plum: #6A4BD6;
   --accent-blue: #2C4FB0;
   --accent-petrol: #1D5E78;
   --accent-graphite: #3B4452;
-  --accent: var(--accent-plum);
   --on-accent: #FFFFFF;
   --risk: #B42318;
   --watch: #9A4A05;
   --healthy: #067647;
-  --bar: #7D8696;
+  --bar: #8C8D97;
+  --tag-violet-bg: #EEEAFC;
+  --tag-violet-ink: #5B3FC4;
+  --tag-blue-bg: #E8EFFB;
+  --tag-blue-ink: #2F55A8;
+  --tag-green-bg: #E7F4E1;
+  --tag-green-ink: #3A6620;
+  --tag-pink-bg: #FBE8F1;
+  --tag-pink-ink: #A02F68;
+  --tag-orange-bg: #FCEEE1;
+  --tag-orange-ink: #94480A;
+  --tag-red-bg: #FCE9E8;
+  --tag-red-ink: #AE2E27;
+  --tag-slate-bg: #EFF0F3;
+  --tag-slate-ink: #484B57;
+  --accent: var(--accent-plum);
 
   --font-ui: "Atkinson Hyperlegible Next", system-ui, sans-serif;
   --t-sm: 0.875rem;
@@ -77,8 +93,10 @@
   --space-6: 2rem;
   --space-7: 3rem;
 
-  --column: 1200px;
-  --radius-control: 4px;
+  --column: 1680px;
+  --radius-control: 8px;
+  --radius-card: 14px;
+  --radius-tag: 6px;
   --focus-width: 2px;
   --cell-pad: var(--space-3);  /* table cell padding; compact density lowers it */
   --list-gap: var(--space-5);  /* between ranked list items; compact density lowers it */
@@ -87,41 +105,73 @@
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
     color-scheme: dark;
-    --paper: #171A21;
-    --surface: #1F232C;
-    --ink: #E6E9EE;
-    --ink-muted: #A0A9B6;
-    --line: #353B47;
-    --control: #7D8696;
-    --accent-plum: #BBA6F2;
+    --paper: #16171B;
+    --surface: #1C1D22;
+    --sunken: #19191E;
+    --ink: #E7E8EC;
+    --ink-muted: #A3A4AF;
+    --line: #2C2D34;
+    --line-strong: #3A3B44;
+    --control: #858795;
+    --accent-plum: #B9A8F5;
     --accent-blue: #9DB4F7;
     --accent-petrol: #7CC6E0;
     --accent-graphite: #C5CCD7;
-    --on-accent: #171A21;
+    --on-accent: #16171B;
     --risk: #FF8A80;
     --watch: #F7B955;
     --healthy: #5FD39A;
-    --bar: #6F7888;
+    --bar: #858795;
+    --tag-violet-bg: #2C2547;
+    --tag-violet-ink: #C7B8FF;
+    --tag-blue-bg: #1F2B44;
+    --tag-blue-ink: #A9C2F5;
+    --tag-green-bg: #1F3121;
+    --tag-green-ink: #A6D98A;
+    --tag-pink-bg: #3A2130;
+    --tag-pink-ink: #F2A8CC;
+    --tag-orange-bg: #3A2A1C;
+    --tag-orange-ink: #F2BD8A;
+    --tag-red-bg: #3D2220;
+    --tag-red-ink: #F5A8A2;
+    --tag-slate-bg: #2A2C33;
+    --tag-slate-ink: #C9CCD4;
   }
 }
 
 :root[data-theme="dark"] {
   color-scheme: dark;
-  --paper: #171A21;
-  --surface: #1F232C;
-  --ink: #E6E9EE;
-  --ink-muted: #A0A9B6;
-  --line: #353B47;
-  --control: #7D8696;
-  --accent-plum: #BBA6F2;
+  --paper: #16171B;
+  --surface: #1C1D22;
+  --sunken: #19191E;
+  --ink: #E7E8EC;
+  --ink-muted: #A3A4AF;
+  --line: #2C2D34;
+  --line-strong: #3A3B44;
+  --control: #858795;
+  --accent-plum: #B9A8F5;
   --accent-blue: #9DB4F7;
   --accent-petrol: #7CC6E0;
   --accent-graphite: #C5CCD7;
-  --on-accent: #171A21;
+  --on-accent: #16171B;
   --risk: #FF8A80;
   --watch: #F7B955;
   --healthy: #5FD39A;
-  --bar: #6F7888;
+  --bar: #858795;
+  --tag-violet-bg: #2C2547;
+  --tag-violet-ink: #C7B8FF;
+  --tag-blue-bg: #1F2B44;
+  --tag-blue-ink: #A9C2F5;
+  --tag-green-bg: #1F3121;
+  --tag-green-ink: #A6D98A;
+  --tag-pink-bg: #3A2130;
+  --tag-pink-ink: #F2A8CC;
+  --tag-orange-bg: #3A2A1C;
+  --tag-orange-ink: #F2BD8A;
+  --tag-red-bg: #3D2220;
+  --tag-red-ink: #F5A8A2;
+  --tag-slate-bg: #2A2C33;
+  --tag-slate-ink: #C9CCD4;
 }
 
 :root[data-theme="light"] {
@@ -196,7 +246,7 @@ p {
   margin-top: var(--space-3);
 }
 
-/* Left-aligned column: 1200px wide at most, with side padding. */
+/* The page column: the full window up to 1680px, centred, with side padding. */
 .column {
   max-width: var(--column);
   padding-inline: var(--space-6);
@@ -2841,6 +2891,621 @@ label.button:focus-within {
   }
 }
 
+/* Catalog look: white surfaces, soft grey borders, 14px cards, and pastel tags that always carry
+   an icon and a word, so no meaning rests on colour. Rules here refine the component rules above;
+   print keeps the last word below. */
+
+.column {
+  margin-inline: auto;
+}
+
+/* Top bar: the brand mark, then the screens as quiet tabs. It spans the whole window, like the
+   book's sidebar below it. */
+.top-bar {
+  background: var(--surface);
+}
+
+.top-bar .column {
+  max-width: none;
+}
+
+.top-bar-inner {
+  align-items: center;
+  padding-block: var(--space-3);
+}
+
+.brand {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--t-md);
+  line-height: var(--lh-md);
+  font-weight: 600;
+}
+
+.brand .icon {
+  width: 1.25rem;
+  height: 1.25rem;
+  color: var(--accent);
+}
+
+.nav-list {
+  gap: var(--space-1);
+}
+
+.nav-link {
+  padding: var(--space-1) var(--space-3);
+  border-bottom: 0;
+  border-radius: var(--radius-control);
+  color: var(--ink-muted);
+}
+
+.nav-link:hover {
+  color: var(--ink);
+  background: var(--sunken);
+  text-decoration: none;
+}
+
+.nav-link[aria-current="page"] {
+  color: var(--ink);
+  background: var(--sunken);
+  box-shadow: inset 0 0 0 1px var(--line);
+  font-weight: 600;
+}
+
+/* Buttons: a white secondary with a soft border, and the filled accent primary. */
+.button {
+  background: var(--surface);
+  border-color: var(--line-strong);
+  font-weight: 500;
+}
+
+.button:hover {
+  color: var(--ink);
+  border-color: var(--control);
+  background: var(--sunken);
+}
+
+.button-primary {
+  font-weight: 600;
+}
+
+/* Tags. Each hue names a kind of thing (a motion, a health, a news topic), and every tag also has
+   an icon and a word. The faint border is the tag's own ink at low strength. */
+.tag-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.pill,
+.tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0.125rem 0.5rem;
+  border: 1px solid color-mix(in srgb, currentColor 16%, transparent);
+  border-radius: var(--radius-tag);
+  background: var(--tag-slate-bg);
+  color: var(--tag-slate-ink);
+  font-size: var(--t-sm);
+  line-height: var(--lh-sm);
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.pill .icon,
+.tag .icon {
+  width: 0.875rem;
+  height: 0.875rem;
+}
+
+.pill--churn {
+  background: var(--tag-pink-bg);
+  color: var(--tag-pink-ink);
+}
+
+.pill--renewal {
+  background: var(--tag-blue-bg);
+  color: var(--tag-blue-ink);
+}
+
+.pill--onboarding {
+  background: var(--tag-violet-bg);
+  color: var(--tag-violet-ink);
+}
+
+/* Health is a badge everywhere it appears: the same three hues as the brief's ARR bar. */
+.health {
+  padding: 0.125rem 0.5rem;
+  border: 1px solid color-mix(in srgb, currentColor 16%, transparent);
+  border-radius: var(--radius-tag);
+  font-size: var(--t-sm);
+  line-height: var(--lh-sm);
+  font-weight: 600;
+  gap: 0.375rem;
+}
+
+.health--at_risk {
+  background: var(--tag-red-bg);
+  color: var(--tag-red-ink);
+}
+
+.health--watch {
+  background: var(--tag-orange-bg);
+  color: var(--tag-orange-ink);
+}
+
+.health--healthy {
+  background: var(--tag-green-bg);
+  color: var(--tag-green-ink);
+}
+
+/* A badge keeps its own width inside column layouts (the brief's legend, the account header). */
+.legend-item > .health,
+.account-head .health {
+  align-self: flex-start;
+}
+
+/* My book: a filter sidebar on the left, the toolbar and the cards on the right. The main
+   element drops its padding so the sidebar can run the full height of the window. */
+.page--catalog {
+  max-width: none;
+  padding: 0;
+}
+
+.catalog {
+  display: grid;
+  grid-template-columns: 17.5rem minmax(0, 1fr);
+  min-block-size: calc(100vh - 3.6rem);
+}
+
+.filters {
+  padding: var(--space-5) var(--space-4) var(--space-6) var(--space-5);
+  background: var(--sunken);
+  border-inline-end: 1px solid var(--line);
+}
+
+.filters-title {
+  margin: 0 0 var(--space-4);
+  font-size: var(--t-body);
+  line-height: var(--lh-body);
+  font-weight: 600;
+}
+
+.filter-group {
+  margin: 0 0 var(--space-5);
+  padding: 0;
+  border: 0;
+  min-inline-size: 0;
+}
+
+.filter-group legend {
+  margin-block-end: var(--space-2);
+  padding: 0;
+  font-size: var(--t-sm);
+  line-height: var(--lh-sm);
+  color: var(--ink-muted);
+}
+
+.filter-option {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding-block: 0.3125rem;
+  cursor: pointer;
+}
+
+.filter-option input[type="checkbox"] {
+  flex: none;
+  inline-size: 1.125rem;
+  block-size: 1.125rem;
+  margin: 0;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
+.filter-option .pill,
+.filter-option .health {
+  min-inline-size: 0;
+  white-space: normal;
+}
+
+.filter-count {
+  flex: none;
+  margin-inline-start: auto;
+  font-size: var(--t-sm);
+  line-height: var(--lh-sm);
+  color: var(--ink-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.filter-clear {
+  font-size: var(--t-sm);
+  line-height: var(--lh-sm);
+}
+
+.catalog-main {
+  min-inline-size: 0;
+  padding: var(--space-5) var(--space-6) var(--space-7);
+}
+
+.catalog-main > * + * {
+  margin-block-start: var(--space-4);
+}
+
+.catalog-main .summary {
+  font-size: var(--t-lg);
+  line-height: var(--lh-lg);
+  font-weight: 600;
+}
+
+.toolbar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.toolbar .search {
+  flex: 1;
+}
+
+.toolbar .search-field input {
+  inline-size: 100%;
+  padding-block: 0.625rem;
+  border-color: var(--line-strong);
+  border-radius: 10px;
+}
+
+.toolbar .search-field input:hover {
+  border-color: var(--control);
+}
+
+/* Cards or List: two radios drawn as one switch. */
+.view-switch {
+  display: inline-flex;
+  flex: none;
+  gap: 2px;
+  margin: 0;
+  padding: 3px;
+  border: 1px solid var(--line-strong);
+  border-radius: 10px;
+  background: var(--surface);
+}
+
+.view-option label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0.3125rem 0.625rem;
+  border-radius: 7px;
+  color: var(--ink-muted);
+  font-size: var(--t-sm);
+  line-height: var(--lh-sm);
+  cursor: pointer;
+}
+
+.view-option input:checked + label {
+  background: var(--sunken);
+  color: var(--ink);
+  box-shadow: inset 0 0 0 1px var(--line);
+  font-weight: 600;
+}
+
+.view-option input:focus-visible + label {
+  outline: var(--focus-width) solid var(--accent);
+  outline-offset: 1px;
+}
+
+.result-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-2) var(--space-4);
+}
+
+.result-line .result-count {
+  margin: 0;
+}
+
+.lookup-link {
+  font-size: var(--t-sm);
+  line-height: var(--lh-sm);
+}
+
+/* The cards: as many columns as fit, so the window is always used. */
+.card-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(19rem, 1fr));
+  gap: var(--space-4);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.account-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  block-size: 100%;
+  padding: var(--space-5);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-card);
+}
+
+.account-card:hover {
+  border-color: var(--line-strong);
+}
+
+/* The whole card opens the account; the ring goes round the card, not the name. */
+.account-card:has(.account-link:focus-visible) {
+  outline: var(--focus-width) solid var(--accent);
+  outline-offset: 2px;
+}
+
+.account-card .account-link:focus-visible {
+  outline: none;
+}
+
+.card-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin-block-end: var(--space-4);
+}
+
+/* The rank sits where a logo would: the book is an ordered list, so the number is the identity. */
+.rank-tile {
+  display: inline-grid;
+  place-items: center;
+  min-inline-size: 2.5rem;
+  block-size: 2.5rem;
+  padding-inline: var(--space-2);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--sunken);
+  color: var(--ink);
+  font-size: var(--t-md);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.card-title {
+  margin: 0;
+  font-size: var(--t-md);
+  line-height: var(--lh-md);
+  font-weight: 600;
+}
+
+.card-title .account-link::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+}
+
+.account-card:hover .account-link {
+  text-decoration: underline;
+  text-underline-offset: 0.2em;
+}
+
+.card-owner {
+  font-size: var(--t-sm);
+  line-height: var(--lh-sm);
+  color: var(--ink-muted);
+}
+
+.card-reason {
+  margin-block-start: var(--space-3);
+  color: var(--ink-muted);
+}
+
+.card-figures {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2) var(--space-4);
+  margin-block-start: auto;
+  padding-block-start: var(--space-4);
+  font-size: var(--t-sm);
+  line-height: var(--lh-sm);
+  color: var(--ink-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.card-figures strong {
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.card-priority {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.card-tags {
+  margin-block-start: var(--space-4);
+  padding-block-start: var(--space-4);
+  border-block-start: 1px solid var(--line);
+}
+
+/* List view: the table sits in a card of its own. */
+.table-card {
+  overflow-x: auto;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-card);
+  background: var(--surface);
+}
+
+.table-card thead th {
+  padding-block-start: var(--space-3);
+  background: var(--sunken);
+}
+
+.table-card tbody tr:last-child {
+  border-block-end: 0;
+}
+
+.table-card tbody tr:hover {
+  background: var(--sunken);
+}
+
+.empty-card {
+  padding: var(--space-6);
+  border: 1px dashed var(--line-strong);
+  border-radius: var(--radius-card);
+  text-align: center;
+}
+
+/* Sections on the other screens read as cards too. */
+.account-section,
+.account-aside,
+.brief-section,
+.onboarding-section,
+.privacy-section,
+.connections-section,
+.import-part,
+.duplicate-pair,
+.lookup-everyone {
+  padding: var(--space-5);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-card);
+}
+
+/* Settings: the section list becomes a sidebar list like the book's filters. */
+.settings-link {
+  display: block;
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-control);
+  color: var(--ink-muted);
+  text-decoration: none;
+}
+
+.settings-link:hover {
+  color: var(--ink);
+  background: var(--sunken);
+}
+
+.settings-link[aria-current="page"] {
+  color: var(--ink);
+  background: var(--sunken);
+  box-shadow: inset 0 0 0 1px var(--line);
+  font-weight: 600;
+}
+
+/* The Settings frame reuses the book's sidebar; the page beside it is wider than before. */
+.settings-sidebar .settings-nav-list {
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.settings-main .settings-body {
+  max-inline-size: 52rem;
+}
+
+.settings-main--wide .settings-body {
+  max-inline-size: none;
+}
+
+@media (max-width: 899px) {
+  .settings-sidebar .settings-nav-list {
+    flex-direction: row;
+    flex-wrap: wrap;
+  }
+}
+
+@media (max-width: 899px) {
+  .catalog {
+    grid-template-columns: minmax(0, 1fr);
+    min-block-size: 0;
+  }
+
+  .filters {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2) var(--space-6);
+    padding: var(--space-4);
+    border-inline-end: 0;
+    border-block-end: 1px solid var(--line);
+  }
+
+  .filters-title {
+    flex-basis: 100%;
+    margin: 0;
+  }
+
+  .filter-group {
+    margin: 0;
+  }
+
+  .catalog-main {
+    padding: var(--space-4) var(--space-4) var(--space-6);
+  }
+}
+
+@media (max-width: 559px) {
+  .account-section,
+  .account-aside,
+  .brief-section,
+  .onboarding-section,
+  .privacy-section,
+  .connections-section,
+  .import-part,
+  .duplicate-pair,
+  .lookup-everyone,
+  .account-card {
+    padding: var(--space-4);
+  }
+
+  /* A table wider than a phone scrolls inside its card instead of widening the page. */
+  .brief-section {
+    overflow-x: auto;
+  }
+
+  .toolbar {
+    flex-wrap: wrap;
+  }
+
+  .toolbar .search {
+    flex-basis: 100%;
+  }
+
+  .card-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media print {
+  .filters,
+  .toolbar {
+    display: none;
+  }
+
+  .catalog {
+    display: block;
+  }
+
+  .account-section,
+  .account-aside,
+  .brief-section,
+  .onboarding-section,
+  .account-card,
+  .table-card {
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+  }
+}
+
 @media print {
   /* html rather than :root, so this is not read as a second light token block. !important is
      what beats the dark rules, which are more specific than a bare element selector. */
@@ -2848,11 +3513,13 @@ label.button:focus-within {
     color-scheme: light !important;
     --paper: #FFFFFF !important;
     --surface: #FFFFFF !important;
-    --ink: #1C2430 !important;
-    --ink-muted: #566173 !important;
-    --line: #D6DBE3 !important;
-    --control: #7A8494 !important;
-    --accent-plum: #5A3E9B !important;
+    --sunken: #F8F8FA !important;
+    --ink: #1D1E24 !important;
+    --ink-muted: #62636E !important;
+    --line: #E6E6EB !important;
+    --line-strong: #D5D6DD !important;
+    --control: #8C8D97 !important;
+    --accent-plum: #6A4BD6 !important;
     --accent-blue: #2C4FB0 !important;
     --accent-petrol: #1D5E78 !important;
     --accent-graphite: #3B4452 !important;
@@ -2860,7 +3527,21 @@ label.button:focus-within {
     --risk: #B42318 !important;
     --watch: #9A4A05 !important;
     --healthy: #067647 !important;
-    --bar: #7D8696 !important;
+    --bar: #8C8D97 !important;
+    --tag-violet-bg: #EEEAFC !important;
+    --tag-violet-ink: #5B3FC4 !important;
+    --tag-blue-bg: #E8EFFB !important;
+    --tag-blue-ink: #2F55A8 !important;
+    --tag-green-bg: #E7F4E1 !important;
+    --tag-green-ink: #3A6620 !important;
+    --tag-pink-bg: #FBE8F1 !important;
+    --tag-pink-ink: #A02F68 !important;
+    --tag-orange-bg: #FCEEE1 !important;
+    --tag-orange-ink: #94480A !important;
+    --tag-red-bg: #FCE9E8 !important;
+    --tag-red-ink: #AE2E27 !important;
+    --tag-slate-bg: #EFF0F3 !important;
+    --tag-slate-ink: #484B57 !important;
   }
 
   .column {

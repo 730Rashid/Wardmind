@@ -1,5 +1,6 @@
 <div id="results">
-  {% if rows %}
+  {% if rows and view == "list" %}
+  <div class="table-card">
   <table class="book{% if intro %} book--intro{% endif %}" role="table">
     <caption class="visually-hidden">Accounts ranked by priority</caption>
     <thead>
@@ -43,7 +44,7 @@
           {% endif %}
           <span class="owner">{{ item.account.owner }}</span>
         </td>
-        <td role="cell" class="cell-motion">{{ item.motion.label }}</td>
+        <td role="cell" class="cell-motion"><span class="pill pill--{{ item.motion.value }}"><svg class="icon" aria-hidden="true" focusable="false"><use href="/static/icons.svg#motion-{{ item.motion.value }}"/></svg>{{ item.motion.label }}</span></td>
         <td role="cell" class="cell-arr num">{{ item.account.arr | money }}</td>
         <td role="cell" class="cell-reason">
           <span class="reason">{{ item.top_reason }}</span>
@@ -55,13 +56,53 @@
       {% endfor %}
     </tbody>
   </table>
+  </div>
+  {% elif rows %}
+  <h2 class="visually-hidden">Accounts ranked by priority</h2>
+  <ol class="card-grid{% if intro %} book--intro{% endif %}">
+    {% for rank, item in rows %}
+    {% set others = item.reasons | length - 1 %}
+    {% set card_id = "card-" ~ rank %}
+    <li>
+      <article class="account-card" aria-labelledby="{{ card_id }}">
+        <div class="card-top">
+          <span class="rank-tile"><span class="visually-hidden">Rank </span>{{ rank }}</span>
+          <span class="health health--{{ item.health.value }}">
+            <svg class="icon" aria-hidden="true" focusable="false"><use href="/static/icons.svg#health-{{ item.health.value | replace('_', '-') }}"/></svg>
+            {{ item.health.label }}
+          </span>
+        </div>
+        <h3 class="card-title" id="{{ card_id }}"><a class="account-link" href="/accounts/{{ item.account.id | urlencode }}">{{ item.account.name }}</a></h3>
+        <p class="card-owner">{{ item.account.owner }}</p>
+        <p class="card-reason">{{ item.top_reason }}{% if others > 0 %}, and {{ others }} other {{ 'signal' if others == 1 else 'signals' }}{% endif %}.</p>
+        <div class="card-figures">
+          <span class="card-priority">
+            <span>Priority <strong>{{ item.priority | whole }}</strong></span>
+            <svg class="bar" viewBox="0 0 100 6" width="56" height="6" aria-hidden="true" focusable="false">
+              <rect class="bar-track" width="100" height="6"/>
+              <rect class="bar-fill" width="{{ item.priority }}" height="6"/>
+            </svg>
+          </span>
+          <span><strong>{{ item.account.arr | money }}</strong> ARR</span>
+        </div>
+        <ul class="tag-list card-tags" aria-label="Tags">
+          <li class="pill pill--{{ item.motion.value }}"><svg class="icon" aria-hidden="true" focusable="false"><use href="/static/icons.svg#motion-{{ item.motion.value }}"/></svg>{{ item.motion.label }}</li>
+          {% for topic in flags.get(item.account.id, []) %}
+          <li class="pill"><svg class="icon" aria-hidden="true" focusable="false"><use href="/static/icons.svg#topic-{{ topic.value }}"/></svg>{{ topic.label }}</li>
+          {% endfor %}
+        </ul>
+      </article>
+    </li>
+    {% endfor %}
+  </ol>
   {% else %}
-  <div class="empty">
+  <div class="empty empty-card">
     {% if q | trim %}
     <p>No accounts match "{{ q }}".</p>
-    <p><a href="/?motion={{ selected_value }}">Clear search</a></p>
-    {% elif selected_value %}
-    <p>No accounts are in {{ selected_value }} right now.</p>
+    <p><a href="/">Clear search</a></p>
+    {% elif filtered %}
+    <p>No accounts match these filters.</p>
+    <p><a href="/">Clear filters</a></p>
     {% else %}
     <p>No accounts to show.</p>
     {% endif %}

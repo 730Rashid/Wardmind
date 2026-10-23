@@ -92,7 +92,8 @@ def _movements(markup: str) -> list[str]:
 
 def _rank_one_name(markup: str) -> str:
     match = re.search(
-        r'class="cell-rank num">1</th>.*?class="account-link" href="[^"]*">([^<]+)</a>',
+        r'(?:class="cell-rank num">1</th>|rank-tile"><span class="visually-hidden">Rank </span>1<)'
+        r'.*?class="account-link" href="[^"]*">([^<]+)</a>',
         markup,
         re.S,
     )

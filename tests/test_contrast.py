@@ -103,6 +103,31 @@ def test_ui_strokes_meet_3_to_1(theme: str, foreground: str, background: str) ->
     assert ratio >= 3.0, f"{theme}: {foreground} on {background} is {ratio:.2f}:1"
 
 
+TAG_HUES = ["violet", "blue", "green", "pink", "orange", "red", "slate"]
+
+
+@pytest.mark.parametrize("theme", ["light", "dark"])
+@pytest.mark.parametrize("hue", TAG_HUES)
+def test_tag_text_meets_4_5_to_1_on_its_own_background(theme: str, hue: str) -> None:
+    tokens = THEMES[theme]
+    ratio = _contrast(tokens[f"tag-{hue}-ink"], tokens[f"tag-{hue}-bg"])
+    assert ratio >= 4.5, f"{theme}: tag-{hue} is {ratio:.2f}:1"
+
+
+@pytest.mark.parametrize("theme", ["light", "dark"])
+@pytest.mark.parametrize("foreground", ["ink", "ink-muted", *ACCENT_TOKENS])
+def test_text_on_the_sidebar_meets_4_5_to_1(theme: str, foreground: str) -> None:
+    tokens = THEMES[theme]
+    ratio = _contrast(tokens[foreground], tokens["sunken"])
+    assert ratio >= 4.5, f"{theme}: {foreground} on sunken is {ratio:.2f}:1"
+
+
+@pytest.mark.parametrize("theme", ["light", "dark"])
+def test_checkbox_and_input_borders_meet_3_to_1_on_the_sidebar(theme: str) -> None:
+    tokens = THEMES[theme]
+    assert _contrast(tokens["control"], tokens["sunken"]) >= 3.0
+
+
 def test_print_forces_the_light_palette() -> None:
     """Print is always light, so the printed values must be the light palette (paper and surface
     are white). Every accent therefore keeps its light contrast on paper."""
