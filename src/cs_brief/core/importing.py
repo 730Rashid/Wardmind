@@ -621,6 +621,7 @@ _MONTH_FIRST_NAMED = re.compile(
 _COMPACT_DATE = re.compile(r"\d{8}")  # 20261201
 _SERIAL_DATE = re.compile(r"(\d+)(?:\.\d+)?")  # Excel serial, e.g. 46357
 _CONNECTION = re.compile(r"sheet-(\d+)")
+_FEED_CONNECTION = re.compile(r"feed-(\d+)")
 
 # Sanity ranges for optional signal fields. Values outside them are left out, with an issue.
 _RANGES: dict[str, tuple[int, int]] = {
@@ -746,10 +747,16 @@ def _two_digit_year(text: str) -> int:
 
 
 def _connection_prefix(connection_id: str) -> str:
+    """ "sheet-<n>" gives "sp<n>-" and a feed's "feed-<n>" gives "fd<n>-"."""
     match = _CONNECTION.fullmatch(connection_id)
-    if match is None:
-        raise ValueError(f"Connection id {_quote(connection_id)} isn't in the form sheet-<n>.")
-    return f"sp{match.group(1)}-"
+    if match is not None:
+        return f"sp{match.group(1)}-"
+    match = _FEED_CONNECTION.fullmatch(connection_id)
+    if match is not None:
+        return f"fd{match.group(1)}-"
+    raise ValueError(
+        f"Connection id {_quote(connection_id)} isn't in the form sheet-<n> or feed-<n>."
+    )
 
 
 def _slug(text: str) -> str:

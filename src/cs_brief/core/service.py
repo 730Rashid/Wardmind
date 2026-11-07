@@ -26,6 +26,7 @@ from cs_brief.core.connectors.hubspot import (
     load_mapping,
 )
 from cs_brief.core.connectors.local import ManualConnector, SpreadsheetConnector
+from cs_brief.core.feeds import sync as feed_sync
 from cs_brief.core.models import Account, Motion, ScoredAccount, Signal
 from cs_brief.core.onboarding import OnboardingBrief, onboarding_brief
 from cs_brief.core.scoring import score_book
@@ -582,3 +583,37 @@ def check_openrouter_key() -> summaries.KeyInfo:
         return client.key_info()
     finally:
         client.close()
+
+
+# --- Data feeds (see core/feeds) -------------------------------------------------------------
+
+_feed_scheduler: feed_sync.FeedScheduler | None = None
+
+
+def feed_book_accounts(exclude_connection_id: str | None = None) -> list[Account]:
+    """The Your data book's accounts (after links, hidden accounts and edits), for matching a
+    SIGNALS feed's rows. A connection's own data is left out, so a feed can't match its own rows.
+    Empty in demo mode (feeds belong to Your data)."""
+    raise NotImplementedError
+
+
+def sync_feed_now(connection_id: str) -> feed_sync.SyncOutcome:
+    """Sync one feed now (Sync now). Raises LookupError for an id that isn't a FEED connection.
+    Afterwards the shared connectors are invalidated so the next page shows the new data."""
+    raise NotImplementedError
+
+
+def sync_due_feeds() -> int:
+    """Sync every enabled feed that feed_sync.is_due says is due, one after another; return how
+    many were synced. Never raises for one feed's problem (it lands in that feed's status)."""
+    raise NotImplementedError
+
+
+def start_feed_scheduler() -> None:
+    """Start the background scheduler (idempotent). The web app calls it on startup."""
+    raise NotImplementedError
+
+
+def stop_feed_scheduler() -> None:
+    """Stop it (idempotent). The web app calls it on shutdown; tests call it too."""
+    raise NotImplementedError

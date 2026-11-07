@@ -247,3 +247,41 @@ def save_openrouter_key(key: str) -> None:
 def delete_openrouter_key() -> bool:
     """Remove the key file. True if a file was removed. The environment variable is untouched."""
     return _delete_secret_file(OPENROUTER_KEY_FILE)
+
+
+# --- Named secrets (each data feed's key, token or password; see core/feeds) ---------------
+# Stored one per file in secrets_dir() / FEED_SECRETS_DIR / <name>, written like the HubSpot
+# token (atomic, chmod 600 on POSIX), never logged, printed or put in an error message, and
+# shown only through mask_token. A name is lowercase letters, digits and hyphens, e.g. "feed-3"
+# or "draft-<id>" while a feed is being set up.
+
+FEED_SECRETS_DIR = "feeds"
+MAX_SECRET_LENGTH = 4096
+
+
+def get_secret(name: str) -> str | None:
+    """The saved secret, or None when there is none or the name isn't valid."""
+    raise NotImplementedError
+
+
+def secret_status(name: str) -> TokenStatus:
+    """FILE with the masked value and saved time, or NONE."""
+    raise NotImplementedError
+
+
+def save_secret(name: str, value: str) -> None:
+    """Save after stripping the ends. Raises ValueError (never echoing the value) when the name
+    isn't valid, the value is blank, has a line break, or is longer than MAX_SECRET_LENGTH.
+    Spaces inside are allowed: a password may have them."""
+    raise NotImplementedError
+
+
+def delete_secret(name: str) -> bool:
+    """Remove it. True if a file was removed."""
+    raise NotImplementedError
+
+
+def rename_secret(old: str, new: str) -> bool:
+    """Move a secret to a new name (a draft's key becoming the feed's). True if one was moved;
+    an existing secret under `new` is replaced."""
+    raise NotImplementedError

@@ -38,6 +38,7 @@ from typing import Any
 from pydantic import BaseModel, Field, TypeAdapter
 
 from cs_brief.core.config import write_atomic
+from cs_brief.core.feeds.models import FeedSettings
 from cs_brief.core.models import Account, Signal
 from cs_brief.core.secrets import secrets_dir
 
@@ -103,10 +104,11 @@ class ConnectionKind(StrEnum):
     HUBSPOT = "hubspot"
     SPREADSHEET = "spreadsheet"
     MANUAL = "manual"
+    FEED = "feed"  # keeps itself up to date: a file, link, API, database or product (feeds/)
 
 
 class ConnectionConfig(BaseModel):
-    id: str  # "hubspot", "manual", or "sheet-<n>" for spreadsheets
+    id: str  # "hubspot", "manual", "sheet-<n>" for spreadsheets, "feed-<n>" for feeds
     kind: ConnectionKind
     name: str  # what the CSM sees: "HubSpot", "Added by hand", or a name they chose
     enabled: bool = True
@@ -117,6 +119,10 @@ class ConnectionConfig(BaseModel):
     date_order: str | None = None  # "dmy", "mdy" or "ymd"
     last_imported_at: datetime | None = None
     last_file_name: str | None = None
+    # Feed only: the provider, its settings, schedule and last sync. An ACCOUNTS feed also uses
+    # mapping and date_order above, exactly like a spreadsheet; a SIGNALS feed uses mapping for
+    # its key and signal columns.
+    feed: FeedSettings | None = None
 
 
 class ManualData(BaseModel):
@@ -247,7 +253,8 @@ class LocalStore:
 
     def add_connection(self, kind: ConnectionKind, name: str) -> ConnectionConfig:
         """HUBSPOT and MANUAL use their fixed ids and are returned as-is if they already exist.
-        SPREADSHEET gets the next free "sheet-<n>" id."""
+        SPREADSHEET gets the next free "sheet-<n>" id, and FEED the next free "feed-<n>" id (its
+        own numbering). The caller sets a FEED connection's `feed` with update_connection."""
         configs = self.connections()
         if kind in (ConnectionKind.HUBSPOT, ConnectionKind.MANUAL):
             fixed_id = (
