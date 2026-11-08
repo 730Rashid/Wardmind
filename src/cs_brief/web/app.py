@@ -9,7 +9,8 @@ from __future__ import annotations
 import math
 import re
 import time
-from collections.abc import Awaitable, Callable, Mapping
+from collections.abc import AsyncIterator, Awaitable, Callable, Mapping
+from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, timedelta
 from enum import StrEnum
@@ -1614,9 +1615,19 @@ def _render_account(
     )
 
 
+@asynccontextmanager
+async def _lifespan(_app: FastAPI) -> AsyncIterator[None]:
+    """Start the feed scheduler with the app and stop it when the app shuts down."""
+    service.start_feed_scheduler()
+    try:
+        yield
+    finally:
+        service.stop_feed_scheduler()
+
+
 def create_app() -> FastAPI:
     """Build the web app: no API docs, a host allow-list, and security headers on every response."""
-    app = FastAPI(docs_url=None, redoc_url=None, openapi_url=None)
+    app = FastAPI(docs_url=None, redoc_url=None, openapi_url=None, lifespan=_lifespan)
     app.add_middleware(TrustedHostMiddleware, allowed_hosts=["127.0.0.1", "localhost"])
 
     @app.middleware("http")
@@ -2780,7 +2791,7 @@ def create_app() -> FastAPI:
         config = store.get_connection(connection_id)
         if config is None:
             return _missing(request, "Connection not found", _NO_CONNECTION)
-        store.remove_connection(config.id)
+        service.remove_connection(config.id)
         if config.kind is ConnectionKind.HUBSPOT:
             secrets.delete_hubspot_token()
         service.reset_connectors()

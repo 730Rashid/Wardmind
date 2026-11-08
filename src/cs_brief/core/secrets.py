@@ -14,6 +14,8 @@ from __future__ import annotations
 
 import contextlib
 import os
+import re
+import shutil
 import tempfile
 from collections.abc import Callable
 from datetime import datetime
@@ -107,7 +109,11 @@ def _read_secret_file(file_name: str) -> str | None:
 def _write_secret_file(file_name: str, value: str) -> None:
     """Write `value` atomically to secrets_dir()/file_name, creating the folder. On POSIX the file
     is chmod 600; on Windows the per-user profile folder's ACL applies."""
-    folder = secrets_dir()
+    _write_in(secrets_dir(), file_name, value)
+
+
+def _write_in(folder: Path, file_name: str, value: str) -> None:
+    """_write_secret_file for any folder (the named feed secrets live in a subfolder)."""
     folder.mkdir(parents=True, exist_ok=True)
     fd, tmp_name = tempfile.mkstemp(dir=folder, prefix=f".{file_name}-", suffix=".tmp")
     try:
@@ -257,31 +263,96 @@ def delete_openrouter_key() -> bool:
 
 FEED_SECRETS_DIR = "feeds"
 MAX_SECRET_LENGTH = 4096
+_SECRET_NAME = re.compile(r"[a-z0-9][a-z0-9-]{0,63}")
+# Characters that would break a one-line value. NUL is refused too.
+_LINE_BREAKS = frozenset("\r\n\v\f\x1c\x1d\x1e\x85\u2028\u2029\x00")
+_NAME_MESSAGE = "That secret name isn't valid."
+
+
+def _feed_folder() -> Path:
+    return secrets_dir() / FEED_SECRETS_DIR
+
+
+def delete_all_feed_secrets() -> None:
+    """Remove every named feed secret (each feed's key, and any draft's). Only Clear local data
+    calls this: HubSpot's token and the OpenRouter key are separate files and are kept."""
+    shutil.rmtree(_feed_folder(), ignore_errors=True)
+
+
+def _named_path(name: str) -> Path | None:
+    """The file for a secret name, or None when the name isn't one (so no path is built from it)."""
+    if not isinstance(name, str) or _SECRET_NAME.fullmatch(name) is None:
+        return None
+    return _feed_folder() / name
+
+
+def validate_secret(value: str) -> str:
+    """The value stripped at both ends, or ValueError with a plain message (never the value):
+    blank, longer than MAX_SECRET_LENGTH, or with a line break. Spaces inside are allowed."""
+    stripped = value.strip()
+    if not stripped:
+        raise ValueError("Type the key, token or password first.")
+    if len(stripped) > MAX_SECRET_LENGTH:
+        raise ValueError("That's longer than a key or password can be. Check you copied only it.")
+    if any(char in _LINE_BREAKS for char in stripped):
+        raise ValueError("A key or password can't contain a line break.")
+    return stripped
 
 
 def get_secret(name: str) -> str | None:
     """The saved secret, or None when there is none or the name isn't valid."""
-    raise NotImplementedError
+    path = _named_path(name)
+    if path is None:
+        return None
+    try:
+        text = path.read_text(encoding="utf-8").strip()
+    except (OSError, UnicodeDecodeError):
+        return None
+    return text or None
 
 
 def secret_status(name: str) -> TokenStatus:
     """FILE with the masked value and saved time, or NONE."""
-    raise NotImplementedError
+    value = get_secret(name)
+    path = _named_path(name)
+    if value is None or path is None:
+        return TokenStatus(source=TokenSource.NONE, masked=None, saved_at=None)
+    return TokenStatus(
+        source=TokenSource.FILE,
+        masked=mask_token(value),
+        saved_at=datetime.fromtimestamp(path.stat().st_mtime),
+    )
 
 
 def save_secret(name: str, value: str) -> None:
     """Save after stripping the ends. Raises ValueError (never echoing the value) when the name
     isn't valid, the value is blank, has a line break, or is longer than MAX_SECRET_LENGTH.
     Spaces inside are allowed: a password may have them."""
-    raise NotImplementedError
+    if _named_path(name) is None:
+        raise ValueError(_NAME_MESSAGE)
+    _write_in(_feed_folder(), name, validate_secret(value))
 
 
 def delete_secret(name: str) -> bool:
     """Remove it. True if a file was removed."""
-    raise NotImplementedError
+    path = _named_path(name)
+    if path is None:
+        return False
+    try:
+        path.unlink()
+    except FileNotFoundError:
+        return False
+    return True
 
 
 def rename_secret(old: str, new: str) -> bool:
     """Move a secret to a new name (a draft's key becoming the feed's). True if one was moved;
-    an existing secret under `new` is replaced."""
-    raise NotImplementedError
+    an existing secret under `new` is replaced. Raises ValueError when either name isn't valid."""
+    old_path = _named_path(old)
+    new_path = _named_path(new)
+    if old_path is None or new_path is None:
+        raise ValueError(_NAME_MESSAGE)
+    if not old_path.is_file():
+        return False
+    os.replace(old_path, new_path)
+    return True

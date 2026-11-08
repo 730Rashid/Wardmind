@@ -6,6 +6,7 @@ CONTRACT: signatures are fixed; implementers escalate before changing them.
 from __future__ import annotations
 
 import hashlib
+import logging
 import os
 from collections.abc import Callable
 from datetime import UTC, date, datetime, timedelta
@@ -26,12 +27,17 @@ from cs_brief.core.connectors.hubspot import (
     load_mapping,
 )
 from cs_brief.core.connectors.local import ManualConnector, SpreadsheetConnector
+from cs_brief.core.feeds import setup as feed_setup
 from cs_brief.core.feeds import sync as feed_sync
+from cs_brief.core.feeds.models import FeedRole
+from cs_brief.core.feeds.providers import get_provider
 from cs_brief.core.models import Account, Motion, ScoredAccount, Signal
 from cs_brief.core.onboarding import OnboardingBrief, onboarding_brief
 from cs_brief.core.scoring import score_book
 from cs_brief.core.settings import DataSource, Settings, load_settings, save_settings
 from cs_brief.core.store import ConnectionConfig, ConnectionKind, LocalStore
+
+_log = logging.getLogger(__name__)
 
 # Test-only: points the HubSpot client at a local fake server. HubSpotClient refuses other hosts.
 _API_BASE_ENV = "CS_BRIEF_HUBSPOT_API_BASE"
@@ -90,7 +96,8 @@ def _hubspot_member() -> Connector:
 def _member(config: ConnectionConfig, store: LocalStore) -> Connector:
     if config.kind is ConnectionKind.HUBSPOT:
         return _hubspot_member()
-    if config.kind is ConnectionKind.SPREADSHEET:
+    if config.kind in (ConnectionKind.SPREADSHEET, ConnectionKind.FEED):
+        # A feed's snapshot has the same shape as a spreadsheet's, so the same connector serves it.
         return SpreadsheetConnector(store, config.id)
     return ManualConnector(store)
 
@@ -141,6 +148,19 @@ def get_combined() -> CombinedConnector | None:
     Callers that refresh or inspect the connections use this."""
     connector = get_connector()
     return connector if isinstance(connector, CombinedConnector) else None
+
+
+def remove_connection(connection_id: str) -> None:
+    """Remove a connection and what came with it (its accounts, history, edits, notices, links,
+    hidden entries and readings; see LocalStore.remove_connection). A feed's saved key goes too,
+    so every caller removes a feed the same way. HubSpot's saved token is not touched here (the
+    Connections page removes it). An unknown id does nothing. Shared connectors are forgotten."""
+    store = get_store()
+    config = store.get_connection(connection_id)
+    store.remove_connection(connection_id)
+    if config is not None and config.kind is ConnectionKind.FEED:
+        feed_setup.remove_feed_secret(connection_id)
+    reset_connectors()
 
 
 def reset_connectors() -> None:
@@ -588,32 +608,97 @@ def check_openrouter_key() -> summaries.KeyInfo:
 # --- Data feeds (see core/feeds) -------------------------------------------------------------
 
 _feed_scheduler: feed_sync.FeedScheduler | None = None
+_FEED_FAILED = "cs-brief couldn't finish this sync. Try Sync now."
+
+
+def _utc_now() -> datetime:
+    return datetime.now(UTC).replace(tzinfo=None)
 
 
 def feed_book_accounts(exclude_connection_id: str | None = None) -> list[Account]:
     """The Your data book's accounts (after links, hidden accounts and edits), for matching a
     SIGNALS feed's rows. A connection's own data is left out, so a feed can't match its own rows.
     Empty in demo mode (feeds belong to Your data)."""
-    raise NotImplementedError
+    if load_settings().source is DataSource.DEMO:
+        return []
+    store = get_store()
+    _add_legacy_hubspot(store)
+    members = [
+        (config, _member(config, store))
+        for config in store.connections()
+        if config.enabled and config.id != exclude_connection_id
+    ]
+    return CombinedConnector(members, store, today=date.today()).list_accounts()
+
+
+def _sync_one(config: ConnectionConfig, store: LocalStore, now: datetime) -> feed_sync.SyncOutcome:
+    """One feed's sync. A SIGNALS feed matches against the book without its own data."""
+    feed = config.feed
+    book = (
+        feed_book_accounts(config.id) if feed is not None and feed.role is FeedRole.SIGNALS else []
+    )
+    return feed_sync.sync_feed(config, store, book_accounts=book, now=now, today=date.today())
 
 
 def sync_feed_now(connection_id: str) -> feed_sync.SyncOutcome:
     """Sync one feed now (Sync now). Raises LookupError for an id that isn't a FEED connection.
     Afterwards the shared connectors are invalidated so the next page shows the new data."""
-    raise NotImplementedError
+    store = get_store()
+    config = store.get_connection(connection_id)
+    if config is None or config.kind is not ConnectionKind.FEED or config.feed is None:
+        raise LookupError(f"No feed with id {connection_id}.")
+    outcome = _sync_one(config, store, _utc_now())
+    reset_connectors()
+    return outcome
 
 
 def sync_due_feeds() -> int:
     """Sync every enabled feed that feed_sync.is_due says is due, one after another; return how
     many were synced. Never raises for one feed's problem (it lands in that feed's status)."""
-    raise NotImplementedError
+    store = get_store()
+    now = _utc_now()
+    synced = 0
+    for config in store.connections():
+        feed = config.feed
+        if config.kind is not ConnectionKind.FEED or feed is None or not config.enabled:
+            continue
+        provider = get_provider(feed.provider)
+        mtime = provider.source_mtime(dict(feed.settings)) if provider is not None else None
+        if not feed_sync.is_due(config, now, mtime):
+            continue
+        try:
+            _sync_one(config, store, now)
+        except Exception as exc:  # one feed's failure must not stop the others
+            _log.warning("Feed %s wasn't synced (%s).", config.id, type(exc).__name__)
+            _record_failure(store, config.id, now)
+            continue
+        synced += 1
+    if synced:
+        reset_connectors()
+    return synced
+
+
+def _record_failure(store: LocalStore, connection_id: str, now: datetime) -> None:
+    """Show an unexpected failure on the feed's status, so the CSM sees it and it is retried."""
+    latest = store.get_connection(connection_id)
+    if latest is None or latest.feed is None:
+        return
+    status = latest.feed.status.model_copy(
+        update={"last_attempt_at": now, "last_error": _FEED_FAILED}
+    )
+    feed = latest.feed.model_copy(update={"status": status})
+    store.update_connection(latest.model_copy(update={"feed": feed}))
 
 
 def start_feed_scheduler() -> None:
     """Start the background scheduler (idempotent). The web app calls it on startup."""
-    raise NotImplementedError
+    global _feed_scheduler
+    if _feed_scheduler is None:
+        _feed_scheduler = feed_sync.FeedScheduler(tick=sync_due_feeds)
+    _feed_scheduler.start()
 
 
 def stop_feed_scheduler() -> None:
     """Stop it (idempotent). The web app calls it on shutdown; tests call it too."""
-    raise NotImplementedError
+    if _feed_scheduler is not None:
+        _feed_scheduler.stop()

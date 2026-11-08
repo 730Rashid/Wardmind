@@ -462,6 +462,46 @@ def _build(
     )
 
 
+def save_import(
+    store: LocalStore,
+    connection_id: str,
+    result: importing.ImportResult,
+    *,
+    kept_ids: set[str],
+    file_name: str,
+    stamp: datetime,
+) -> int:
+    """Save one import as a connection's snapshot. Shared by spreadsheet commits and feed syncs.
+
+    The snapshot's accounts are replaced by result.accounts. Its readings keep their history:
+    importing.merge_into_snapshot_signals keeps the earlier readings of `kept_ids` and adds the new
+    ones that changed. An ImportRecord is appended. Returns how many accounts of the last snapshot
+    aren't in this one.
+    """
+    previous = store.snapshot(connection_id)
+    earlier = [] if previous is None else previous.accounts
+    removed = sum(1 for account in earlier if account.id not in kept_ids)
+    signals = importing.merge_into_snapshot_signals(
+        [] if previous is None else previous.signals, result.signals, kept_ids
+    )
+    record = ImportRecord(
+        imported_at=stamp,
+        file_name=file_name,
+        accounts=result.ready_rows,
+        skipped_rows=result.skipped_rows,
+    )
+    history = [*([] if previous is None else previous.history), record]
+    store.save_snapshot(
+        ImportSnapshot(
+            connection_id=connection_id,
+            accounts=result.accounts,
+            signals=signals,
+            history=history,
+        )
+    )
+    return removed
+
+
 def preview(
     draft: Draft,
     mapping: Mapping[str, str],
@@ -527,27 +567,13 @@ def commit(
 
     result = _build(draft, cleaned, date_order, config.id, now=now, today=today)
     stamp = _as_naive_utc(now)
-    previous = store.snapshot(config.id)
-    earlier = [] if previous is None else previous.accounts
-    kept = {account.id for account in result.accounts}
-    removed_ids = [account.id for account in earlier if account.id not in kept]
-    signals = importing.merge_into_snapshot_signals(
-        [] if previous is None else previous.signals, result.signals, kept
-    )
-    record = ImportRecord(
-        imported_at=stamp,
+    removed = save_import(
+        store,
+        config.id,
+        result,
+        kept_ids={account.id for account in result.accounts},
         file_name=draft.source_name,
-        accounts=result.ready_rows,
-        skipped_rows=result.skipped_rows,
-    )
-    history = [*([] if previous is None else previous.history), record]
-    store.save_snapshot(
-        ImportSnapshot(
-            connection_id=config.id,
-            accounts=result.accounts,
-            signals=signals,
-            history=history,
-        )
+        stamp=stamp,
     )
     updated = config.model_copy(
         update={
@@ -565,5 +591,5 @@ def commit(
         ready_rows=result.ready_rows,
         skipped_rows=result.skipped_rows,
         issue_count=len(result.issues),
-        removed=len(removed_ids),
+        removed=removed,
     )

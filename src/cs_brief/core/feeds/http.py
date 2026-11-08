@@ -7,6 +7,9 @@ Rules (security code: implementers escalate before changing them):
   server. A URL the CSM typed may point at their company's private network (an internal export
   link): that is their explicit choice, so it is allowed, unlike web research's guard.
 - Redirects are followed by hand, at most MAX_REDIRECTS, and each target obeys the same rules.
+  A redirect to another origin (scheme, host or port) drops the caller's headers and basic
+  auth, so a key is only ever sent to the origin the CSM configured. Pagination links that
+  providers follow must stay on the first page's origin (`same_origin`), else FeedError.
 - TIMEOUT_SECONDS per request, MAX_BYTES per response (a longer body is an error, not cut off:
   a truncated export would silently drop accounts).
 - The secret goes only in the request headers. It never appears in an exception message, a
@@ -111,11 +114,20 @@ class FeedHttp:
 
     def _request(self, method: str, url: str, **kwargs: Any) -> httpx.Response:
         target = check_url(url)
+        origin = _origin(target)
+        auth = kwargs.pop("auth", None)
         for _ in range(MAX_REDIRECTS + 1):
             self._client.cookies.clear()
+            if _origin(target) != origin:
+                # Like browsers and requests: a redirect to another scheme, host or port never
+                # carries the key. Every caller header goes, since any of them may hold it.
+                kwargs.pop("headers", None)
+                auth = None
             try:
                 request = self._client.build_request(method, target, **kwargs)
-                response = self._client.send(request, stream=True)
+                response = self._client.send(
+                    request, stream=True, auth=httpx.BasicAuth(*auth) if auth else None
+                )
             except httpx.TimeoutException:
                 raise FeedError(self._scrub(f"{_host(target)} didn't answer in time.")) from None
             except httpx.HTTPError:
@@ -172,6 +184,21 @@ class FeedHttp:
 
     def _scrub(self, text: str) -> str:
         return text.replace(self._secret, "…") if self._secret else text
+
+
+def _origin(url: str) -> tuple[str, str, int | None]:
+    """(scheme, host, port) with the default port filled in, for same-origin checks."""
+    parts = urlsplit(url)
+    port = parts.port or {"https": 443, "http": 80}.get(parts.scheme)
+    return (parts.scheme, (parts.hostname or "").lower(), port)
+
+
+def same_origin(first: str, second: str) -> bool:
+    """Whether two URLs share scheme, host and port (a key may be sent to both)."""
+    try:
+        return _origin(first) == _origin(second)
+    except ValueError:
+        return False
 
 
 def _host(url: str) -> str:

@@ -40,7 +40,7 @@ from pydantic import BaseModel, Field, TypeAdapter
 from cs_brief.core.config import write_atomic
 from cs_brief.core.feeds.models import FeedSettings
 from cs_brief.core.models import Account, Signal
-from cs_brief.core.secrets import secrets_dir
+from cs_brief.core.secrets import delete_all_feed_secrets, secrets_dir
 
 ENV_DATA_DIR = "CS_BRIEF_DATA_DIR"
 MANUAL_CONNECTION_ID = "manual"
@@ -83,6 +83,7 @@ _NOTICES_FILE = "notices.json"
 _LINKS_FILE = "links.json"
 _HIDDEN_FILE = "hidden.json"
 _SHEETS_DIR = "sheets"
+FEED_DRAFTS_DIR = "feed-drafts"  # unfinished feed setups (feeds/setup.py)
 _ALL_FILES = (
     _CONNECTIONS_FILE,
     _MANUAL_FILE,
@@ -95,6 +96,8 @@ _ALL_FILES = (
 _SAFE_ID = re.compile(r"[A-Za-z0-9_-]+")  # connection ids, used in file names
 _SHEET_ID = re.compile(r"sheet-([1-9][0-9]*)")
 _SHEET_PREFIX = re.compile(r"sp([1-9][0-9]*)-")
+_FEED_ID = re.compile(r"feed-([1-9][0-9]*)")
+_FEED_PREFIX = re.compile(r"fd([1-9][0-9]*)-")
 _DATE_FIELDS = frozenset({"start_date", "renewal_date"})
 _HUBSPOT_NAME = "HubSpot"
 _MANUAL_NAME = "Added by hand"
@@ -265,10 +268,18 @@ class LocalStore:
                     return existing
             fixed_name = _HUBSPOT_NAME if kind is ConnectionKind.HUBSPOT else _MANUAL_NAME
             config = ConnectionConfig(id=fixed_id, kind=kind, name=fixed_name, created_at=_now())
+        elif kind is ConnectionKind.FEED:
+            number = self._next_number(configs, _FEED_ID, "feed-*.json")
+            config = ConnectionConfig(
+                id=f"feed-{number}",
+                kind=ConnectionKind.FEED,
+                name=name.strip() or f"Feed {number}",
+                created_at=_now(),
+            )
         else:
             # The highest number in use, plus one. Counting connections would reuse a number
             # after a removal from the middle (sheet-1, sheet-3 would give sheet-3 again).
-            number = self._next_sheet_number(configs)
+            number = self._next_number(configs, _SHEET_ID, "sheet-*.json")
             config = ConnectionConfig(
                 id=f"sheet-{number}",
                 kind=ConnectionKind.SPREADSHEET,
@@ -279,12 +290,16 @@ class LocalStore:
         _save(self._path(_CONNECTIONS_FILE), _CONNECTIONS_ADAPTER, configs)
         return config
 
-    def _next_sheet_number(self, configs: list[ConnectionConfig]) -> int:
-        numbers = [int(m.group(1)) for c in configs if (m := _SHEET_ID.fullmatch(c.id))]
+    def _next_number(
+        self, configs: list[ConnectionConfig], pattern: re.Pattern[str], glob: str
+    ) -> int:
+        """One more than the highest number in use by a connection id or a snapshot file of this
+        kind (pattern matches "sheet-<n>" or "feed-<n>"; glob names its snapshot files)."""
+        numbers = [int(m.group(1)) for c in configs if (m := pattern.fullmatch(c.id))]
         sheets = self._root / _SHEETS_DIR
         if sheets.is_dir():  # a snapshot left without its connection still holds its number
-            for path in sheets.glob("sheet-*.json"):
-                if m := _SHEET_ID.fullmatch(path.stem):
+            for path in sheets.glob(glob):
+                if m := pattern.fullmatch(path.stem):
                     numbers.append(int(m.group(1)))
         return max(numbers, default=0) + 1
 
@@ -490,18 +505,23 @@ class LocalStore:
 
     # Everything ------------------------------------------------------------------------------
     def clear_all(self) -> None:
-        """Delete every file this store owns (used by "Clear local data")."""
+        """Delete every file this store owns, the feed drafts and every feed's saved key (used by
+        "Clear local data"). HubSpot's token and the OpenRouter key are not touched."""
         for name in _ALL_FILES:
             self._path(name).unlink(missing_ok=True)
             self._path(f".{name}.tmp").unlink(missing_ok=True)
         shutil.rmtree(self._root / _SHEETS_DIR, ignore_errors=True)
+        shutil.rmtree(self._root / FEED_DRAFTS_DIR, ignore_errors=True)
+        delete_all_feed_secrets()
 
 
 # Account ids are prefixed by connection so they never collide across sources:
 #   HubSpot "hs-<company id>"; spreadsheets "sp<n>-<external id or name slug>" for "sheet-<n>";
+#   feeds "fd<n>-<...>" for "feed-<n>" (an ACCOUNTS feed's accounts; a SIGNALS feed owns none);
 #   manual "m-<8 hex>". The demo book ("acc-001") is never combined with these.
 def connection_for(account_id: str) -> str | None:
-    """The connection id that owns an account id ("hubspot", "sheet-2", "manual"), else None."""
+    """The connection id that owns an account id ("hubspot", "sheet-2", "feed-3", "manual"), else
+    None."""
     if account_id.startswith("hs-"):
         return HUBSPOT_CONNECTION_ID
     if account_id.startswith("m-"):
@@ -509,4 +529,7 @@ def connection_for(account_id: str) -> str | None:
     match = _SHEET_PREFIX.match(account_id)
     if match:
         return f"sheet-{match.group(1)}"
+    match = _FEED_PREFIX.match(account_id)
+    if match:
+        return f"feed-{match.group(1)}"
     return None

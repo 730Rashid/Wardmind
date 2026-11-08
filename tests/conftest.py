@@ -8,14 +8,36 @@ from collections.abc import Iterator
 from datetime import UTC, datetime
 from pathlib import Path
 
+import httpx
 import pytest
 
 from cs_brief.core import bulk, research, service, summaries
+from cs_brief.core.feeds import http as feed_http
 from cs_brief.core.secrets import ENV_OPENROUTER_KEY, ENV_SECRETS_DIR, ENV_TOKEN
 from cs_brief.core.store import ENV_DATA_DIR
 
 REPO_CONFIG = Path(__file__).resolve().parents[1] / "config"
 ENV_API_BASE = "CS_BRIEF_HUBSPOT_API_BASE"
+
+
+def _refuse_feed_request(request: httpx.Request) -> httpx.Response:
+    pytest.fail("A test tried to reach a data feed's address. Give it an httpx.MockTransport.")
+
+
+@pytest.fixture(autouse=True)
+def no_feed_network(monkeypatch: pytest.MonkeyPatch) -> None:
+    """No feed can reach a web address by accident. Tests that fetch give feeds.http an
+    httpx.MockTransport (feed_http.transport_factory) that answers from a table."""
+    monkeypatch.setattr(
+        feed_http, "transport_factory", lambda: httpx.MockTransport(_refuse_feed_request)
+    )
+
+
+@pytest.fixture(autouse=True)
+def no_feed_scheduler(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A test never starts the background feed scheduler (the web app starts it on startup).
+    Tests of the scheduler itself build their own FeedScheduler with a fake tick."""
+    monkeypatch.setattr(service, "start_feed_scheduler", lambda: None)
 
 
 @pytest.fixture(autouse=True)

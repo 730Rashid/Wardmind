@@ -488,3 +488,23 @@ def test_notice_ids_are_eight_hex_characters_and_unique(store):
 )
 def test_connection_for_reads_the_id_prefix(account_id, expected):
     assert connection_for(account_id) == expected
+
+
+def test_clear_all_also_removes_feed_drafts_and_every_feed_key(store):
+    from cs_brief.core import secrets
+
+    hubspot = "pat-na1-HUBSPOTTEST-0000-1111-2222-333344445555"
+    key = "test-key-0123456789abcdef"
+    secrets.save_hubspot_token(hubspot)
+    secrets.save_secret("feed-1", key)
+    secrets.save_secret("draft-0123456789abcdef", key)
+    drafts = store.root / "feed-drafts"
+    drafts.mkdir(parents=True)
+    (drafts / "0123456789abcdef.json").write_text("{}", encoding="utf-8")
+
+    store.clear_all()
+
+    assert not drafts.exists()
+    assert secrets.get_secret("feed-1") is None
+    assert secrets.get_secret("draft-0123456789abcdef") is None
+    assert secrets.get_hubspot_token() == hubspot
