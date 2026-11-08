@@ -5,6 +5,9 @@ Every provider turns its source into an importing.Table, so one pipeline handles
 - An ACCOUNTS feed is an automatic spreadsheet import: the Table goes through the same column
   matching and importing.build_import, and its snapshot replaces the accounts and keeps the
   signal history (connection id "feed-<n>", account ids "fd<n>-...").
+- A CLIENT_UPDATES feed reads the responses of the CSM's client update form; new rows become
+  pending updates for the CSM to accept or reject (client_updates.ingest). Its mapping uses the
+  client_updates.QUESTIONS keys.
 - A SIGNALS feed adds readings to accounts that are already in the book, found by ID, website
   or name (signals.build_signal_readings). Rows that match no account are kept in the status so
   the CSM can see them.
@@ -27,10 +30,17 @@ from pydantic import BaseModel, Field
 class FeedRole(StrEnum):
     ACCOUNTS = "accounts"  # the feed lists accounts (name, ARR, renewal date, ...)
     SIGNALS = "signals"  # the feed adds readings to accounts already in the book
+    # The responses of the CSM's client update form: each new row becomes a pending update for
+    # the CSM to accept or reject (core/client_updates.py). Never changes anything by itself.
+    CLIENT_UPDATES = "client_updates"
 
     @property
     def label(self) -> str:
-        return {"accounts": "Adds accounts", "signals": "Adds signals to my accounts"}[self.value]
+        return {
+            "accounts": "Adds accounts",
+            "signals": "Adds signals to my accounts",
+            "client_updates": "Brings in client updates",
+        }[self.value]
 
 
 class MatchBy(StrEnum):

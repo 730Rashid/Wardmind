@@ -84,6 +84,10 @@ _LINKS_FILE = "links.json"
 _HIDDEN_FILE = "hidden.json"
 _SHEETS_DIR = "sheets"
 FEED_DRAFTS_DIR = "feed-drafts"  # unfinished feed setups (feeds/setup.py)
+# Owned by core/contacts.py and core/client_updates.py (they read and write them with
+# config.write_atomic under store.root); listed here so clear_all removes them too.
+CONTACTS_FILE = "contacts.json"
+CLIENT_UPDATES_FILE = "client_updates.json"
 _ALL_FILES = (
     _CONNECTIONS_FILE,
     _MANUAL_FILE,
@@ -91,6 +95,8 @@ _ALL_FILES = (
     _NOTICES_FILE,
     _LINKS_FILE,
     _HIDDEN_FILE,
+    CONTACTS_FILE,
+    CLIENT_UPDATES_FILE,
 )
 
 _SAFE_ID = re.compile(r"[A-Za-z0-9_-]+")  # connection ids, used in file names

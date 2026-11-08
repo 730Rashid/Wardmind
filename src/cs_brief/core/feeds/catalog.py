@@ -64,7 +64,7 @@ INFOS: list[ProviderInfo] = [
         description="Reads a CSV, TSV or Excel file, such as a nightly export saved to a synced "
         "folder, and updates whenever the file changes.",
         categories=[Category.FILES, Category.ACCOUNTS, Category.USAGE],
-        roles=[FeedRole.ACCOUNTS, FeedRole.SIGNALS],
+        roles=[FeedRole.ACCOUNTS, FeedRole.SIGNALS, FeedRole.CLIENT_UPDATES],
         fields=[
             SetupField(
                 key="path",
@@ -91,7 +91,7 @@ INFOS: list[ProviderInfo] = [
         description="Downloads a CSV, TSV, Excel or JSON file from a web address, such as an "
         "export link from your product or data team.",
         categories=[Category.FILES, Category.ACCOUNTS, Category.USAGE],
-        roles=[FeedRole.ACCOUNTS, FeedRole.SIGNALS],
+        roles=[FeedRole.ACCOUNTS, FeedRole.SIGNALS, FeedRole.CLIENT_UPDATES],
         fields=[
             SetupField(
                 key="url",
@@ -132,7 +132,7 @@ INFOS: list[ProviderInfo] = [
         description='Reads a Google Sheet shared as "Anyone with the link can view", or '
         "published to the web. No sign-in needed.",
         categories=[Category.FILES, Category.ACCOUNTS],
-        roles=[FeedRole.ACCOUNTS, FeedRole.SIGNALS],
+        roles=[FeedRole.ACCOUNTS, FeedRole.SIGNALS, FeedRole.CLIENT_UPDATES],
         fields=[
             SetupField(
                 key="url",
@@ -357,7 +357,7 @@ INFOS: list[ProviderInfo] = [
         description="Reads a table or view, for teams that keep their customer list or health "
         "notes in Airtable.",
         categories=[Category.ACCOUNTS, Category.USAGE, Category.FILES],
-        roles=[FeedRole.ACCOUNTS, FeedRole.SIGNALS],
+        roles=[FeedRole.ACCOUNTS, FeedRole.SIGNALS, FeedRole.CLIENT_UPDATES],
         fields=[
             SetupField(
                 key="base_id",

@@ -13,7 +13,7 @@ from datetime import UTC, date, datetime, timedelta
 
 from pydantic import BaseModel, ValidationError
 
-from cs_brief.core import bulk, import_flow, research, secrets, summaries
+from cs_brief.core import bulk, client_updates, contacts, import_flow, research, secrets, summaries
 from cs_brief.core.briefs import AccountDetail, account_detail, suggest_action
 from cs_brief.core.config import ScoringConfig, load_scoring_config
 from cs_brief.core.connectors.base import Connector
@@ -152,7 +152,9 @@ def get_combined() -> CombinedConnector | None:
 
 def remove_connection(connection_id: str) -> None:
     """Remove a connection and what came with it (its accounts, history, edits, notices, links,
-    hidden entries and readings; see LocalStore.remove_connection). A feed's saved key goes too,
+    hidden entries and readings; see LocalStore.remove_connection), plus the contacts, client
+    update consents and updates of the accounts it owned (contacts.forget, client_updates.forget
+    with store.connection_for(id) == connection_id). A feed's saved key goes too,
     so every caller removes a feed the same way. HubSpot's saved token is not touched here (the
     Connections page removes it). An unknown id does nothing. Shared connectors are forgotten."""
     store = get_store()
@@ -702,3 +704,28 @@ def stop_feed_scheduler() -> None:
     """Stop it (idempotent). The web app calls it on shutdown; tests call it too."""
     if _feed_scheduler is not None:
         _feed_scheduler.stop()
+
+
+# --- Contacts and client updates (see core/contacts.py, core/client_updates.py) ---------------
+
+
+def account_contacts(account_id: str) -> list[contacts.Contact]:
+    """The contacts shown on an account page. Demo mode: contacts.demo_contacts for a demo
+    account (read-only), [] for an unknown id. Your data: contacts.contacts_for."""
+    raise NotImplementedError
+
+
+def your_book_accounts() -> dict[str, Account]:
+    """The Your data book (after links, hidden accounts and edits) by id; {} in demo mode. The
+    client updates page and the feed sync use it to drop updates for accounts that are gone."""
+    raise NotImplementedError
+
+
+def pending_client_updates() -> list[client_updates.Review]:
+    """client_updates.pending over your_book_accounts(); [] in demo mode."""
+    raise NotImplementedError
+
+
+def pending_client_update_count() -> int:
+    """For the nav badge. 0 in demo mode. Cheap: no scoring."""
+    raise NotImplementedError
