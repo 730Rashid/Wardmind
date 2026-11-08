@@ -29,6 +29,7 @@ import os
 import re
 import secrets
 import shutil
+import threading
 from collections.abc import Callable
 from datetime import UTC, date, datetime
 from enum import StrEnum
@@ -88,6 +89,13 @@ FEED_DRAFTS_DIR = "feed-drafts"  # unfinished feed setups (feeds/setup.py)
 # config.write_atomic under store.root); listed here so clear_all removes them too.
 CONTACTS_FILE = "contacts.json"
 CLIENT_UPDATES_FILE = "client_updates.json"
+# One lock for every read-modify-write of the data folder in this process. The feed scheduler
+# runs on its own thread, so without it a sync that loaded a file before the CSM's change and
+# saved after it would undo that change (an opt-out, a rejected update, a removed connection).
+# Hold it around load -> change -> save, never around network calls. Re-entrant, so helpers
+# that take it can call each other.
+WRITE_LOCK = threading.RLock()
+
 _ALL_FILES = (
     _CONNECTIONS_FILE,
     _MANUAL_FILE,

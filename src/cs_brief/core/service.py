@@ -756,3 +756,15 @@ def pending_client_update_count() -> int:
         if update.status is client_updates.UpdateStatus.PENDING
         and update.account_id in data.consents
     )
+
+
+def delete_all_local_data() -> None:
+    """Settings > Data & privacy > Delete all local data: everything cs-brief keeps on this
+    computer except settings.yaml and scoring.yaml (preferences) and the program itself.
+    Deletes every connection, snapshot, hand-added account, edit, reading, link, hidden entry,
+    notice, contact and client update (store.clear_all); unfinished imports and feed setups;
+    saved web research and AI summaries; the HubSpot token, the OpenRouter key and every feed key.
+    Environment variables are not touched (the page tells the CSM to remove those). Turns web
+    research and AI summaries off and forgets shared connectors. Holds store.WRITE_LOCK so a
+    running sync can't write anything back. Never raises for a file that is already gone."""
+    raise NotImplementedError

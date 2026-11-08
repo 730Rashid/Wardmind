@@ -12,6 +12,7 @@ A signal's contribution in risk points is `weight * normalised_risk`.
 from __future__ import annotations
 
 import os
+import tempfile
 from pathlib import Path
 
 import yaml
@@ -120,8 +121,21 @@ def save_scoring_config(config: ScoringConfig, path: Path | None = None) -> None
 
 
 def write_atomic(path: Path, text: str) -> None:
-    """Replace `path` with `text` so a crash mid-write never leaves a half-written file."""
-    path.parent.mkdir(parents=True, exist_ok=True)
-    tmp = path.with_name(f".{path.name}.tmp")
-    tmp.write_text(text, encoding="utf-8", newline="\n")
-    os.replace(tmp, path)
+    """Replace `path` with `text` so a crash mid-write never leaves a half-written file.
+
+    The temp file has a unique name (two processes, such as the web app and the MCP server,
+    never share one) and is removed if the write fails. On POSIX the file is readable only by
+    its owner (0600) and new folders are 0700: the data files hold a CSM's book and contacts.
+    On Windows the per-user profile folder's ACL applies."""
+    path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+    fd, tmp_name = tempfile.mkstemp(dir=path.parent, prefix=f".{path.name}-", suffix=".tmp")
+    tmp = Path(tmp_name)
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8", newline="\n") as handle:
+            handle.write(text)
+        if os.name == "posix":
+            os.chmod(tmp, 0o600)
+        os.replace(tmp, path)
+    except BaseException:
+        tmp.unlink(missing_ok=True)
+        raise
