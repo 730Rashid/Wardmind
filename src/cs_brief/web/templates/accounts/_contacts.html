@@ -1,0 +1,105 @@
+{# The Contacts section of the account page. Your data gets the actions: Edit, Mark as left (or Undo
+   left), Remove, and Add a contact. Demo mode shows the same contacts read only. Each tag carries its
+   icon and its word, so the main contact and a leaver never rely on colour. #}
+{#- The fields of a contact form: name, job title, email and the main-contact box. Each label sits
+   above its input; a refused field is linked to its message. -#}
+{% macro contact_fields(prefix, values, errors, main) -%}
+<div class="field">
+  <label for="{{ prefix }}-name">Name</label>
+  <input type="text" id="{{ prefix }}-name" name="name" value="{{ values.get('name', '') }}" maxlength="80" autocomplete="off"{% if errors.name %} aria-invalid="true" aria-describedby="{{ prefix }}-name-error"{% endif %}>
+  {% if errors.name %}<p class="field-error" id="{{ prefix }}-name-error">{{ errors.name }}</p>{% endif %}
+</div>
+<div class="field">
+  <label for="{{ prefix }}-title">Job title</label>
+  <input type="text" id="{{ prefix }}-title" name="title" value="{{ values.get('title', '') }}" maxlength="80" autocomplete="off"{% if errors.title %} aria-invalid="true" aria-describedby="{{ prefix }}-title-error"{% endif %}>
+  {% if errors.title %}<p class="field-error" id="{{ prefix }}-title-error">{{ errors.title }}</p>{% endif %}
+</div>
+<div class="field">
+  <label for="{{ prefix }}-email">Email</label>
+  <input type="text" id="{{ prefix }}-email" name="email" value="{{ values.get('email', '') }}" inputmode="email" autocomplete="off" spellcheck="false"{% if errors.email %} aria-invalid="true" aria-describedby="{{ prefix }}-email-error"{% endif %}>
+  {% if errors.email %}<p class="field-error" id="{{ prefix }}-email-error">{{ errors.email }}</p>{% endif %}
+</div>
+<label class="choice"><input type="checkbox" name="champion" value="1"{% if main %} checked{% endif %}> Main contact</label>
+{%- endmacro %}
+
+<section class="account-section contacts" aria-labelledby="contacts-heading">
+  <h2 class="section-title" id="contacts-heading">Contacts</h2>
+  {% if contacts.editable %}
+  <p class="field-help">The people at this customer, kept on this computer. Anyone who has left sits below the others.</p>
+  {% else %}
+  <p class="field-help">These are sample contacts. Contacts are kept for Your data, where you can add and change them.</p>
+  {% endif %}
+
+  {% if contacts.rows %}
+  <ul class="contact-list">
+    {% for row in contacts.rows %}
+    <li class="contact{% if row.left %} contact--left{% endif %}" id="contact-{{ row.id }}">
+      <div class="contact-head">
+        <p class="contact-name">{{ row.name }}</p>
+        {% if row.main or row.left %}
+        <ul class="tag-list contact-tags">
+          {% if row.main %}<li class="pill pill--main"><svg class="icon" aria-hidden="true" focusable="false"><use href="/static/icons.svg#star"/></svg>Main contact</li>{% endif %}
+          {% if row.left %}<li class="pill pill--left"><svg class="icon" aria-hidden="true" focusable="false"><use href="/static/icons.svg#person-minus"/></svg>{{ row.left_label }}</li>{% endif %}
+        </ul>
+        {% endif %}
+      </div>
+      {% if row.title %}<p class="contact-title">{{ row.title }}</p>{% endif %}
+      {% if row.email %}
+      <p class="contact-email">{% if row.mailto %}<a href="mailto:{{ row.mailto }}">{{ row.email }}</a>{% else %}{{ row.email }}{% endif %}</p>
+      {% endif %}
+      {% if row.row_error %}<p class="field-error" role="alert">{{ row.row_error }}</p>{% endif %}
+
+      {% if contacts.editable %}
+      <div class="contact-actions no-print">
+        <details class="contact-disclosure"{% if row.edit_open %} open{% endif %}>
+          <summary class="button button--small">Edit</summary>
+          <form class="contact-form" method="post" action="/accounts/{{ account_path }}/contacts/{{ row.id }}/edit">
+            {% if row.edit_errors.form %}<p class="field-error" role="alert">{{ row.edit_errors.form }}</p>{% endif %}
+            {{ contact_fields('contact-' ~ row.id ~ '-edit', row.edit_values, row.edit_errors, row.edit_main) }}
+            <div class="form-actions">
+              <button type="submit" class="button-primary">Save contact</button>
+            </div>
+          </form>
+        </details>
+        {% if row.left %}
+        <form class="inline-form" method="post" action="/accounts/{{ account_path }}/contacts/{{ row.id }}/active">
+          <button type="submit" class="button button--small">Undo left</button>
+        </form>
+        {% else %}
+        <details class="contact-disclosure"{% if row.left_open %} open{% endif %}>
+          <summary class="button button--small">Mark as left</summary>
+          <form class="contact-form" method="post" action="/accounts/{{ account_path }}/contacts/{{ row.id }}/left">
+            <div class="field">
+              <label for="contact-{{ row.id }}-left-on">Left on</label>
+              <input type="date" id="contact-{{ row.id }}-left-on" name="left_on" value="{{ row.left_on }}"{% if row.left_errors.form %} aria-invalid="true" aria-describedby="contact-{{ row.id }}-left-error"{% endif %}>
+              {% if row.left_errors.form %}<p class="field-error" id="contact-{{ row.id }}-left-error">{{ row.left_errors.form }}</p>{% endif %}
+            </div>
+            <div class="form-actions">
+              <button type="submit" class="button-primary">Mark as left</button>
+            </div>
+          </form>
+        </details>
+        {% endif %}
+        <a class="button button--small" href="/accounts/{{ account_path }}/contacts/{{ row.id }}/remove">Remove</a>
+      </div>
+      {% endif %}
+    </li>
+    {% endfor %}
+  </ul>
+  {% else %}
+  <p>No contacts yet.</p>
+  {% endif %}
+
+  {% if contacts.editable %}
+  <details class="contact-disclosure contact-add"{% if contacts.add_open %} open{% endif %}>
+    <summary class="button">Add a contact</summary>
+    <form class="contact-form" method="post" action="/accounts/{{ account_path }}/contacts">
+      {% if contacts.add_errors.form %}<p class="field-error" role="alert">{{ contacts.add_errors.form }}</p>{% endif %}
+      {{ contact_fields('contact-add', contacts.add_values, contacts.add_errors, contacts.add_values.get('champion', '') == '1') }}
+      <div class="form-actions">
+        <button type="submit" class="button-primary">Add contact</button>
+      </div>
+    </form>
+  </details>
+  {% endif %}
+</section>

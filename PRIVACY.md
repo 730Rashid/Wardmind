@@ -93,6 +93,35 @@ until you add one.
   1,000, so a very large ticket count can read low.
 - **Removing a feed** deletes its saved readings and its key.
 
+## Contacts and client updates
+
+**Contacts** are the people at each customer that you add, or accept from a client update. They
+are personal data, so:
+
+- They stay on this computer, in `%LOCALAPPDATA%\cs-brief\data\contacts.json`.
+- Claude, through the MCP server, sees contact names, job titles, main-contact flags and who has
+  left, but never email addresses.
+- Removing a contact deletes it. Removing a connection or a hand-added account deletes its
+  accounts' contacts.
+
+**Client updates** are off for every client until you turn them on for that client, after
+agreeing it with them. cs-brief records who agreed and when.
+
+- **How it works.** You make one form in your own form tool (Microsoft Forms, Airtable or Google
+  Forms). Each client who agreed gets their own link to it, with a client code filled in.
+  cs-brief reads the form's responses through a data feed. The client never connects to
+  cs-brief or to your CRM.
+- **Nothing changes until you accept it.** Every response waits on the Client updates page
+  until you accept it (after correcting it if needed) or reject it.
+- **What is kept.** A response with no code, a code that matches no client who agreed, or an
+  account no longer in your book is ignored, and nothing from it is kept. Once you accept or
+  reject an update, the client's text is deleted, and only a record that it was handled stays.
+- **Turning updates off** for a client deletes their agreement and any updates still waiting.
+  **New link** makes the old link stop working.
+- **Google Forms.** Its responses sheet has to be shared as "Anyone with the link" for
+  cs-brief to read it, so treat that link like a password. Microsoft Forms, with responses in
+  an Excel workbook in your OneDrive, or an Airtable form avoids this.
+
 ## What is stored, and where
 
 | What | Where |
@@ -104,6 +133,8 @@ until you add one.
 | Imports you started but didn't finish | `%LOCALAPPDATA%\cs-brief\data\drafts`, deleted after 24 hours or by **Clear local cache** |
 | Web research results | `%LOCALAPPDATA%\cs-brief\data\research`, kept for 24 hours |
 | AI summaries | `%LOCALAPPDATA%\cs-brief\data\summaries` |
+| Contacts | `%LOCALAPPDATA%\cs-brief\data\contacts.json` |
+| Client update agreements, codes, your form link and updates waiting for review | `%LOCALAPPDATA%\cs-brief\data\client_updates.json` |
 | Data feed keys | `%LOCALAPPDATA%\cs-brief\feeds`, one file per feed. Only the last 4 characters are ever shown. |
 | Data feeds' latest data | `%LOCALAPPDATA%\cs-brief\data\sheets\feed-<n>.json` |
 | Feed setups you started but didn't finish | `%LOCALAPPDATA%\cs-brief\data\feed-drafts`, deleted after 24 hours |

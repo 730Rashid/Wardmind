@@ -12,7 +12,7 @@ from collections.abc import Mapping
 from dataclasses import dataclass, replace
 from datetime import datetime
 
-from cs_brief.core import importing
+from cs_brief.core import client_updates, importing
 from cs_brief.core.feeds import catalog, signals
 from cs_brief.core.feeds.models import (
     Category,
@@ -94,14 +94,32 @@ _BUILT_IN: tuple[Card, ...] = (
 )
 
 
+_CLIENT_UPDATES_CARD = Card(
+    key="client_updates",
+    name="Client update form",
+    by="by cs-brief",
+    description="Clients who agreed tell you about new or departing contacts through one form. "
+    "You review each change before it is applied.",
+    mark="Cu",
+    categories=(Category.ACCOUNTS, Category.FILES),
+    href="/client-updates/setup",
+)
+
+
 def catalog_cards(configs: list[ConnectionConfig]) -> list[Card]:
     """The built-in cards, then one card per provider in catalog order. A card is "connected"
-    when a connection of its kind exists: a HubSpot connection, or a feed of its provider."""
+    when a connection of its kind exists: a HubSpot connection, a client update form (a feed with
+    the CLIENT_UPDATES role), or a feed of its provider."""
     feed_providers = {config.feed.provider for config in configs if config.feed is not None}
     hubspot = any(config.kind is ConnectionKind.HUBSPOT for config in configs)
+    updates = any(
+        config.feed is not None and config.feed.role is FeedRole.CLIENT_UPDATES
+        for config in configs
+    )
     cards = [
         replace(card, connected=hubspot) if card.key == "hubspot" else card for card in _BUILT_IN
     ]
+    cards.append(replace(_CLIENT_UPDATES_CARD, connected=updates))
     for info in catalog.INFOS:
         cards.append(
             Card(
@@ -279,13 +297,33 @@ def setup_fields(
     return [_field_view(item, form.values, errors, editing=editing) for item in info.fields]
 
 
+_ROLE_HELP: dict[FeedRole, str] = {
+    FeedRole.CLIENT_UPDATES: "Each new response becomes an update for you to review.",
+}
+
+
 def role_options(info: ProviderInfo, chosen: str) -> list[dict[str, object]]:
-    """The role radios, with the first role checked when nothing is chosen yet."""
+    """The role radios, with the first role checked when nothing is chosen yet. Each carries the
+    sentence the setup card shows under the radios for that role, or ""."""
     current = chosen or info.roles[0].value
     return [
-        {"value": role.value, "label": role.label, "checked": role.value == current}
+        {
+            "value": role.value,
+            "label": role.label,
+            "checked": role.value == current,
+            "help": _ROLE_HELP.get(role, ""),
+        }
         for role in info.roles
     ]
+
+
+def preselect_role(form: SetupForm, info: ProviderInfo, role: str) -> SetupForm:
+    """The form with the role a link asked for (?role=), when the provider offers it. Any other
+    text leaves the form as it was."""
+    offered = {item.value for item in info.roles}
+    if role not in offered:
+        return form
+    return replace(form, role=role)
 
 
 def schedule_options(info: ProviderInfo, chosen: str) -> list[dict[str, object]]:
@@ -322,11 +360,38 @@ class MatchRow:
     example: str  # the first data row's cell in that column, or ""
 
 
+def _update_rows(mapping: Mapping[str, str], table: importing.Table) -> list[MatchRow]:
+    """One row per client update question, in the form's order. The index is the question's
+    position, so the select is column-<index> (see app._submitted_mapping)."""
+    first = table.rows[0] if table.rows else []
+    rows: list[MatchRow] = []
+    for index, question in enumerate(client_updates.QUESTIONS):
+        header = mapping.get(question.key, "")
+        example = ""
+        if header and header in table.headers and first:
+            example = first[table.headers.index(header)]
+        rows.append(
+            MatchRow(
+                index=index,
+                key=question.key,
+                label=question.label,
+                help=question.help,
+                required=question.required,
+                selected=header,
+                example=example,
+            )
+        )
+    return rows
+
+
 def match_rows(
     role: FeedRole, mapping: Mapping[str, str], table: importing.Table
 ) -> list[MatchRow]:
     """The fields the matching page shows. An ACCOUNTS feed maps every import field. A SIGNALS
-    feed maps its keys (ID, Website, Account name) first, then its signal fields."""
+    feed maps its keys (ID, Website, Account name) first, then its signal fields. A CLIENT_UPDATES
+    feed maps the client update questions."""
+    if role is FeedRole.CLIENT_UPDATES:
+        return _update_rows(mapping, table)
     indexed = list(enumerate(importing.IMPORT_FIELDS))
     if role is FeedRole.SIGNALS:
         key_order = {key: position for position, key in enumerate(signals.KEY_FIELDS)}
@@ -358,8 +423,10 @@ def match_rows(
 
 
 def _date_columns(mapping: Mapping[str, str]) -> list[str]:
-    """The headers mapped to a date field, each once."""
+    """The headers mapped to a date field, each once. A client update form's timestamp counts too:
+    it is the only date its matching page maps."""
     keys = [spec.key for spec in importing.IMPORT_FIELDS if spec.type is FieldType.DATE]
+    keys.append("submitted_at")
     return list(dict.fromkeys(mapping[key] for key in keys if key in mapping))
 
 
@@ -394,8 +461,42 @@ def _accounts(count: int) -> str:
     return f"{count} {_plural(count, 'account', 'accounts')}"
 
 
-def happens(role: FeedRole, rows: int, preview: FeedPreview) -> Happens:
-    """The panel's sentences for a preview."""
+def _updates_happens(rows: int, preview: FeedPreview, ignored: int) -> Happens:
+    """ "3 new updates from 2 clients. 1 row ignored: its code matches no client who opted in."
+    `ignored` is what client_updates.ingest (save=False) reports as ignored, so rows already read
+    before are not counted as ignored. A blocked preview says nothing of rows: the page's message
+    covers it."""
+    headline = ""
+    if rows == 0:
+        headline = "The form has no responses yet."
+    elif preview.blocker is None:
+        if preview.ready == 0:
+            headline = "No new updates in these responses."
+        else:
+            headline = (
+                f"{preview.ready} new {_plural(preview.ready, 'update', 'updates')} from "
+                f"{preview.accounts} {_plural(preview.accounts, 'client', 'clients')}."
+            )
+    skipped = ""
+    if rows and preview.blocker is None and ignored > 0:
+        skipped = (
+            f"{ignored} {_plural(ignored, 'row', 'rows')} ignored: its code matches no client who "
+            "opted in."
+        )
+    return Happens(
+        headline=headline,
+        skipped=skipped,
+        issues=(),
+        unmatched_heading="",
+        unmatched=(),
+    )
+
+
+def happens(role: FeedRole, rows: int, preview: FeedPreview, ignored: int = 0) -> Happens:
+    """The panel's sentences for a preview. `ignored` is for a client update form only (the rows
+    that will not become updates); the other roles read their counts from the preview."""
+    if role is FeedRole.CLIENT_UPDATES:
+        return _updates_happens(rows, preview, ignored)
     issues = tuple((issue.row, issue.message) for issue in preview.issues[:_ISSUE_PREVIEW])
     if role is FeedRole.ACCOUNTS:
         skipped = rows - preview.ready
@@ -470,9 +571,12 @@ def feed_source(feed: FeedSettings) -> str:
     return f"{provider_name(feed.provider)}. {feed.role.label}."
 
 
-def _tail(config: ConnectionConfig) -> str:
-    """'34 accounts got readings.' for a SIGNALS feed, '2 accounts were imported.' otherwise."""
+def _tail(config: ConnectionConfig, brought: int) -> str:
+    """'34 accounts got readings.' for a SIGNALS feed, '2 accounts were imported.' otherwise, and
+    'Brought in 3 new updates.' for a client update form (`brought`: its last sync's count)."""
     feed = config.feed
+    if feed is not None and feed.role is FeedRole.CLIENT_UPDATES:
+        return f"Brought in {brought} {_plural(brought, 'new update', 'new updates')}."
     count = feed.status.accounts if feed is not None else 0
     if feed is not None and feed.role is FeedRole.SIGNALS:
         return f"{_accounts(count)} got readings."
@@ -480,21 +584,21 @@ def _tail(config: ConnectionConfig) -> str:
     return f"{_accounts(count)} {verb} imported."
 
 
-def added_notice(config: ConnectionConfig) -> str:
+def added_notice(config: ConnectionConfig, brought: int = 0) -> str:
     """What Connections says after a feed is saved: the result of its first sync."""
     feed = config.feed
     if feed is None:
         return ""
     if feed.status.last_error:
         return f"{config.name} is saved, but its first sync didn't work. {feed.status.last_error}"
-    return f"{config.name} is connected. {_tail(config)}"
+    return f"{config.name} is connected. {_tail(config, brought)}"
 
 
-def synced_notice(config: ConnectionConfig) -> str:
+def synced_notice(config: ConnectionConfig, brought: int = 0) -> str:
     """What Connections says after Sync now."""
     feed = config.feed
     if feed is None:
         return ""
     if feed.status.last_error:
         return f"{config.name} didn't sync. {feed.status.last_error}"
-    return f"{config.name} synced. {_tail(config)}"
+    return f"{config.name} synced. {_tail(config, brought)}"

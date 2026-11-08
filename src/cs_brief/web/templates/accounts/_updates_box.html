@@ -1,0 +1,57 @@
+{# The Client updates box under Account facts. Off: what it is, and the form that turns it on. On: who
+   agreed, the client's own link (selected whole on focus, with a Copy button that needs JavaScript),
+   a new link, what is waiting, and Turn off. Demo mode has no box. #}
+{% if updates_box %}
+<section class="updates-box" aria-labelledby="updates-heading">
+  <h3 class="section-title" id="updates-heading">Client updates</h3>
+  {% if updates_box.errors.form %}<p class="field-error" role="alert">{{ updates_box.errors.form }}</p>{% endif %}
+  {% if updates_box.on %}
+    <p>{{ updates_box.agreed }}</p>
+
+    {% if updates_box.form_saved %}
+    <div class="client-link">
+      <label for="client-link">Their update link</label>
+      <div class="client-link-row">
+        <input type="text" id="client-link" class="client-link-input" value="{{ updates_box.link }}" readonly data-select-all spellcheck="false" autocomplete="off">
+        <button type="button" class="button button--small js-only" data-copy-link="client-link">Copy link</button>
+      </div>
+      <p class="field-help" data-copy-status role="status"></p>
+    </div>
+    {% else %}
+    <p><a href="/client-updates/setup">Set up your update form first</a>, and the link appears here.</p>
+    {% endif %}
+
+    {% if updates_box.pending %}
+    <p><a href="/client-updates">{{ updates_box.pending }} {{ 'update' if updates_box.pending == 1 else 'updates' }} waiting for review</a></p>
+    {% else %}
+    <p class="field-help">No updates waiting from this client.</p>
+    {% endif %}
+
+    <form class="updates-form" method="post" action="/accounts/{{ account_path }}/client-updates/new-link">
+      <p class="field-help">A new link stops the old one working.</p>
+      <button type="submit" class="button button--small">New link</button>
+    </form>
+    <p><a class="button button--small" href="/accounts/{{ account_path }}/client-updates/off">Turn off</a></p>
+  {% else %}
+    <p class="field-help">Let this client tell you about new or departing contacts through your update form. You review every change.</p>
+    <form class="updates-form" method="post" action="/accounts/{{ account_path }}/client-updates/on">
+      <div class="field">
+        <label for="agreed-with">Who agreed</label>
+        <input type="text" id="agreed-with" name="agreed_with" value="{{ updates_box.agreed_with }}" maxlength="80" autocomplete="off"{% if updates_box.errors.agreed_with %} aria-invalid="true" aria-describedby="agreed-with-error"{% endif %}>
+        {% if updates_box.errors.agreed_with %}<p class="field-error" id="agreed-with-error">{{ updates_box.errors.agreed_with }}</p>{% endif %}
+      </div>
+      <div class="field">
+        <label for="agreed-on">Agreed on</label>
+        <input type="date" id="agreed-on" name="agreed_on" value="{{ updates_box.agreed_on }}"{% if updates_box.errors.agreed_on %} aria-invalid="true" aria-describedby="agreed-on-error"{% endif %}>
+        {% if updates_box.errors.agreed_on %}<p class="field-error" id="agreed-on-error">{{ updates_box.errors.agreed_on }}</p>{% endif %}
+      </div>
+      <button type="submit" class="button-primary">Turn on client updates</button>
+    </form>
+  {% endif %}
+</section>
+{% else %}
+<section class="updates-box" aria-labelledby="updates-heading">
+  <h3 class="section-title" id="updates-heading">Client updates</h3>
+  <p class="field-help">Client updates belong to Your data.</p>
+</section>
+{% endif %}

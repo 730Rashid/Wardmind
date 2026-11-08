@@ -101,4 +101,21 @@
     <path d="M4 2.5h5l3.5 3.5v6.5a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-9a1 1 0 0 1 1-1Z"/>
     <path d="M9 2.5V6h3.5M5.5 9h5M5.5 11.5h3.5"/>
   </symbol>
+  <!-- The client update and contact tags: a star for the main contact, a person with a plus or a
+       minus for someone added or left, and a sheet for anything else. -->
+  <symbol id="star" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round">
+    <path d="M8 2.2l1.8 3.7 4 .6-2.9 2.8.7 4L8 11.4l-3.6 1.9.7-4L2.2 6.5l4-.6Z"/>
+  </symbol>
+  <symbol id="person-plus" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round">
+    <circle cx="6" cy="5.5" r="2.3"/>
+    <path d="M2 13.5c.4-2.4 2-3.8 4-3.8s3.6 1.4 4 3.8M12.5 8.5v4M10.5 10.5h4"/>
+  </symbol>
+  <symbol id="person-minus" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round">
+    <circle cx="6" cy="5.5" r="2.3"/>
+    <path d="M2 13.5c.4-2.4 2-3.8 4-3.8s3.6 1.4 4 3.8M10.5 10.5h4"/>
+  </symbol>
+  <symbol id="note" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M3.5 2.5h9v11h-9Z"/>
+    <path d="M5.8 6h4.4M5.8 8.5h4.4M5.8 11h2.4"/>
+  </symbol>
 </svg>

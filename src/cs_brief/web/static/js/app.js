@@ -51,6 +51,39 @@ document.querySelectorAll("[data-copy-target]").forEach((button) => {
   });
 });
 
+// Client updates: a client's link is a readonly box. Focusing it selects the whole link, and Copy
+// link copies it, saying so in the status line under the box. The box shows the link without
+// JavaScript; the Copy button is hidden then.
+document.querySelectorAll("[data-select-all]").forEach((field) => {
+  field.addEventListener("focus", () => field.select());
+  field.addEventListener("click", () => field.select());
+});
+
+document.querySelectorAll("[data-copy-link]").forEach((button) => {
+  button.addEventListener("click", async () => {
+    const field = document.getElementById(button.dataset.copyLink);
+    const status = button.closest(".client-link")?.querySelector("[data-copy-status]");
+    if (!(field instanceof HTMLInputElement)) return;
+    const say = (message) => { if (status) status.textContent = message; };
+    try {
+      await navigator.clipboard.writeText(field.value);
+      say("Copied.");
+      return;
+    } catch {
+      // Fall through to selecting the link for Ctrl+C.
+    }
+    field.focus();
+    field.select();
+    let copied = false;
+    try {
+      copied = document.execCommand("copy");
+    } catch {
+      copied = false;
+    }
+    say(copied ? "Copied." : "Your browser blocked copying. The link is selected: press Ctrl+C to copy it.");
+  });
+});
+
 // Live preview on Settings > Appearance. Choosing a theme, accent or density shows it on the page
 // at once. Nothing is saved until the form is submitted, so leaving the page keeps the saved values.
 const APPEARANCE_ATTRIBUTES = new Map([

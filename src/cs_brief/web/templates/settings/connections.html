@@ -86,6 +86,7 @@
             </details>
             <a class="button" href="/settings/connections/{{ config.id }}/remove">Remove</a>
             {% elif config.kind.value == "feed" %}
+            {% if line.is_updates %}<a class="button" href="/client-updates">Review updates</a>{% endif %}
             <form class="inline-form" method="post" action="/settings/connections/{{ config.id }}/sync">
               <button type="submit" class="button">Sync now</button>
             </form>

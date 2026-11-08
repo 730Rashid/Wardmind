@@ -1,5 +1,5 @@
-{%- macro nav_link(href, label, key) -%}
-<a class="nav-link" href="{{ href }}"{% if active == key %} aria-current="page"{% endif %}>{{ label }}</a>
+{%- macro nav_link(href, label, key, count=0) -%}
+<a class="nav-link" href="{{ href }}"{% if active == key %} aria-current="page"{% endif %}>{{ label }}{% if count %} <span class="nav-badge" role="img" aria-label="{{ count }} waiting">{{ count }}</span>{% endif %}</a>
 {%- endmacro -%}
 <!doctype html>
 <html lang="en"{% if settings.theme.value != "system" %} data-theme="{{ settings.theme.value }}"{% endif %} data-accent="{{ settings.accent.value }}" data-density="{{ settings.density.value }}">
@@ -23,6 +23,7 @@
           <li>{{ nav_link("/", "My book", "book") }}</li>
           <li>{{ nav_link("/brief", "Weekly brief", "brief") }}</li>
           <li>{{ nav_link("/onboarding", "Onboarding prep", "onboarding") }}</li>
+          <li>{{ nav_link("/client-updates", "Client updates", "updates", pending_updates) }}</li>
           <li>{{ nav_link("/settings", "Settings", "settings") }}</li>
         </ul>
       </nav>

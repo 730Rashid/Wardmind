@@ -36,6 +36,7 @@
         {% endfor %}
       </div>
       {% if errors.get('role') %}<p class="field-error" id="role-error">{{ errors.get('role') }}</p>{% endif %}
+      {% for option in role_choices if option.help %}<p class="field-help">{{ option.help }}</p>{% endfor %}
     </fieldset>
     {% else %}
     <input type="hidden" name="role" value="{{ role_choices[0].value }}">

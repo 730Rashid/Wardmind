@@ -44,7 +44,13 @@ SIGNALS_CSV = "Website,Usage trend\nacme.com,-38\nnowhere.example,6\n"
 AMBIGUOUS_DATES_CSV = (
     'Company,ARR,Renewal date\n"Acme","$120,000",03/04/2027\n"Beta","$50,000",12/05/2027\n'
 )
-BUILT_IN = ["Spreadsheet import", "Paste cells", "Add an account by hand", "HubSpot"]
+BUILT_IN = [
+    "Spreadsheet import",
+    "Paste cells",
+    "Add an account by hand",
+    "HubSpot",
+    "Client update form",
+]
 PROVIDER_NAMES = [info.name for info in catalog.INFOS]
 CROSS_SITE = [
     {"origin": "https://evil.example"},

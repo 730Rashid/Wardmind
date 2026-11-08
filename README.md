@@ -87,6 +87,22 @@ on its schedule. Settings > Connections shows when each feed last synced, any pr
 that didn't match an account. Feeds only read, and each feed's key is sent only to its own
 source ([PRIVACY.md](PRIVACY.md#data-feeds-in-detail)).
 
+## Contacts and client updates
+
+Each account page has a **Contacts** list: who's who at the customer, who the main contact is,
+and who has left. When the last main contact leaves, the **Champion left** risk signal is set
+automatically, and adding a new main contact clears it.
+
+**Client updates** (optional, per client) let customers tell you themselves when someone joins
+or leaves:
+1. Make one form for all your clients (Microsoft Forms, Airtable or Google Forms).
+   **Client updates > Set up your update form** lists the questions to add.
+2. Connect its responses as a data feed, and paste the form's pre-filled link.
+3. On each account whose client agreed, turn on **Client updates** and send them their own
+   link. It already has their client code in it, so they have nothing to log in to.
+4. New responses appear on the **Client updates** page, with a count in the top bar. Accept
+   them (correcting anything first) or reject them. Nothing changes until you accept.
+
 ## Web research (optional, off by default)
 
 Turn it on in **Settings > Data & privacy**. Each account page then gets a **Look up their

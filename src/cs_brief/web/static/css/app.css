@@ -4025,3 +4025,375 @@ a.button-primary {
     color: var(--ink-muted);
   }
 }
+
+/* Contacts and client updates. The account page's Contacts section and its Client updates box, the
+   review page's cards, and the set-up page. Each tag carries an icon and a word; a contact who has left
+   is muted and sits below the others; the forms keep the field rules of the rest of the product. */
+.nav-badge {
+  display: inline-grid;
+  place-items: center;
+  min-inline-size: 1.25rem;
+  margin-inline-start: var(--space-1);
+  padding-inline: 0.3125rem;
+  border-radius: var(--radius-tag);
+  background: var(--tag-violet-bg);
+  color: var(--tag-violet-ink);
+  font-size: var(--t-sm);
+  line-height: var(--lh-sm);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.pill--main {
+  background: var(--tag-violet-bg);
+  color: var(--tag-violet-ink);
+}
+
+.pill--add {
+  background: var(--tag-green-bg);
+  color: var(--tag-green-ink);
+}
+
+.pill--left {
+  background: var(--tag-orange-bg);
+  color: var(--tag-orange-ink);
+}
+
+.pill--change {
+  background: var(--tag-blue-bg);
+  color: var(--tag-blue-ink);
+}
+
+.pill--other {
+  background: var(--tag-slate-bg);
+  color: var(--tag-slate-ink);
+}
+
+/* Contacts: one list, each contact a row with a rule above it. */
+.contact-list {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.contact {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding-block: var(--space-4);
+  border-block-start: 1px solid var(--line);
+}
+
+.contact:first-child {
+  padding-block-start: 0;
+  border-block-start: 0;
+}
+
+.contact--left {
+  color: var(--ink-muted);
+}
+
+.contact-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-2) var(--space-3);
+}
+
+.contact-name {
+  margin: 0;
+  font-weight: 600;
+}
+
+.contact-tags {
+  margin: 0;
+}
+
+.contact-title,
+.contact-email {
+  margin: 0;
+  font-size: var(--t-sm);
+  line-height: var(--lh-sm);
+  color: var(--ink-muted);
+}
+
+.contact-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: var(--space-2) var(--space-3);
+  margin-block-start: var(--space-1);
+}
+
+.contact-actions .inline-form {
+  display: inline-flex;
+}
+
+.contact-disclosure {
+  display: block;
+  min-inline-size: 0;
+}
+
+.contact-disclosure > summary {
+  display: inline-block;
+  list-style: none;
+  cursor: pointer;
+}
+
+.contact-disclosure > summary::-webkit-details-marker {
+  display: none;
+}
+
+.contact-disclosure[open] > summary {
+  margin-block-end: var(--space-3);
+}
+
+.contact-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin: 0;
+  padding-block-end: var(--space-2);
+}
+
+.contact-form .field {
+  min-inline-size: 0;
+}
+
+.contact-form input:not([type="checkbox"]) {
+  inline-size: 100%;
+  max-inline-size: 24rem;
+  padding-block: var(--space-2);
+  padding-inline: var(--space-3);
+}
+
+.contact-add {
+  margin-block-start: var(--space-2);
+  padding-block-start: var(--space-4);
+  border-block-start: 1px solid var(--line);
+}
+
+/* Client updates box, under Account facts in the aside. */
+.updates-box {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding-block-start: var(--space-4);
+  border-block-start: 1px solid var(--line);
+}
+
+.updates-box > p {
+  margin: 0;
+}
+
+.updates-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin: 0;
+}
+
+.updates-form .field {
+  min-inline-size: 0;
+}
+
+.updates-form input:not([type="checkbox"]) {
+  inline-size: 100%;
+  padding-block: var(--space-2);
+  padding-inline: var(--space-3);
+}
+
+.client-link {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.client-link-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.client-link-input {
+  flex: 1 1 12rem;
+  min-inline-size: 0;
+  padding-block: var(--space-2);
+  padding-inline: var(--space-3);
+  font-size: var(--t-sm);
+  line-height: var(--lh-sm);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Client updates: the review page. Its filter is the sidebar; the cards fill the rest. */
+.updates-page .filters {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.updates-head {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin-block-end: var(--space-4);
+}
+
+.updates-head .result-count {
+  margin: 0;
+  font-size: var(--t-lg);
+  line-height: var(--lh-lg);
+  font-weight: 600;
+}
+
+.updates-head .field-help {
+  margin: 0;
+}
+
+.updates-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.update-list {
+  grid-template-columns: repeat(auto-fill, minmax(20rem, 1fr));
+}
+
+.update-card {
+  gap: var(--space-3);
+}
+
+.update-card .card-top {
+  margin-block-end: 0;
+}
+
+.update-title {
+  margin: 0;
+  font-size: var(--t-md);
+  line-height: var(--lh-md);
+  font-weight: 600;
+}
+
+.update-note {
+  margin: 0;
+  padding-inline-start: var(--space-3);
+  border-inline-start: 3px solid var(--line-strong);
+  color: var(--ink-muted);
+}
+
+.update-note p {
+  margin: 0;
+}
+
+.update-about {
+  margin: 0;
+  font-weight: 600;
+}
+
+.update-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin: 0;
+  padding-block-start: var(--space-3);
+  border-block-start: 1px solid var(--line);
+}
+
+.update-form .field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-inline-size: 0;
+}
+
+.update-form input:not([type="checkbox"]),
+.update-form select {
+  inline-size: 100%;
+  padding-block: var(--space-2);
+  padding-inline: var(--space-3);
+}
+
+/* Set up your update form: the questions, the connected feeds, and the link. */
+.setup-questions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin: 0;
+  padding-inline-start: var(--space-5);
+}
+
+.setup-question {
+  display: block;
+  font-weight: 600;
+}
+
+.setup-questions .field-help {
+  display: block;
+}
+
+.setup-subtitle {
+  margin: var(--space-2) 0 0;
+  font-size: var(--t-body);
+  line-height: var(--lh-body);
+  font-weight: 600;
+}
+
+.setup-feeds {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.setup-feeds p {
+  margin: 0;
+}
+
+.setup-saved {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.setup-saved label {
+  font-size: var(--t-sm);
+  line-height: var(--lh-sm);
+  color: var(--ink-muted);
+}
+
+@media (max-width: 559px) {
+  .update-list {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .client-link-input {
+    flex-basis: 100%;
+  }
+}
+
+/* The review page's notice about updates for accounts that left the book, and its discard button. */
+.updates-gone {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2) var(--space-4);
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-control);
+  background: var(--sunken);
+}
+
+.updates-gone > p {
+  margin: 0;
+}
+
+.updates-gone .inline-form {
+  margin: 0;
+}

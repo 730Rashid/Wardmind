@@ -2,7 +2,11 @@
 {% block content %}
 <div class="stack confirm">
   <h1 class="page-title">Remove {{ config.name }}?</h1>
+  {% if is_updates %}
+  <p class="prose">Updates it brought in that you haven't accepted or rejected stay on Client updates until you do. Its saved key is deleted too.</p>
+  {% else %}
   <p class="prose">{{ leaving }} leave your book. Edits you made to them are deleted too.{% if is_hubspot %} The saved access token is deleted too.{% endif %}{% if is_feed %} Its saved key is deleted too.{% endif %}</p>
+  {% endif %}
   <div class="error-actions">
     <form class="inline-form" method="post" action="/settings/connections/{{ config.id }}/remove">
       <button type="submit" class="button-primary">{{ 'Remove sheet' if is_sheet else 'Remove connection' }}</button>

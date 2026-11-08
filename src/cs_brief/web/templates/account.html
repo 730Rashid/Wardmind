@@ -58,6 +58,8 @@
       <p>{{ detail.explanation.suggested_action }}</p>
     </section>
 
+    {% include "accounts/_contacts.html" %}
+
     <section class="account-section score" aria-labelledby="score-heading">
       <h2 class="section-title" id="score-heading">Why it's ranked {{ detail.rank }} of {{ detail.book_size }}</h2>
       {% set longest = detail.breakdown | map(attribute="max_points") | max %}
@@ -72,11 +74,11 @@
         {% for day, entries in timeline_days %}
         <dt><time datetime="{{ day.isoformat() }}">{{ day | day_label(today_day) }}</time></dt>
         {% for entry in entries %}
-        {% set added = (entry.kind.value, entry.observed_at, entry.value) in manual_readings %}
+        {% set origin = origins.get((entry.kind.value, entry.observed_at, entry.value), '') %}
         <dd>
           <span class="timeline-label">{{ entry.label }}</span>
           <span class="timeline-sentence{% if not entry.is_latest %} timeline-sentence--older{% endif %}">{{ entry.plain_english }}</span>
-          {% if entry.is_latest %}<span class="timeline-current">Current{% if added %}. Added by you.{% endif %}</span>{% elif added %}<span class="timeline-current">Added by you</span>{% endif %}
+          {% if entry.is_latest %}<span class="timeline-current">Current{% if origin %}. {{ origin }}.{% endif %}</span>{% elif origin %}<span class="timeline-current">{{ origin }}</span>{% endif %}
         </dd>
         {% endfor %}
         {% endfor %}
@@ -105,6 +107,7 @@
       <dt>Data source</dt>
       <dd>{{ connector_label }}</dd>
     </dl>
+    {% include "accounts/_updates_box.html" %}
   </aside>
 </div>
 {% endblock %}

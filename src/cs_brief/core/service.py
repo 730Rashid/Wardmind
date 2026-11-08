@@ -743,7 +743,16 @@ def pending_client_updates() -> list[client_updates.Review]:
 
 
 def pending_client_update_count() -> int:
-    """For the nav badge. 0 in demo mode. Cheap: no scoring."""
+    """For the nav badge on every page: the PENDING updates of accounts that still have a consent,
+    read from the store alone. It never asks a connector (pages such as Settings must work while
+    a connection is broken), so it may include updates for accounts that left the book; the
+    review page lists those separately so they can be discarded. 0 in demo mode."""
     if load_settings().source is DataSource.DEMO:
         return 0
-    return client_updates.pending_count(get_store(), set(your_book_accounts()))
+    data = client_updates.load(get_store())
+    return sum(
+        1
+        for update in data.updates
+        if update.status is client_updates.UpdateStatus.PENDING
+        and update.account_id in data.consents
+    )

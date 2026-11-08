@@ -32,6 +32,8 @@ from starlette.middleware.trustedhost import TrustedHostMiddleware
 from cs_brief.core import (
     briefs,
     bulk,
+    client_updates,
+    contacts,
     editing,
     import_flow,
     importing,
@@ -40,6 +42,7 @@ from cs_brief.core import (
     service,
     summaries,
 )
+from cs_brief.core.client_updates import ClientUpdate, UpdateKind, UpdateStatus
 from cs_brief.core.config import ScoringConfig, load_scoring_config, save_scoring_config
 from cs_brief.core.connectors.combined import CombinedConnector, ConnectionProblem, Provenance
 from cs_brief.core.connectors.errors import ConnectorError
@@ -51,6 +54,7 @@ from cs_brief.core.connectors.hubspot import (
     load_mapping,
 )
 from cs_brief.core.connectors.local import ManualConnector, SpreadsheetConnector
+from cs_brief.core.contacts import Contact, ContactSource, ContactStatus
 from cs_brief.core.feeds import catalog as feed_catalog
 from cs_brief.core.feeds import setup as feed_setup
 from cs_brief.core.feeds.http import FeedError
@@ -86,7 +90,7 @@ from cs_brief.core.store import (
     Notice,
     connection_for,
 )
-from cs_brief.web import feed_pages, formatting
+from cs_brief.web import contact_pages, feed_pages, formatting
 from cs_brief.web.scoring_form import (
     FIELD_NAMES,
     UNIT_HINTS,
@@ -388,6 +392,7 @@ def _render(
         "today": format_today(today_day),
         "today_day": today_day,
         "problems": problems,
+        "pending_updates": _pending_count(),
         **context,
     }
     return templates.TemplateResponse(request, template, values, status_code=status_code)
@@ -441,6 +446,15 @@ def _needs_setup() -> bool:
     if combined is None or combined.list_accounts() or combined.problems:
         return False
     return not service.get_store().hidden()
+
+
+def _pending_count() -> int:
+    """The nav badge's count of client updates waiting. 0 when the book can't load here: the page
+    that needs the book shows that problem itself."""
+    try:
+        return service.pending_client_update_count()
+    except ConnectorError:
+        return 0
 
 
 def _duplicate_count() -> int:
@@ -644,6 +658,7 @@ class _ConnectionLine:
     is_signals: bool = False
     unmatched: list[UnmatchedRow] = dataclass_field(default_factory=list)
     unmatched_total: int = 0
+    is_updates: bool = False  # a client update form: its row links to the review page
 
 
 def _hubspot_line(
@@ -682,11 +697,19 @@ def _feed_line(config: ConnectionConfig, store: LocalStore, now: datetime) -> _C
     status = feed.status
     synced = feed_pages.synced_text(status.last_synced_at, now)
     signals_feed = feed.role is FeedRole.SIGNALS
+    updates_feed = feed.role is FeedRole.CLIENT_UPDATES
     if signals_feed:
         count = None
         summary = f"Adds readings to {_accounts(status.accounts)}."
         unmatched = list(status.unmatched)
         unmatched_total = status.skipped_rows
+    elif updates_feed:
+        # A client update form owns no accounts: its row says what its last sync brought in.
+        count = None
+        brought = contact_pages.brought_in(store, config)
+        summary = f"Brought in {contact_pages.updates_word(brought)}."
+        unmatched = []
+        unmatched_total = 0
     else:
         snapshot = store.snapshot(config.id)
         count = 0 if snapshot is None else len(snapshot.accounts)
@@ -705,6 +728,7 @@ def _feed_line(config: ConnectionConfig, store: LocalStore, now: datetime) -> _C
         is_signals=signals_feed,
         unmatched=unmatched,
         unmatched_total=unmatched_total,
+        is_updates=updates_feed,
     )
 
 
@@ -827,10 +851,14 @@ def _choice(kind: type[_E], text: str, default: _E) -> _E | None:
 
 def _feed_notice(connection_id: str, *, added: bool) -> str:
     """Connections' notice after a feed is saved (added) or synced, from its status."""
-    config = service.get_store().get_connection(connection_id)
+    store = service.get_store()
+    config = store.get_connection(connection_id)
     if config is None or config.kind is not ConnectionKind.FEED:
         return ""
-    return feed_pages.added_notice(config) if added else feed_pages.synced_notice(config)
+    brought = contact_pages.brought_in(store, config)
+    if added:
+        return feed_pages.added_notice(config, brought)
+    return feed_pages.synced_notice(config, brought)
 
 
 def _render_setup(
@@ -878,6 +906,9 @@ def _match_view(draft: FeedDraft, mapping: Mapping[str, str], date_text: str) ->
     rows = len(draft.table.rows)
     show_order, date_choice = feed_pages.date_order_view(draft.table, cleaned, date_text)
     info = feed_catalog.provider_info(draft.provider)
+    ignored = 0
+    if draft.role is FeedRole.CLIENT_UPDATES and result.blocker is None:
+        ignored = _updates_ignored(draft, cleaned, date_text)
     return {
         "draft_id": draft.id,
         "name": draft.name,
@@ -886,12 +917,29 @@ def _match_view(draft: FeedDraft, mapping: Mapping[str, str], date_text: str) ->
         "example_row": draft.table.row_numbers[0] if draft.table.row_numbers else 2,
         "headers": draft.table.headers,
         "rows": feed_pages.match_rows(draft.role, cleaned, draft.table),
-        "happens": feed_pages.happens(draft.role, rows, result),
+        "happens": feed_pages.happens(draft.role, rows, result, ignored),
         "blocker": result.blocker or "",
         "show_date_order": show_order,
         "date_choice": date_choice,
         "match_label": draft.match_by.label if draft.role is FeedRole.SIGNALS else "",
     }
+
+
+def _updates_ignored(draft: FeedDraft, mapping: Mapping[str, str], date_text: str) -> int:
+    """How many rows of a client update form the sync would ignore: no code, a code no client
+    opted in, an account no longer in the book, or too many waiting. client_updates.ingest with
+    save=False applies the sync's own rules and writes nothing."""
+    found = client_updates.ingest(
+        service.get_store(),
+        draft.table,
+        dict(mapping),
+        connection_id=draft.connection_id or "feed-preview",
+        book_ids={account.id for account in service.feed_book_accounts(draft.connection_id)},
+        date_order=_as_order(date_text) or DateOrder.DMY,
+        now=datetime.now(UTC),
+        save=False,
+    )
+    return found.ignored
 
 
 def _render_match(
@@ -1104,8 +1152,18 @@ def _as_order(text: str) -> DateOrder | None:
         return None
 
 
-def _submitted_mapping(fields: Mapping[str, str]) -> dict[str, str]:
-    """The mapping selects, keyed by import field: column-<index> is the header chosen."""
+def _submitted_mapping(
+    fields: Mapping[str, str], role: FeedRole = FeedRole.ACCOUNTS
+) -> dict[str, str]:
+    """The matching page's selects, keyed by what the role maps: column-<index> is the header
+    chosen for the import field at that index (the spreadsheet import and an ACCOUNTS or SIGNALS
+    feed), or for the client update question at that index (CLIENT_UPDATES). feed_pages.match_rows
+    numbers them the same way."""
+    if role is FeedRole.CLIENT_UPDATES:
+        return {
+            question.key: fields.get(f"column-{index}", "")
+            for index, question in enumerate(client_updates.QUESTIONS)
+        }
     return {
         spec.key: fields.get(f"column-{index}", "")
         for index, spec in enumerate(importing.IMPORT_FIELDS)
@@ -1459,6 +1517,188 @@ def _render_duplicates(
     )
 
 
+# --- Contacts and client updates: the account page, the review page and the set-up page ---------
+# The view values are built in web/contact_pages.py. Notices travel as codes in the query string;
+# names are looked up here, so no contact's name is ever in a URL.
+
+_CONTACT_NOTICES = {
+    "added": "Contact added.",
+    "saved": "Contact saved.",
+    "left": "Marked as left.",
+    "active": "Contact is active again.",
+    "removed": "Contact removed.",
+}
+_UPDATES_NOTICES = {
+    "on": "Client updates are on.",
+    "link": "New link made. The old link stops working.",
+    "off": "Client updates are off, and their waiting updates were deleted.",
+}
+_NO_CONTACT = "That contact isn't in this account."
+_UPDATES_OFF = "Client updates are off for this client. Turn them on from its account page."
+_UPDATE_GONE = "That update was already decided, or it isn't there."
+_UPDATES_DEMO = (
+    "Client updates belong to Your data, and demo data is showing. "
+    "Switch to Your data on Connections, then come back here."
+)
+_UPDATE_KINDS = frozenset(kind.value for kind in UpdateKind)
+
+
+def _local_now() -> datetime:
+    """Now as an aware local time. Its date is the day the person is on, which opt-in compares
+    with the date they agreed."""
+    return datetime.now().astimezone()
+
+
+def _parse_day(text: str) -> date | None:
+    """The date a date box holds (YYYY-MM-DD), or None when it is blank or not a date."""
+    try:
+        return date.fromisoformat(text.strip())
+    except ValueError:
+        return None
+
+
+def _find_contact(account_id: str, contact_id: str) -> Contact | None:
+    """The account's contact with this id, or None."""
+    found = contacts.contacts_for(service.get_store(), account_id)
+    return next((contact for contact in found if contact.id == contact_id), None)
+
+
+def _pending_update(store: LocalStore, update_id: str) -> ClientUpdate | None:
+    """The update with this id when it is still waiting for review, else None."""
+    return next(
+        (
+            update
+            for update in client_updates.load(store).updates
+            if update.id == update_id and update.status is UpdateStatus.PENDING
+        ),
+        None,
+    )
+
+
+def _update_gone(request: Request) -> HTMLResponse:
+    return _missing(
+        request,
+        "Update not found",
+        _UPDATE_GONE,
+        back_href="/client-updates",
+        back_label="Back to Client updates",
+    )
+
+
+def _updates_demo_page(request: Request, status_code: int = 200) -> HTMLResponse:
+    """The explanation the review and set-up pages give in demo mode."""
+    return _render(
+        request,
+        "not_found.html",
+        page="Client updates",
+        active="updates",
+        status_code=status_code,
+        message=_UPDATES_DEMO,
+        back_href="/settings/connections",
+        back_label="Go to Connections",
+    )
+
+
+def _done_notice(done: str, account_id: str, contact_id: str) -> str:
+    """What the review page says after an accept: the names come from the store, by id."""
+    if done not in _UPDATE_KINDS and done not in ("reject", "checked"):
+        return ""
+    if done in ("reject", "other", "checked"):
+        return contact_pages.done_notice(done, account_name="", contact=None, risk=False)
+    store = service.get_store()
+    account = service.your_book_accounts().get(account_id)
+    found = contacts.contacts_for(store, account_id) if account_id else []
+    contact = next((item for item in found if item.id == contact_id), None) if contact_id else None
+    risk = (
+        contact is not None
+        and contact.champion
+        and not any(item.champion and item.status is ContactStatus.ACTIVE for item in found)
+    )
+    return contact_pages.done_notice(
+        done,
+        account_name=account.name if account is not None else "",
+        contact=contact,
+        risk=risk,
+    )
+
+
+def _render_updates(
+    request: Request,
+    *,
+    chosen: set[UpdateKind],
+    notice: str = "",
+    errors: Mapping[str, str] | None = None,
+    typed: Mapping[str, Mapping[str, str]] | None = None,
+    status_code: int = 200,
+) -> HTMLResponse:
+    """The review page: the pending updates the kind filter chooses, each as a card. A refused
+    accept comes back with its message and the values as typed, on its own card (422)."""
+    store = service.get_store()
+    reviews = service.pending_client_updates()
+    today = date.today()
+    now = datetime.now(UTC).replace(tzinfo=None)
+    shown = [review for review in reviews if not chosen or review.update.kind in chosen]
+    errors = dict(errors or {})
+    typed = dict(typed or {})
+    cards = [
+        contact_pages.update_card(
+            review,
+            today=today,
+            typed=typed.get(review.update.id),
+            error=errors.get(review.update.id, ""),
+        )
+        for review in shown
+    ]
+    feeds = contact_pages.update_feeds(store, now)
+    link_saved = bool(client_updates.load(store).settings.form_link)
+    gone = len(contact_pages.gone_updates(store, set(service.your_book_accounts())))
+    return _render(
+        request,
+        "client_updates/review.html",
+        page="Client updates",
+        active="updates",
+        notice=notice,
+        status_code=status_code,
+        kinds=contact_pages.kind_options(reviews, chosen),
+        filter_query=contact_pages.filter_query(chosen),
+        filtered=bool(chosen),
+        cards=cards,
+        waiting=len(reviews),
+        read_text=contact_pages.read_text(contact_pages.last_read(store), now),
+        feeds=feeds,
+        setup_done=link_saved and bool(feeds),
+        gone=gone,
+        gone_text=contact_pages.gone_text(gone) if gone else "",
+    )
+
+
+def _render_updates_setup(
+    request: Request,
+    *,
+    notice: str = "",
+    link_value: str = "",
+    link_error: str = "",
+    status_code: int = 200,
+) -> HTMLResponse:
+    """The set-up page: the questions, the ways to read the responses, and the pre-filled link."""
+    store = service.get_store()
+    now = datetime.now(UTC).replace(tzinfo=None)
+    return _render(
+        request,
+        "client_updates/setup.html",
+        page="Set up your update form",
+        active="updates",
+        notice=notice,
+        status_code=status_code,
+        form_link=client_updates.load(store).settings.form_link,
+        link_value=link_value,
+        link_error=link_error,
+        questions=contact_pages.setup_questions(),
+        providers=contact_pages.setup_providers(),
+        feeds=contact_pages.update_feeds(store, now),
+    )
+
+
 # --- Web research: the account page's section and the Data & privacy page -----------------
 
 _RESEARCH_CHOICE_ERROR = "Choose On or Off, then save again."
@@ -1784,10 +2024,12 @@ def _render_account(
     *,
     status: str = "",
     research_panel: _ResearchPanel | None = None,
+    refusal: contact_pages.FormRefusal | None = None,
     status_code: int = 200,
 ) -> HTMLResponse:
     """One account's page. Without `research_panel`, the website section shows what is already
-    saved, which is a file read and never a network call."""
+    saved, which is a file read and never a network call. `refusal` is a contact or client update
+    form that was refused: its page comes back with the form's values and messages (422)."""
     connector = service.get_connector()
     detail = service.get_account_detail(account_id, connector)
     if detail is None:
@@ -1802,14 +2044,16 @@ def _render_account(
     combined = connector if isinstance(connector, CombinedConnector) else None
     prov = combined.provenance(account_id) if combined is not None else None
     notices: list[Notice] = []
-    manual: set[tuple[str, datetime, float]] = set()
+    # Where each reading in the history came from, for its label: by hand, or from the contacts.
+    origins: dict[tuple[str, datetime, float], str] = {}
     if combined is not None:
         notices = service.get_store().notices(account_id)
-        manual = {
-            (signal.kind.value, signal.observed_at, signal.value)
-            for signal in combined.list_signals(account_id)
-            if signal.source == "manual"
-        }
+        for signal in combined.list_signals(account_id):
+            key = (signal.kind.value, signal.observed_at, signal.value)
+            if signal.source == "manual":
+                origins[key] = "Added by you"
+            elif signal.source == contacts.SIGNAL_SOURCE:
+                origins[key] = "From contacts"
     edits = prov.edits if prov is not None else {}
     if research_panel is None:
         research_panel = _research_panel(
@@ -1817,6 +2061,16 @@ def _render_account(
             editable=prov is not None,
             result=service.cached_research(account_id),
         )
+    today = date.today()
+    editable = prov is not None
+    section = contact_pages.contacts_section(
+        service.account_contacts(account_id), editable=editable, today=today, refusal=refusal
+    )
+    box = (
+        contact_pages.updates_box(service.get_store(), account_id, today=today, refusal=refusal)
+        if editable
+        else None
+    )
     return _render(
         request,
         "account.html",
@@ -1834,9 +2088,12 @@ def _render_account(
         linked=prov is not None and len(prov.member_ids) > 1,
         source_line=_source_line(prov) if prov is not None else "",
         notices=notices,
-        manual_readings=manual,
+        origins=origins,
         status=status,
         panel=research_panel,
+        contacts=section,
+        account_path=contact_pages.account_path(account_id),
+        updates_box=box,
     )
 
 
@@ -2351,13 +2608,19 @@ def create_app() -> FastAPI:
         reading: str = "",
         added: str = "",
         unlinked: str = "",
+        contact: str = "",
+        updates: str = "",
     ) -> HTMLResponse:
         """One account's call prep: summary, next step, score breakdown and signal history. With
-        Your data showing, it also has the edit link, where each figure came from, the notices
-        and the readings added by hand. The website section shows only what is already saved."""
-        return _render_account(
-            request, account_id, status=_account_status(added, edited, reading, unlinked)
+        Your data showing, it also has the edit link, where each figure came from, the notices,
+        the readings added by hand, the contacts and the client updates box. The website section
+        shows only what is already saved."""
+        status = (
+            _account_status(added, edited, reading, unlinked)
+            or _CONTACT_NOTICES.get(contact, "")
+            or _UPDATES_NOTICES.get(updates, "")
         )
+        return _render_account(request, account_id, status=status)
 
     @app.post("/accounts/{account_id}/research")
     async def look_up_website(request: Request, account_id: str) -> Response:
@@ -2565,6 +2828,230 @@ def create_app() -> FastAPI:
             return _refused(request, f"Can't unlink {account.name}", str(error))
         return RedirectResponse(
             f"/accounts/{_quoted_id(account_id)}?{urlencode({'unlinked': '1'})}", status_code=303
+        )
+
+    # Your data: contacts and client updates on the account page. Every route checks the account is
+    # in Your data first (_editable_account), and every contact is checked to belong to it. A
+    # refused form re-renders the account page with its values and messages (422).
+
+    @app.post("/accounts/{account_id}/contacts")
+    async def add_contact_route(request: Request, account_id: str) -> Response:
+        """Add a contact to the account. Its name, job title and email are checked by the core."""
+        found = _editable_account(request, account_id)
+        if isinstance(found, HTMLResponse):
+            return found
+        typed = contact_pages.contact_typed(await _posted_fields(request))
+        try:
+            contacts.add_contact(
+                service.get_store(),
+                account_id,
+                contact_pages.contact_input(typed),
+                source=ContactSource.YOU,
+                now=datetime.now(UTC),
+            )
+        except ValueError as error:
+            refusal = contact_pages.FormRefusal(
+                form="add", values=typed, errors=contact_pages.errors_for(str(error))
+            )
+            return _render_account(request, account_id, refusal=refusal, status_code=422)
+        return RedirectResponse(
+            f"/accounts/{_quoted_id(account_id)}?{urlencode({'contact': 'added'})}", status_code=303
+        )
+
+    @app.get("/accounts/{account_id}/contacts/{contact_id}/remove")
+    def remove_contact_page(request: Request, account_id: str, contact_id: str) -> Response:
+        """The confirmation page: the contact's name, and what stays (readings already recorded)."""
+        found = _editable_account(request, account_id)
+        if isinstance(found, HTMLResponse):
+            return found
+        _, account, _ = found
+        contact = _find_contact(account_id, contact_id)
+        if contact is None:
+            return _missing(request, "Contact not found", _NO_CONTACT)
+        return _render(
+            request,
+            "accounts/contact_remove.html",
+            page=f"Remove {contact.name}",
+            active="book",
+            account=account,
+            contact=contact,
+        )
+
+    @app.post("/accounts/{account_id}/contacts/{contact_id}/remove")
+    def remove_contact_route(request: Request, account_id: str, contact_id: str) -> Response:
+        """Delete the contact for good. Readings it already recorded stay in the history."""
+        found = _editable_account(request, account_id)
+        if isinstance(found, HTMLResponse):
+            return found
+        if not contacts.remove_contact(service.get_store(), account_id, contact_id):
+            return _missing(request, "Contact not found", _NO_CONTACT)
+        return RedirectResponse(
+            f"/accounts/{_quoted_id(account_id)}?{urlencode({'contact': 'removed'})}",
+            status_code=303,
+        )
+
+    @app.post("/accounts/{account_id}/contacts/{contact_id}/edit")
+    async def edit_contact_route(request: Request, account_id: str, contact_id: str) -> Response:
+        """Save a contact's name, job title, email and main-contact flag."""
+        found = _editable_account(request, account_id)
+        if isinstance(found, HTMLResponse):
+            return found
+        if _find_contact(account_id, contact_id) is None:
+            return _missing(request, "Contact not found", _NO_CONTACT)
+        typed = contact_pages.contact_typed(await _posted_fields(request))
+        try:
+            contacts.update_contact(
+                service.get_store(),
+                account_id,
+                contact_id,
+                contact_pages.contact_input(typed),
+                source=ContactSource.YOU,
+                now=datetime.now(UTC),
+            )
+        except ValueError as error:
+            refusal = contact_pages.FormRefusal(
+                form="edit",
+                contact_id=contact_id,
+                values=typed,
+                errors=contact_pages.errors_for(str(error)),
+            )
+            return _render_account(request, account_id, refusal=refusal, status_code=422)
+        return RedirectResponse(
+            f"/accounts/{_quoted_id(account_id)}?{urlencode({'contact': 'saved'})}", status_code=303
+        )
+
+    @app.post("/accounts/{account_id}/contacts/{contact_id}/left")
+    async def mark_left_route(request: Request, account_id: str, contact_id: str) -> Response:
+        """Mark a contact as having left on the date given (today when the box is blank). The
+        last main contact leaving records the Champion left signal (the core does that)."""
+        found = _editable_account(request, account_id)
+        if isinstance(found, HTMLResponse):
+            return found
+        if _find_contact(account_id, contact_id) is None:
+            return _missing(request, "Contact not found", _NO_CONTACT)
+        fields = await _posted_fields(request)
+        typed = {"left_on": fields.get("left_on", "")}
+        today = date.today()
+        left_on = today if not typed["left_on"].strip() else _parse_day(typed["left_on"])
+        if left_on is None:
+            problem = "Pick the date they left."
+        elif left_on > today:
+            problem = "The date they left can't be in the future."
+        else:
+            problem = ""
+        if problem:
+            refusal = contact_pages.FormRefusal(
+                form="left",
+                contact_id=contact_id,
+                values=typed,
+                errors={contact_pages.FORM: problem},
+            )
+            return _render_account(request, account_id, refusal=refusal, status_code=422)
+        contacts.mark_left(
+            service.get_store(),
+            account_id,
+            contact_id,
+            left_on=left_on,
+            source=ContactSource.YOU,
+            now=datetime.now(UTC),
+        )
+        return RedirectResponse(
+            f"/accounts/{_quoted_id(account_id)}?{urlencode({'contact': 'left'})}", status_code=303
+        )
+
+    @app.post("/accounts/{account_id}/contacts/{contact_id}/active")
+    def undo_left_route(request: Request, account_id: str, contact_id: str) -> Response:
+        """Undo a contact marked as left, a mistake. Refused (422) when another active contact
+        already has the email."""
+        found = _editable_account(request, account_id)
+        if isinstance(found, HTMLResponse):
+            return found
+        if _find_contact(account_id, contact_id) is None:
+            return _missing(request, "Contact not found", _NO_CONTACT)
+        try:
+            contacts.mark_active(service.get_store(), account_id, contact_id, now=datetime.now(UTC))
+        except ValueError as error:
+            refusal = contact_pages.FormRefusal(
+                form="active",
+                contact_id=contact_id,
+                errors={contact_pages.FORM: str(error)},
+            )
+            return _render_account(request, account_id, refusal=refusal, status_code=422)
+        return RedirectResponse(
+            f"/accounts/{_quoted_id(account_id)}?{urlencode({'contact': 'active'})}",
+            status_code=303,
+        )
+
+    @app.post("/accounts/{account_id}/client-updates/on")
+    async def turn_on_updates_route(request: Request, account_id: str) -> Response:
+        """Turn client updates on for the account: who agreed and when (today by default)."""
+        found = _editable_account(request, account_id)
+        if isinstance(found, HTMLResponse):
+            return found
+        fields = await _posted_fields(request)
+        typed = {
+            "agreed_with": fields.get("agreed_with", ""),
+            "agreed_on": fields.get("agreed_on", ""),
+        }
+        try:
+            agreed_on = _parse_day(typed["agreed_on"])
+            if agreed_on is None:
+                raise ValueError("Pick the date they agreed.")
+            client_updates.opt_in(
+                service.get_store(),
+                account_id,
+                agreed_with=typed["agreed_with"],
+                agreed_on=agreed_on,
+                now=_local_now(),
+            )
+        except ValueError as error:
+            refusal = contact_pages.FormRefusal(
+                form="on", values=typed, errors=contact_pages.opt_in_errors(str(error))
+            )
+            return _render_account(request, account_id, refusal=refusal, status_code=422)
+        return RedirectResponse(
+            f"/accounts/{_quoted_id(account_id)}?{urlencode({'updates': 'on'})}", status_code=303
+        )
+
+    @app.post("/accounts/{account_id}/client-updates/new-link")
+    def new_link_route(request: Request, account_id: str) -> Response:
+        """Give the client a new code. Its old link stops working."""
+        found = _editable_account(request, account_id)
+        if isinstance(found, HTMLResponse):
+            return found
+        try:
+            client_updates.new_code(service.get_store(), account_id, now=datetime.now(UTC))
+        except LookupError:
+            return _refused(request, "Client updates", _UPDATES_OFF)
+        return RedirectResponse(
+            f"/accounts/{_quoted_id(account_id)}?{urlencode({'updates': 'link'})}", status_code=303
+        )
+
+    @app.get("/accounts/{account_id}/client-updates/off")
+    def turn_off_updates_page(request: Request, account_id: str) -> Response:
+        """The confirmation page: turning updates off deletes the waiting ones from this client."""
+        found = _editable_account(request, account_id)
+        if isinstance(found, HTMLResponse):
+            return found
+        _, account, _ = found
+        return _render(
+            request,
+            "accounts/updates_off.html",
+            page=f"Turn off client updates for {account.name}",
+            active="book",
+            account=account,
+            pending=contact_pages.pending_for_account(service.get_store(), account_id),
+        )
+
+    @app.post("/accounts/{account_id}/client-updates/off")
+    def turn_off_updates_route(request: Request, account_id: str) -> Response:
+        """Turn client updates off: the consent goes, and the waiting updates with it."""
+        found = _editable_account(request, account_id)
+        if isinstance(found, HTMLResponse):
+            return found
+        client_updates.opt_out(service.get_store(), account_id)
+        return RedirectResponse(
+            f"/accounts/{_quoted_id(account_id)}?{urlencode({'updates': 'off'})}", status_code=303
         )
 
     # Your data: possible duplicates. Both ids of a link or a dismissal are checked first.
@@ -3010,6 +3497,7 @@ def create_app() -> FastAPI:
         if feed is not None and feed.role is FeedRole.SIGNALS:
             # A SIGNALS feed owns no accounts: its readings leave, the accounts stay.
             leaving = f"The readings it added to {_accounts(feed.status.accounts)}"
+        is_updates = feed is not None and feed.role is FeedRole.CLIENT_UPDATES
         return _render(
             request,
             "settings/remove.html",
@@ -3020,6 +3508,7 @@ def create_app() -> FastAPI:
             is_hubspot=config.kind is ConnectionKind.HUBSPOT,
             is_sheet=config.kind is ConnectionKind.SPREADSHEET,
             is_feed=config.kind is ConnectionKind.FEED,
+            is_updates=is_updates,
         )
 
     @app.post("/settings/connections/{connection_id}/remove")
@@ -3098,9 +3587,12 @@ def create_app() -> FastAPI:
         return response
 
     @app.get("/connections/add/{provider}")
-    def add_connection_setup(request: Request, provider: str, connection: str = "") -> Response:
+    def add_connection_setup(
+        request: Request, provider: str, connection: str = "", role: str = ""
+    ) -> Response:
         """The setup card for one provider. ?connection= changes a feed's settings: the form starts
-        from what was saved, and its key stays unless a new one is typed."""
+        from what was saved, and its key stays unless a new one is typed. ?role= preselects a role
+        the provider offers (the client update form's links use it)."""
         info = feed_catalog.provider_info(provider)
         if info is None:
             return _missing(
@@ -3129,6 +3621,8 @@ def create_app() -> FastAPI:
                     back_label="Back to Connections",
                 )
         form = feed_pages.initial_setup(info, existing)
+        if existing is None and role:
+            form = feed_pages.preselect_role(form, info, role)
         return _render_setup(request, info, form, errors={})
 
     @app.post("/connections/add/{provider}")
@@ -3227,7 +3721,10 @@ def create_app() -> FastAPI:
             return _missing_setup(request)
         fields = await _posted_fields(request)
         return _render_match(
-            request, draft, _submitted_mapping(fields), fields.get("date_order", "")
+            request,
+            draft,
+            _submitted_mapping(fields, draft.role),
+            fields.get("date_order", ""),
         )
 
     @app.post("/connections/feeds/{draft_id}/preview")
@@ -3239,7 +3736,9 @@ def create_app() -> FastAPI:
         if draft is None:
             return _missing_setup(request)
         fields = await _posted_fields(request)
-        view = _match_view(draft, _submitted_mapping(fields), fields.get("date_order", ""))
+        view = _match_view(
+            draft, _submitted_mapping(fields, draft.role), fields.get("date_order", "")
+        )
         return templates.TemplateResponse(
             request,
             "connections/partials/match_preview.html",
@@ -3257,7 +3756,7 @@ def create_app() -> FastAPI:
         if draft is None:
             return _missing_setup(request)
         fields = await _posted_fields(request)
-        mapping = _submitted_mapping(fields)
+        mapping = _submitted_mapping(fields, draft.role)
         date_text = fields.get("date_order", "")
         try:
             config = feed_setup.commit_draft(
@@ -3286,5 +3785,162 @@ def create_app() -> FastAPI:
             return _missing_setup(request)
         feed_setup.cancel_draft(store, draft_id)
         return RedirectResponse("/connections/add", status_code=303)
+
+    # Client updates: the review page, the set-up page, and the feed's check. Demo mode explains
+    # that they belong to Your data. The kind filter travels in the query string, so a refused
+    # accept comes back to the same filter.
+
+    @app.get("/client-updates")
+    def client_updates_page(
+        request: Request,
+        done: str = "",
+        account: str = "",
+        contact: str = "",
+        checked: str = "",
+        discarded: str = "",
+    ) -> HTMLResponse:
+        """The pending updates, one card each, filtered by kind (?kind=, repeatable). ?done= names
+        what the last accept or reject did; the names are looked up, never read from the URL.
+        ?discarded= is how many stale updates Discard them removed."""
+        if _feeds_demo():
+            return _updates_demo_page(request)
+        chosen = _chosen(request.query_params.getlist("kind"), UpdateKind)
+        notice = "Checked for new responses." if checked == "1" else ""
+        if discarded.isdigit():
+            notice = contact_pages.discarded_text(int(discarded))
+        elif done and not notice:
+            notice = _done_notice(done, account, contact)
+        return _render_updates(request, chosen=chosen, notice=notice)
+
+    @app.post("/client-updates/discard")
+    def discard_gone_route(request: Request) -> Response:
+        """Reject the waiting updates of accounts no longer in the book. Their text is deleted, as
+        for any reject; nothing is applied to a contact."""
+        if _feeds_demo():
+            return _updates_demo_page(request, status_code=422)
+        store = service.get_store()
+        now = datetime.now(UTC)
+        discarded = 0
+        for update in contact_pages.gone_updates(store, set(service.your_book_accounts())):
+            try:
+                client_updates.reject(store, update.id, now=now)
+            except LookupError:
+                continue
+            discarded += 1
+        return RedirectResponse(f"/client-updates?{urlencode({'discarded': discarded})}", 303)
+
+    @app.post("/client-updates/{update_id}/accept")
+    async def accept_update_route(request: Request, update_id: str) -> Response:
+        """Apply one update the CSM has confirmed, then back to the page with what it did. A
+        refusal shows its message on the card (422) with the values as typed."""
+        if _feeds_demo():
+            return _updates_demo_page(request, status_code=422)
+        store = service.get_store()
+        update = _pending_update(store, update_id)
+        if update is None:
+            return _update_gone(request)
+        chosen = _chosen(request.query_params.getlist("kind"), UpdateKind)
+        typed = contact_pages.update_typed(await _posted_fields(request))
+        before = {contact.id for contact in contacts.contacts_for(store, update.account_id)}
+        try:
+            left_on = None
+            if update.kind is UpdateKind.LEFT and typed["left_on"].strip():
+                left_on = _parse_day(typed["left_on"])
+                if left_on is None:
+                    raise ValueError("Pick the date they left.")
+                if left_on > date.today():
+                    raise ValueError("The date they left can't be in the future.")
+            client_updates.accept(
+                store,
+                update_id,
+                values=contact_pages.update_values(update.kind, typed),
+                contact_id=typed["contact_id"] or None,
+                left_on=left_on,
+                now=datetime.now(UTC),
+            )
+        except LookupError:
+            return _update_gone(request)
+        except ValueError as error:
+            return _render_updates(
+                request,
+                chosen=chosen,
+                errors={update_id: str(error)},
+                typed={update_id: typed},
+                status_code=422,
+            )
+        after = contacts.contacts_for(store, update.account_id)
+        if update.kind is UpdateKind.ADD:
+            added = [contact.id for contact in after if contact.id not in before]
+            contact_id = added[0] if added else ""
+        else:
+            contact_id = typed["contact_id"]
+        query = [("kind", kind.value) for kind in UpdateKind if kind in chosen]
+        query += [
+            ("done", update.kind.value),
+            ("account", update.account_id),
+            ("contact", contact_id),
+        ]
+        return RedirectResponse(f"/client-updates?{urlencode(query)}", status_code=303)
+
+    @app.post("/client-updates/{update_id}/reject")
+    async def reject_update_route(request: Request, update_id: str) -> Response:
+        """Reject one update: its text is deleted and nothing is applied."""
+        if _feeds_demo():
+            return _updates_demo_page(request, status_code=422)
+        store = service.get_store()
+        if _pending_update(store, update_id) is None:
+            return _update_gone(request)
+        chosen = _chosen(request.query_params.getlist("kind"), UpdateKind)
+        try:
+            client_updates.reject(store, update_id, now=datetime.now(UTC))
+        except LookupError:
+            return _update_gone(request)
+        query = [("kind", kind.value) for kind in UpdateKind if kind in chosen]
+        query.append(("done", "reject"))
+        return RedirectResponse(f"/client-updates?{urlencode(query)}", status_code=303)
+
+    @app.post("/client-updates/check")
+    def check_responses_route(request: Request) -> Response:
+        """Read every client update form's responses now (each feed's Sync now)."""
+        if _feeds_demo():
+            return _updates_demo_page(request, status_code=422)
+        store = service.get_store()
+        for config in store.connections():
+            feed = config.feed
+            if config.kind is ConnectionKind.FEED and feed is not None:
+                if feed.role is FeedRole.CLIENT_UPDATES:
+                    service.sync_feed_now(config.id)
+        return RedirectResponse(f"/client-updates?{urlencode({'checked': '1'})}", status_code=303)
+
+    @app.get("/client-updates/setup")
+    def client_updates_setup_page(request: Request, saved: str = "") -> HTMLResponse:
+        """Set the update form up once: its questions, the ways to read its responses, and the
+        pre-filled link. ?saved= says what the last save did."""
+        if _feeds_demo():
+            return _updates_demo_page(request)
+        notice = {"link": "Pre-filled link saved.", "cleared": "Pre-filled link cleared."}
+        return _render_updates_setup(request, notice=notice.get(saved, ""))
+
+    @app.post("/client-updates/setup/link")
+    async def save_form_link_route(request: Request) -> Response:
+        """Save the form's pre-filled link. A link that isn't one (422) is refused with why."""
+        if _feeds_demo():
+            return _updates_demo_page(request, status_code=422)
+        typed = (await _posted_fields(request)).get("link", "")
+        try:
+            client_updates.set_form_link(service.get_store(), typed)
+        except ValueError as error:
+            return _render_updates_setup(
+                request, link_value=typed, link_error=str(error), status_code=422
+            )
+        return RedirectResponse("/client-updates/setup?saved=link", status_code=303)
+
+    @app.post("/client-updates/setup/link/clear")
+    def clear_form_link_route(request: Request) -> Response:
+        """Forget the pre-filled link. Clients' own links stop showing until a new one is saved."""
+        if _feeds_demo():
+            return _updates_demo_page(request, status_code=422)
+        client_updates.set_form_link(service.get_store(), "")
+        return RedirectResponse("/client-updates/setup?saved=cleared", status_code=303)
 
     return app
