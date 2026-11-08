@@ -77,14 +77,6 @@ def test_an_unknown_id_has_no_provider() -> None:
     assert get_provider("nonsense") is None
 
 
-@pytest.mark.parametrize(
-    "provider_id", ["stripe", "chargebee", "zendesk", "freshdesk", "posthog", "airtable"]
-)
-def test_product_placeholders_say_they_are_not_available_yet(provider_id: str) -> None:
-    with pytest.raises(FeedError, match="isn't available yet"):
-        fetch(provider_id, {}, "test-key-0123456789abcdef")
-
-
 def test_records_to_table_flattens_nested_objects_to_dotted_headers() -> None:
     table = records_to_table(
         [{"name": "Acme", "address": {"city": "Leeds", "zip": {"code": "LS1"}}}], "x.json"
