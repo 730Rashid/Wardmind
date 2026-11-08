@@ -42,6 +42,7 @@
         <tr>
           <th scope="row" class="cell-connection">
             <span class="connection-name">{{ config.name }}</span>
+            {% if line.source %}<span class="connection-source">{{ line.source }}</span>{% endif %}
             <form class="include-form" method="post" action="/settings/connections/{{ config.id }}/enabled">
               <label class="choice"><input type="checkbox" name="enabled" value="1" data-autosubmit{% if config.enabled %} checked{% endif %}> Include in my book</label>
               <button type="submit" class="button no-js-only">Save</button>
@@ -52,6 +53,18 @@
             <p class="connection-problem" role="alert">{{ line.status }}</p>
             {% else %}
             <p>{{ line.status }}</p>
+            {% endif %}
+            {% if line.schedule %}<p class="field-help">{{ line.schedule }}</p>{% endif %}
+            {% if line.error %}<p class="connection-problem" role="alert">{{ line.error }}</p>{% endif %}
+            {% if line.unmatched_total %}
+            <details class="unmatched">
+              <summary>{{ line.unmatched_total }} {{ 'row' if line.unmatched_total == 1 else 'rows' }} didn't match an account</summary>
+              <ul class="issue-list">
+                {% for row in line.unmatched %}
+                <li>Row {{ row.row }}{% if row.key %} ({{ row.key }}){% endif %}: {{ row.reason }}</li>
+                {% endfor %}
+              </ul>
+            </details>
             {% endif %}
           </td>
           <td class="cell-actions">
@@ -71,6 +84,12 @@
                 <button type="submit" class="button">Save name</button>
               </form>
             </details>
+            <a class="button" href="/settings/connections/{{ config.id }}/remove">Remove</a>
+            {% elif config.kind.value == "feed" %}
+            <form class="inline-form" method="post" action="/settings/connections/{{ config.id }}/sync">
+              <button type="submit" class="button">Sync now</button>
+            </form>
+            <a class="button" href="/connections/add/{{ line.provider_id }}?connection={{ config.id }}">Change settings</a>
             <a class="button" href="/settings/connections/{{ config.id }}/remove">Remove</a>
             {% else %}
             <a class="button" href="/accounts/new">Add an account</a>
@@ -103,11 +122,14 @@
 
   <section class="connections-section" aria-labelledby="add-connection-title">
     <h2 class="section-title" id="add-connection-title">Add a connection</h2>
+    <p class="field-help">Bring in accounts or signals from a file, a web address, a database or a product you already use.</p>
+    <a class="button-primary" href="/connections/add">Add a connection</a>
+    <p class="field-help">Or go straight to one:</p>
     <ul class="add-list">
-      <li><a class="button" href="/import?back=connections">Import a spreadsheet</a></li>
-      <li><a class="button" href="/import?paste=1&amp;back=connections">Paste cells</a></li>
-      <li><a class="button" href="#hubspot-access">Connect HubSpot</a></li>
-      <li><a class="button" href="/accounts/new">Add an account</a></li>
+      <li><a class="button button--small" href="/import?back=connections">Import a spreadsheet</a></li>
+      <li><a class="button button--small" href="/import?paste=1&amp;back=connections">Paste cells</a></li>
+      <li><a class="button button--small" href="#hubspot-access">Connect HubSpot</a></li>
+      <li><a class="button button--small" href="/accounts/new">Add an account</a></li>
     </ul>
   </section>
 

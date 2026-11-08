@@ -1,0 +1,8 @@
+<div id="feed-action" class="import-action"{% if oob %} hx-swap-oob="true"{% endif %}>
+  {% if blocker %}
+  <button type="submit" form="feed-mapping" class="button-primary" disabled aria-describedby="feed-blocker">Save connection</button>
+  <p id="feed-blocker" class="field-help">{{ blocker }}</p>
+  {% else %}
+  <button type="submit" form="feed-mapping" class="button-primary">Save connection</button>
+  {% endif %}
+</div>

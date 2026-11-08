@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+{% block main_class %}page page--catalog{% endblock %}
+{% block content %}
+{# The book's frame: a filter sidebar on the left (what to bring in), the search and the cards beside
+   it. One GET form holds the sidebar and the search, so a change refreshes the cards and the
+   address. Without JavaScript, Show connections submits it. #}
+<form id="add-filter" class="catalog" method="get" action="/connections/add" role="search"
+      hx-get="/connections/add" hx-target="#results" hx-swap="outerHTML" hx-push-url="true"
+      hx-trigger="change from:.filter-input, input changed delay:250ms from:#q, submit">
+  <aside class="filters" aria-labelledby="categories-title">
+    <h2 class="filters-title" id="categories-title">What do you want to bring in?</h2>
+    <fieldset class="filter-group">
+      <legend class="visually-hidden">Categories</legend>
+      {% for option in categories %}
+      <label class="filter-option" for="category-{{ option.value }}">
+        <input class="filter-input" type="checkbox" id="category-{{ option.value }}" name="category"
+               value="{{ option.value }}"{% if option.checked %} checked{% endif %}>
+        <span class="pill pill--{{ option.value }}"><svg class="icon" aria-hidden="true" focusable="false"><use href="/static/icons.svg#{{ option.value }}"/></svg>{{ option.label }}</span>
+        <span class="filter-count">{{ option.count }}</span>
+      </label>
+      {% endfor %}
+    </fieldset>
+    {% if filtered %}
+    <p class="filter-clear"><a href="/connections/add{% if q %}?q={{ q | urlencode }}{% endif %}">Clear filters</a></p>
+    {% endif %}
+  </aside>
+
+  <div class="catalog-main">
+    <h1 class="page-title">Add a connection</h1>
+    <p class="prose field-help">Bring in accounts and signals from a file, a web address, a database or a product you already use.</p>
+
+    <div class="toolbar">
+      <div class="search">
+        <label class="search-label" for="q">Search connections</label>
+        <div class="search-field">
+          <svg class="icon search-icon" aria-hidden="true" focusable="false"><use href="/static/icons.svg#search"/></svg>
+          <input type="search" id="q" name="q" value="{{ q }}" autocomplete="off" placeholder="Search connections…">
+        </div>
+      </div>
+      <button type="submit" class="button no-js-only">Show connections</button>
+    </div>
+
+    <div class="result-line">
+      <p id="result-count" class="result-count" aria-live="polite">{{ count_text }}</p>
+    </div>
+    {% include "connections/partials/add_results.html" %}
+  </div>
+</form>
+{% endblock %}

@@ -12,6 +12,7 @@ import time
 from collections.abc import AsyncIterator, Awaitable, Callable, Mapping
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
+from dataclasses import field as dataclass_field
 from datetime import UTC, date, datetime, timedelta
 from enum import StrEnum
 from pathlib import Path
@@ -50,6 +51,19 @@ from cs_brief.core.connectors.hubspot import (
     load_mapping,
 )
 from cs_brief.core.connectors.local import ManualConnector, SpreadsheetConnector
+from cs_brief.core.feeds import catalog as feed_catalog
+from cs_brief.core.feeds import setup as feed_setup
+from cs_brief.core.feeds.http import FeedError
+from cs_brief.core.feeds.models import (
+    Category,
+    FeedRole,
+    FieldKind,
+    MatchBy,
+    ProviderInfo,
+    Schedule,
+    UnmatchedRow,
+)
+from cs_brief.core.feeds.setup import FeedDraft
 from cs_brief.core.import_flow import Draft
 from cs_brief.core.importing import DateOrder
 from cs_brief.core.models import Account, Health, Motion, ScoredAccount, SignalKind
@@ -72,7 +86,7 @@ from cs_brief.core.store import (
     Notice,
     connection_for,
 )
-from cs_brief.web import formatting
+from cs_brief.web import feed_pages, formatting
 from cs_brief.web.scoring_form import (
     FIELD_NAMES,
     UNIT_HINTS,
@@ -379,9 +393,25 @@ def _render(
     return templates.TemplateResponse(request, template, values, status_code=status_code)
 
 
-def _missing(request: Request, page: str, message: str) -> HTMLResponse:
-    """The plain 404 page, in the layout, with the message."""
-    return _render(request, "not_found.html", page=page, status_code=404, message=message)
+def _missing(
+    request: Request,
+    page: str,
+    message: str,
+    *,
+    back_href: str = "",
+    back_label: str = "",
+) -> HTMLResponse:
+    """The plain 404 page, in the layout, with the message. The way back is My book unless a
+    page names another."""
+    return _render(
+        request,
+        "not_found.html",
+        page=page,
+        status_code=404,
+        message=message,
+        back_href=back_href,
+        back_label=back_label,
+    )
 
 
 def _text_field(value: object) -> str:
@@ -605,6 +635,15 @@ class _ConnectionLine:
     status: str  # the plain sentence the row shows, or the connector's message when it failed
     problem: str  # the connector's message when the connection can't load, else ""
     accounts: int | None  # None when the count isn't known right now
+    # A feed's row only: what it brings in, how often it syncs, why its last sync failed (plain
+    # text, never a key), its provider for "Change settings", and the rows that matched no account.
+    source: str = ""
+    schedule: str = ""
+    error: str = ""
+    provider_id: str = ""
+    is_signals: bool = False
+    unmatched: list[UnmatchedRow] = dataclass_field(default_factory=list)
+    unmatched_total: int = 0
 
 
 def _hubspot_line(
@@ -633,11 +672,48 @@ def _fetched_clock(loaded_at: float | None) -> str:
     return f"{datetime.now() - timedelta(seconds=time.monotonic() - loaded_at):%H:%M}"
 
 
+def _feed_line(config: ConnectionConfig, store: LocalStore, now: datetime) -> _ConnectionLine:
+    """A feed's row. An ACCOUNTS feed counts its own accounts, as a spreadsheet does. A SIGNALS
+    feed owns none, so its row says how many accounts its readings reach, and its unmatched rows
+    are listed under it."""
+    feed = config.feed
+    if feed is None:
+        return _ConnectionLine(config, "Not set up yet.", "", None)
+    status = feed.status
+    synced = feed_pages.synced_text(status.last_synced_at, now)
+    signals_feed = feed.role is FeedRole.SIGNALS
+    if signals_feed:
+        count = None
+        summary = f"Adds readings to {_accounts(status.accounts)}."
+        unmatched = list(status.unmatched)
+        unmatched_total = status.skipped_rows
+    else:
+        snapshot = store.snapshot(config.id)
+        count = 0 if snapshot is None else len(snapshot.accounts)
+        summary = f"{_accounts(count)}."
+        unmatched = []
+        unmatched_total = 0
+    return _ConnectionLine(
+        config=config,
+        status=f"{summary} {synced}.",
+        problem="",
+        accounts=count,
+        source=feed_pages.feed_source(feed),
+        schedule=feed.schedule.label,
+        error=status.last_error or "",
+        provider_id=feed.provider,
+        is_signals=signals_feed,
+        unmatched=unmatched,
+        unmatched_total=unmatched_total,
+    )
+
+
 def _connection_lines(
     store: LocalStore, combined: CombinedConnector | None
 ) -> list[_ConnectionLine]:
     """One line per connection, in the order the store keeps them."""
     today = date.today()
+    now = datetime.now(UTC).replace(tzinfo=None)
     book_ids = [account.id for account in combined.list_accounts()] if combined else []
     lines: list[_ConnectionLine] = []
     for config in store.connections():
@@ -653,6 +729,8 @@ def _connection_lines(
                 source = config.last_file_name or config.name
                 status = f"{_accounts(count)}. Imported {day} from {source}."
             line = _ConnectionLine(config, status, "", count)
+        elif config.kind is ConnectionKind.FEED:
+            line = _feed_line(config, store, now)
         else:
             count = len(store.manual().accounts)
             line = _ConnectionLine(config, f"{_accounts(count)}.", "", count)
@@ -680,6 +758,10 @@ def _hidden_accounts(store: LocalStore) -> list[tuple[str, str]]:
                 member = service.hubspot_connector()
             elif config.kind is ConnectionKind.SPREADSHEET:
                 member = SpreadsheetConnector(store, config.id)
+            elif config.kind is ConnectionKind.FEED:
+                # An ACCOUNTS feed's accounts are its own snapshot. A SIGNALS feed owns none.
+                owns_accounts = config.feed is not None and config.feed.role is FeedRole.ACCOUNTS
+                member = SpreadsheetConnector(store, config.id) if owns_accounts else None
             else:
                 member = ManualConnector(store)
             accounts = [] if member is None else member.list_accounts()
@@ -688,6 +770,149 @@ def _hidden_accounts(store: LocalStore) -> list[tuple[str, str]]:
         for account in accounts:
             names.setdefault(account.id, account.name)
     return [(account_id, names.get(account_id, account_id)) for account_id in hidden]
+
+
+# Data feeds: the Add a connection catalog, setup, matching and the feed rows. Feeds belong to Your
+# data, so each page explains that in demo mode instead of offering a form.
+
+_FEEDS_DEMO = (
+    "Connections belong to Your data, and demo data is showing. "
+    "Switch to Your data on Connections, then add one here."
+)
+_NO_PROVIDER = "That kind of connection isn't in the catalog."
+_NO_SETUP = (
+    "That connection set-up has expired or was already saved. Start again from Add a connection."
+)
+_NOTHING_SAVED = "Nothing was saved. Fix the marked field, then test again."
+
+
+def _feeds_demo() -> bool:
+    """True while demo data is showing. Feeds belong to Your data."""
+    return load_settings().source is DataSource.DEMO
+
+
+def _feeds_demo_page(request: Request, page: str, status_code: int = 200) -> HTMLResponse:
+    """The explanation a feed page gives in demo mode, with the way to switch."""
+    return _render(
+        request,
+        "not_found.html",
+        page=page,
+        status_code=status_code,
+        message=_FEEDS_DEMO,
+        back_href="/settings/connections",
+        back_label="Go to Connections",
+    )
+
+
+def _missing_setup(request: Request) -> HTMLResponse:
+    """An unknown or expired set-up: the plain page, with the way back to the catalog."""
+    return _missing(
+        request,
+        "Set-up not found",
+        _NO_SETUP,
+        back_href="/connections/add",
+        back_label="Back to Add a connection",
+    )
+
+
+def _choice(kind: type[_E], text: str, default: _E) -> _E | None:
+    """The member a posted choice names; the default when it is blank; None when it names none."""
+    if not text:
+        return default
+    try:
+        return kind(text)
+    except ValueError:
+        return None
+
+
+def _feed_notice(connection_id: str, *, added: bool) -> str:
+    """Connections' notice after a feed is saved (added) or synced, from its status."""
+    config = service.get_store().get_connection(connection_id)
+    if config is None or config.kind is not ConnectionKind.FEED:
+        return ""
+    return feed_pages.added_notice(config) if added else feed_pages.synced_notice(config)
+
+
+def _render_setup(
+    request: Request,
+    info: ProviderInfo,
+    form: feed_pages.SetupForm,
+    *,
+    errors: Mapping[str, str],
+    top_error: str = "",
+    status_code: int = 200,
+) -> HTMLResponse:
+    """The setup card for one provider. Values come from `form`; the key is never in it."""
+    heading = f"Change settings for {form.name}" if form.connection else f"Connect {info.name}"
+    return _render(
+        request,
+        "connections/setup.html",
+        page=heading,
+        active="settings",
+        info=info,
+        heading=heading,
+        name=form.name,
+        connection=form.connection,
+        role_choices=feed_pages.role_options(info, form.role),
+        fields=feed_pages.setup_fields(info, form, errors, editing=bool(form.connection)),
+        schedule_choices=feed_pages.schedule_options(info, form.schedule),
+        match_choices=feed_pages.match_options(form.match_by),
+        errors=dict(errors),
+        top_error=top_error,
+        status_code=status_code,
+    )
+
+
+def _match_view(draft: FeedDraft, mapping: Mapping[str, str], date_text: str) -> dict[str, Any]:
+    """Everything the matching page and its preview show, for one mapping and date order. The
+    preview keeps the mapping on the draft in memory only; the page posts it again each time."""
+    result = feed_setup.preview(
+        draft,
+        dict(mapping),
+        date_text or None,
+        book_accounts=service.feed_book_accounts,
+        now=datetime.now(UTC),
+        today=date.today(),
+    )
+    cleaned = dict(draft.mapping or {})
+    rows = len(draft.table.rows)
+    show_order, date_choice = feed_pages.date_order_view(draft.table, cleaned, date_text)
+    info = feed_catalog.provider_info(draft.provider)
+    return {
+        "draft_id": draft.id,
+        "name": draft.name,
+        "provider_name": info.name if info is not None else draft.provider,
+        "row_count": rows,
+        "example_row": draft.table.row_numbers[0] if draft.table.row_numbers else 2,
+        "headers": draft.table.headers,
+        "rows": feed_pages.match_rows(draft.role, cleaned, draft.table),
+        "happens": feed_pages.happens(draft.role, rows, result),
+        "blocker": result.blocker or "",
+        "show_date_order": show_order,
+        "date_choice": date_choice,
+        "match_label": draft.match_by.label if draft.role is FeedRole.SIGNALS else "",
+    }
+
+
+def _render_match(
+    request: Request,
+    draft: FeedDraft,
+    mapping: Mapping[str, str],
+    date_text: str,
+    *,
+    error: str = "",
+    status_code: int = 200,
+) -> HTMLResponse:
+    """The matching page for a feed draft, with the mapping and date order as posted."""
+    return _render(
+        request,
+        "connections/match.html",
+        page="Match your columns",
+        active="settings",
+        error=error,
+        status_code=status_code,
+        **_match_view(draft, mapping, date_text),
+    )
 
 
 def _render_connections(
@@ -2398,10 +2623,18 @@ def create_app() -> FastAPI:
         removed: str = "",
         refreshed: str = "",
         shown: str = "",
+        feed_added: str = "",
+        synced: str = "",
     ) -> HTMLResponse:
-        """Where the data comes from, the connections, whether HubSpot works, and what it reads."""
+        """Where the data comes from, the connections, whether HubSpot works, and what it reads.
+        After a feed is saved or synced, ?feed_added= or ?synced= names it and the notice says how
+        its first sync or Sync now went."""
         notice = ""
-        if saved == "source":
+        if feed_added:
+            notice = _feed_notice(feed_added, added=True)
+        elif synced:
+            notice = _feed_notice(synced, added=False)
+        elif saved == "source":
             notice = "Data source saved."
         elif saved == "token":
             notice = "Token saved."
@@ -2773,6 +3006,10 @@ def create_app() -> FastAPI:
         )
         count = line.accounts if line is not None else None
         leaving = f"Its {_accounts(count)}" if count is not None else "Its accounts"
+        feed = config.feed
+        if feed is not None and feed.role is FeedRole.SIGNALS:
+            # A SIGNALS feed owns no accounts: its readings leave, the accounts stay.
+            leaving = f"The readings it added to {_accounts(feed.status.accounts)}"
         return _render(
             request,
             "settings/remove.html",
@@ -2782,6 +3019,7 @@ def create_app() -> FastAPI:
             leaving=f"{leaving} and their history",
             is_hubspot=config.kind is ConnectionKind.HUBSPOT,
             is_sheet=config.kind is ConnectionKind.SPREADSHEET,
+            is_feed=config.kind is ConnectionKind.FEED,
         )
 
     @app.post("/settings/connections/{connection_id}/remove")
@@ -2808,5 +3046,245 @@ def create_app() -> FastAPI:
         connector = _combined_or_none() or CombinedConnector([], store)
         editing.set_hidden(store, connector, account_id, False)
         return RedirectResponse("/settings/connections?shown=1", status_code=303)
+
+    # Data feeds: Sync now, then the Add a connection catalog, its setup card and the matching
+    # page. Every id is checked before it is used; every POST goes through the write check above.
+
+    @app.post("/settings/connections/{connection_id}/sync")
+    def sync_connection(request: Request, connection_id: str) -> Response:
+        """Sync one feed now, then back to Connections with what happened. A source that can't be
+        read keeps the last good data and says why."""
+        store = service.get_store()
+        config = store.get_connection(connection_id)
+        if config is None or config.kind is not ConnectionKind.FEED:
+            return _missing(
+                request,
+                "Connection not found",
+                _NO_CONNECTION,
+                back_href="/settings/connections",
+                back_label="Back to Connections",
+            )
+        if _feeds_demo():
+            return _feeds_demo_page(request, "Sync now", status_code=422)
+        service.sync_feed_now(config.id)
+        return RedirectResponse(
+            f"/settings/connections?{urlencode({'synced': config.id})}", status_code=303
+        )
+
+    @app.get("/connections/add")
+    def add_connection_catalog(request: Request, q: str = "") -> Response:
+        """The catalog: the built-in flows, then one card per provider. ?category= (repeatable)
+        and ?q= filter it. An htmx refresh gets only the results, not on a history restore."""
+        if _feeds_demo():
+            return _feeds_demo_page(request, "Add a connection")
+        store = service.get_store()
+        chosen = _chosen(request.query_params.getlist("category"), Category)
+        cards = feed_pages.catalog_cards(store.connections())
+        shown = feed_pages.filter_cards(cards, chosen, q)
+        partial = _is_htmx(request) and "HX-History-Restore-Request" not in request.headers
+        response = _render(
+            request,
+            "connections/partials/add_results.html" if partial else "connections/add.html",
+            page="Add a connection",
+            active="settings",
+            cards=shown,
+            categories=feed_pages.category_options(cards, chosen),
+            filtered=bool(chosen),
+            q=q,
+            count_text=feed_pages.connections_word(len(shown)),
+            oob=partial,
+        )
+        response.headers["Vary"] = "HX-Request, HX-History-Restore-Request"
+        return response
+
+    @app.get("/connections/add/{provider}")
+    def add_connection_setup(request: Request, provider: str, connection: str = "") -> Response:
+        """The setup card for one provider. ?connection= changes a feed's settings: the form starts
+        from what was saved, and its key stays unless a new one is typed."""
+        info = feed_catalog.provider_info(provider)
+        if info is None:
+            return _missing(
+                request,
+                "Add a connection",
+                _NO_PROVIDER,
+                back_href="/connections/add",
+                back_label="Back to Add a connection",
+            )
+        if _feeds_demo():
+            return _feeds_demo_page(request, info.name)
+        existing = None
+        if connection:
+            existing = service.get_store().get_connection(connection)
+            if (
+                existing is None
+                or existing.kind is not ConnectionKind.FEED
+                or existing.feed is None
+                or existing.feed.provider != info.id
+            ):
+                return _missing(
+                    request,
+                    "Connection not found",
+                    _NO_CONNECTION,
+                    back_href="/settings/connections",
+                    back_label="Back to Connections",
+                )
+        form = feed_pages.initial_setup(info, existing)
+        return _render_setup(request, info, form, errors={})
+
+    @app.post("/connections/add/{provider}")
+    async def add_connection_start(request: Request, provider: str) -> Response:
+        """Test the source with the values given. When it works, a draft is kept and the matching
+        page opens (303). A refusal re-renders the card (422) with the message by its field, or at
+        the top; every value comes back except the key. The key is only sent to the address it was
+        saved for (setup.start_draft decides)."""
+        info = feed_catalog.provider_info(provider)
+        if info is None:
+            return _missing(
+                request,
+                "Add a connection",
+                _NO_PROVIDER,
+                back_href="/connections/add",
+                back_label="Back to Add a connection",
+            )
+        if _feeds_demo():
+            return _feeds_demo_page(request, info.name, status_code=422)
+        fields = await _posted_fields(request)
+        form = feed_pages.SetupForm(
+            name=fields.get("name", ""),
+            role=fields.get("role", ""),
+            schedule=fields.get("schedule", ""),
+            match_by=fields.get("match_by", ""),
+            values={
+                item.key: fields.get(item.key, "")
+                for item in info.fields
+                if item.kind is not FieldKind.SECRET
+            },
+            connection=fields.get("connection", ""),
+        )
+        errors: dict[str, str] = {}
+        role = _choice(FeedRole, form.role, info.roles[0])
+        if role is None:
+            errors["role"] = "Pick one of the choices shown."
+        schedule = _choice(Schedule, form.schedule, info.schedules[0])
+        if schedule is None:
+            errors["schedule"] = "Pick one of the sync schedules offered."
+        match_by = _choice(MatchBy, form.match_by, MatchBy.AUTO)
+        if match_by is None:
+            errors["match_by"] = "Pick one of the matching choices."
+        top_error = _NOTHING_SAVED if errors else ""
+        if not errors:
+            secret_name = feed_pages.secret_key(info)
+            secret = fields.get(secret_name, "") if secret_name else ""
+            try:
+                draft = feed_setup.start_draft(
+                    service.get_store(),
+                    info.id,
+                    name=form.name,
+                    role=role,
+                    values=dict(form.values),
+                    secret=secret or None,
+                    schedule=schedule,
+                    match_by=match_by,
+                    connection_id=form.connection or None,
+                    now=datetime.now(UTC),
+                )
+            except ValueError as error:
+                message = str(error)
+                key = feed_pages.field_for_error(info, message)
+                if key:
+                    errors[key] = message
+                    top_error = _NOTHING_SAVED
+                else:
+                    top_error = message
+            except FeedError as error:
+                top_error = error.message
+            else:
+                return RedirectResponse(f"/connections/feeds/{draft.id}/match", status_code=303)
+        return _render_setup(
+            request, info, form, errors=errors, top_error=top_error, status_code=422
+        )
+
+    @app.get("/connections/feeds/{draft_id}/match")
+    def feed_match(request: Request, draft_id: str) -> Response:
+        """The matching page for a feed being set up, with the columns found and pre-matched."""
+        if _feeds_demo():
+            return _feeds_demo_page(request, "Match your columns")
+        store = service.get_store()
+        draft = feed_setup.load_draft(store, draft_id, now=datetime.now(UTC))
+        if draft is None:
+            return _missing_setup(request)
+        return _render_match(
+            request, draft, feed_setup.suggested_mapping(draft), draft.date_order or ""
+        )
+
+    @app.post("/connections/feeds/{draft_id}/match")
+    async def feed_match_update(request: Request, draft_id: str) -> Response:
+        """The matching page without JavaScript: show it again with the choices as posted."""
+        if _feeds_demo():
+            return _feeds_demo_page(request, "Match your columns", status_code=422)
+        draft = feed_setup.load_draft(service.get_store(), draft_id, now=datetime.now(UTC))
+        if draft is None:
+            return _missing_setup(request)
+        fields = await _posted_fields(request)
+        return _render_match(
+            request, draft, _submitted_mapping(fields), fields.get("date_order", "")
+        )
+
+    @app.post("/connections/feeds/{draft_id}/preview")
+    async def feed_match_preview(request: Request, draft_id: str) -> Response:
+        """The htmx partial: the examples and "What will happen", for the mapping as posted."""
+        if _feeds_demo():
+            return _feeds_demo_page(request, "Match your columns", status_code=422)
+        draft = feed_setup.load_draft(service.get_store(), draft_id, now=datetime.now(UTC))
+        if draft is None:
+            return _missing_setup(request)
+        fields = await _posted_fields(request)
+        view = _match_view(draft, _submitted_mapping(fields), fields.get("date_order", ""))
+        return templates.TemplateResponse(
+            request,
+            "connections/partials/match_preview.html",
+            {"oob": True, **view},
+        )
+
+    @app.post("/connections/feeds/{draft_id}/commit")
+    async def feed_match_commit(request: Request, draft_id: str) -> Response:
+        """Save the feed from its draft, and run its first sync. A refusal re-renders the page
+        with the reason (422). Success goes to Connections, which says how the first sync went."""
+        if _feeds_demo():
+            return _feeds_demo_page(request, "Match your columns", status_code=422)
+        store = service.get_store()
+        draft = feed_setup.load_draft(store, draft_id, now=datetime.now(UTC))
+        if draft is None:
+            return _missing_setup(request)
+        fields = await _posted_fields(request)
+        mapping = _submitted_mapping(fields)
+        date_text = fields.get("date_order", "")
+        try:
+            config = feed_setup.commit_draft(
+                store,
+                draft,
+                mapping,
+                date_text or None,
+                book_accounts=service.feed_book_accounts,
+                now=datetime.now(UTC),
+                today=date.today(),
+            )
+        except ValueError as error:
+            return _render_match(
+                request, draft, mapping, date_text, error=str(error), status_code=422
+            )
+        service.reset_connectors()
+        return RedirectResponse(
+            f"/settings/connections?{urlencode({'feed_added': config.id})}", status_code=303
+        )
+
+    @app.post("/connections/feeds/{draft_id}/cancel")
+    def feed_match_cancel(request: Request, draft_id: str) -> Response:
+        """Delete the set-up and its saved key, and go back to the catalog."""
+        store = service.get_store()
+        if feed_setup.load_draft(store, draft_id, now=datetime.now(UTC)) is None:
+            return _missing_setup(request)
+        feed_setup.cancel_draft(store, draft_id)
+        return RedirectResponse("/connections/add", status_code=303)
 
     return app

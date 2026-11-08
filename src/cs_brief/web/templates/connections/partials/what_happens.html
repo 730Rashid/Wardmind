@@ -1,0 +1,22 @@
+<section id="what-happens" class="what-happens" aria-labelledby="happens-title"{% if oob %} hx-swap-oob="true"{% endif %}>
+  <h2 class="section-title" id="happens-title">What will happen</h2>
+  {% if happens.headline %}<p class="happens-count">{{ happens.headline }}</p>{% endif %}
+  {% if happens.skipped %}<p class="field-help">{{ happens.skipped }}</p>{% endif %}
+
+  {% if happens.unmatched_heading %}
+  <p>{{ happens.unmatched_heading }}</p>
+  <ul class="issue-list">
+    {% for row, key, reason in happens.unmatched %}
+    <li>Row {{ row }}{% if key %} ({{ key }}){% endif %}: {{ reason }}</li>
+    {% endfor %}
+  </ul>
+  {% endif %}
+
+  {% if happens.issues %}
+  <ul class="issue-list">
+    {% for row, message in happens.issues %}
+    <li>Row {{ row }}: {{ message }}</li>
+    {% endfor %}
+  </ul>
+  {% endif %}
+</section>

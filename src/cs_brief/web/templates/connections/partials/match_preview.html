@@ -1,0 +1,5 @@
+{# The htmx answer to a change on the matching page: the examples and the preview, swapped in place. #}
+{% for row in rows %}<td class="cell-example" id="example-{{ row.index }}" hx-swap-oob="true">{{ row.example }}</td>
+{% endfor %}
+{% include "connections/partials/what_happens.html" %}
+{% include "connections/partials/action.html" %}

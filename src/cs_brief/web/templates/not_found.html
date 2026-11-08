@@ -3,6 +3,10 @@
 <div class="stack">
   <h1 class="page-title">{{ page }}</h1>
   <p class="prose">{{ message }}</p>
+  {% if back_href %}
+  <p><a href="{{ back_href }}">{{ back_label }}</a></p>
+  {% else %}
   <p><a href="/">Back to My book</a></p>
+  {% endif %}
 </div>
 {% endblock %}

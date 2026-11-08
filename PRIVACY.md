@@ -13,6 +13,7 @@ Only these, and only when you set them up:
 | A HubSpot connection | `api.hubapi.com` | Read-only API calls with your access token, to read companies and tickets. Nothing is ever written to HubSpot. |
 | Web research, **off by default** | The customer's own website, and nowhere else | An ordinary visit to that website, when you press **Look up their website** on its account page or **Look up all websites**. Nothing about the account is sent. |
 | AI summaries, **off by default**, with your own OpenRouter key | `openrouter.ai`, and the company running the model you chose | Only the text web research read from the customer's public website. Nothing from your book. |
+| Data feeds you add (**Settings > Connections > Add a connection**) | Only the address or product you set up: your own file or SQLite database (nothing leaves), a link or API you typed, Google Sheets, Stripe, Chargebee, Zendesk, Freshdesk, PostHog or Airtable | Read requests with the key you gave that feed, on the schedule you chose. Nothing from your book is sent, and nothing is ever written to the source. |
 | Claude, if you add the MCP server | Anthropic, as part of your Claude conversation | Whatever the tools return when Claude calls them: account names, ARR, owners, signals and briefs. This is covered by your own Claude account's terms. |
 
 Spreadsheets you import and accounts you add by hand never leave your computer.
@@ -69,6 +70,29 @@ OpenRouter API key. cs-brief has no AI account or key of its own.
   instructions, and it has no tools. Its answer must match a fixed format, and it is shown as
   plain text labelled as written by AI.
 
+## Data feeds in detail
+
+A data feed keeps accounts or signals up to date from a source you choose. Nothing is set up
+until you add one.
+
+- **What is sent.** Read requests only (GET, plus PostHog's read-only query), to the address or
+  product you set up, with that feed's key. Nothing from your book is sent.
+- **Your key goes only where you sent it.** Keys travel in request headers, never in a web
+  address, and are never shown again after you save them. If a server redirects to another
+  site, or a next-page link points at one, the key is not sent there. Change a feed's address
+  and you must type its key again.
+- **Addresses.** `https` only. Plain `http` is allowed only for `localhost`, for a test server
+  of your own. A feed may point at your company's private network on purpose (an internal
+  export link), because you typed that address yourself.
+- **Files and databases** are read where they are. A SQLite database is opened read-only, and
+  only `SELECT` queries can run.
+- **When.** On the schedule you picked for that feed (from every 15 minutes to once a day, when
+  a file changes, or only when you press **Sync now**), while the dashboard is running.
+- **Limits.** A response over 25 MB or a source with more than 50,000 rows is refused rather
+  than cut short. Freshdesk's search returns at most 300 urgent tickets and Zendesk's at most
+  1,000, so a very large ticket count can read low.
+- **Removing a feed** deletes its saved readings and its key.
+
 ## What is stored, and where
 
 | What | Where |
@@ -80,6 +104,9 @@ OpenRouter API key. cs-brief has no AI account or key of its own.
 | Imports you started but didn't finish | `%LOCALAPPDATA%\cs-brief\data\drafts`, deleted after 24 hours or by **Clear local cache** |
 | Web research results | `%LOCALAPPDATA%\cs-brief\data\research`, kept for 24 hours |
 | AI summaries | `%LOCALAPPDATA%\cs-brief\data\summaries` |
+| Data feed keys | `%LOCALAPPDATA%\cs-brief\feeds`, one file per feed. Only the last 4 characters are ever shown. |
+| Data feeds' latest data | `%LOCALAPPDATA%\cs-brief\data\sheets\feed-<n>.json` |
+| Feed setups you started but didn't finish | `%LOCALAPPDATA%\cs-brief\data\feed-drafts`, deleted after 24 hours |
 | OpenRouter API key | `%LOCALAPPDATA%\cs-brief\openrouter-key`, or the `CS_BRIEF_OPENROUTER_KEY` environment variable. Only its last 4 characters are ever shown. |
 
 On macOS and Linux, `%LOCALAPPDATA%\cs-brief` is `~/.local/state/cs-brief` (or

@@ -66,6 +66,27 @@ The server exposes six tools:
 | `onboarding_brief` | a prep brief for an onboarding call: plan status, agenda, questions |
 | `research_account` | what the customer's own website says: title, description, recent news (only when web research is on) |
 
+## Data feeds: keep your data up to date by itself
+
+**Settings > Connections > Add a connection** opens a catalog of sources. Each one either adds
+accounts (an automatic spreadsheet import) or adds signals to accounts you already have,
+matched by ID, website or name:
+
+| Source | What it brings in |
+|---|---|
+| File on this computer, Link to a file, Google Sheets | Any CSV, TSV, Excel or JSON export, re-read when it changes or on a schedule |
+| Any JSON API | Records from an API, following its next-page links |
+| SQLite database | The result of your own read-only `SELECT` query |
+| Stripe, Chargebee | Days each customer's oldest unpaid invoice is overdue |
+| Zendesk, Freshdesk | Open urgent tickets per customer |
+| PostHog | Usage trend and days since last login per company, or your own HogQL query |
+| Airtable | Any table, as accounts or as signals |
+
+You match the source's columns once, see what will happen before saving, and then the feed syncs
+on its schedule. Settings > Connections shows when each feed last synced, any problem, and rows
+that didn't match an account. Feeds only read, and each feed's key is sent only to its own
+source ([PRIVACY.md](PRIVACY.md#data-feeds-in-detail)).
+
 ## Web research (optional, off by default)
 
 Turn it on in **Settings > Data & privacy**. Each account page then gets a **Look up their

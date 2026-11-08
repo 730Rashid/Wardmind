@@ -3018,6 +3018,35 @@ label.button:focus-within {
   color: var(--tag-violet-ink);
 }
 
+/* The catalog's categories: what a connection brings in. Files and links keep the slate of a
+   plain pill. Each carries its icon and word, so no meaning rests on the hue. */
+.pill--accounts {
+  background: var(--tag-blue-bg);
+  color: var(--tag-blue-ink);
+}
+
+.pill--usage {
+  background: var(--tag-violet-bg);
+  color: var(--tag-violet-ink);
+}
+
+.pill--tickets {
+  background: var(--tag-orange-bg);
+  color: var(--tag-orange-ink);
+}
+
+.pill--billing {
+  background: var(--tag-green-bg);
+  color: var(--tag-green-ink);
+}
+
+/* A card whose connection exists says so with a check and the word Connected. */
+.pill--connected {
+  background: var(--tag-green-bg);
+  color: var(--tag-green-ink);
+  font-weight: 600;
+}
+
 /* Health is a badge everywhere it appears: the same three hues as the brief's ARR bar. */
 .health {
   padding: 0.125rem 0.5rem;
@@ -3260,8 +3289,10 @@ label.button:focus-within {
   margin-block-end: var(--space-4);
 }
 
-/* The rank sits where a logo would: the book is an ordered list, so the number is the identity. */
-.rank-tile {
+/* The rank sits where a logo would: the book is an ordered list, so the number is the identity.
+   A provider's mark (1-2 letters) sits in the same tile. */
+.rank-tile,
+.mark-tile {
   display: inline-grid;
   place-items: center;
   min-inline-size: 2.5rem;
@@ -3379,6 +3410,94 @@ label.button:focus-within {
   background: var(--surface);
   border: 1px solid var(--line);
   border-radius: var(--radius-card);
+}
+
+/* Data feeds. The catalog's cards reuse the account card; these rules add the setup card, the
+   matching page's note and the feed rows on Connections. */
+a.button-primary {
+  display: inline-block;
+  text-decoration: none;
+}
+
+/* The setup card: its fields stack in one column; a choice group sits in its own fieldset. */
+/* Centred in the wide column, so a single form doesn't leave the whole right side empty. */
+.connection-setup {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+  max-inline-size: 42rem;
+  margin-inline: auto;
+}
+
+.connection-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+  margin: 0;
+}
+
+.connection-form fieldset {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  min-inline-size: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.connection-form legend {
+  padding: 0;
+  margin-block-end: var(--space-1);
+  font-size: var(--t-md);
+  line-height: var(--lh-md);
+  font-weight: 600;
+}
+
+.connection-field input:not([type="radio"]):not([type="checkbox"]),
+.connection-field select {
+  inline-size: 100%;
+  max-inline-size: 28rem;
+  padding-block: var(--space-2);
+  padding-inline: var(--space-3);
+}
+
+.connection-field textarea {
+  inline-size: 100%;
+  max-inline-size: 36rem;
+  min-block-size: 7rem;
+  padding: var(--space-2) var(--space-3);
+  color: var(--ink);
+  background: var(--surface);
+  border: 1px solid var(--control);
+  border-radius: var(--radius-control);
+  font: inherit;
+  resize: vertical;
+}
+
+/* An invalid field gets a heavier ink border; the message beside it says what to change. */
+.connection-field [aria-invalid="true"] {
+  border: 2px solid var(--ink);
+}
+
+/* Feed rows on Connections: what the feed brings in, under its name. */
+.connection-source {
+  display: block;
+  font-size: var(--t-sm);
+  line-height: var(--lh-sm);
+  font-weight: 400;
+  color: var(--ink-muted);
+}
+
+/* The rows that matched no account are listed behind a disclosure, so the row stays short. */
+.unmatched > summary {
+  cursor: pointer;
+  font-size: var(--t-sm);
+  line-height: var(--lh-sm);
+}
+
+.unmatched .issue-list {
+  margin-block-start: var(--space-2);
 }
 
 /* Settings: the section list becomes a sidebar list like the book's filters. */

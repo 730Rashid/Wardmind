@@ -1,0 +1,24 @@
+{# One setup input. Its label sits above it; help and an error are linked to it with aria-describedby,
+   and an error also sets aria-invalid. A secret is an empty password box: its value is never
+   printed, and autocomplete is off. #}
+{% macro setup_field(f) -%}
+{% set described = [f.dom ~ '-help' if f.help else '', f.dom ~ '-error' if f.error else ''] | select | join(' ') %}
+<div class="field connection-field">
+  <label for="{{ f.dom }}">{{ f.label }}{% if f.required %} <span class="required-word">Required</span>{% endif %}</label>
+  {% if f.kind == 'choice' %}
+  <select id="{{ f.dom }}" name="{{ f.key }}"{% if f.error %} aria-invalid="true"{% endif %}{% if described %} aria-describedby="{{ described }}"{% endif %}>
+    {% for value, label, selected in f.choices %}
+    <option value="{{ value }}"{% if selected %} selected{% endif %}>{{ label }}</option>
+    {% endfor %}
+  </select>
+  {% elif f.kind == 'query' %}
+  <textarea id="{{ f.dom }}" name="{{ f.key }}" rows="5" spellcheck="false" autocomplete="off"{% if f.required %} aria-required="true"{% endif %}{% if f.error %} aria-invalid="true"{% endif %}{% if described %} aria-describedby="{{ described }}"{% endif %}{% if f.placeholder %} placeholder="{{ f.placeholder }}"{% endif %}>{{ f.value }}</textarea>
+  {% elif f.kind == 'secret' %}
+  <input type="password" id="{{ f.dom }}" name="{{ f.key }}" autocomplete="off" spellcheck="false"{% if f.required %} aria-required="true"{% endif %}{% if f.error %} aria-invalid="true"{% endif %}{% if described %} aria-describedby="{{ described }}"{% endif %}{% if f.placeholder %} placeholder="{{ f.placeholder }}"{% endif %}>
+  {% else %}
+  <input type="text" id="{{ f.dom }}" name="{{ f.key }}" value="{{ f.value }}" autocomplete="off" spellcheck="false"{% if f.kind == 'url' %} inputmode="url"{% endif %}{% if f.required %} aria-required="true"{% endif %}{% if f.error %} aria-invalid="true"{% endif %}{% if described %} aria-describedby="{{ described }}"{% endif %}{% if f.placeholder %} placeholder="{{ f.placeholder }}"{% endif %}>
+  {% endif %}
+  {% if f.help %}<p class="field-help" id="{{ f.dom }}-help">{{ f.help }}</p>{% endif %}
+  {% if f.error %}<p class="field-error" id="{{ f.dom }}-error">{{ f.error }}</p>{% endif %}
+</div>
+{%- endmacro %}
