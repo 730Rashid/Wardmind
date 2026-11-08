@@ -14,8 +14,9 @@ import httpx
 import pytest
 from fastapi.testclient import TestClient
 
+from cs_brief.core import client_updates, contacts, importing, service
 from cs_brief.core import secrets as vault
-from cs_brief.core import service
+from cs_brief.core.contacts import ContactInput, ContactSource
 from cs_brief.core.feeds import http as feed_http
 from cs_brief.core.feeds import sync as feed_sync
 from cs_brief.core.feeds.models import FeedRole, FeedSettings, FeedStatus, Schedule
@@ -401,3 +402,125 @@ def test_clear_local_cache_leaves_feed_keys_and_drafts_alone(store: LocalStore) 
 
     assert vault.get_secret("feed-1") == SECRET
     assert (drafts / "0123456789abcdef.json").exists()
+
+
+# Contacts and client updates ---------------------------------------------------------------------
+
+UPDATE_HEADER = (
+    "Timestamp,Client code,What changed?,Contact's name,Job title,Email,"
+    "Is this our main contact?,Anything else?,Your name"
+)
+UPDATE_MAPPING = {
+    "code": "Client code",
+    "kind": "What changed?",
+    "name": "Contact's name",
+    "title": "Job title",
+    "email": "Email",
+    "champion": "Is this our main contact?",
+    "note": "Anything else?",
+    "submitted_by": "Your name",
+    "submitted_at": "Timestamp",
+}
+
+
+def opt_in_with_one_update(store: LocalStore, account_id: str) -> str:
+    """Opt the account in and read one pending update for it. Returns the account's code."""
+    code = client_updates.opt_in(
+        store, account_id, agreed_with="Dana", agreed_on=date(2026, 11, 1), now=NOW
+    ).code
+    row = f"11/8/2026 9:00:00,{code},New contact,Priya Shah,VP Ops,a@b.co,Yes,Hi,Dana"
+    text = f"{UPDATE_HEADER}\n{row}\n"
+    client_updates.ingest(
+        store,
+        importing.read_csv(text.encode("utf-8"), "form.csv"),
+        UPDATE_MAPPING,
+        connection_id="feed-9",
+        book_ids={account_id},
+        date_order=importing.DateOrder.DMY,
+        now=NOW,
+    )
+    return code
+
+
+def add_contact_for(store: LocalStore, account_id: str, name: str) -> None:
+    contacts.add_contact(
+        store, account_id, ContactInput(name=name), source=ContactSource.YOU, now=NOW
+    )
+
+
+def test_removing_a_sheet_forgets_its_accounts_contacts_consent_and_updates(
+    store: LocalStore,
+) -> None:
+    sheet_id = add_sheet(store)
+    add_contact_for(store, "sp1-acme", "Dana")
+    opt_in_with_one_update(store, "sp1-acme")
+    add_contact_for(store, "m-keep", "Sam")
+    opt_in_with_one_update(store, "m-keep")
+
+    service.remove_connection(sheet_id)
+
+    assert contacts.contacts_for(store, "sp1-acme") == []
+    data = client_updates.load(store)
+    assert set(data.consents) == {"m-keep"}
+    assert [u.account_id for u in data.updates] == ["m-keep"]
+    assert [c.name for c in contacts.contacts_for(store, "m-keep")] == ["Sam"]
+
+
+def test_removing_a_feed_forgets_its_accounts_contacts_consent_and_updates(
+    store: LocalStore,
+) -> None:
+    feed_id = add_feed(store)
+    add_contact_for(store, "fd1-acme", "Dana")
+    opt_in_with_one_update(store, "fd1-acme")
+    add_contact_for(store, "m-keep", "Sam")
+
+    service.remove_connection(feed_id)
+
+    assert contacts.contacts_for(store, "fd1-acme") == []
+    assert "fd1-acme" not in client_updates.load(store).consents
+    assert client_updates.load(store).updates == []
+    assert [c.name for c in contacts.contacts_for(store, "m-keep")] == ["Sam"]
+
+
+def test_contacts_and_pending_updates_follow_the_data_source(
+    store: LocalStore, your_data: None
+) -> None:
+    add_sheet(store)
+    add_contact_for(store, "sp1-acme", "Dana")
+    opt_in_with_one_update(store, "sp1-acme")
+
+    assert "sp1-acme" in service.your_book_accounts()
+    assert [c.name for c in service.account_contacts("sp1-acme")] == ["Dana"]
+    assert service.pending_client_update_count() == 1
+    assert [r.update.account_id for r in service.pending_client_updates()] == ["sp1-acme"]
+
+    save_settings(load_settings().model_copy(update={"source": DataSource.DEMO}))
+
+    assert service.your_book_accounts() == {}
+    assert service.pending_client_updates() == []
+    assert service.pending_client_update_count() == 0
+    assert service.account_contacts("sp1-acme") == []
+    demo = service.account_contacts("acc-001")
+    assert demo and all(c.email.endswith("@example.com") for c in demo)
+
+
+def test_sync_now_reads_a_client_updates_feed_for_the_whole_book(
+    store: LocalStore, served: Served, your_data: None
+) -> None:
+    add_sheet(store)
+    feed_id = add_feed(store, role=FeedRole.CLIENT_UPDATES)
+    config = store.get_connection(feed_id)
+    assert config is not None
+    store.update_connection(config.model_copy(update={"mapping": UPDATE_MAPPING}))
+    code = client_updates.opt_in(
+        store, "sp1-acme", agreed_with="Dana", agreed_on=date(2026, 11, 1), now=NOW
+    ).code
+    served.body = (
+        f"{UPDATE_HEADER}\n11/8/2026 9:00:00,{code},New contact,Priya Shah,VP,a@b.co,Yes,Hi,Dana\n"
+    )
+
+    outcome = service.sync_feed_now(feed_id)
+
+    assert outcome.status.last_error is None
+    assert outcome.status.accounts == 1
+    assert [u.account_id for u in client_updates.load(store).updates] == ["sp1-acme"]

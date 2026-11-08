@@ -13,6 +13,7 @@ from pathlib import Path
 import httpx
 import pytest
 
+from cs_brief.core import client_updates
 from cs_brief.core import secrets as vault
 from cs_brief.core.feeds import http as feed_http
 from cs_brief.core.feeds import setup
@@ -629,3 +630,107 @@ def test_a_signals_preview_refuses_a_source_with_no_rows(store: LocalStore, serv
     mapping = {"name": "Company", "signal:usage_trend_30d": "Usage trend"}
     result = setup.preview(draft, mapping, None, book_accounts=no_book, now=NOW, today=TODAY)
     assert result.blocker == "The source sent no rows."
+
+
+# CLIENT_UPDATES --------------------------------------------------------------------------------
+
+UPDATES_HEADER = (
+    "Timestamp,Client code,What changed?,Contact's name,Job title,Email,"
+    "Is this our main contact?,Anything else?,Your name"
+)
+
+
+def update_row(code: str, name: str = "Priya Shah") -> str:
+    return f"11/8/2026 9:00:00,{code},New contact,{name},VP Ops,priya@acme.com,Yes,Hi,Dana"
+
+
+def test_a_client_updates_draft_suggests_the_form_questions(
+    store: LocalStore, served: Served
+) -> None:
+    served.body = UPDATES_HEADER + "\n" + update_row("ABCDEFGH") + "\n"
+    draft = start(store, role=FeedRole.CLIENT_UPDATES)
+
+    assert setup.suggested_mapping(draft) == {
+        "code": "Client code",
+        "kind": "What changed?",
+        "name": "Contact's name",
+        "title": "Job title",
+        "email": "Email",
+        "champion": "Is this our main contact?",
+        "note": "Anything else?",
+        "submitted_by": "Your name",
+        "submitted_at": "Timestamp",
+    }
+
+
+def test_a_client_updates_preview_counts_the_responses_and_saves_nothing(
+    served: Served,
+) -> None:
+    store = LocalStore()  # the consents are kept in the local store the preview reads
+    code = client_updates.opt_in(store, "acc-1", agreed_with="Dana", agreed_on=TODAY, now=NOW).code
+    served.body = (
+        UPDATES_HEADER
+        + "\n"
+        + update_row(code)
+        + "\n"
+        + update_row(code, name="Sam Okafor")
+        + "\n"
+        + update_row("ZZZZZZZZ")
+        + "\n"
+    )
+    draft = start(store, role=FeedRole.CLIENT_UPDATES)
+
+    result = setup.preview(
+        draft,
+        setup.suggested_mapping(draft),
+        None,
+        book_accounts=lambda connection_id: [acct("acc-1", "Acme")],
+        now=NOW,
+        today=TODAY,
+    )
+
+    assert result.blocker is None
+    assert (result.rows, result.ready, result.accounts) == (3, 2, 1)
+    assert client_updates.load(store).updates == []
+
+
+def test_a_client_updates_preview_names_the_required_questions_with_no_column(
+    store: LocalStore, served: Served
+) -> None:
+    served.body = UPDATES_HEADER + "\n" + update_row("ABCDEFGH") + "\n"
+    draft = start(store, role=FeedRole.CLIENT_UPDATES)
+    mapping = {key: header for key, header in setup.suggested_mapping(draft).items()}
+    del mapping["kind"]
+
+    result = setup.preview(draft, mapping, None, book_accounts=no_book, now=NOW, today=TODAY)
+
+    assert result.blocker == "Match What changed? to bring in client updates."
+
+
+def test_saving_a_client_updates_feed_runs_its_first_sync(
+    served: Served,
+) -> None:
+    store = LocalStore()
+    code = client_updates.opt_in(store, "acc-1", agreed_with="Dana", agreed_on=TODAY, now=NOW).code
+    served.body = UPDATES_HEADER + "\n" + update_row(code) + "\n" + update_row("ZZZZZZZZ") + "\n"
+    draft = start(store, role=FeedRole.CLIENT_UPDATES)
+    mapping = setup.suggested_mapping(draft)
+    book = [acct("acc-1", "Acme")]
+
+    config = setup.commit_draft(
+        store,
+        draft,
+        mapping,
+        None,
+        book_accounts=lambda connection_id: book,
+        now=NOW,
+        today=TODAY,
+    )
+
+    assert config.feed is not None and config.feed.role is FeedRole.CLIENT_UPDATES
+    assert config.feed.status.last_error is None
+    assert (config.feed.status.rows, config.feed.status.accounts) == (2, 1)
+    assert config.feed.status.skipped_rows == 1
+    assert [u.account_id for u in client_updates.load(store).updates] == ["acc-1"]
+    assert store.snapshot(config.id) is None
+    assert setup.load_draft(store, draft.id, now=NOW) is None

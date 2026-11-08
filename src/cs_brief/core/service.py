@@ -35,7 +35,7 @@ from cs_brief.core.models import Account, Motion, ScoredAccount, Signal
 from cs_brief.core.onboarding import OnboardingBrief, onboarding_brief
 from cs_brief.core.scoring import score_book
 from cs_brief.core.settings import DataSource, Settings, load_settings, save_settings
-from cs_brief.core.store import ConnectionConfig, ConnectionKind, LocalStore
+from cs_brief.core.store import ConnectionConfig, ConnectionKind, LocalStore, connection_for
 
 _log = logging.getLogger(__name__)
 
@@ -160,6 +160,12 @@ def remove_connection(connection_id: str) -> None:
     store = get_store()
     config = store.get_connection(connection_id)
     store.remove_connection(connection_id)
+
+    def owned(account_id: str) -> bool:
+        return connection_for(account_id) == connection_id
+
+    contacts.forget(store, owned)
+    client_updates.forget(store, owned)
     if config is not None and config.kind is ConnectionKind.FEED:
         feed_setup.remove_feed_secret(connection_id)
     reset_connectors()
@@ -634,11 +640,14 @@ def feed_book_accounts(exclude_connection_id: str | None = None) -> list[Account
 
 
 def _sync_one(config: ConnectionConfig, store: LocalStore, now: datetime) -> feed_sync.SyncOutcome:
-    """One feed's sync. A SIGNALS feed matches against the book without its own data."""
+    """One feed's sync. A SIGNALS feed matches against the book without its own data; a
+    CLIENT_UPDATES feed matches its rows against the whole book (it owns no accounts)."""
     feed = config.feed
-    book = (
-        feed_book_accounts(config.id) if feed is not None and feed.role is FeedRole.SIGNALS else []
-    )
+    book: list[Account] = []
+    if feed is not None and feed.role is FeedRole.SIGNALS:
+        book = feed_book_accounts(config.id)
+    elif feed is not None and feed.role is FeedRole.CLIENT_UPDATES:
+        book = feed_book_accounts(None)
     return feed_sync.sync_feed(config, store, book_accounts=book, now=now, today=date.today())
 
 
@@ -712,20 +721,29 @@ def stop_feed_scheduler() -> None:
 def account_contacts(account_id: str) -> list[contacts.Contact]:
     """The contacts shown on an account page. Demo mode: contacts.demo_contacts for a demo
     account (read-only), [] for an unknown id. Your data: contacts.contacts_for."""
-    raise NotImplementedError
+    if load_settings().source is DataSource.DEMO:
+        account = _book_account(account_id)
+        return [] if account is None else contacts.demo_contacts(account.id, account.name)
+    return contacts.contacts_for(get_store(), account_id)
 
 
 def your_book_accounts() -> dict[str, Account]:
     """The Your data book (after links, hidden accounts and edits) by id; {} in demo mode. The
     client updates page and the feed sync use it to drop updates for accounts that are gone."""
-    raise NotImplementedError
+    if load_settings().source is DataSource.DEMO:
+        return {}
+    return {account.id: account for account in get_connector().list_accounts()}
 
 
 def pending_client_updates() -> list[client_updates.Review]:
     """client_updates.pending over your_book_accounts(); [] in demo mode."""
-    raise NotImplementedError
+    if load_settings().source is DataSource.DEMO:
+        return []
+    return client_updates.pending(get_store(), your_book_accounts())
 
 
 def pending_client_update_count() -> int:
     """For the nav badge. 0 in demo mode. Cheap: no scoring."""
-    raise NotImplementedError
+    if load_settings().source is DataSource.DEMO:
+        return 0
+    return client_updates.pending_count(get_store(), set(your_book_accounts()))

@@ -14,7 +14,7 @@ from datetime import date, datetime, timedelta
 import httpx
 import pytest
 
-from cs_brief.core import importing
+from cs_brief.core import client_updates, importing
 from cs_brief.core.connectors.combined import CombinedConnector
 from cs_brief.core.connectors.local import SpreadsheetConnector
 from cs_brief.core.feeds import http as feed_http
@@ -499,3 +499,128 @@ def test_a_tick_that_raises_does_not_stop_the_scheduler() -> None:
     finally:
         scheduler.stop()
     assert len(calls) >= 3
+
+
+# CLIENT_UPDATES -------------------------------------------------------------------------------
+
+FORM_URL = "https://forms.example.com/responses.csv"
+FORM_HEADER = (
+    "Timestamp,Client code,What changed?,Contact's name,Job title,Email,"
+    "Is this our main contact?,Anything else?,Your name"
+)
+FORM_MAPPING = {
+    "code": "Client code",
+    "kind": "What changed?",
+    "name": "Contact's name",
+    "title": "Job title",
+    "email": "Email",
+    "champion": "Is this our main contact?",
+    "note": "Anything else?",
+    "submitted_by": "Your name",
+    "submitted_at": "Timestamp",
+}
+
+
+@pytest.fixture
+def form_body(monkeypatch: pytest.MonkeyPatch) -> dict[str, str]:
+    """The CSV the form's responses link answers with."""
+    body = {"text": FORM_HEADER + "\n"}
+
+    def answer(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200, content=body["text"].encode("utf-8"), headers={"content-type": "text/csv"}
+        )
+
+    monkeypatch.setattr(feed_http, "transport_factory", lambda: httpx.MockTransport(answer))
+    return body
+
+
+def form_row(code: str, name: str = "Priya Shah") -> str:
+    return f"11/8/2026 9:00:00,{code},New contact,{name},VP Ops,priya@acme.com,Yes,Hi,Dana"
+
+
+def form_feed(store: LocalStore) -> ConnectionConfig:
+    return make_feed(
+        store,
+        role=FeedRole.CLIENT_UPDATES,
+        provider="link",
+        settings={"url": FORM_URL, "auth": "none"},
+        mapping=FORM_MAPPING,
+    )
+
+
+def test_a_client_updates_feed_syncs_new_rows_into_pending_updates(
+    store: LocalStore, form_body: dict[str, str]
+) -> None:
+    code = client_updates.opt_in(store, "acc-1", agreed_with="Dana", agreed_on=TODAY, now=NOW).code
+    form_body["text"] = (
+        FORM_HEADER
+        + "\n"
+        + form_row(code)
+        + "\n"
+        + form_row(code, name="Sam Okafor")
+        + "\n"
+        + form_row("ZZZZZZZZ")
+        + "\n"
+    )
+    config = form_feed(store)
+
+    outcome = run(store, config, book=[acct("acc-1", "Acme")])
+
+    assert outcome.status.last_error is None
+    assert outcome.status.last_synced_at == NOW
+    assert outcome.status.rows == 3
+    assert outcome.status.accounts == 1
+    assert outcome.status.skipped_rows == 1
+    assert [u.name for u in client_updates.load(store).updates] == ["Priya Shah", "Sam Okafor"]
+    assert store.snapshot("feed-1") is None  # no snapshot is written
+
+
+def test_a_resync_of_the_same_responses_adds_nothing_new(
+    store: LocalStore, form_body: dict[str, str]
+) -> None:
+    code = client_updates.opt_in(store, "acc-1", agreed_with="Dana", agreed_on=TODAY, now=NOW).code
+    form_body["text"] = FORM_HEADER + "\n" + form_row(code) + "\n"
+    config = form_feed(store)
+    run(store, config, book=[acct("acc-1", "Acme")])
+
+    outcome = run(store, config, book=[acct("acc-1", "Acme")])
+
+    assert outcome.status.last_error is None
+    assert outcome.status.accounts == 0
+    assert len(client_updates.load(store).updates) == 1
+
+
+def test_a_form_with_no_responses_yet_is_a_success(
+    store: LocalStore, form_body: dict[str, str]
+) -> None:
+    config = form_feed(store)
+
+    outcome = run(store, config, book=[acct("acc-1", "Acme")])
+
+    assert outcome.status.last_error is None
+    assert outcome.status.rows == 0
+    assert outcome.status.last_synced_at == NOW
+
+
+def test_a_mapping_missing_a_required_question_fails_with_its_message(
+    store: LocalStore, form_body: dict[str, str]
+) -> None:
+    form_body["text"] = FORM_HEADER + "\n" + form_row("ABCDEFGH") + "\n"
+    mapping = {key: header for key, header in FORM_MAPPING.items() if key != "kind"}
+    config = make_feed(
+        store,
+        role=FeedRole.CLIENT_UPDATES,
+        provider="link",
+        settings={"url": FORM_URL, "auth": "none"},
+        mapping=mapping,
+    )
+
+    outcome = run(store, config, book=[acct("acc-1", "Acme")])
+
+    assert outcome.status.last_error == "Match What changed? to bring in client updates."
+    saved = store.get_connection(config.id)
+    assert saved is not None and saved.feed is not None
+    assert saved.feed.status.last_error == outcome.status.last_error
+    assert saved.feed.status.last_synced_at is None
+    assert store.snapshot("feed-1") is None

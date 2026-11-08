@@ -10,6 +10,8 @@ from pathlib import Path
 
 import pytest
 
+from cs_brief.core import client_updates, contacts
+from cs_brief.core.contacts import ContactInput, ContactSource
 from cs_brief.core.models import Account, Milestones, Signal, SignalKind
 from cs_brief.core.secrets import ENV_SECRETS_DIR
 from cs_brief.core.store import (
@@ -430,6 +432,14 @@ def test_clear_all_deletes_every_file_and_the_sheets_folder(store):
     store.save_links(LinkData(dismissed=[("hs-1", "hs-2")]))
     store.set_hidden("hs-1", True)
     store.save_snapshot(ImportSnapshot(connection_id="sheet-1"))
+    contacts.add_contact(
+        store, "hs-1", ContactInput(name="Dana"), source=ContactSource.YOU, now=datetime(2026, 1, 1)
+    )
+    client_updates.opt_in(
+        store, "hs-1", agreed_with="Dana", agreed_on=date(2026, 1, 1), now=datetime(2026, 1, 1)
+    )
+    assert (store.root / "contacts.json").exists()
+    assert (store.root / "client_updates.json").exists()
     store.clear_all()
 
     assert not store.root.joinpath("sheets").exists()
@@ -440,8 +450,12 @@ def test_clear_all_deletes_every_file_and_the_sheets_folder(store):
         "notices.json",
         "links.json",
         "hidden.json",
+        "contacts.json",
+        "client_updates.json",
     ):
         assert not (store.root / name).exists()
+    assert contacts.contacts_for(store, "hs-1") == []
+    assert client_updates.load(store).consents == {}
     assert store.connections() == [] and store.hidden() == [] and store.snapshot("sheet-1") is None
 
 

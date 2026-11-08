@@ -12,7 +12,7 @@ from datetime import date, datetime, timedelta
 
 from pydantic import BaseModel
 
-from cs_brief.core import import_flow, importing, secrets
+from cs_brief.core import client_updates, import_flow, importing, secrets
 from cs_brief.core.feeds import signals
 from cs_brief.core.feeds.http import FeedError, FeedHttp
 from cs_brief.core.feeds.models import FeedRole, FeedSettings, FeedStatus, Schedule
@@ -92,6 +92,11 @@ def sync_feed(
     every matched account id. A source with no rows, or with rows and none matching an account,
     is a failure like an ACCOUNTS sync with no usable rows: the old snapshot stays.
 
+    CLIENT_UPDATES role: client_updates.ingest with the feed's mapping, date order and the ids of
+    `book_accounts`. New rows become pending updates; no snapshot is written. A source with no
+    rows is a success (a new form has no responses yet). A mapping without a required question is
+    a failure: ingest's message is the last_error.
+
     Either way the status is updated and saved with the connection (store.update_connection):
     success sets last_synced_at, counts and clears last_error; failure (FeedError, ValueError)
     sets last_error to the plain message and keeps everything else. last_attempt_at is always
@@ -109,6 +114,14 @@ def sync_feed(
         if feed.role is FeedRole.ACCOUNTS:
             status, removed = _sync_accounts(
                 config, store, table, now=now, today=today, provider_name=provider_name
+            )
+        elif feed.role is FeedRole.CLIENT_UPDATES:
+            status = _sync_client_updates(
+                config,
+                store,
+                table,
+                book_ids={account.id for account in book_accounts},
+                now=now,
             )
         else:
             status = _sync_signals(
@@ -187,6 +200,35 @@ def _sync_accounts(
         skipped_rows=result.skipped_rows,
     )
     return status, removed
+
+
+def _sync_client_updates(
+    config: ConnectionConfig,
+    store: LocalStore,
+    table: Table,
+    *,
+    book_ids: set[str],
+    now: datetime,
+) -> FeedStatus:
+    """Turn the form's new rows into pending client updates. Nothing is written to a snapshot.
+    Raises ValueError (ingest's plain message) when the mapping lacks a required question."""
+    result = client_updates.ingest(
+        store,
+        table,
+        dict(config.mapping),
+        connection_id=config.id,
+        book_ids=book_ids,
+        date_order=_date_order(config),
+        now=now,
+    )
+    return FeedStatus(
+        last_synced_at=now,
+        last_attempt_at=now,
+        last_error=None,
+        rows=len(table.rows),
+        accounts=result.accounts,
+        skipped_rows=result.ignored,
+    )
 
 
 def _sync_signals(

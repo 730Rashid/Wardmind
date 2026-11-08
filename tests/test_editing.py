@@ -9,9 +9,10 @@ from datetime import UTC, date, datetime, timedelta, timezone
 
 import pytest
 
-from cs_brief.core import editing
+from cs_brief.core import client_updates, contacts, editing
 from cs_brief.core.connectors.combined import CombinedConnector
 from cs_brief.core.connectors.local import ManualConnector
+from cs_brief.core.contacts import ContactInput, ContactSource
 from cs_brief.core.editing import (
     EditError,
     add_reading,
@@ -839,3 +840,43 @@ def test_naive_and_aware_times_are_both_accepted(store):
     aware = datetime(2026, 10, 21, 9, 30, tzinfo=UTC)
     edit_account(store, combined, "hs-1", {"arr": "$135,000"}, now=aware)
     assert store.edits()["hs-1"]["arr"].edited_at == NOW
+
+
+# Contacts and client updates follow the account -----------------------------------------------
+
+
+def test_deleting_a_hand_added_account_forgets_its_contacts_and_consent(store):
+    created = create_account(store, dict(NEW_ACCOUNT), today=TODAY)
+    keep = create_account(store, {**NEW_ACCOUNT, "name": "Other"}, today=TODAY)
+    for account_id in (created.id, keep.id):
+        contacts.add_contact(
+            store,
+            account_id,
+            ContactInput(name="Dana"),
+            source=ContactSource.YOU,
+            now=NOW,
+        )
+        client_updates.opt_in(store, account_id, agreed_with="Dana", agreed_on=TODAY, now=NOW)
+
+    delete_account(store, created.id)
+
+    assert contacts.contacts_for(store, created.id) == []
+    assert set(client_updates.load(store).consents) == {keep.id}
+    assert [c.name for c in contacts.contacts_for(store, keep.id)] == ["Dana"]
+
+
+def test_linking_moves_the_members_contacts_and_consent_to_the_primary(store):
+    _, _, combined = linked_book(store)
+    contacts.add_contact(
+        store, "hs-1", ContactInput(name="Dana", champion=True), source=ContactSource.YOU, now=NOW
+    )
+    contacts.add_contact(
+        store, "sp1-acme", ContactInput(name="Sam"), source=ContactSource.YOU, now=NOW
+    )
+    client_updates.opt_in(store, "hs-1", agreed_with="Dana", agreed_on=TODAY, now=NOW)
+
+    link_accounts(store, combined, ["hs-1", "sp1-acme"], primary="sp1-acme")
+
+    assert contacts.contacts_for(store, "hs-1") == []
+    assert sorted(c.name for c in contacts.contacts_for(store, "sp1-acme")) == ["Dana", "Sam"]
+    assert set(client_updates.load(store).consents) == {"sp1-acme"}

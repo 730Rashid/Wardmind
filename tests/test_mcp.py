@@ -11,7 +11,7 @@ import pytest
 from mcp import Client, StdioServerParameters
 from mcp.types import CallToolResult
 
-from cs_brief.core import briefs, service, summaries
+from cs_brief.core import briefs, contacts, service, summaries
 from cs_brief.core.connectors.demo import DemoConnector
 from cs_brief.core.connectors.errors import ConnectionNotReady
 from cs_brief.core.models import Motion
@@ -121,7 +121,29 @@ async def test_get_account_returns_the_top_ranked_account():
     top = service.get_book()[0]
     async with Client(server.mcp) as client:
         account = _data(await client.call_tool("get_account", {"account_id": top.account.id}))
-    assert account == top.model_dump(mode="json")
+    expected = top.model_dump(mode="json")
+    expected["contacts"] = [
+        {
+            "name": c.name,
+            "title": c.title,
+            "champion": c.champion,
+            "status": c.status.value,
+            "left_on": None,
+        }
+        for c in contacts.demo_contacts(top.account.id, top.account.name)
+    ]
+    expected["pending_client_updates"] = 0  # demo data has no client updates
+    assert account == expected
+
+
+async def test_get_account_never_returns_a_contact_email():
+    top = service.get_book()[0]
+    async with Client(server.mcp) as client:
+        account = _data(await client.call_tool("get_account", {"account_id": top.account.id}))
+    assert account["contacts"]
+    assert all("email" not in row for row in account["contacts"])
+    for demo in contacts.demo_contacts(top.account.id, top.account.name):
+        assert demo.email not in str(account)
 
 
 async def test_explain_score_returns_the_explanation_for_the_top_ranked_account():

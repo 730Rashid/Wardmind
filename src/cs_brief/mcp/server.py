@@ -15,7 +15,7 @@ from typing import Any
 from mcp.server.mcpserver import MCPServer
 from mcp.server.mcpserver.exceptions import ToolError
 
-from cs_brief.core import briefs, research, service
+from cs_brief.core import briefs, contacts, research, service
 from cs_brief.core.connectors.errors import ConnectorError
 from cs_brief.core.models import Motion, ScoredAccount
 
@@ -76,12 +76,19 @@ def list_book(
 
 @mcp.tool()
 def get_account(account_id: str) -> dict[str, Any]:
-    """Everything about one account: its details, health, risk, priority, reasons and action.
+    """Everything about one account: its details, health, risk, priority, reasons and action,
+    plus its contacts (name, title, whether it is the main contact, active or left, and when they
+    left; no email addresses) and how many client updates are waiting for the CSM's review.
 
     Args:
         account_id: The account id from list_book.
     """
-    return _find(account_id).model_dump(mode="json")
+    data = _find(account_id).model_dump(mode="json")
+    data["contacts"] = [_contact_row(contact) for contact in service.account_contacts(account_id)]
+    data["pending_client_updates"] = sum(
+        1 for review in service.pending_client_updates() if review.update.account_id == account_id
+    )
+    return data
 
 
 @mcp.tool()
@@ -195,6 +202,17 @@ def _row(rank: int, item: ScoredAccount) -> dict[str, Any]:
         "arr": item.account.arr,
         "top_reason": item.top_reason,
         "suggested_action": item.suggested_action,
+    }
+
+
+def _contact_row(contact: contacts.Contact) -> dict[str, Any]:
+    """A contact as the MCP server shows it: never the email address."""
+    return {
+        "name": contact.name,
+        "title": contact.title,
+        "champion": contact.champion,
+        "status": contact.status.value,
+        "left_on": contact.left_on.isoformat() if contact.left_on is not None else None,
     }
 
 

@@ -20,7 +20,7 @@ from secrets import token_hex
 
 from pydantic import BaseModel
 
-from cs_brief.core import import_flow, importing
+from cs_brief.core import client_updates, import_flow, importing
 from cs_brief.core import secrets as vault
 from cs_brief.core.config import write_atomic
 from cs_brief.core.feeds import catalog, signals, sync
@@ -239,7 +239,7 @@ def start_draft(
     mapping: dict[str, str] | None = None
     date_order: str | None = None
     if existing is not None and existing.mapping:
-        mapping = import_flow.clean_mapping(table, existing.mapping) or None
+        mapping = _mapping_for_role(role, table, existing.mapping) or None
         date_order = existing.date_order
     draft = FeedDraft(
         id=draft_id,
@@ -289,10 +289,27 @@ def _keep_for_role(role: FeedRole, mapping: dict[str, str]) -> dict[str, str]:
     }
 
 
+def _mapping_for_role(role: FeedRole, table: Table, mapping: Mapping[str, str]) -> dict[str, str]:
+    """The choices a role can use: a known field (an import field, or a client update question
+    for CLIENT_UPDATES), mapped to a header this table has. Anything else is dropped."""
+    if role is FeedRole.CLIENT_UPDATES:
+        keys = {question.key for question in client_updates.QUESTIONS}
+        return {
+            key: header
+            for key, header in mapping.items()
+            if key in keys and header and header in table.headers
+        }
+    return import_flow.clean_mapping(table, mapping)
+
+
 def suggested_mapping(draft: FeedDraft) -> dict[str, str]:
     """The draft's own mapping if the CSM chose one, else importing.auto_map(draft.table
     .headers). For a SIGNALS draft only key fields (signals.KEY_FIELDS) and "signal:*" fields are
-    kept."""
+    kept. A CLIENT_UPDATES draft uses client_updates.suggested_mapping instead."""
+    if draft.role is FeedRole.CLIENT_UPDATES:
+        if draft.mapping is not None:
+            return _mapping_for_role(draft.role, draft.table, draft.mapping)
+        return client_updates.suggested_mapping(draft.table)
     if draft.mapping is not None:
         chosen = import_flow.clean_mapping(draft.table, draft.mapping)
     else:
@@ -309,6 +326,9 @@ def _resolved_order(table: Table, mapping: dict[str, str], chosen: str | None) -
         if spec.type is FieldType.DATE and spec.key in mapping:
             index = table.headers.index(mapping[spec.key])
             values.extend(row[index] for row in table.rows)
+    if "submitted_at" in mapping:  # a client update form's timestamp
+        index = table.headers.index(mapping["submitted_at"])
+        values.extend(row[index] for row in table.rows)
     implied = importing.detect_date_order(values)
     if implied is not None:
         return implied
@@ -318,10 +338,56 @@ def _resolved_order(table: Table, mapping: dict[str, str], chosen: str | None) -
         return DateOrder.DMY
 
 
-def _match_message(labels: list[str]) -> str:
+def _match_message(labels: list[str], purpose: str = "import") -> str:
     if len(labels) == 1:
-        return f"Match {labels[0]} to import."
-    return f"Match {', '.join(labels[:-1])} and {labels[-1]} to import."
+        return f"Match {labels[0]} to {purpose}."
+    return f"Match {', '.join(labels[:-1])} and {labels[-1]} to {purpose}."
+
+
+def _preview_updates(
+    draft: FeedDraft,
+    mapping: dict[str, str],
+    order: DateOrder,
+    *,
+    book_accounts: BookAccounts,
+    now: datetime,
+) -> FeedPreview:
+    """The client update form's "What will happen": the counts of client_updates.ingest with
+    save=False over the book. The blocker names the required questions with no column."""
+    rows = len(draft.table.rows)
+    missing = [
+        question.label
+        for question in client_updates.QUESTIONS
+        if question.required and question.key not in mapping
+    ]
+    if missing:
+        return FeedPreview(
+            rows=rows,
+            ready=0,
+            accounts=0,
+            blocker=_match_message(missing, "bring in client updates"),
+            issues=[],
+            unmatched=[],
+        )
+    book = book_accounts(draft.connection_id)
+    result = client_updates.ingest(
+        LocalStore(),
+        draft.table,
+        mapping,
+        connection_id=draft.connection_id or "feed-preview",
+        book_ids={account.id for account in book},
+        date_order=order,
+        now=_naive(now),
+        save=False,
+    )
+    return FeedPreview(
+        rows=rows,
+        ready=result.new,
+        accounts=result.accounts,
+        blocker=None,
+        issues=[],
+        unmatched=[],
+    )
 
 
 def preview(
@@ -336,12 +402,17 @@ def preview(
     """What saving would do, without saving. Also stores mapping and date_order on the draft.
 
     The draft is updated in memory only: the caller saves it (commit_draft does, with the
-    choices it is given)."""
-    cleaned = _keep_for_role(draft.role, import_flow.clean_mapping(draft.table, mapping))
+    choices it is given). A CLIENT_UPDATES draft's counts come from client_updates.ingest with
+    save=False, over the book's ids, using the local store (store.data_dir()), where the
+    consents are kept."""
+    cleaned = _keep_for_role(draft.role, _mapping_for_role(draft.role, draft.table, mapping))
     draft.mapping = cleaned
     draft.date_order = date_order
     order = _resolved_order(draft.table, cleaned, date_order)
     rows = len(draft.table.rows)
+
+    if draft.role is FeedRole.CLIENT_UPDATES:
+        return _preview_updates(draft, cleaned, order, book_accounts=book_accounts, now=now)
 
     if draft.role is FeedRole.ACCOUNTS:
         missing = [
@@ -424,7 +495,7 @@ def commit_draft(
     checked = preview(draft, mapping, date_order, book_accounts=book_accounts, now=now, today=today)
     if checked.blocker:
         raise ValueError(checked.blocker)
-    cleaned = _keep_for_role(draft.role, import_flow.clean_mapping(draft.table, mapping))
+    cleaned = _keep_for_role(draft.role, _mapping_for_role(draft.role, draft.table, mapping))
     order = _resolved_order(draft.table, cleaned, date_order)
     feed_name = import_flow.validate_name(draft.name or info.name)
 
@@ -456,7 +527,7 @@ def commit_draft(
         }
     )
     store.update_connection(updated)
-    book = book_accounts(updated.id) if draft.role is FeedRole.SIGNALS else []
+    book = book_accounts(updated.id) if draft.role is not FeedRole.ACCOUNTS else []
     sync.sync_feed(
         updated,
         store,

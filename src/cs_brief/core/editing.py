@@ -16,7 +16,7 @@ from collections.abc import Mapping
 from datetime import UTC, date, datetime
 from typing import Any
 
-from cs_brief.core import importing
+from cs_brief.core import client_updates, contacts, importing
 from cs_brief.core.connectors.combined import CombinedConnector, Provenance, _key
 from cs_brief.core.matching import normalize_domain
 from cs_brief.core.models import Account, Milestones, Signal, SignalKind
@@ -195,6 +195,8 @@ def delete_account(store: LocalStore, account_id: str) -> None:
         groups.append(LinkGroup(primary=primary, members=members))
     dismissed = [pair for pair in links.dismissed if account_id not in pair]
     store.save_links(LinkData(groups=groups, dismissed=dismissed))
+    contacts.forget(store, lambda candidate: candidate == account_id)
+    client_updates.forget(store, lambda candidate: candidate == account_id)
 
 
 def edit_account(
@@ -341,6 +343,10 @@ def link_accounts(
     _move_edits_and_notices(
         store, [m for m in members if m != primary], primary, merged.source_values
     )
+    for member in members:
+        if member != primary:
+            contacts.move_contacts(store, member, primary)
+            client_updates.move_account(store, member, primary)
     connector.invalidate()
 
 
