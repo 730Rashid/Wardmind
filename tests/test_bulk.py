@@ -10,19 +10,19 @@ from typing import Any
 
 import pytest
 
-from cs_brief.core import bulk
-from cs_brief.core.bulk import JobRunner, LookupResult, SummaryResult
-from cs_brief.core.models import Account
-from cs_brief.core.research import BlockedWebsite, NoWebsite, ResearchError, SiteResearch
-from cs_brief.core.summaries import (
+from research_fake import NOW
+from research_fake import account as make_account
+from wardmind.core import bulk
+from wardmind.core.bulk import JobRunner, LookupResult, SummaryResult
+from wardmind.core.models import Account
+from wardmind.core.research import BlockedWebsite, NoWebsite, ResearchError, SiteResearch
+from wardmind.core.summaries import (
     AIUnavailable,
     KeyRejected,
     NoKey,
     OutOfCredit,
     Summary,
 )
-from research_fake import NOW
-from research_fake import account as make_account
 
 
 def _accounts(count: int) -> list[Account]:

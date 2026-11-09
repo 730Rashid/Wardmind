@@ -14,18 +14,18 @@ from typing import Any
 import pytest
 from fastapi.testclient import TestClient
 
-from cs_brief.core import briefs, service
-from cs_brief.core.config import (
+from wardmind.core import briefs, service
+from wardmind.core.config import (
     ScoringConfig,
     SignalRule,
     Thresholds,
     load_scoring_config,
     save_scoring_config,
 )
-from cs_brief.core.connectors.demo import DemoConnector
-from cs_brief.core.models import SignalKind
-from cs_brief.web import app as web
-from cs_brief.web.scoring_form import UNIT_HINTS, form_values
+from wardmind.core.connectors.demo import DemoConnector
+from wardmind.core.models import SignalKind
+from wardmind.web import app as web
+from wardmind.web.scoring_form import UNIT_HINTS, form_values
 
 TEMPLATES = Path(web.__file__).parent / "templates" / "settings"
 ORIGIN = {"origin": "http://127.0.0.1"}

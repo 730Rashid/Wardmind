@@ -1,0 +1,81 @@
+{% extends "base.html" %}
+{% block content %}
+{# Set the client update form up once, in three steps, in the centred card of the feed set-up page.
+   Step 3 saves the form's pre-filled link; without JavaScript every step works as a plain form. #}
+<div class="connection-setup updates-setup">
+  <header class="import-head">
+    <p class="date-line"><a href="/client-updates">Client updates</a> / Set up your update form</p>
+    <h1 class="page-title">Set up your update form</h1>
+    <p class="prose">Clients who agreed can tell you about new or departing contacts through one form you make. You review every change before it is applied.</p>
+  </header>
+
+  {% if notice %}<p class="status-line" role="status">{{ notice }}</p>{% endif %}
+
+  <section class="connections-section" aria-labelledby="step-one-title">
+    <h2 class="section-title" id="step-one-title">Step 1: Make one form for all your clients</h2>
+    <p class="prose">Use Microsoft Forms, whose responses go to an Excel workbook in your OneDrive, or an Airtable form. Google Forms works too, with this note: its responses sheet must be shared as Anyone with the link, so keep that link private.</p>
+    <p class="field-help">Add these questions, in this order. The form tool adds the timestamp itself.</p>
+    <ol class="setup-questions">
+      {% for question in questions %}
+      <li>
+        <span class="setup-question">{{ question.label }}</span>
+        <span class="field-help">{{ question.help }}</span>
+      </li>
+      {% endfor %}
+    </ol>
+  </section>
+
+  <section class="connections-section" aria-labelledby="step-two-title">
+    <h2 class="section-title" id="step-two-title">Step 2: Let Wardmind read the responses</h2>
+    <p class="field-help">Connect the form's responses with one of these. Each new response becomes an update for you to review.</p>
+    <ul class="add-list">
+      {% for href, name in providers %}
+      <li><a class="button button--small" href="{{ href }}">{{ name }}</a></li>
+      {% endfor %}
+    </ul>
+
+    {% if feeds %}
+    <h3 class="setup-subtitle">Already connected</h3>
+    <ul class="setup-feeds">
+      {% for feed in feeds %}
+      <li>
+        <p><span class="connection-name">{{ feed.name }}</span></p>
+        <p class="connection-source">{{ feed.source }}</p>
+        <p>{{ feed.status }}</p>
+        {% if feed.error %}<p class="field-error" role="alert">{{ feed.error }}</p>{% endif %}
+      </li>
+      {% endfor %}
+    </ul>
+    {% endif %}
+  </section>
+
+  <section class="connections-section" aria-labelledby="step-three-title">
+    <h2 class="section-title" id="step-three-title">Step 3: Paste your form's pre-filled link</h2>
+    <p class="prose">In the form tool, choose Get pre-filled link, and type WARDMINDCODE as the answer to Client code. Paste the link it gives you below. Wardmind puts each client's own code in place of WARDMINDCODE, so every client gets a link of their own.</p>
+
+    {% if form_link %}
+    <div class="setup-saved">
+      <label for="saved-link">Saved link</label>
+      <div class="client-link-row">
+        <input type="text" id="saved-link" class="client-link-input" value="{{ form_link }}" readonly data-select-all spellcheck="false" autocomplete="off">
+        <form class="inline-form" method="post" action="/client-updates/setup/link/clear">
+          <button type="submit" class="button">Clear</button>
+        </form>
+      </div>
+    </div>
+    {% endif %}
+
+    <form class="connection-form" method="post" action="/client-updates/setup/link">
+      <div class="field connection-field">
+        <label for="form-link">Pre-filled link</label>
+        <input type="text" id="form-link" name="link" value="{{ link_value }}" inputmode="url" autocomplete="off" spellcheck="false" aria-describedby="form-link-help{% if link_error %} form-link-error{% endif %}"{% if link_error %} aria-invalid="true"{% endif %}>
+        <p class="field-help" id="form-link-help">Paste the whole address, which must be a secure one.</p>
+        {% if link_error %}<p class="field-error" id="form-link-error" role="alert">{{ link_error }}</p>{% endif %}
+      </div>
+      <div class="form-actions">
+        <button type="submit" class="button-primary">Save link</button>
+      </div>
+    </form>
+  </section>
+</div>
+{% endblock %}

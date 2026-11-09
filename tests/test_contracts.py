@@ -3,14 +3,14 @@ from pathlib import Path
 import pytest
 from pydantic import ValidationError
 
-from cs_brief.core.config import (
+from wardmind.core.config import (
     DEFAULT_SIGNAL_RULES,
     ScoringConfig,
     SignalRule,
     Thresholds,
     load_scoring_config,
 )
-from cs_brief.core.models import Milestones, SignalKind
+from wardmind.core.models import Milestones, SignalKind
 
 REPO = Path(__file__).resolve().parents[1]
 

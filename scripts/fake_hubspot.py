@@ -2,8 +2,8 @@
 
 Run from the repo root:
     uv run python scripts/fake_hubspot.py --port 8799
-Then point cs-brief at it:
-    CS_BRIEF_HUBSPOT_API_BASE=http://127.0.0.1:8799
+Then point Wardmind at it:
+    WARDMIND_HUBSPOT_API_BASE=http://127.0.0.1:8799
 
 Any Bearer token is accepted except "bad-token-for-demo-401", which gets the 401 body so the
 error path can be shown. respond() holds the routing. tests/hubspot_fake.py uses it too, so the
@@ -74,7 +74,7 @@ def _present(value: Any) -> bool:
 
 
 def _passes(props: Mapping[str, Any], flt: Mapping[str, Any]) -> bool:
-    """One filter, the way HubSpot evaluates the operators cs-brief uses."""
+    """One filter, the way HubSpot evaluates the operators Wardmind uses."""
     value = props.get(flt.get("propertyName"))
     operator = flt.get("operator")
     if operator == "EQ":
@@ -234,7 +234,7 @@ def create_app() -> FastAPI:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Serve the cs-brief HubSpot fixtures locally.")
+    parser = argparse.ArgumentParser(description="Serve the Wardmind HubSpot fixtures locally.")
     parser.add_argument("--port", type=int, default=8799, help="port on 127.0.0.1 (default 8799)")
     args = parser.parse_args()
     uvicorn.run(create_app(), host="127.0.0.1", port=args.port, log_level="warning")

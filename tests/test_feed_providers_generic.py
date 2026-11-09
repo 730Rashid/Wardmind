@@ -17,11 +17,11 @@ import httpx
 import pytest
 from openpyxl import Workbook
 
-from cs_brief.core.feeds import catalog, sync
-from cs_brief.core.feeds import http as feed_http
-from cs_brief.core.feeds.http import FeedError
-from cs_brief.core.feeds.providers import base, files, get_provider, web
-from cs_brief.core.feeds.providers.base import email_domain, json_path, records_to_table
+from wardmind.core.feeds import catalog, sync
+from wardmind.core.feeds import http as feed_http
+from wardmind.core.feeds.http import FeedError
+from wardmind.core.feeds.providers import base, files, get_provider, web
+from wardmind.core.feeds.providers.base import email_domain, json_path, records_to_table
 
 SECRET = "test-secret-0123456789abcdef"
 SHEET_EXPORT = "https://docs.google.com/spreadsheets/d/abc123/export?format=csv&gid=0"
@@ -815,6 +815,6 @@ def test_a_next_link_on_another_site_is_refused_before_it_is_requested(
             SECRET,
         )
     assert caught.value.message == (
-        "The next page is on a different site, so cs-brief won't send your key there."
+        "The next page is on a different site, so Wardmind won't send your key there."
     )
     assert len(seen) == 1

@@ -8,10 +8,10 @@ from datetime import UTC, date, datetime, timedelta, timezone
 
 import pytest
 
-from cs_brief.core.feeds import signals
-from cs_brief.core.feeds.models import MatchBy
-from cs_brief.core.importing import DateOrder, Table
-from cs_brief.core.models import Account, Milestones, SignalKind
+from wardmind.core.feeds import signals
+from wardmind.core.feeds.models import MatchBy
+from wardmind.core.importing import DateOrder, Table
+from wardmind.core.models import Account, Milestones, SignalKind
 
 NOW = datetime(2026, 11, 8, 9, 0)
 

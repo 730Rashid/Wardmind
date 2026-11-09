@@ -7,7 +7,7 @@ from pathlib import Path
 import pytest
 import yaml
 
-from cs_brief.core.settings import (
+from wardmind.core.settings import (
     Accent,
     DataSource,
     Density,
@@ -30,7 +30,7 @@ def test_round_trip_keeps_every_choice(tmp_path: Path) -> None:
     save_settings(chosen, path)
     assert load_settings(path) == chosen
     text = path.read_text(encoding="utf-8")
-    assert text.startswith("# cs-brief settings")
+    assert text.startswith("# Wardmind settings")
     positions = [text.index(f"{field}:") for field in GOOD]
     assert positions == sorted(positions), "fields are written in schema order"
 
@@ -46,7 +46,7 @@ def test_missing_file_gives_defaults(tmp_path: Path) -> None:
 
 
 def test_default_path_follows_the_config_dir(tmp_path: Path, monkeypatch) -> None:
-    monkeypatch.setenv("CS_BRIEF_CONFIG_DIR", str(tmp_path))
+    monkeypatch.setenv("WARDMIND_CONFIG_DIR", str(tmp_path))
     assert settings_path() == tmp_path / "settings.yaml"
     save_settings(Settings(theme=Theme.LIGHT))
     assert load_settings().theme == Theme.LIGHT

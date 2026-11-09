@@ -17,12 +17,12 @@ from typing import Any
 import httpx
 import pytest
 
-from cs_brief.core import importing
-from cs_brief.core.feeds import http as feed_http
-from cs_brief.core.feeds import sync
-from cs_brief.core.feeds.http import FeedError
-from cs_brief.core.feeds.providers import chargebee, get_provider, stripe
-from cs_brief.core.feeds.providers.base import MAX_PAGES, MAX_ROWS
+from wardmind.core import importing
+from wardmind.core.feeds import http as feed_http
+from wardmind.core.feeds import sync
+from wardmind.core.feeds.http import FeedError
+from wardmind.core.feeds.providers import chargebee, get_provider, stripe
+from wardmind.core.feeds.providers.base import MAX_PAGES, MAX_ROWS
 
 SECRET = "fake-key-7f3a9c1e5b2d8046"
 DAY = date(2026, 11, 8)
@@ -148,7 +148,7 @@ def test_stripe_rows_show_each_customers_most_overdue_invoice(
             "billing@acme.example",
             {"account_id": "acct-1", "website": "acme.example"},
         ),
-        stripe_customer("cus_2", "Globex", "ops@globex.example", {"cs_brief_id": "gbx-9"}),
+        stripe_customer("cus_2", "Globex", "ops@globex.example", {"wardmind_id": "gbx-9"}),
         stripe_customer("cus_3", "", "jo@gmail.com"),
         stripe_customer("cus_4", "Initech"),
     ]
@@ -253,7 +253,7 @@ def test_stripe_stops_at_max_pages(monkeypatch: pytest.MonkeyPatch, stripe_today
     error = refusal("stripe", {})
 
     assert error.message == (
-        f"Stripe has more than {MAX_PAGES} pages of customers, so cs-brief stopped reading."
+        f"Stripe has more than {MAX_PAGES} pages of customers, so Wardmind stopped reading."
     )
     assert sum(1 for r in seen if r.url.path == "/v1/customers") == MAX_PAGES
 
@@ -421,7 +421,7 @@ def test_chargebee_stops_at_max_pages(monkeypatch: pytest.MonkeyPatch) -> None:
     error = refusal("chargebee", CHARGEBEE_SETTINGS)
 
     assert error.message == (
-        f"Chargebee has more than {MAX_PAGES} pages of customers, so cs-brief stopped reading."
+        f"Chargebee has more than {MAX_PAGES} pages of customers, so Wardmind stopped reading."
     )
     assert sum(1 for r in seen if r.url.path == "/api/v2/customers") == MAX_PAGES
 
@@ -534,7 +534,7 @@ def test_zendesk_a_next_page_on_another_site_is_refused_before_it_is_requested(
     error = refusal("zendesk", ZENDESK_SETTINGS, SECRET)
 
     assert error.message == (
-        "The next page is on a different site, so cs-brief won't send your key there."
+        "The next page is on a different site, so Wardmind won't send your key there."
     )
     assert len(seen) == 1
     assert {r.url.host for r in seen} == {"acme.zendesk.com"}
@@ -571,7 +571,7 @@ def test_zendesk_stops_at_max_pages(monkeypatch: pytest.MonkeyPatch) -> None:
     error = refusal("zendesk", ZENDESK_SETTINGS, SECRET)
 
     assert error.message == (
-        f"Zendesk has more than {MAX_PAGES} pages of organizations, so cs-brief stopped reading."
+        f"Zendesk has more than {MAX_PAGES} pages of organizations, so Wardmind stopped reading."
     )
     assert sum(1 for r in seen if r.url.path == "/api/v2/organizations.json") == MAX_PAGES
 
@@ -735,7 +735,7 @@ def test_freshdesk_stops_at_max_companies_pages(monkeypatch: pytest.MonkeyPatch)
     error = refusal("freshdesk", FRESHDESK_SETTINGS, SECRET)
 
     assert error.message == (
-        f"Freshdesk has more than {MAX_PAGES * 100:,} companies, so cs-brief stopped reading."
+        f"Freshdesk has more than {MAX_PAGES * 100:,} companies, so Wardmind stopped reading."
     )
     assert sum(1 for r in seen if r.url.path == "/api/v2/companies") == MAX_PAGES
 
@@ -904,7 +904,7 @@ def test_posthog_a_reply_that_is_not_json_is_a_plain_error(monkeypatch: pytest.M
 
     error = refusal("posthog", POSTHOG_SETTINGS, SECRET)
 
-    assert error.message == "PostHog didn't send a result cs-brief can read."
+    assert error.message == "PostHog didn't send a result Wardmind can read."
 
 
 def test_posthog_a_query_with_too_many_rows_is_refused(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -1072,7 +1072,7 @@ def test_airtable_stops_at_max_pages(monkeypatch: pytest.MonkeyPatch) -> None:
     error = refusal("airtable", AIRTABLE_SETTINGS, SECRET)
 
     assert error.message == (
-        f"Airtable has more than {MAX_PAGES} pages of rows, so cs-brief stopped reading."
+        f"Airtable has more than {MAX_PAGES} pages of rows, so Wardmind stopped reading."
     )
     assert len(seen) == MAX_PAGES
 

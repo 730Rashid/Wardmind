@@ -10,7 +10,8 @@ import json
 import httpx
 import pytest
 
-from cs_brief.core.connectors.hubspot import (
+from hubspot_fake import fake_transport, fixture
+from wardmind.core.connectors.hubspot import (
     API_BASE,
     HubSpotAuthError,
     HubSpotClient,
@@ -19,7 +20,6 @@ from cs_brief.core.connectors.hubspot import (
     HubSpotScopeError,
     HubSpotUnavailable,
 )
-from hubspot_fake import fake_transport, fixture
 
 TOKEN = "pat-na1-TESTTOKEN-0000-1111-2222-333344445555"
 OWNERS_PAGE = {"results": [{"id": "77", "firstName": "Dana", "lastName": "Whitfield"}]}
@@ -103,7 +103,7 @@ def test_token_travels_only_in_the_authorization_header():
     client.request("POST", "companies_search", json={"filterGroups": [], "limit": 1})
     request = seen[0]
     assert request.headers["Authorization"] == f"Bearer {TOKEN}"
-    assert request.headers["User-Agent"] == "cs-brief"
+    assert request.headers["User-Agent"] == "Wardmind"
     assert request.headers["Accept"] == "application/json"
     assert TOKEN not in str(request.url)
     assert TOKEN.encode() not in request.content
@@ -135,7 +135,7 @@ def test_reports_an_unrecognised_request_when_both_paths_return_404():
         client.request("GET", "owners")
     assert type(info.value) is HubSpotError
     assert info.value.message == (
-        "HubSpot didn't recognise a request cs-brief made (owners). cs-brief may need an update."
+        "HubSpot didn't recognise a request Wardmind made (owners). Wardmind may need an update."
     )
     assert [request.url.path for request in seen] == ["/crm/owners/2026-09/", "/crm/v3/owners/"]
 

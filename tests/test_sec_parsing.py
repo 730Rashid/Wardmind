@@ -21,12 +21,12 @@ import httpx
 import pytest
 from openpyxl import Workbook
 
-from cs_brief.core import importing
-from cs_brief.core.feeds import http as feed_http
-from cs_brief.core.feeds import sync
-from cs_brief.core.feeds.http import FeedError
-from cs_brief.core.feeds.providers import base, files, web
-from cs_brief.core.importing import CELL_TOO_LONG_MESSAGE, DateOrder, ImportError_
+from wardmind.core import importing
+from wardmind.core.feeds import http as feed_http
+from wardmind.core.feeds import sync
+from wardmind.core.feeds.http import FeedError
+from wardmind.core.feeds.providers import base, files, web
+from wardmind.core.importing import CELL_TOO_LONG_MESSAGE, DateOrder, ImportError_
 
 QUICK = 10.0  # seconds: a generous bound for a hostile input that must not hang
 API = "https://api.example.test/v1/accounts"
@@ -445,7 +445,7 @@ def test_a_query_returning_600_columns_is_refused(tmp_path: Path) -> None:
         sync.fetch_with("sqlite", {"path": str(path), "query": "SELECT * FROM wide"}, None)
     assert (
         caught.value.message
-        == "That has more than 500 columns. Remove the ones cs-brief doesn't need."
+        == "That has more than 500 columns. Remove the ones Wardmind doesn't need."
     )
 
 

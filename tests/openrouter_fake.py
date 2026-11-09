@@ -1,4 +1,4 @@
-"""A fake OpenRouter for the AI tests: an httpx MockTransport that answers the two calls cs-brief
+"""A fake OpenRouter for the AI tests: an httpx MockTransport that answers the two calls Wardmind
 makes, and keeps every request it was sent. Nothing here opens a connection.
 
 The key below is a made-up string, never a real key. Tests that check it never leaks use it.
@@ -12,8 +12,8 @@ from typing import Any
 
 import httpx
 
-from cs_brief.core import summaries
-from cs_brief.core.research import SiteResearch
+from wardmind.core import summaries
+from wardmind.core.research import SiteResearch
 
 KEY = "sk-or-v1-FAKEKEYFORTESTS0000000000000000000000000000000000000000"
 
@@ -52,7 +52,7 @@ class FakeOpenRouter:
     def __init__(self, *, answer: Any = None, key_info: dict[str, Any] | None = None) -> None:
         self.answer: Any = ANSWER if answer is None else answer
         self.key_info: dict[str, Any] = key_info or {
-            "data": {"label": "cs-brief test", "usage": 0.42, "limit_remaining": 9.58}
+            "data": {"label": "Wardmind test", "usage": 0.42, "limit_remaining": 9.58}
         }
         self.queue: list[Handler] = []
         self.requests: list[httpx.Request] = []

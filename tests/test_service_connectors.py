@@ -12,14 +12,14 @@ from typing import Any
 
 import pytest
 
-from cs_brief.core import secrets, service
-from cs_brief.core.connectors.combined import CombinedConnector, ConnectionProblem
-from cs_brief.core.connectors.demo import DemoConnector
-from cs_brief.core.connectors.errors import ConnectorError
-from cs_brief.core.connectors.hubspot import API_BASE, HubSpotMapping
-from cs_brief.core.models import Account, Milestones
-from cs_brief.core.settings import DataSource, Settings, save_settings
-from cs_brief.core.store import (
+from wardmind.core import secrets, service
+from wardmind.core.connectors.combined import CombinedConnector, ConnectionProblem
+from wardmind.core.connectors.demo import DemoConnector
+from wardmind.core.connectors.errors import ConnectorError
+from wardmind.core.connectors.hubspot import API_BASE, HubSpotMapping
+from wardmind.core.models import Account, Milestones
+from wardmind.core.settings import DataSource, Settings, save_settings
+from wardmind.core.store import (
     ConnectionKind,
     ImportSnapshot,
     ManualData,
@@ -30,7 +30,7 @@ OTHER = "pat-na1-OTHERTOKEN-0000-1111-2222-333344445555"
 NO_TOKEN_MESSAGE = (
     "HubSpot is connected, but no access token is saved. Add one on the Connections page."
 )
-BAD_BASE_MESSAGE = "CS_BRIEF_HUBSPOT_API_BASE must point at 127.0.0.1 or localhost."
+BAD_BASE_MESSAGE = "WARDMIND_HUBSPOT_API_BASE must point at 127.0.0.1 or localhost."
 LOCAL_OK = ("http://127.0.0.1", "http://localhost", API_BASE)
 
 
@@ -232,7 +232,7 @@ def test_reset_forgets_the_shared_connectors(built: _Built) -> None:
 def test_a_bad_base_url_is_a_problem_and_is_not_cached(built: _Built, monkeypatch) -> None:
     _use(DataSource.MINE)
     _connect_hubspot()
-    monkeypatch.setenv("CS_BRIEF_HUBSPOT_API_BASE", "https://evil.example")
+    monkeypatch.setenv("WARDMIND_HUBSPOT_API_BASE", "https://evil.example")
     connector = service.get_connector()
     assert connector.list_accounts() == []
     assert [problem.message for problem in connector.problems] == [BAD_BASE_MESSAGE]
@@ -243,7 +243,7 @@ def test_a_bad_base_url_is_a_problem_and_is_not_cached(built: _Built, monkeypatc
 def test_the_test_base_url_is_passed_through(built: _Built, monkeypatch) -> None:
     _use(DataSource.MINE)
     _connect_hubspot()
-    monkeypatch.setenv("CS_BRIEF_HUBSPOT_API_BASE", "http://127.0.0.1:9999")
+    monkeypatch.setenv("WARDMIND_HUBSPOT_API_BASE", "http://127.0.0.1:9999")
     service.get_connector().list_accounts()
     assert built.clients[0].base_url == "http://127.0.0.1:9999"
     assert service.hubspot_api_base() == "http://127.0.0.1:9999"
@@ -328,7 +328,7 @@ def test_hubspot_connector_is_none_without_a_token(built: _Built) -> None:
 
 
 def test_the_default_base_is_hubspots_own_host(monkeypatch) -> None:
-    monkeypatch.delenv("CS_BRIEF_HUBSPOT_API_BASE", raising=False)
+    monkeypatch.delenv("WARDMIND_HUBSPOT_API_BASE", raising=False)
     assert service.hubspot_api_base() == API_BASE
 
 

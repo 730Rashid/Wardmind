@@ -18,16 +18,16 @@ import httpx
 import pytest
 from fastapi.testclient import TestClient
 
-from cs_brief.core import contacts, editing, research, service
-from cs_brief.core.config import write_atomic
-from cs_brief.core.connectors.demo import DemoConnector
-from cs_brief.core.contacts import Contact
-from cs_brief.core.models import Account, Signal
-from cs_brief.core.settings import DataSource, Settings, save_settings
-from cs_brief.core.store import CONTACTS_FILE
-from cs_brief.mcp import server
-from cs_brief.web import app as web
-from cs_brief.web import contact_pages
+from wardmind.core import contacts, editing, research, service
+from wardmind.core.config import write_atomic
+from wardmind.core.connectors.demo import DemoConnector
+from wardmind.core.contacts import Contact
+from wardmind.core.models import Account, Signal
+from wardmind.core.settings import DataSource, Settings, save_settings
+from wardmind.core.store import CONTACTS_FILE
+from wardmind.mcp import server
+from wardmind.web import app as web
+from wardmind.web import contact_pages
 
 HOSTILE_ID = "hs-1/../../settings/x/.."
 HOSTILE_EMAIL = "jane@client.com?bcc=attacker%40evil.com&subject=Hi"
@@ -331,19 +331,19 @@ def test_a_cross_site_delete_all_post_changes_nothing(
 def test_the_notice_names_a_variable_still_set_but_never_its_value(
     client: TestClient, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    monkeypatch.setenv("CS_BRIEF_HUBSPOT_TOKEN", "test-token-value-123")
-    monkeypatch.delenv("CS_BRIEF_OPENROUTER_KEY", raising=False)
+    monkeypatch.setenv("WARDMIND_HUBSPOT_TOKEN", "test-token-value-123")
+    monkeypatch.delenv("WARDMIND_OPENROUTER_KEY", raising=False)
     text = _text(client.get("/settings/privacy?deleted_all=1"))
     assert "All local data was deleted." in text
-    assert "CS_BRIEF_HUBSPOT_TOKEN" in text
+    assert "WARDMIND_HUBSPOT_TOKEN" in text
     assert "test-token-value-123" not in text
 
 
 def test_no_environment_note_when_no_secret_variable_is_set(
     client: TestClient, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    monkeypatch.delenv("CS_BRIEF_HUBSPOT_TOKEN", raising=False)
-    monkeypatch.delenv("CS_BRIEF_OPENROUTER_KEY", raising=False)
+    monkeypatch.delenv("WARDMIND_HUBSPOT_TOKEN", raising=False)
+    monkeypatch.delenv("WARDMIND_OPENROUTER_KEY", raising=False)
     text = _text(client.get("/settings/privacy?deleted_all=1"))
     assert "All local data was deleted." in text
     assert "environment variable" not in text

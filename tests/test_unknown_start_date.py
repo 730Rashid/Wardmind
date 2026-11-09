@@ -1,4 +1,4 @@
-"""An account with no start date stays unknown (None) everywhere. cs-brief never gives it today's
+"""An account with no start date stays unknown (None) everywhere. Wardmind never gives it today's
 date, so it is never mistaken for a new customer.
 
 Covers motion, briefs, onboarding, import, editing, linking, HubSpot, the demo book, the web
@@ -20,24 +20,24 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 
-import cs_brief
-from cs_brief.core import importing, service
-from cs_brief.core.briefs import account_detail
-from cs_brief.core.config import MotionWindows, ScoringConfig
-from cs_brief.core.connectors.combined import CombinedConnector
-from cs_brief.core.connectors.demo import DemoConnector
-from cs_brief.core.connectors.local import ManualConnector
-from cs_brief.core.editing import EditError, create_account, edit_account, parse_edit_value
-from cs_brief.core.models import Account, Milestones, Motion, Signal
-from cs_brief.core.onboarding import onboarding_brief
-from cs_brief.core.scoring import classify_motion, score_book
-from cs_brief.core.settings import DataSource, Settings, save_settings
-from cs_brief.core.store import ConnectionConfig, ConnectionKind, LinkData, LinkGroup, LocalStore
-from cs_brief.mcp import server
-from cs_brief.web import app as web
-from cs_brief.web import formatting
+import wardmind
 from test_editing_pages import _import
 from test_hubspot_connector import edit_batch, make
+from wardmind.core import importing, service
+from wardmind.core.briefs import account_detail
+from wardmind.core.config import MotionWindows, ScoringConfig
+from wardmind.core.connectors.combined import CombinedConnector
+from wardmind.core.connectors.demo import DemoConnector
+from wardmind.core.connectors.local import ManualConnector
+from wardmind.core.editing import EditError, create_account, edit_account, parse_edit_value
+from wardmind.core.models import Account, Milestones, Motion, Signal
+from wardmind.core.onboarding import onboarding_brief
+from wardmind.core.scoring import classify_motion, score_book
+from wardmind.core.settings import DataSource, Settings, save_settings
+from wardmind.core.store import ConnectionConfig, ConnectionKind, LinkData, LinkGroup, LocalStore
+from wardmind.mcp import server
+from wardmind.web import app as web
+from wardmind.web import formatting
 
 AS_OF = date(2026, 10, 19)
 TODAY = date(2026, 10, 22)
@@ -264,7 +264,7 @@ def test_a_hubspot_company_with_no_start_date_or_createdate_has_none():
 
 
 def test_the_demo_shifts_the_start_dates_it_has_and_skips_a_missing_one(tmp_path):
-    source = Path(cs_brief.__file__).parent / "data" / "demo"
+    source = Path(wardmind.__file__).parent / "data" / "demo"
     for name in ("accounts.json", "signals.json"):
         shutil.copy(source / name, tmp_path / name)
     doc = json.loads((tmp_path / "accounts.json").read_text(encoding="utf-8"))

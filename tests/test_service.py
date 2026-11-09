@@ -4,12 +4,12 @@ from datetime import date
 
 import pytest
 
-from cs_brief.core import service
-from cs_brief.core.briefs import suggest_action
-from cs_brief.core.config import ScoringConfig
-from cs_brief.core.connectors.demo import DemoConnector
-from cs_brief.core.models import Motion
-from cs_brief.core.scoring import score_book
+from wardmind.core import service
+from wardmind.core.briefs import suggest_action
+from wardmind.core.config import ScoringConfig
+from wardmind.core.connectors.demo import DemoConnector
+from wardmind.core.models import Motion
+from wardmind.core.scoring import score_book
 
 AS_OF = date(2026, 10, 19)
 

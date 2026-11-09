@@ -12,8 +12,8 @@ import base64
 import httpx
 import pytest
 
-from cs_brief.core.feeds import http as feed_http
-from cs_brief.core.feeds.http import MAX_REDIRECTS, FeedError, FeedHttp, check_url, same_origin
+from wardmind.core.feeds import http as feed_http
+from wardmind.core.feeds.http import MAX_REDIRECTS, FeedError, FeedHttp, check_url, same_origin
 
 SECRET = "s3cr3t-token-value-xyz"
 

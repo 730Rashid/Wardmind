@@ -13,10 +13,10 @@ from pathlib import Path
 import pytest
 from openpyxl import Workbook
 
-from cs_brief.core import import_flow, importing
-from cs_brief.core.importing import DateOrder
-from cs_brief.core.models import SignalKind
-from cs_brief.core.store import ConnectionKind, LocalStore
+from wardmind.core import import_flow, importing
+from wardmind.core.importing import DateOrder
+from wardmind.core.models import SignalKind
+from wardmind.core.store import ConnectionKind, LocalStore
 
 TODAY = date(2026, 10, 22)
 NOW = datetime(2026, 10, 22, 9, 0)

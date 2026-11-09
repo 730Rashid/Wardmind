@@ -13,10 +13,10 @@ from typing import Any
 import pytest
 from fastapi.testclient import TestClient
 
-from cs_brief.core import service
-from cs_brief.core.settings import DataSource, Settings, load_settings, save_settings
-from cs_brief.web import app as web
 from research_fake import NO_FEED_HOME, acme_site, counted, reply
+from wardmind.core import service
+from wardmind.core.settings import DataSource, Settings, load_settings, save_settings
+from wardmind.web import app as web
 
 ORIGIN = {"origin": "http://127.0.0.1"}
 HTMX = {"HX-Request": "true", **ORIGIN}
@@ -91,7 +91,7 @@ def test_the_privacy_page_explains_web_research_and_shows_it_is_off(client: Test
     assert "Only when you press the button, for that one account. Never in the background." in text
     assert "The result, on this computer, for 24 hours." in text
     assert "Demo accounts are invented, so they show sample news and nothing is sent." in text
-    assert "cs-brief won't visit an address on this computer or your private network" in text
+    assert "Wardmind won't visit an address on this computer or your private network" in text
     assert "Clear local cache" in text
     assert "It doesn't touch your connections" in text
 
@@ -380,7 +380,7 @@ def test_a_site_without_a_feed_says_so_and_still_shows_its_title(
     site = acme_site(**{"https://acme.example/news/feed.xml": reply(NO_FEED_HOME)})
     _site(monkeypatch, site)
     section = _section(client.post(f"/accounts/{account_id}/research", headers=HTMX))
-    assert "Their website doesn't publish a news feed cs-brief could read." in section
+    assert "Their website doesn't publish a news feed Wardmind could read." in section
     assert "Acme Corporation | Home" in section
     assert '<ul class="research-articles">' not in section
 
@@ -431,7 +431,7 @@ def test_a_failed_look_up_without_js_shows_the_account_page_with_the_alert(
         f"/accounts/{account_id}/research", headers=ORIGIN, follow_redirects=False
     )
     assert response.status_code == 200
-    assert "<title>Acme Corporation - cs-brief</title>" in response.text
+    assert "<title>Acme Corporation - Wardmind</title>" in response.text
     assert 'role="alert">acme.example answered with an error (503).' in response.text
 
 

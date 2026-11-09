@@ -16,15 +16,15 @@ from datetime import UTC, date, datetime, timedelta
 import httpx
 import pytest
 
-from cs_brief.core import client_updates as cu
-from cs_brief.core import import_flow, importing, service
-from cs_brief.core import secrets as vault
-from cs_brief.core.contacts import ContactInput, validate
-from cs_brief.core.feeds import http as feed_http
-from cs_brief.core.feeds import setup, sync
-from cs_brief.core.feeds.models import FeedRole, FeedSettings, MatchBy, Schedule
-from cs_brief.core.importing import DateOrder, Table
-from cs_brief.core.settings import (
+from wardmind.core import client_updates as cu
+from wardmind.core import import_flow, importing, service
+from wardmind.core import secrets as vault
+from wardmind.core.contacts import ContactInput, validate
+from wardmind.core.feeds import http as feed_http
+from wardmind.core.feeds import setup, sync
+from wardmind.core.feeds.models import FeedRole, FeedSettings, MatchBy, Schedule
+from wardmind.core.importing import DateOrder, Table
+from wardmind.core.settings import (
     Accent,
     DataSource,
     Density,
@@ -33,7 +33,7 @@ from cs_brief.core.settings import (
     load_settings,
     save_settings,
 )
-from cs_brief.core.store import WRITE_LOCK, ConnectionConfig, ConnectionKind, LocalStore
+from wardmind.core.store import WRITE_LOCK, ConnectionConfig, ConnectionKind, LocalStore
 
 NOW = datetime(2026, 11, 8, 9, 0)
 TODAY = date(2026, 11, 8)
@@ -52,7 +52,7 @@ MAPPING = {
     "owner": "Owner",
     "signal:usage_trend_30d": "Usage trend",
 }
-SYNC_FAILED = "cs-brief couldn't finish this sync. Try Sync now."
+SYNC_FAILED = "Wardmind couldn't finish this sync. Try Sync now."
 UNICODE_FAILED = (
     "The key or password has characters that can't be sent. Check you copied only the key."
 )

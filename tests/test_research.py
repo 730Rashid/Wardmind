@@ -10,8 +10,20 @@ from datetime import datetime, timedelta
 import httpx
 import pytest
 
-from cs_brief.core import research
-from cs_brief.core.research import (
+from research_fake import (
+    ATOM,
+    FEED,
+    HOME,
+    NO_FEED_HOME,
+    NOW,
+    FakeSite,
+    account,
+    acme_site,
+    raising,
+    reply,
+)
+from wardmind.core import research
+from wardmind.core.research import (
     CACHE_HOURS,
     FALLBACK_FEEDS,
     MAX_ARTICLES,
@@ -34,18 +46,6 @@ from cs_brief.core.research import (
     sample_research,
     tag_topics,
     website_host,
-)
-from research_fake import (
-    ATOM,
-    FEED,
-    HOME,
-    NO_FEED_HOME,
-    NOW,
-    FakeSite,
-    account,
-    acme_site,
-    raising,
-    reply,
 )
 
 BASE = "https://acme.example/"

@@ -16,12 +16,12 @@ from typing import Any
 import pytest
 from fastapi.testclient import TestClient
 
-from cs_brief.core import contacts, editing, service
-from cs_brief.core.config import write_atomic
-from cs_brief.core.contacts import Contact, ContactStatus
-from cs_brief.core.settings import DataSource, Settings, save_settings
-from cs_brief.core.store import CONTACTS_FILE, LocalStore
-from cs_brief.web import app as web
+from wardmind.core import contacts, editing, service
+from wardmind.core.config import write_atomic
+from wardmind.core.contacts import Contact, ContactStatus
+from wardmind.core.settings import DataSource, Settings, save_settings
+from wardmind.core.store import CONTACTS_FILE, LocalStore
+from wardmind.web import app as web
 
 ORIGIN = {"origin": "http://127.0.0.1"}
 CROSS_SITE = [

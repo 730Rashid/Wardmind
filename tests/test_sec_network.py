@@ -16,11 +16,12 @@ from collections.abc import Iterator
 import httpx
 import pytest
 
-from cs_brief.core import research
-from cs_brief.core.connectors.hubspot import MAX_PAGES, HubSpotClient, HubSpotError
-from cs_brief.core.feeds import http as feed_http
-from cs_brief.core.feeds.http import FeedError, FeedHttp, is_internal_url
-from cs_brief.core.research import (
+from research_fake import FEED, HOME, NOW, FakeSite, account, reply
+from wardmind.core import research
+from wardmind.core.connectors.hubspot import MAX_PAGES, HubSpotClient, HubSpotError
+from wardmind.core.feeds import http as feed_http
+from wardmind.core.feeds.http import FeedError, FeedHttp, is_internal_url
+from wardmind.core.research import (
     MAX_PARSE_BYTES,
     MAX_TEXT,
     BlockedWebsite,
@@ -31,7 +32,6 @@ from cs_brief.core.research import (
     parse_feed,
     parse_page,
 )
-from research_fake import FEED, HOME, NOW, FakeSite, account, reply
 
 BASE = "https://acme.example/"
 TOKEN = "pat-na1-TESTTOKEN-0000-1111-2222-333344445555"
@@ -402,7 +402,7 @@ def test_a_redirect_to_plain_http_from_a_public_url_is_refused_before_any_reques
         FeedHttp().get("https://exports.example.com/start")
     assert (
         caught.value.message
-        == "exports.example.com redirected to an address cs-brief won't follow."
+        == "exports.example.com redirected to an address Wardmind won't follow."
     )
     assert len(plain) == 1
     assert guarded == []
@@ -424,7 +424,7 @@ def test_a_cross_origin_redirect_to_a_private_address_is_blocked_at_connect_time
         FeedHttp(secret="s3cr3t").get("https://exports.example.com/start")
     assert (
         caught.value.message
-        == "exports.example.com redirected to an address cs-brief won't follow."
+        == "exports.example.com redirected to an address Wardmind won't follow."
     )
 
 
@@ -557,7 +557,7 @@ def test_a_list_longer_than_the_page_cap_stops_with_a_plain_error() -> None:
             200, json={"results": [{"id": after}], "paging": {"next": {"after": after}}}
         )
 
-    with pytest.raises(HubSpotError, match="more pages than cs-brief reads"):
+    with pytest.raises(HubSpotError, match="more pages than Wardmind reads"):
         list(_hubspot(handler).paginate("POST", "tickets_search", json={"limit": 100}))
     assert len(seen) == MAX_PAGES  # the page after the cap is never asked for
 
@@ -569,7 +569,7 @@ def test_a_reply_over_the_body_cap_stops_early_with_a_plain_error() -> None:
             200, headers={"content-type": "application/json"}, stream=stream
         )
     )
-    with pytest.raises(HubSpotError, match="more data than cs-brief reads"):
+    with pytest.raises(HubSpotError, match="more data than Wardmind reads"):
         client.request("GET", "owners")
     assert stream.sent < 100  # stopped after the cap, not after all 100 megabytes
 

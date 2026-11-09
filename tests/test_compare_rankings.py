@@ -6,8 +6,8 @@ from datetime import date
 
 import pytest
 
-from cs_brief.core.briefs import RankChange, compare_rankings
-from cs_brief.core.models import Account, Health, Milestones, Motion, ScoredAccount
+from wardmind.core.briefs import RankChange, compare_rankings
+from wardmind.core.models import Account, Health, Milestones, Motion, ScoredAccount
 
 
 def _scored(id: str, *, health: Health = Health.HEALTHY, priority: float = 0.0) -> ScoredAccount:

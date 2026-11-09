@@ -10,10 +10,10 @@ from pathlib import Path
 from types import ModuleType
 from typing import Any
 
-from cs_brief.core.config import DEFAULT_SIGNAL_RULES, MotionWindows
-from cs_brief.core.connectors.base import Connector
-from cs_brief.core.connectors.demo import DemoConnector
-from cs_brief.core.models import Account, Health, Motion, Signal, SignalKind
+from wardmind.core.config import DEFAULT_SIGNAL_RULES, MotionWindows
+from wardmind.core.connectors.base import Connector
+from wardmind.core.connectors.demo import DemoConnector
+from wardmind.core.models import Account, Health, Motion, Signal, SignalKind
 
 REPO = Path(__file__).resolve().parents[1]
 KINDS = {kind.value for kind in SignalKind}

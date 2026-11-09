@@ -9,19 +9,19 @@ from datetime import date, datetime, timedelta
 import httpx
 import pytest
 
-from cs_brief.core import service
-from cs_brief.core.config import ScoringConfig, config_dir
-from cs_brief.core.connectors import hubspot
-from cs_brief.core.connectors.errors import ConnectorError
-from cs_brief.core.connectors.hubspot import (
+from hubspot_fake import fake_transport, fixture, route_name, serve
+from wardmind.core import service
+from wardmind.core.config import ScoringConfig, config_dir
+from wardmind.core.connectors import hubspot
+from wardmind.core.connectors.errors import ConnectorError
+from wardmind.core.connectors.hubspot import (
     HubSpotClient,
     HubSpotConnector,
     HubSpotMapping,
     HubSpotUnavailable,
     load_mapping,
 )
-from cs_brief.core.models import Health, Milestones, Motion, SignalKind
-from hubspot_fake import fake_transport, fixture, route_name, serve
+from wardmind.core.models import Health, Milestones, Motion, SignalKind
 
 TOKEN = "pat-na1-TESTTOKEN-0000-1111-2222-333344445555"
 TODAY = date(2026, 10, 19)
@@ -502,8 +502,8 @@ def test_partial_mapping_overrides_only_the_given_fields(tmp_path):
     [
         ("signals: [unclosed", "it isn't valid YAML"),
         ("history_days: -3", "history_days"),
-        ("arr_name: cs_arr", "arr_name isn't a setting cs-brief knows"),
-        ("signals:\n  nope_kind: cs_x\n", "signals.nope_kind isn't a signal cs-brief knows"),
+        ("arr_name: cs_arr", "arr_name isn't a setting Wardmind knows"),
+        ("signals:\n  nope_kind: cs_x\n", "signals.nope_kind isn't a signal Wardmind knows"),
         ("signals:\n  open_tickets_sev1: x\n", "signals.open_tickets_sev1 comes from tickets"),
         ("arr: '   '\n", "arr is blank"),
         ("- just\n- a list\n", "it should be a set of name: value settings"),

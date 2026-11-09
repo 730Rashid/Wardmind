@@ -11,10 +11,12 @@ from pathlib import Path
 import httpx
 import pytest
 
-from cs_brief.core import summaries
-from cs_brief.core.models import Account
-from cs_brief.core.research import Article, SiteResearch, Topic
-from cs_brief.core.summaries import (
+from openrouter_fake import ANSWER, KEY, FakeOpenRouter, completion, reply_json
+from research_fake import NOW, account
+from wardmind.core import summaries
+from wardmind.core.models import Account
+from wardmind.core.research import Article, SiteResearch, Topic
+from wardmind.core.summaries import (
     MAX_ABOUT,
     MAX_HIGHLIGHTS,
     MAX_INPUT_CHARS,
@@ -32,8 +34,6 @@ from cs_brief.core.summaries import (
     sample_summary,
     summarise,
 )
-from openrouter_fake import ANSWER, KEY, FakeOpenRouter, completion, reply_json
-from research_fake import NOW, account
 
 
 def _research(
@@ -276,7 +276,7 @@ def test_the_request_asks_for_the_schema_and_only_providers_that_keep_nothing() 
     request = fake.requests[0]
     assert request.url.path == "/api/v1/chat/completions"
     assert request.headers["authorization"] == f"Bearer {KEY}"
-    assert request.headers["x-openrouter-title"] == "cs-brief"
+    assert request.headers["x-openrouter-title"] == "Wardmind"
     assert "http-referer" not in request.headers
     body = fake.bodies[0]
     assert body["model"] == "anthropic/claude-haiku-5.5"
@@ -481,7 +481,7 @@ def test_the_key_info_is_read_and_a_missing_limit_is_none() -> None:
     info = fake.client().key_info()
     assert info.limit_remaining_usd == 9.58
     assert info.usage_usd == 0.42
-    assert info.label == "cs-brief test"
+    assert info.label == "Wardmind test"
     assert fake.requests[0].method == "GET"
     assert fake.requests[0].url.path.endswith("/key")
 

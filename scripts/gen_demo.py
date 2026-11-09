@@ -1,7 +1,7 @@
 """Generate the deterministic demo book: 40 invented accounts and their signals.
 
 Run from the repo root:  uv run python scripts/gen_demo.py
-Writes src/cs_brief/data/demo/accounts.json and signals.json. The tests check that the committed
+Writes src/wardmind/data/demo/accounts.json and signals.json. The tests check that the committed
 files still equal generate(), so re-run this script after changing anything here.
 """
 
@@ -13,12 +13,12 @@ from datetime import date, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
-from cs_brief.core.config import DEFAULT_SIGNAL_RULES, MotionWindows, SignalRule
-from cs_brief.core.models import Account, Health, Milestones, Motion, Signal, SignalKind
+from wardmind.core.config import DEFAULT_SIGNAL_RULES, MotionWindows, SignalRule
+from wardmind.core.models import Account, Health, Milestones, Motion, Signal, SignalKind
 
 SEED = 42
 ANCHOR = date(2026, 10, 19)
-DATA_DIR = Path(__file__).resolve().parents[1] / "src" / "cs_brief" / "data" / "demo"
+DATA_DIR = Path(__file__).resolve().parents[1] / "src" / "wardmind" / "data" / "demo"
 WINDOWS = MotionWindows()  # default motion windows: onboarding 90 days, renewal 120 days
 
 # Motion x health targets: 8 onboarding, 12 renewal, 20 churn; 18 healthy, 12 watch, 10 at risk.

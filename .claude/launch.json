@@ -2,32 +2,32 @@
   "version": "0.0.1",
   "configurations": [
     {
-      "name": "cs-brief-ui",
+      "name": "wardmind-ui",
       "runtimeExecutable": "powershell",
       "runtimeArgs": [
         "-NoProfile",
         "-Command",
-        "$env:UV_PROJECT_ENVIRONMENT = Join-Path $env:LOCALAPPDATA 'cs-brief\\venv'; uv run cs-brief ui --no-browser --port 8000"
+        "$env:UV_PROJECT_ENVIRONMENT = Join-Path $env:LOCALAPPDATA 'wardmind\\venv'; uv run wardmind ui --no-browser --port 8000"
       ],
       "port": 8000
     },
     {
-      "name": "cs-brief-ui-sandbox",
+      "name": "wardmind-ui-sandbox",
       "runtimeExecutable": "powershell",
       "runtimeArgs": [
         "-NoProfile",
         "-Command",
-        "$d = Join-Path $env:TEMP 'cs-brief-sandbox'; New-Item -ItemType Directory -Force $d | Out-Null; Copy-Item config\\scoring.yaml $d -Force; Remove-Item (Join-Path $d 'settings.yaml') -ErrorAction SilentlyContinue; Remove-Item (Join-Path $d 'secrets'), (Join-Path $d 'data') -Recurse -Force -ErrorAction SilentlyContinue; $env:CS_BRIEF_CONFIG_DIR = $d; $env:CS_BRIEF_SECRETS_DIR = Join-Path $d 'secrets'; $env:CS_BRIEF_DATA_DIR = Join-Path $d 'data'; Remove-Item Env:CS_BRIEF_HUBSPOT_TOKEN -ErrorAction SilentlyContinue; Remove-Item Env:CS_BRIEF_OPENROUTER_KEY, Env:CS_BRIEF_OPENROUTER_API_BASE -ErrorAction SilentlyContinue; $env:UV_PROJECT_ENVIRONMENT = Join-Path $env:LOCALAPPDATA 'cs-brief\\venv'; uv run cs-brief ui --no-browser --port 8001"
+        "$d = Join-Path $env:TEMP 'wardmind-sandbox'; New-Item -ItemType Directory -Force $d | Out-Null; Copy-Item config\\scoring.yaml $d -Force; Remove-Item (Join-Path $d 'settings.yaml') -ErrorAction SilentlyContinue; Remove-Item (Join-Path $d 'secrets'), (Join-Path $d 'data') -Recurse -Force -ErrorAction SilentlyContinue; $env:WARDMIND_CONFIG_DIR = $d; $env:WARDMIND_SECRETS_DIR = Join-Path $d 'secrets'; $env:WARDMIND_DATA_DIR = Join-Path $d 'data'; Remove-Item Env:WARDMIND_HUBSPOT_TOKEN -ErrorAction SilentlyContinue; Remove-Item Env:WARDMIND_OPENROUTER_KEY, Env:WARDMIND_OPENROUTER_API_BASE -ErrorAction SilentlyContinue; $env:UV_PROJECT_ENVIRONMENT = Join-Path $env:LOCALAPPDATA 'wardmind\\venv'; uv run wardmind ui --no-browser --port 8001"
       ],
       "port": 8001
     },
     {
-      "name": "cs-brief-ui-sandbox-keep",
+      "name": "wardmind-ui-sandbox-keep",
       "runtimeExecutable": "powershell",
       "runtimeArgs": [
         "-NoProfile",
         "-Command",
-        "$d = Join-Path $env:TEMP 'cs-brief-sandbox'; New-Item -ItemType Directory -Force $d | Out-Null; $env:CS_BRIEF_CONFIG_DIR = $d; $env:CS_BRIEF_SECRETS_DIR = Join-Path $d 'secrets'; $env:CS_BRIEF_DATA_DIR = Join-Path $d 'data'; Remove-Item Env:CS_BRIEF_HUBSPOT_TOKEN -ErrorAction SilentlyContinue; Remove-Item Env:CS_BRIEF_OPENROUTER_KEY, Env:CS_BRIEF_OPENROUTER_API_BASE -ErrorAction SilentlyContinue; $env:UV_PROJECT_ENVIRONMENT = Join-Path $env:LOCALAPPDATA 'cs-brief\\venv'; uv run cs-brief ui --no-browser --port 8001"
+        "$d = Join-Path $env:TEMP 'wardmind-sandbox'; New-Item -ItemType Directory -Force $d | Out-Null; $env:WARDMIND_CONFIG_DIR = $d; $env:WARDMIND_SECRETS_DIR = Join-Path $d 'secrets'; $env:WARDMIND_DATA_DIR = Join-Path $d 'data'; Remove-Item Env:WARDMIND_HUBSPOT_TOKEN -ErrorAction SilentlyContinue; Remove-Item Env:WARDMIND_OPENROUTER_KEY, Env:WARDMIND_OPENROUTER_API_BASE -ErrorAction SilentlyContinue; $env:UV_PROJECT_ENVIRONMENT = Join-Path $env:LOCALAPPDATA 'wardmind\\venv'; uv run wardmind ui --no-browser --port 8001"
       ],
       "port": 8001
     },
@@ -37,27 +37,27 @@
       "runtimeArgs": [
         "-NoProfile",
         "-Command",
-        "$env:UV_PROJECT_ENVIRONMENT = Join-Path $env:LOCALAPPDATA 'cs-brief\\venv'; uv run python scripts/fake_hubspot.py --port 8799"
+        "$env:UV_PROJECT_ENVIRONMENT = Join-Path $env:LOCALAPPDATA 'wardmind\\venv'; uv run python scripts/fake_hubspot.py --port 8799"
       ],
       "port": 8799
     },
     {
-      "name": "cs-brief-ui-fake-hubspot",
+      "name": "wardmind-ui-fake-hubspot",
       "runtimeExecutable": "powershell",
       "runtimeArgs": [
         "-NoProfile",
         "-Command",
-        "$d = Join-Path $env:TEMP 'cs-brief-fake-hubspot'; Remove-Item $d -Recurse -Force -ErrorAction SilentlyContinue; New-Item -ItemType Directory -Force (Join-Path $d 'config'), (Join-Path $d 'secrets'), (Join-Path $d 'data') | Out-Null; Copy-Item config\\scoring.yaml (Join-Path $d 'config') -Force; $env:CS_BRIEF_CONFIG_DIR = Join-Path $d 'config'; $env:CS_BRIEF_SECRETS_DIR = Join-Path $d 'secrets'; $env:CS_BRIEF_DATA_DIR = Join-Path $d 'data'; Remove-Item Env:CS_BRIEF_HUBSPOT_TOKEN -ErrorAction SilentlyContinue; $env:CS_BRIEF_HUBSPOT_API_BASE = 'http://127.0.0.1:8799'; $env:UV_PROJECT_ENVIRONMENT = Join-Path $env:LOCALAPPDATA 'cs-brief\\venv'; uv run cs-brief ui --no-browser --port 8002"
+        "$d = Join-Path $env:TEMP 'wardmind-fake-hubspot'; Remove-Item $d -Recurse -Force -ErrorAction SilentlyContinue; New-Item -ItemType Directory -Force (Join-Path $d 'config'), (Join-Path $d 'secrets'), (Join-Path $d 'data') | Out-Null; Copy-Item config\\scoring.yaml (Join-Path $d 'config') -Force; $env:WARDMIND_CONFIG_DIR = Join-Path $d 'config'; $env:WARDMIND_SECRETS_DIR = Join-Path $d 'secrets'; $env:WARDMIND_DATA_DIR = Join-Path $d 'data'; Remove-Item Env:WARDMIND_HUBSPOT_TOKEN -ErrorAction SilentlyContinue; $env:WARDMIND_HUBSPOT_API_BASE = 'http://127.0.0.1:8799'; $env:UV_PROJECT_ENVIRONMENT = Join-Path $env:LOCALAPPDATA 'wardmind\\venv'; uv run wardmind ui --no-browser --port 8002"
       ],
       "port": 8002
     },
     {
-      "name": "cs-brief-ui-fake-ai",
+      "name": "wardmind-ui-fake-ai",
       "runtimeExecutable": "powershell",
       "runtimeArgs": [
         "-NoProfile",
         "-Command",
-        "$d = Join-Path $env:TEMP 'cs-brief-fake-ai'; Remove-Item $d -Recurse -Force -ErrorAction SilentlyContinue; New-Item -ItemType Directory -Force (Join-Path $d 'config'), (Join-Path $d 'secrets'), (Join-Path $d 'data') | Out-Null; Copy-Item config\\scoring.yaml (Join-Path $d 'config') -Force; $env:CS_BRIEF_CONFIG_DIR = Join-Path $d 'config'; $env:CS_BRIEF_SECRETS_DIR = Join-Path $d 'secrets'; $env:CS_BRIEF_DATA_DIR = Join-Path $d 'data'; Remove-Item Env:CS_BRIEF_HUBSPOT_TOKEN -ErrorAction SilentlyContinue; Remove-Item Env:CS_BRIEF_OPENROUTER_KEY -ErrorAction SilentlyContinue; $env:CS_BRIEF_OPENROUTER_API_BASE = 'http://127.0.0.1:8798/api/v1'; $env:UV_PROJECT_ENVIRONMENT = Join-Path $env:LOCALAPPDATA 'cs-brief\\venv'; uv run cs-brief ui --no-browser --port 8003"
+        "$d = Join-Path $env:TEMP 'wardmind-fake-ai'; Remove-Item $d -Recurse -Force -ErrorAction SilentlyContinue; New-Item -ItemType Directory -Force (Join-Path $d 'config'), (Join-Path $d 'secrets'), (Join-Path $d 'data') | Out-Null; Copy-Item config\\scoring.yaml (Join-Path $d 'config') -Force; $env:WARDMIND_CONFIG_DIR = Join-Path $d 'config'; $env:WARDMIND_SECRETS_DIR = Join-Path $d 'secrets'; $env:WARDMIND_DATA_DIR = Join-Path $d 'data'; Remove-Item Env:WARDMIND_HUBSPOT_TOKEN -ErrorAction SilentlyContinue; Remove-Item Env:WARDMIND_OPENROUTER_KEY -ErrorAction SilentlyContinue; $env:WARDMIND_OPENROUTER_API_BASE = 'http://127.0.0.1:8798/api/v1'; $env:UV_PROJECT_ENVIRONMENT = Join-Path $env:LOCALAPPDATA 'wardmind\\venv'; uv run wardmind ui --no-browser --port 8003"
       ],
       "port": 8003
     },
@@ -67,7 +67,7 @@
       "runtimeArgs": [
         "-NoProfile",
         "-Command",
-        "$env:UV_PROJECT_ENVIRONMENT = Join-Path $env:LOCALAPPDATA 'cs-brief\\venv'; uv run python scripts/fake_openrouter.py --port 8798"
+        "$env:UV_PROJECT_ENVIRONMENT = Join-Path $env:LOCALAPPDATA 'wardmind\\venv'; uv run python scripts/fake_openrouter.py --port 8798"
       ],
       "port": 8798
     }

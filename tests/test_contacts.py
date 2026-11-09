@@ -12,8 +12,8 @@ from datetime import date, datetime
 
 import pytest
 
-from cs_brief.core import contacts
-from cs_brief.core.contacts import (
+from wardmind.core import contacts
+from wardmind.core.contacts import (
     MAX_CONTACTS_PER_ACCOUNT,
     MAX_EMAIL,
     MAX_NAME,
@@ -23,8 +23,8 @@ from cs_brief.core.contacts import (
     ContactSource,
     ContactStatus,
 )
-from cs_brief.core.models import Signal, SignalKind
-from cs_brief.core.store import CONTACTS_FILE, ConnectionKind, ImportSnapshot, LocalStore
+from wardmind.core.models import Signal, SignalKind
+from wardmind.core.store import CONTACTS_FILE, ConnectionKind, ImportSnapshot, LocalStore
 
 NOW = datetime(2026, 11, 8, 9, 0)
 LATER = datetime(2026, 11, 9, 9, 0)

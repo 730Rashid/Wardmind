@@ -4,12 +4,13 @@ from datetime import timedelta
 
 import pytest
 
-from cs_brief.core import onboarding, service
-from cs_brief.core.briefs import SIGNAL_LABELS, AccountDetail, suggest_action
-from cs_brief.core.config import MotionWindows, ScoringConfig
-from cs_brief.core.connectors.demo import DemoConnector
-from cs_brief.core.models import Account, Milestones, Motion, Signal, SignalKind
-from cs_brief.core.onboarding import (
+from test_account_detail import AS_OF, _account, _detail, _reading, _row
+from wardmind.core import onboarding, service
+from wardmind.core.briefs import SIGNAL_LABELS, AccountDetail, suggest_action
+from wardmind.core.config import MotionWindows, ScoringConfig
+from wardmind.core.connectors.demo import DemoConnector
+from wardmind.core.models import Account, Milestones, Motion, Signal, SignalKind
+from wardmind.core.onboarding import (
     ONBOARDING_SIGNALS,
     STANDARD_PLAN,
     AgendaItem,
@@ -19,7 +20,6 @@ from cs_brief.core.onboarding import (
     onboarding_brief,
     plan_for,
 )
-from test_account_detail import AS_OF, _account, _detail, _reading, _row
 
 USAGE = SignalKind.USAGE_TREND_30D
 DAYS = SignalKind.DAYS_SINCE_LAST_LOGIN

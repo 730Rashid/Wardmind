@@ -11,7 +11,7 @@ from pathlib import Path
 import openpyxl
 import pytest
 
-from cs_brief.core.importing import (
+from wardmind.core.importing import (
     MAX_BYTES,
     MAX_ROWS,
     DateOrder,
@@ -484,7 +484,7 @@ def test_unknown_file_type_is_refused_by_name():
     with pytest.raises(ImportError_) as caught:
         read_upload(b"%PDF-1.4", "notes.pdf")
     assert str(caught.value) == (
-        '"notes.pdf" isn\'t a file type cs-brief can read. Save it as .xlsx or CSV and try again.'
+        '"notes.pdf" isn\'t a file type Wardmind can read. Save it as .xlsx or CSV and try again.'
     )
 
 

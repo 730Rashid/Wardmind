@@ -1,6 +1,6 @@
-# cs-brief scoring configuration.
+# Wardmind scoring configuration.
 # Each signal adds up to `weight` risk points. Risk starts at `start` and is maxed at `full`
-# (linear in between). Total risk is capped at 100. See src/cs_brief/core/config.py.
+# (linear in between). Total risk is capped at 100. See src/wardmind/core/config.py.
 
 signals:
   usage_trend_30d:               { weight: 25, start: 0,  full: -50 }  # % change in active users

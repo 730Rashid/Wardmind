@@ -15,13 +15,13 @@ from typing import Any
 import pytest
 from fastapi.testclient import TestClient
 
-from cs_brief.core import bulk, editing, secrets, service, summaries
-from cs_brief.core.bulk import LookupResult, Outcome, SummaryResult
-from cs_brief.core.research import Topic
-from cs_brief.core.settings import DataSource, Settings, load_settings, save_settings
-from cs_brief.web import app as web
 from openrouter_fake import KEY, FakeOpenRouter, reply_json
 from research_fake import NOW, acme_site, counted
+from wardmind.core import bulk, editing, secrets, service, summaries
+from wardmind.core.bulk import LookupResult, Outcome, SummaryResult
+from wardmind.core.research import Topic
+from wardmind.core.settings import DataSource, Settings, load_settings, save_settings
+from wardmind.web import app as web
 
 ORIGIN = {"origin": "http://127.0.0.1"}
 HTMX = {"HX-Request": "true", **ORIGIN}
@@ -115,7 +115,7 @@ def test_the_privacy_page_explains_ai_summaries_in_the_agreed_words(client: Test
     assert "AI summaries are off." in text
     assert "They need web research to be on too." in text
     assert (
-        "When it's on, cs-brief can turn what web research read from a customer's website into a "
+        "When it's on, Wardmind can turn what web research read from a customer's website into a "
         "short About and up to three highlights a CSM should know: acquisitions, funding, "
         "leadership changes or restructuring. It uses your own OpenRouter account, so you choose "
         "the model and pay OpenRouter directly."
@@ -126,7 +126,7 @@ def test_the_privacy_page_explains_ai_summaries_in_the_agreed_words(client: Test
         "owner, health, signals, notes or other accounts."
     ) in text
     assert (
-        "OpenRouter, and the company that runs the model you chose. cs-brief asks OpenRouter to "
+        "OpenRouter, and the company that runs the model you chose. Wardmind asks OpenRouter to "
         "use only providers that don't store or train on the data."
     ) in text
     assert (
@@ -288,7 +288,7 @@ def test_an_environment_key_is_shown_as_set_by_the_environment_with_no_remove(
 ) -> None:
     monkeypatch.setenv(secrets.ENV_OPENROUTER_KEY, KEY)
     text = client.get("/settings/privacy").text
-    assert f"Set by the CS_BRIEF_OPENROUTER_KEY environment variable (…{KEY[-4:]})." in text
+    assert f"Set by the WARDMIND_OPENROUTER_KEY environment variable (…{KEY[-4:]})." in text
     assert 'action="/settings/privacy/ai/key/delete"' not in text
     assert KEY not in text
 
@@ -353,7 +353,7 @@ def test_the_web_research_section_links_to_the_lookups_page(client: TestClient) 
 
 def test_with_web_research_off_the_lookups_page_has_no_form(client: TestClient) -> None:
     text = _text(client.get("/research"))
-    assert "<title>Website lookups - cs-brief</title>" in client.get("/research").text
+    assert "<title>Website lookups - Wardmind</title>" in client.get("/research").text
     assert "Website lookups need web research, and it's off." in text
     assert 'href="/settings/privacy"' in text
     assert "/research/all" not in text
@@ -637,7 +637,7 @@ def test_a_key_problem_shows_as_an_alert_with_a_link_to_the_key_page(
     secrets.save_openrouter_key(KEY)
     from datetime import date
 
-    from cs_brief.core import editing
+    from wardmind.core import editing
 
     account = editing.create_account(
         service.get_store(),

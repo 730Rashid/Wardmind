@@ -6,9 +6,9 @@ from datetime import date
 
 import pytest
 
-from cs_brief.core.matching import normalize_domain, normalize_name, suggest_duplicates
-from cs_brief.core.models import Account, Milestones
-from cs_brief.core.store import LinkData, LinkGroup
+from wardmind.core.matching import normalize_domain, normalize_name, suggest_duplicates
+from wardmind.core.models import Account, Milestones
+from wardmind.core.store import LinkData, LinkGroup
 
 
 def account(acc_id: str, name: str, domain: str | None = None) -> Account:

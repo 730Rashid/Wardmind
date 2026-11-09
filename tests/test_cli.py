@@ -6,13 +6,13 @@ from datetime import date
 import pytest
 from typer.testing import CliRunner
 
-from cs_brief import cli
-from cs_brief.core import service
-from cs_brief.core.config import ScoringConfig
-from cs_brief.core.connectors.demo import DemoConnector
-from cs_brief.core.connectors.errors import ConnectionNotReady
-from cs_brief.core.models import Health, Motion, ScoredAccount
-from cs_brief.core.settings import DataSource, Settings, save_settings
+from wardmind import cli
+from wardmind.core import service
+from wardmind.core.config import ScoringConfig
+from wardmind.core.connectors.demo import DemoConnector
+from wardmind.core.connectors.errors import ConnectionNotReady
+from wardmind.core.models import Health, Motion, ScoredAccount
+from wardmind.core.settings import DataSource, Settings, save_settings
 
 AS_OF = date(2026, 10, 19)
 runner = CliRunner()

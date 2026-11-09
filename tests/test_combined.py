@@ -10,13 +10,13 @@ from datetime import date, datetime
 
 import pytest
 
-from cs_brief.core import service
-from cs_brief.core.config import ScoringConfig
-from cs_brief.core.connectors.combined import CombinedConnector, ConnectionProblem
-from cs_brief.core.connectors.errors import ConnectorError
-from cs_brief.core.connectors.local import ManualConnector, SpreadsheetConnector
-from cs_brief.core.models import Account, Milestones, Signal, SignalKind
-from cs_brief.core.store import (
+from wardmind.core import service
+from wardmind.core.config import ScoringConfig
+from wardmind.core.connectors.combined import CombinedConnector, ConnectionProblem
+from wardmind.core.connectors.errors import ConnectorError
+from wardmind.core.connectors.local import ManualConnector, SpreadsheetConnector
+from wardmind.core.models import Account, Milestones, Signal, SignalKind
+from wardmind.core.store import (
     EDITABLE_FIELDS,
     ConnectionConfig,
     ConnectionKind,

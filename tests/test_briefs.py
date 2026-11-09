@@ -4,11 +4,11 @@ from datetime import date, timedelta
 
 import pytest
 
-from cs_brief.core import briefs
-from cs_brief.core.briefs import explain, suggest_action, weekly_brief
-from cs_brief.core.config import ScoringConfig
-from cs_brief.core.connectors.demo import DemoConnector
-from cs_brief.core.models import (
+from wardmind.core import briefs
+from wardmind.core.briefs import explain, suggest_action, weekly_brief
+from wardmind.core.config import ScoringConfig
+from wardmind.core.connectors.demo import DemoConnector
+from wardmind.core.models import (
     Account,
     Health,
     Milestones,
@@ -17,7 +17,7 @@ from cs_brief.core.models import (
     ScoredAccount,
     SignalKind,
 )
-from cs_brief.core.scoring import score_book
+from wardmind.core.scoring import score_book
 
 AS_OF = date(2026, 10, 19)
 ALL_PAIRS = [(motion, kind) for motion in Motion for kind in SignalKind]

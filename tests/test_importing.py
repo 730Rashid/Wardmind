@@ -10,8 +10,8 @@ from pathlib import Path
 
 import pytest
 
-from cs_brief.core import importing
-from cs_brief.core.importing import (
+from wardmind.core import importing
+from wardmind.core.importing import (
     IMPORT_FIELDS,
     SIGNAL_FIELD_KINDS,
     DateOrder,
@@ -30,7 +30,7 @@ from cs_brief.core.importing import (
     read_csv,
     template_csv,
 )
-from cs_brief.core.models import Milestones, Signal, SignalKind
+from wardmind.core.models import Milestones, Signal, SignalKind
 
 FIXTURES = Path(__file__).parent / "fixtures" / "import"
 NOW = datetime(2026, 10, 22, 9, 0)

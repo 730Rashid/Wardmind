@@ -6,10 +6,10 @@ from datetime import date, datetime
 
 import pytest
 
-from cs_brief.core.connectors.base import Connector
-from cs_brief.core.connectors.local import ManualConnector, SpreadsheetConnector
-from cs_brief.core.models import Account, Milestones, Signal, SignalKind
-from cs_brief.core.store import ImportRecord, ImportSnapshot, LocalStore, ManualData
+from wardmind.core.connectors.base import Connector
+from wardmind.core.connectors.local import ManualConnector, SpreadsheetConnector
+from wardmind.core.models import Account, Milestones, Signal, SignalKind
+from wardmind.core.store import ImportRecord, ImportSnapshot, LocalStore, ManualData
 
 NOW = datetime(2026, 10, 21, 9, 30)
 

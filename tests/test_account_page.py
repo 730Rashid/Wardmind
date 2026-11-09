@@ -10,13 +10,13 @@ from typing import Any
 import pytest
 from fastapi.testclient import TestClient
 
-from cs_brief.core import service
-from cs_brief.core.briefs import AccountDetail, BreakdownRow, TimelineEntry
-from cs_brief.core.config import Thresholds, load_scoring_config
-from cs_brief.core.connectors.demo import DemoConnector
-from cs_brief.core.models import Account, Health, Milestones, Motion, Signal, SignalKind
-from cs_brief.web import app as web
-from cs_brief.web import formatting
+from wardmind.core import service
+from wardmind.core.briefs import AccountDetail, BreakdownRow, TimelineEntry
+from wardmind.core.config import Thresholds, load_scoring_config
+from wardmind.core.connectors.demo import DemoConnector
+from wardmind.core.models import Account, Health, Milestones, Motion, Signal, SignalKind
+from wardmind.web import app as web
+from wardmind.web import formatting
 
 TODAY = date(2026, 10, 21)
 
@@ -76,7 +76,7 @@ def test_rank_one_page_has_the_name_nav_and_summary(client: TestClient, detail: 
     text = _text(response)
 
     name = detail.scored.account.name
-    assert f"<title>{html.escape(name)} - cs-brief</title>" in markup
+    assert f"<title>{html.escape(name)} - Wardmind</title>" in markup
     heading = _block(markup, r'<h1 class="account-name">(.*?)</h1>')
     assert html.unescape(heading) == name
     assert '<a class="nav-link" href="/" aria-current="page">My book</a>' in markup
@@ -230,7 +230,7 @@ def test_account_with_no_readings_says_so(monkeypatch: pytest.MonkeyPatch):
 def test_unknown_account_id_is_a_404_with_the_existing_copy(client: TestClient):
     response = client.get("/accounts/acc-999")
     assert response.status_code == 404
-    assert "<title>Account not found - cs-brief</title>" in response.text
+    assert "<title>Account not found - Wardmind</title>" in response.text
     assert "No account with id acc-999." in _text(response)
     assert "Back to My book" in _text(response)
 

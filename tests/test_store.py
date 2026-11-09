@@ -10,11 +10,11 @@ from pathlib import Path
 
 import pytest
 
-from cs_brief.core import client_updates, contacts
-from cs_brief.core.contacts import ContactInput, ContactSource
-from cs_brief.core.models import Account, Milestones, Signal, SignalKind
-from cs_brief.core.secrets import ENV_SECRETS_DIR
-from cs_brief.core.store import (
+from wardmind.core import client_updates, contacts
+from wardmind.core.contacts import ContactInput, ContactSource
+from wardmind.core.models import Account, Milestones, Signal, SignalKind
+from wardmind.core.secrets import ENV_SECRETS_DIR
+from wardmind.core.store import (
     ENV_DATA_DIR,
     ConnectionKind,
     FieldEdit,
@@ -505,7 +505,7 @@ def test_connection_for_reads_the_id_prefix(account_id, expected):
 
 
 def test_clear_all_also_removes_feed_drafts_and_every_feed_key(store):
-    from cs_brief.core import secrets
+    from wardmind.core import secrets
 
     hubspot = "pat-na1-HUBSPOTTEST-0000-1111-2222-333344445555"
     key = "test-key-0123456789abcdef"

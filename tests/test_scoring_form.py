@@ -4,9 +4,9 @@ from __future__ import annotations
 
 import pytest
 
-from cs_brief.core.config import ArrScaling, ScoringConfig
-from cs_brief.core.models import SignalKind
-from cs_brief.web.scoring_form import (
+from wardmind.core.config import ArrScaling, ScoringConfig
+from wardmind.core.models import SignalKind
+from wardmind.web.scoring_form import (
     FIELD_NAMES,
     NOT_A_NUMBER,
     UNIT_HINTS,

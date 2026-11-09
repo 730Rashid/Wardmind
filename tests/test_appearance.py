@@ -15,10 +15,10 @@ import uvicorn
 from fastapi.testclient import TestClient
 from typer.testing import CliRunner
 
-from cs_brief import cli
-from cs_brief.core import service
-from cs_brief.core.connectors.demo import DemoConnector
-from cs_brief.core.settings import (
+from wardmind import cli
+from wardmind.core import service
+from wardmind.core.connectors.demo import DemoConnector
+from wardmind.core.settings import (
     Accent,
     Density,
     Landing,
@@ -27,7 +27,7 @@ from cs_brief.core.settings import (
     load_settings,
     save_settings,
 )
-from cs_brief.web import app as web
+from wardmind.web import app as web
 
 WEB_DIR = Path(web.__file__).parent
 STATIC = WEB_DIR / "static"
@@ -81,7 +81,7 @@ def _free_port() -> int:
 @pytest.fixture
 def config_dir(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     """Saves go to a temp folder, never to the real config/."""
-    monkeypatch.setenv("CS_BRIEF_CONFIG_DIR", str(tmp_path))
+    monkeypatch.setenv("WARDMIND_CONFIG_DIR", str(tmp_path))
     return tmp_path
 
 
@@ -131,7 +131,7 @@ def test_settings_opens_on_appearance(client: TestClient) -> None:
 def test_appearance_shows_the_defaults_checked(client: TestClient) -> None:
     response = client.get("/settings/appearance")
     assert response.status_code == 200
-    assert "<title>Appearance - cs-brief</title>" in response.text
+    assert "<title>Appearance - Wardmind</title>" in response.text
     assert _checked(response.text) == DEFAULT_CHECKED
 
 
@@ -156,7 +156,7 @@ def test_appearance_form_posts_to_itself_with_the_four_fieldsets(client: TestCli
     legends = re.findall(r"<legend>(.*?)</legend>", response.text)
     assert legends == ["Theme", "Accent colour", "Density", "Opens on"]
     assert "Compact fits more rows on screen." in response.text
-    assert "The screen cs-brief ui opens on." in response.text
+    assert "The screen wardmind ui opens on." in response.text
 
 
 def test_every_accent_has_a_swatch_and_a_radio(client: TestClient) -> None:
@@ -286,7 +286,7 @@ def test_ui_opens_the_landing_screen(
     result = CliRunner().invoke(cli.app, ["ui", "--port", str(port)])
     assert result.exit_code == 0, result.output
     url = f"http://127.0.0.1:{port}/brief"
-    assert f"cs-brief is running at {url}" in result.output
+    assert f"Wardmind is running at {url}" in result.output
     (timer,) = timers
     timer.function(*timer.args)
     assert opened == [url]

@@ -8,9 +8,9 @@ from pathlib import Path
 
 import pytest
 
-from cs_brief.core import secrets
-from cs_brief.core.config import config_dir
-from cs_brief.core.secrets import (
+from wardmind.core import secrets
+from wardmind.core.config import config_dir
+from wardmind.core.secrets import (
     ENV_SECRETS_DIR,
     ENV_TOKEN,
     MAX_TOKEN_LENGTH,
@@ -140,7 +140,7 @@ def test_status_for_no_token_has_nothing(store: Path) -> None:
 
 
 def test_save_writes_the_bare_token_and_creates_the_folder(tmp_path: Path, monkeypatch) -> None:
-    folder = tmp_path / "not-yet" / "cs-brief"
+    folder = tmp_path / "not-yet" / "wardmind"
     monkeypatch.setenv(ENV_SECRETS_DIR, str(folder))
     save_hubspot_token(f"  {TOKEN}  ")
     assert (folder / TOKEN_FILE).read_text(encoding="utf-8") == TOKEN
@@ -268,14 +268,14 @@ def test_the_environment_overrides_the_folder(tmp_path: Path, monkeypatch) -> No
 def test_the_windows_default_is_under_local_app_data(tmp_path: Path, monkeypatch) -> None:
     monkeypatch.delenv(ENV_SECRETS_DIR)
     monkeypatch.setenv("LOCALAPPDATA", str(tmp_path))
-    assert secrets_dir() == tmp_path / "cs-brief"
+    assert secrets_dir() == tmp_path / "wardmind"
 
 
 @pytest.mark.skipif(os.name == "nt", reason="the POSIX default")
 def test_the_posix_default_follows_xdg_state_home(tmp_path: Path, monkeypatch) -> None:
     monkeypatch.delenv(ENV_SECRETS_DIR)
     monkeypatch.setenv("XDG_STATE_HOME", str(tmp_path))
-    assert secrets_dir() == tmp_path / "cs-brief"
+    assert secrets_dir() == tmp_path / "wardmind"
 
 
 def test_the_default_folder_is_never_in_the_repo_or_the_config_folder(

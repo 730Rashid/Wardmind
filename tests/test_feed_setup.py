@@ -13,15 +13,15 @@ from pathlib import Path
 import httpx
 import pytest
 
-from cs_brief.core import client_updates
-from cs_brief.core import secrets as vault
-from cs_brief.core.feeds import http as feed_http
-from cs_brief.core.feeds import setup
-from cs_brief.core.feeds.http import FeedError
-from cs_brief.core.feeds.models import FeedRole, MatchBy, Schedule
-from cs_brief.core.models import Account, Milestones, SignalKind
-from cs_brief.core.secrets import FEED_SECRETS_DIR, secrets_dir
-from cs_brief.core.store import ConnectionKind, LocalStore
+from wardmind.core import client_updates
+from wardmind.core import secrets as vault
+from wardmind.core.feeds import http as feed_http
+from wardmind.core.feeds import setup
+from wardmind.core.feeds.http import FeedError
+from wardmind.core.feeds.models import FeedRole, MatchBy, Schedule
+from wardmind.core.models import Account, Milestones, SignalKind
+from wardmind.core.secrets import FEED_SECRETS_DIR, secrets_dir
+from wardmind.core.store import ConnectionKind, LocalStore
 
 NOW = datetime(2026, 11, 8, 9, 0)
 TODAY = date(2026, 11, 8)

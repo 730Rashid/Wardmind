@@ -8,7 +8,7 @@ from pathlib import Path
 import pytest
 
 CSS = (
-    Path(__file__).resolve().parents[1] / "src" / "cs_brief" / "web" / "static" / "css" / "app.css"
+    Path(__file__).resolve().parents[1] / "src" / "wardmind" / "web" / "static" / "css" / "app.css"
 )
 ACCENTS = ["plum", "blue", "petrol", "graphite"]
 

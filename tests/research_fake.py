@@ -12,8 +12,8 @@ from typing import Any
 
 import httpx
 
-from cs_brief.core import research
-from cs_brief.core.models import Account, Milestones
+from wardmind.core import research
+from wardmind.core.models import Account, Milestones
 
 NOW = datetime(2026, 10, 22, 9, 0, tzinfo=UTC)
 

@@ -16,10 +16,10 @@ from typing import Any
 import pytest
 from fastapi.testclient import TestClient
 
-from cs_brief.core import importing, secrets, service
-from cs_brief.core.settings import DataSource, Settings, load_settings, save_settings
-from cs_brief.core.store import ConnectionKind, LocalStore
-from cs_brief.web import app as web
+from wardmind.core import importing, secrets, service
+from wardmind.core.settings import DataSource, Settings, load_settings, save_settings
+from wardmind.core.store import ConnectionKind, LocalStore
+from wardmind.web import app as web
 
 ORIGIN = {"origin": "http://127.0.0.1"}
 CROSS_SITE = [
@@ -464,7 +464,7 @@ def test_an_invalid_reading_is_refused_with_its_message(
         client, f"/accounts/{LARKSPUR}/readings", {"kind": "not_a_signal", "value": "1"}
     )
     assert unknown.status_code == 422
-    assert "That signal isn't one cs-brief knows." in _text(unknown)
+    assert "That signal isn't one Wardmind knows." in _text(unknown)
     assert store.manual().signals == []
 
 

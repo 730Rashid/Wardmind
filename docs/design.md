@@ -1,4 +1,4 @@
-# cs-brief design direction
+# Wardmind design direction
 
 Implementers: this is the source of truth for every screen. If something here conflicts with a
 brief, escalate rather than guess.
@@ -102,7 +102,7 @@ Typography rules:
 
 ### Top bar (every page)
 ```
-cs-brief   My book   Weekly brief   Onboarding prep   Settings              Showing demo data
+Wardmind   My book   Weekly brief   Onboarding prep   Settings              Showing demo data
 ───────────────────────────────────────────────────────────────────────────────────────────
 ```
 - The product name has a small document mark in the accent colour.
@@ -240,7 +240,7 @@ Top 10 to contact                                                  (h2)
  2. …
  (an <ol>: the list is a ranked sequence, so the numbers carry meaning)
 
-Made by cs-brief on 21 October 2026 from demo data.               (t-sm muted footer)
+Made by Wardmind on 21 October 2026 from demo data.               (t-sm muted footer)
 ```
 - **Book bar:**
   - `<svg role="img">` with `aria-label="ARR by health: $1.2M at risk, $2.1M watch, $3.0M healthy"`
@@ -384,7 +384,7 @@ Bring your accounts in any way that suits you. You can mix them later.   (t-md, 
 #### Connections (`/settings/connections`, reworked)
 ```
 Connections
-Which data cs-brief shows       (•) Your data   ( ) Demo data      [ Save changes ]
+Which data Wardmind shows       (•) Your data   ( ) Demo data      [ Save changes ]
 
 Your connections                                                   (h2)
   HubSpot                 128 accounts. Fetched 14:02.    [ Test ] [ Refresh ] [ Remove ]
@@ -397,7 +397,7 @@ Add a connection                                                   (h2)
 
 Hidden accounts (2)            <details>: each with [ Show again ]
 HubSpot access                 (the phase-7 token section, shown when HubSpot is connected)
-What cs-brief reads            (the HubSpot mapping, as before)
+What Wardmind reads            (the HubSpot mapping, as before)
 ```
 - **Connection rows** are a `<table>` with columns Connection, Status and Actions.
   - Each connection has an "Include in my book" checkbox (the `enabled` flag) that auto-submits
@@ -419,7 +419,7 @@ What cs-brief reads            (the HubSpot mapping, as before)
    Match your columns                                             (h1)
    renewals.xlsx, sheet "Accounts" ▾ (Excel only)   42 rows
 
-   cs-brief field          Your column               Example from row 2
+   Wardmind field          Your column               Example from row 2
    Account name *          [ Company ▾ ]             Larkspur Freight
    ARR *                   [ Annual revenue ▾ ]      $120,000
    Renewal date *          [ Contract end ▾ ]        2026-12-01
@@ -518,12 +518,12 @@ from, is HubSpot set up, does it work, and what exactly does it read.
 Connections
 Data source                                                         (fieldset)
   (•) Demo data   "40 invented accounts. Nothing leaves your computer."
-  ( ) HubSpot     "Reads your customer companies, owners and tickets. cs-brief never writes to HubSpot."
+  ( ) HubSpot     "Reads your customer companies, owners and tickets. Wardmind never writes to HubSpot."
   [ Save changes ]
 
 HubSpot access                                                      (h2)
   Token   Saved on this computer, ends in …9f3e. Saved 21 October.     [ Remove token ]
-     or   Set by CS_BRIEF_HUBSPOT_TOKEN, ends in …9f3e. Change it where you set it.
+     or   Set by WARDMIND_HUBSPOT_TOKEN, ends in …9f3e. Change it where you set it.
      or   No token saved.
   Access token  [ ••••••••••••••••••••••• ]  [ Save token ]
   "Create a Service Key in HubSpot (Settings, then Integrations, then Service Keys) with the
@@ -538,7 +538,7 @@ HubSpot access                                                      (h2)
 
   Data last fetched 14:02.   [ Refresh data now ]                    (only when HubSpot is active)
 
-What cs-brief reads                                                 (h2, <details> collapsed)
+What Wardmind reads                                                 (h2, <details> collapsed)
   the mapping table from docs/hubspot.md for the effective mapping
 ```
 - **Token input:**
@@ -567,7 +567,7 @@ Scoring             (•) Match my computer   ( ) Light   ( ) Dark
                   Density
                     (•) Comfortable   ( ) Compact   "Compact fits more rows on screen."
                   Opens on
-                    (•) My book   ( ) Weekly brief   "The screen cs-brief ui opens on."
+                    (•) My book   ( ) Weekly brief   "The screen wardmind ui opens on."
                   [ Save changes ]
 ```
 - **Radios** are real radio inputs with visible labels, not custom widgets. Accent options show a

@@ -19,13 +19,13 @@ import pytest
 from fastapi.testclient import TestClient
 from openpyxl import Workbook
 
-from cs_brief.core import importing, secrets, service
-from cs_brief.core.connectors.combined import CombinedConnector
-from cs_brief.core.connectors.demo import DemoConnector
-from cs_brief.core.connectors.errors import ConnectionNotReady
-from cs_brief.core.settings import DataSource, Settings, load_settings, save_settings
-from cs_brief.core.store import ConnectionConfig, ConnectionKind, LocalStore
-from cs_brief.web import app as web
+from wardmind.core import importing, secrets, service
+from wardmind.core.connectors.combined import CombinedConnector
+from wardmind.core.connectors.demo import DemoConnector
+from wardmind.core.connectors.errors import ConnectionNotReady
+from wardmind.core.settings import DataSource, Settings, load_settings, save_settings
+from wardmind.core.store import ConnectionConfig, ConnectionKind, LocalStore
+from wardmind.web import app as web
 
 ORIGIN = {"origin": "http://127.0.0.1"}
 HX = {"origin": "http://127.0.0.1", "HX-Request": "true"}
@@ -302,12 +302,12 @@ def test_the_template_round_trips_with_one_row_edited(
     assert template.status_code == 200
     assert template.headers["content-type"].startswith("text/csv")
     assert template.headers["content-disposition"] == (
-        'attachment; filename="cs-brief-template.csv"'
+        'attachment; filename="wardmind-template.csv"'
     )
     assert template.text.startswith("Account name,ARR,Renewal date,ID,Website,Owner,Tier,")
     edited = template.text.replace("$184,000", "$190,000")
 
-    draft_id = _draft_id(_upload(client, edited, filename="cs-brief-template.csv"))
+    draft_id = _draft_id(_upload(client, edited, filename="wardmind-template.csv"))
     mapping_page = client.get(f"/import/{draft_id}")
     assert mapping_page.status_code == 200
     assert "Match your columns" in _text(mapping_page)
@@ -322,7 +322,7 @@ def test_the_template_round_trips_with_one_row_edited(
 
     book = client.get(commit.headers["location"])
     assert book.status_code == 200
-    assert "Imported 2 accounts from cs-brief-template.csv." in _text(book)
+    assert "Imported 2 accounts from wardmind-template.csv." in _text(book)
     assert 'role="status"' in book.text
     assert "Larkspur Freight" in book.text and "Quillon Health" in book.text
     assert "were skipped" not in book.text
@@ -563,7 +563,7 @@ def test_an_unreadable_file_is_refused_and_stores_no_draft(
 ) -> None:
     response = _upload(client, "a,b\n", filename="notes.pdf")
     assert response.status_code == 422
-    assert "isn't a file type cs-brief can read" in _text(response)
+    assert "isn't a file type Wardmind can read" in _text(response)
     assert _draft_files(store) == []
 
 

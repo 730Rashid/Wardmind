@@ -1,6 +1,6 @@
 # Privacy
 
-cs-brief is a local tool. It has no server of its own, no account, no analytics and no
+Wardmind is a local tool. It has no server of its own, no account, no analytics and no
 telemetry. This page lists everything it stores, and every time anything leaves your computer.
 
 ## What leaves your computer
@@ -19,7 +19,7 @@ Only these, and only when you set them up:
 Spreadsheets you import and accounts you add by hand never leave your computer.
 
 The web dashboard loads nothing from the internet. Its script (htmx) and font are bundled
-(see [`VENDORED.md`](src/cs_brief/web/static/VENDORED.md)), and a strict Content-Security-Policy
+(see [`VENDORED.md`](src/wardmind/web/static/VENDORED.md)), and a strict Content-Security-Policy
 stops the page from loading anything from anywhere else.
 
 ## Web research in detail
@@ -43,19 +43,19 @@ Web research is off until you turn it on in **Settings > Data & privacy**. When 
   turn web research off. A result older than 24 hours is fetched again the next time you look
   it up. My book uses saved results for its news tags.
 - **Demo data.** Demo accounts are invented, so they show sample news and nothing is sent.
-- **Safety.** A website field comes from imported data, so cs-brief treats it as untrusted.
+- **Safety.** A website field comes from imported data, so Wardmind treats it as untrusted.
   It visits only public `https` websites. It refuses IP addresses, `localhost` and
   private-network names. It checks the address every connection resolves to, redirects
   included, and refuses this computer and private networks. Proxy settings from the
   environment are ignored, so that check can't be bypassed. If you're on a network that
   requires a proxy, web research won't work there. Each lookup has time and size limits, so a
-  slow or hostile website can't stall cs-brief. Website text given to Claude is labelled as
+  slow or hostile website can't stall Wardmind. Website text given to Claude is labelled as
   untrusted data that may contain instructions Claude must not follow.
 
 ## AI summaries in detail
 
 AI summaries are off until you turn them on in **Settings > Data & privacy** and add your own
-OpenRouter API key. cs-brief has no AI account or key of its own.
+OpenRouter API key. Wardmind has no AI account or key of its own.
 
 - **What it does.** It turns what web research read from a customer's website into a short
   About and up to three highlights: acquisitions, funding, leadership changes or restructuring.
@@ -90,7 +90,7 @@ until you add one.
 - **Addresses.** `https` only. Plain `http` is allowed only for `localhost`, for a test server
   of your own. A feed may point at your company's private network on purpose (an internal
   export link), because you typed that address yourself. A public feed can't use a redirect to
-  send cs-brief into your private network or this computer: a redirect to another site is only
+  send Wardmind into your private network or this computer: a redirect to another site is only
   followed to a public `https` address.
 - **Files and databases** are read where they are. A SQLite database is opened read-only, only
   `SELECT` queries can run, and a query is stopped after 30 seconds.
@@ -107,19 +107,19 @@ until you add one.
 **Contacts** are the people at each customer that you add, or accept from a client update. They
 are personal data, so:
 
-- They stay on this computer, in `%LOCALAPPDATA%\cs-brief\data\contacts.json`.
+- They stay on this computer, in `%LOCALAPPDATA%\wardmind\data\contacts.json`.
 - Claude, through the MCP server, sees contact names, job titles, main-contact flags and who has
   left, but never email addresses.
 - Removing a contact deletes it. Removing a connection or a hand-added account deletes its
   accounts' contacts.
 
 **Client updates** are off for every client until you turn them on for that client, after
-agreeing it with them. cs-brief records who agreed and when.
+agreeing it with them. Wardmind records who agreed and when.
 
 - **How it works.** You make one form in your own form tool (Microsoft Forms, Airtable or Google
   Forms). Each client who agreed gets their own link to it, with a client code filled in.
-  cs-brief reads the form's responses through a data feed. The client never connects to
-  cs-brief or to your CRM.
+  Wardmind reads the form's responses through a data feed. The client never connects to
+  Wardmind or to your CRM.
 - **Nothing changes until you accept it.** Every response waits on the Client updates page
   until you accept it (after correcting it if needed) or reject it.
 - **What is kept.** A response with no code, a code that matches no client who agreed, or an
@@ -128,29 +128,29 @@ agreeing it with them. cs-brief records who agreed and when.
 - **Turning updates off** for a client deletes their agreement and any updates still waiting.
   **New link** makes the old link stop working.
 - **Google Forms.** Its responses sheet has to be shared as "Anyone with the link" for
-  cs-brief to read it, so treat that link like a password. Microsoft Forms, with responses in
+  Wardmind to read it, so treat that link like a password. Microsoft Forms, with responses in
   an Excel workbook in your OneDrive, or an Airtable form avoids this.
 
 ## What is stored, and where
 
 | What | Where |
 |---|---|
-| Appearance and other UI settings | `config/settings.yaml` in the folder you run cs-brief from |
+| Appearance and other UI settings | `config/settings.yaml` in the folder you run Wardmind from |
 | Scoring weights and thresholds | `config/scoring.yaml` in the same folder |
-| HubSpot access token | `%LOCALAPPDATA%\cs-brief\hubspot-token`, or the `CS_BRIEF_HUBSPOT_TOKEN` environment variable. The dashboard shows only its last 4 characters. |
-| Your connections, imported sheets, hand-added accounts, edits, readings, links, hidden accounts and notices | `%LOCALAPPDATA%\cs-brief\data` |
-| Imports you started but didn't finish | `%LOCALAPPDATA%\cs-brief\data\drafts`, deleted after 24 hours or by **Clear local cache** |
-| Web research results | `%LOCALAPPDATA%\cs-brief\data\research`, until **Clear local cache** or turning web research off |
-| AI summaries | `%LOCALAPPDATA%\cs-brief\data\summaries` |
-| Contacts | `%LOCALAPPDATA%\cs-brief\data\contacts.json` |
-| Client update agreements, codes, your form link and updates waiting for review | `%LOCALAPPDATA%\cs-brief\data\client_updates.json` |
-| Data feed keys | `%LOCALAPPDATA%\cs-brief\feeds`, one file per feed. Only the last 4 characters are ever shown. |
-| Data feeds' latest data | `%LOCALAPPDATA%\cs-brief\data\sheets\feed-<n>.json` |
-| Feed setups you started but didn't finish, with any key you typed for them | `%LOCALAPPDATA%\cs-brief\data\feed-drafts`, deleted after 24 hours or by **Clear local cache** |
-| OpenRouter API key | `%LOCALAPPDATA%\cs-brief\openrouter-key`, or the `CS_BRIEF_OPENROUTER_KEY` environment variable. Only its last 4 characters are ever shown. |
+| HubSpot access token | `%LOCALAPPDATA%\wardmind\hubspot-token`, or the `WARDMIND_HUBSPOT_TOKEN` environment variable. The dashboard shows only its last 4 characters. |
+| Your connections, imported sheets, hand-added accounts, edits, readings, links, hidden accounts and notices | `%LOCALAPPDATA%\wardmind\data` |
+| Imports you started but didn't finish | `%LOCALAPPDATA%\wardmind\data\drafts`, deleted after 24 hours or by **Clear local cache** |
+| Web research results | `%LOCALAPPDATA%\wardmind\data\research`, until **Clear local cache** or turning web research off |
+| AI summaries | `%LOCALAPPDATA%\wardmind\data\summaries` |
+| Contacts | `%LOCALAPPDATA%\wardmind\data\contacts.json` |
+| Client update agreements, codes, your form link and updates waiting for review | `%LOCALAPPDATA%\wardmind\data\client_updates.json` |
+| Data feed keys | `%LOCALAPPDATA%\wardmind\feeds`, one file per feed. Only the last 4 characters are ever shown. |
+| Data feeds' latest data | `%LOCALAPPDATA%\wardmind\data\sheets\feed-<n>.json` |
+| Feed setups you started but didn't finish, with any key you typed for them | `%LOCALAPPDATA%\wardmind\data\feed-drafts`, deleted after 24 hours or by **Clear local cache** |
+| OpenRouter API key | `%LOCALAPPDATA%\wardmind\openrouter-key`, or the `WARDMIND_OPENROUTER_KEY` environment variable. Only its last 4 characters are ever shown. |
 
-On macOS and Linux, `%LOCALAPPDATA%\cs-brief` is `~/.local/state/cs-brief` (or
-`$XDG_STATE_HOME/cs-brief`).
+On macOS and Linux, `%LOCALAPPDATA%\wardmind` is `~/.local/state/wardmind` (or
+`$XDG_STATE_HOME/wardmind`).
 
 HubSpot data is held in memory while the app runs and isn't saved as a copy. Your own edits to
 HubSpot accounts are saved, together with the value HubSpot had when you made each edit, and a
@@ -168,18 +168,18 @@ same folder, not with the keys, so treat that folder as private.
 - It listens on `127.0.0.1` only, so other computers on your network can't reach it. It
   answers only to `127.0.0.1` and `localhost`, which stops websites from reaching it by
   pointing their own names at your computer.
-- Changes can only come from cs-brief's own pages. A form posted from another website is
+- Changes can only come from Wardmind's own pages. A form posted from another website is
   refused.
 - Other websites can't load its pages, images or scripts, or put it in a frame, so they can't
-  read your book or tell that cs-brief is running.
+  read your book or tell that Wardmind is running.
 - Pages aren't kept in your browser's cache.
 
 ## Removing everything
 
-1. **Settings > Data & privacy > Delete all local data** deletes everything cs-brief keeps on
+1. **Settings > Data & privacy > Delete all local data** deletes everything Wardmind keeps on
    this computer: connections, accounts, edits, contacts, client updates, saved lookups and
    summaries, unfinished imports, and every saved token and key. If you set
-   `CS_BRIEF_HUBSPOT_TOKEN` or `CS_BRIEF_OPENROUTER_KEY` as environment variables, remove those
-   yourself. Or simply delete the folder `%LOCALAPPDATA%\cs-brief`.
+   `WARDMIND_HUBSPOT_TOKEN` or `WARDMIND_OPENROUTER_KEY` as environment variables, remove those
+   yourself. Or simply delete the folder `%LOCALAPPDATA%\wardmind`.
 2. Delete `config/settings.yaml` to go back to the default appearance.
-3. If you added the MCP server to Claude, remove it with `claude mcp remove cs-brief`.
+3. If you added the MCP server to Claude, remove it with `claude mcp remove wardmind`.

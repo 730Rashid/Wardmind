@@ -10,10 +10,10 @@ from pathlib import Path
 import httpx
 import pytest
 
-from cs_brief.core import editing, import_flow, importing, research, service
-from cs_brief.core.settings import DataSource, load_settings, save_settings
-from cs_brief.core.store import ConnectionKind
 from research_fake import NOW, acme_site, counted, reply
+from wardmind.core import editing, import_flow, importing, research, service
+from wardmind.core.settings import DataSource, load_settings, save_settings
+from wardmind.core.store import ConnectionKind
 
 TODAY = date(2026, 10, 22)
 DEMO_ACCOUNT = "acc-001"

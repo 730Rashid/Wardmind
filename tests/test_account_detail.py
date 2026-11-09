@@ -4,12 +4,12 @@ from datetime import date, datetime, timedelta
 
 import pytest
 
-from cs_brief.core import service
-from cs_brief.core.briefs import AccountDetail, BreakdownRow, account_detail, explain
-from cs_brief.core.config import ScoringConfig, SignalRule
-from cs_brief.core.connectors.demo import DemoConnector
-from cs_brief.core.models import Account, Milestones, Signal, SignalKind
-from cs_brief.core.scoring import score_book
+from wardmind.core import service
+from wardmind.core.briefs import AccountDetail, BreakdownRow, account_detail, explain
+from wardmind.core.config import ScoringConfig, SignalRule
+from wardmind.core.connectors.demo import DemoConnector
+from wardmind.core.models import Account, Milestones, Signal, SignalKind
+from wardmind.core.scoring import score_book
 
 AS_OF = date(2026, 10, 19)
 READ_AT = datetime(2026, 10, 18, 9, 0)

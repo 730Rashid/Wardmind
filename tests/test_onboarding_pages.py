@@ -11,19 +11,19 @@ from typing import Any
 import pytest
 from fastapi.testclient import TestClient
 
-from cs_brief.core import service
-from cs_brief.core.briefs import SIGNAL_LABELS
-from cs_brief.core.connectors.demo import DemoConnector
-from cs_brief.core.models import Account, Health, Milestones, Motion, ScoredAccount
-from cs_brief.core.onboarding import (
+from wardmind.core import service
+from wardmind.core.briefs import SIGNAL_LABELS
+from wardmind.core.connectors.demo import DemoConnector
+from wardmind.core.models import Account, Health, Milestones, Motion, ScoredAccount
+from wardmind.core.onboarding import (
     ONBOARDING_SIGNALS,
     AgendaItem,
     MilestoneStatus,
     OnboardingBrief,
     PlanMilestone,
 )
-from cs_brief.web import app as web
-from cs_brief.web import formatting
+from wardmind.web import app as web
+from wardmind.web import formatting
 
 DONE = MilestoneStatus.DONE
 OVERDUE = MilestoneStatus.OVERDUE
@@ -354,7 +354,7 @@ def test_a_brief_for_an_account_outside_onboarding_has_the_note(client: TestClie
 def test_an_unknown_onboarding_id_is_a_404_with_the_existing_copy(client: TestClient) -> None:
     response = client.get("/onboarding/acc-999")
     assert response.status_code == 404
-    assert "<title>Account not found - cs-brief</title>" in response.text
+    assert "<title>Account not found - Wardmind</title>" in response.text
     assert "No account with id acc-999." in _text(response)
 
 

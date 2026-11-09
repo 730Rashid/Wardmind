@@ -12,11 +12,11 @@ from typing import Any
 import pytest
 from fastapi.testclient import TestClient
 
-from cs_brief.core import service
-from cs_brief.core.briefs import weekly_brief
-from cs_brief.core.connectors.demo import DemoConnector
-from cs_brief.core.models import Health, Motion
-from cs_brief.web import app as web
+from wardmind.core import service
+from wardmind.core.briefs import weekly_brief
+from wardmind.core.connectors.demo import DemoConnector
+from wardmind.core.models import Health, Motion
+from wardmind.web import app as web
 
 
 class _Tags(HTMLParser):

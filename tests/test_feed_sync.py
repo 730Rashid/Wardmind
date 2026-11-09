@@ -14,15 +14,15 @@ from datetime import date, datetime, timedelta
 import httpx
 import pytest
 
-from cs_brief.core import client_updates, importing
-from cs_brief.core.connectors.combined import CombinedConnector
-from cs_brief.core.connectors.local import SpreadsheetConnector
-from cs_brief.core.feeds import http as feed_http
-from cs_brief.core.feeds import signals, sync
-from cs_brief.core.feeds.models import FeedRole, FeedSettings, FeedStatus, MatchBy, Schedule
-from cs_brief.core.models import Account, Milestones, SignalKind
-from cs_brief.core.secrets import save_secret
-from cs_brief.core.store import ConnectionConfig, ConnectionKind, ImportSnapshot, LocalStore
+from wardmind.core import client_updates, importing
+from wardmind.core.connectors.combined import CombinedConnector
+from wardmind.core.connectors.local import SpreadsheetConnector
+from wardmind.core.feeds import http as feed_http
+from wardmind.core.feeds import signals, sync
+from wardmind.core.feeds.models import FeedRole, FeedSettings, FeedStatus, MatchBy, Schedule
+from wardmind.core.models import Account, Milestones, SignalKind
+from wardmind.core.secrets import save_secret
+from wardmind.core.store import ConnectionConfig, ConnectionKind, ImportSnapshot, LocalStore
 
 NOW = datetime(2026, 11, 8, 9, 0)
 TODAY = date(2026, 11, 8)

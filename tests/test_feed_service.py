@@ -14,22 +14,22 @@ import httpx
 import pytest
 from fastapi.testclient import TestClient
 
-from cs_brief.core import client_updates, contacts, importing, service
-from cs_brief.core import secrets as vault
-from cs_brief.core.contacts import ContactInput, ContactSource
-from cs_brief.core.feeds import http as feed_http
-from cs_brief.core.feeds import sync as feed_sync
-from cs_brief.core.feeds.models import FeedRole, FeedSettings, FeedStatus, Schedule
-from cs_brief.core.models import Account, Milestones, Signal, SignalKind
-from cs_brief.core.settings import DataSource, load_settings, save_settings
-from cs_brief.core.store import (
+from wardmind.core import client_updates, contacts, importing, service
+from wardmind.core import secrets as vault
+from wardmind.core.contacts import ContactInput, ContactSource
+from wardmind.core.feeds import http as feed_http
+from wardmind.core.feeds import sync as feed_sync
+from wardmind.core.feeds.models import FeedRole, FeedSettings, FeedStatus, Schedule
+from wardmind.core.models import Account, Milestones, Signal, SignalKind
+from wardmind.core.settings import DataSource, load_settings, save_settings
+from wardmind.core.store import (
     ConnectionKind,
     FieldEdit,
     ImportSnapshot,
     LocalStore,
     connection_for,
 )
-from cs_brief.web.app import create_app
+from wardmind.web.app import create_app
 
 # Taken before conftest swaps it for a no-op, so the real start and stop can be tested.
 REAL_START = service.start_feed_scheduler
@@ -251,7 +251,7 @@ def test_sync_due_feeds_carries_on_past_one_feed_that_fails(
     assert synced == 1
     failed = store.get_connection(broken)
     assert failed is not None and failed.feed is not None
-    assert failed.feed.status.last_error == "cs-brief couldn't finish this sync. Try Sync now."
+    assert failed.feed.status.last_error == "Wardmind couldn't finish this sync. Try Sync now."
     assert failed.feed.status.last_attempt_at is not None
     done = store.get_connection(working)
     assert done is not None and done.feed is not None

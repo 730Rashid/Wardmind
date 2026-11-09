@@ -10,8 +10,8 @@ from pathlib import Path
 
 import pytest
 
-from cs_brief.core import secrets
-from cs_brief.core.secrets import (
+from wardmind.core import secrets
+from wardmind.core.secrets import (
     FEED_SECRETS_DIR,
     MAX_SECRET_LENGTH,
     TokenSource,

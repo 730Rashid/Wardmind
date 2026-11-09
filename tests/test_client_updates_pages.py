@@ -21,22 +21,22 @@ import httpx
 import pytest
 from fastapi.testclient import TestClient
 
-from cs_brief.core import client_updates, contacts, editing, service
-from cs_brief.core.client_updates import (
+from wardmind.core import client_updates, contacts, editing, service
+from wardmind.core.client_updates import (
     CODE_PLACEHOLDER,
     QUESTIONS,
     ClientUpdate,
     UpdateKind,
     UpdateStatus,
 )
-from cs_brief.core.contacts import ContactInput, ContactSource, ContactStatus
-from cs_brief.core.feeds import http as feed_http
-from cs_brief.core.feeds import setup
-from cs_brief.core.feeds.models import FeedRole, MatchBy, Schedule
-from cs_brief.core.settings import DataSource, Settings, save_settings
-from cs_brief.core.store import CLIENT_UPDATES_FILE, LocalStore
-from cs_brief.web import app as web
-from cs_brief.web import formatting
+from wardmind.core.contacts import ContactInput, ContactSource, ContactStatus
+from wardmind.core.feeds import http as feed_http
+from wardmind.core.feeds import setup
+from wardmind.core.feeds.models import FeedRole, MatchBy, Schedule
+from wardmind.core.settings import DataSource, Settings, save_settings
+from wardmind.core.store import CLIENT_UPDATES_FILE, LocalStore
+from wardmind.web import app as web
+from wardmind.web import formatting
 
 ORIGIN = {"origin": "http://127.0.0.1"}
 CROSS_SITE = [
@@ -852,7 +852,7 @@ def test_the_set_up_page_lists_the_questions_without_the_timestamp(
         "its responses sheet must be shared as Anyone with the link, so keep that link private."
         in text
     )
-    assert "CSBRIEFCODE" in text
+    assert "WARDMINDCODE" in text
 
 
 def test_the_set_up_provider_buttons_pass_the_client_updates_role(
@@ -888,13 +888,13 @@ def test_a_refused_form_link_is_named_on_its_field_and_a_saved_one_is_shown_and_
     assert missing_code.status_code == 422
     _assert_clean(missing_code)
     assert 'id="form-link-error"' in missing_code.text
-    assert "The form link needs CSBRIEFCODE exactly once, where the client code goes." in _text(
+    assert "The form link needs WARDMINDCODE exactly once, where the client code goes." in _text(
         missing_code
     )
     assert client_updates.load(store).settings.form_link == ""
 
     not_https = _post(
-        client, "/client-updates/setup/link", {"link": "http://forms.example.com/r?x=CSBRIEFCODE"}
+        client, "/client-updates/setup/link", {"link": "http://forms.example.com/r?x=WARDMINDCODE"}
     )
     assert not_https.status_code == 422
     assert 'id="form-link-error"' in not_https.text

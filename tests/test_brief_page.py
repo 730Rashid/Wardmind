@@ -10,12 +10,12 @@ from typing import Any
 import pytest
 from fastapi.testclient import TestClient
 
-from cs_brief.core import briefs, service
-from cs_brief.core.briefs import WeeklyBrief
-from cs_brief.core.connectors.demo import DemoConnector
-from cs_brief.core.models import Health, Motion
-from cs_brief.web import app as web
-from cs_brief.web import formatting
+from wardmind.core import briefs, service
+from wardmind.core.briefs import WeeklyBrief
+from wardmind.core.connectors.demo import DemoConnector
+from wardmind.core.models import Health, Motion
+from wardmind.web import app as web
+from wardmind.web import formatting
 
 MOTIONS = (Motion.CHURN, Motion.RENEWAL, Motion.ONBOARDING)
 
@@ -250,14 +250,14 @@ def test_brief_and_account_pages_have_no_inline_handlers_or_styles(client: TestC
 
 def test_footer_names_the_date_and_the_demo_source(client: TestClient) -> None:
     text = _text(client.get("/brief"))
-    assert f"Made by cs-brief on {formatting.long_date(date.today())} from demo data." in text
+    assert f"Made by Wardmind on {formatting.long_date(date.today())} from demo data." in text
 
 
 def test_footer_names_another_connector(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(service, "get_connector", lambda: _HubspotConnector())
     client = TestClient(web.create_app(), base_url="http://127.0.0.1")
     text = _text(client.get("/brief"))
-    assert f"Made by cs-brief on {formatting.long_date(date.today())} from hubspot." in text
+    assert f"Made by Wardmind on {formatting.long_date(date.today())} from hubspot." in text
 
 
 class _CombinedConnector(DemoConnector):
@@ -270,7 +270,7 @@ def test_footer_names_your_data_for_the_combined_book(monkeypatch: pytest.Monkey
     monkeypatch.setattr(service, "get_connector", lambda: _CombinedConnector())
     client = TestClient(web.create_app(), base_url="http://127.0.0.1")
     text = _text(client.get("/brief"))
-    assert f"Made by cs-brief on {formatting.long_date(date.today())} from your data." in text
+    assert f"Made by Wardmind on {formatting.long_date(date.today())} from your data." in text
 
 
 def test_print_stylesheet_is_in_app_css() -> None:

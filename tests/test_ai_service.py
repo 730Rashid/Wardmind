@@ -8,12 +8,12 @@ from datetime import UTC, date, datetime, timedelta
 
 import pytest
 
-from cs_brief.core import bulk, editing, research, secrets, service, summaries
-from cs_brief.core.bulk import LookupResult, SummaryResult
-from cs_brief.core.research import Article, SiteResearch, Topic
-from cs_brief.core.settings import DEFAULT_AI_MODEL, DataSource, load_settings, save_settings
 from openrouter_fake import ANSWER, KEY, FakeOpenRouter, reply_json, research_text
 from research_fake import NOW, FakeSite, acme_site, counted, reply
+from wardmind.core import bulk, editing, research, secrets, service, summaries
+from wardmind.core.bulk import LookupResult, SummaryResult
+from wardmind.core.research import Article, SiteResearch, Topic
+from wardmind.core.settings import DEFAULT_AI_MODEL, DataSource, load_settings, save_settings
 
 TODAY = date(2026, 10, 22)
 DEMO_ACCOUNT = "acc-001"

@@ -1,4 +1,4 @@
-"""cs_brief.core.editing: every write a CSM makes by hand, checked against a real CombinedConnector.
+"""wardmind.core.editing: every write a CSM makes by hand, checked against a real CombinedConnector.
 
 The members are small fakes, as in test_combined.py. The store is a temp folder.
 """
@@ -9,11 +9,11 @@ from datetime import UTC, date, datetime, timedelta, timezone
 
 import pytest
 
-from cs_brief.core import client_updates, contacts, editing
-from cs_brief.core.connectors.combined import CombinedConnector
-from cs_brief.core.connectors.local import ManualConnector
-from cs_brief.core.contacts import ContactInput, ContactSource
-from cs_brief.core.editing import (
+from wardmind.core import client_updates, contacts, editing
+from wardmind.core.connectors.combined import CombinedConnector
+from wardmind.core.connectors.local import ManualConnector
+from wardmind.core.contacts import ContactInput, ContactSource
+from wardmind.core.editing import (
     EditError,
     add_reading,
     create_account,
@@ -26,9 +26,9 @@ from cs_brief.core.editing import (
     set_hidden,
     unlink,
 )
-from cs_brief.core.models import Account, Milestones, Signal, SignalKind
-from cs_brief.core.scoring import latest_signals
-from cs_brief.core.store import (
+from wardmind.core.models import Account, Milestones, Signal, SignalKind
+from wardmind.core.scoring import latest_signals
+from wardmind.core.store import (
     ConnectionConfig,
     ConnectionKind,
     FieldEdit,

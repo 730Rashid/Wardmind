@@ -8,16 +8,16 @@ from pathlib import Path
 
 import pytest
 
-from cs_brief.core.config import (
+from wardmind.core.config import (
     DEFAULT_SIGNAL_RULES,
     ArrScaling,
     ScoringConfig,
     SignalRule,
     Thresholds,
 )
-from cs_brief.core.connectors.demo import DemoConnector
-from cs_brief.core.models import Account, Health, Milestones, Motion, Reason, Signal, SignalKind
-from cs_brief.core.scoring import (
+from wardmind.core.connectors.demo import DemoConnector
+from wardmind.core.models import Account, Health, Milestones, Motion, Reason, Signal, SignalKind
+from wardmind.core.scoring import (
     arr_factor,
     classify_health,
     describe,

@@ -1,0 +1,96 @@
+{# "From their website": the account's own website, read on request, and an AI summary of it when
+   AI summaries are on. account.html includes it, and htmx gets it back alone (hx-target #research,
+   outerHTML), so the root element keeps its id. #}
+<section id="research" class="account-section research" aria-labelledby="research-heading">
+  <h2 class="section-title" id="research-heading">From their website</h2>
+
+  {% if panel.state == "off" %}
+  <p>Web research is off. Turn it on in <a href="/settings/privacy">Data &amp; privacy</a> to read this customer's own website.</p>
+
+  {% elif panel.state == "no_website" %}
+  <p>{{ panel.message }}{% if panel.add_url %} <a class="no-print" href="{{ panel.add_url }}">{{ panel.add_label }}</a>{% endif %}</p>
+
+  {% elif panel.state == "result" %}
+  {% set result = panel.result %}
+  {% if result.sample %}
+  <p class="research-sample">Sample news, invented like the demo accounts. Nothing was sent.</p>
+  {% endif %}
+  <h3 class="research-site">{{ result.site_title or result.website }}</h3>
+  {% if result.site_description %}
+  <p class="research-description">{{ result.site_description }}</p>
+  {% endif %}
+  {% if result.articles %}
+  <ul class="research-articles">
+    {% for article in result.articles %}
+    <li class="research-article">
+      <a href="{{ article.url }}" rel="noopener noreferrer">{{ article.title }}</a>
+      <span class="research-date">{% if article.published %}{{ article.published | day_label(today_day) }}{% else %}No date{% endif %}</span>
+      {% if article.topics %}
+      <ul class="tags" aria-label="Topics">
+        {% for topic in article.topics %}
+        <li class="tag">{{ topic.label }}</li>
+        {% endfor %}
+      </ul>
+      {% endif %}
+    </li>
+    {% endfor %}
+  </ul>
+  {% else %}
+  <p>Their website doesn't publish a news feed Wardmind could read.</p>
+  {% endif %}
+  <p class="research-footer">Looked up {{ panel.looked_up_days | ago }}.</p>
+  <form class="research-form no-print" method="post" action="/accounts/{{ panel.account_id }}/research" hx-post="/accounts/{{ panel.account_id }}/research" hx-target="#research" hx-swap="outerHTML" hx-disabled-elt="find button">
+    <input type="hidden" name="refresh" value="1">
+    <button type="submit" class="button button--small">Look up again</button>
+  </form>
+
+  {% if panel.summary %}
+  {% set summary = panel.summary %}
+  <div class="research-summary">
+    <h3 class="research-summary-title">Summary</h3>
+    <p class="research-about">{{ summary.about }}</p>
+    {% if summary.highlights %}
+    <ul class="research-highlights">
+      {% for item in summary.highlights %}
+      <li>{{ item.topic.label }}: {{ item.note }}</li>
+      {% endfor %}
+    </ul>
+    {% endif %}
+    <p class="research-footer">{% if summary.sample %}Sample summary, invented like the demo accounts. Nothing was sent.{% else %}Summarised by AI ({{ summary.model }}) from their website.{% if summary.cost_usd is not none %} Cost ${{ "%.4f" | format(summary.cost_usd) }}.{% endif %}{% endif %}</p>
+  </div>
+  {% endif %}
+
+  {% if panel.ai_error %}
+  <p class="field-error" role="alert">{{ panel.ai_error }}{% if panel.ai_error_link %} <a href="/settings/privacy">Data &amp; privacy</a>{% endif %}</p>
+  {% endif %}
+  {% if panel.ai_ready %}
+  <form class="research-form no-print" method="post" action="/accounts/{{ panel.account_id }}/summarise" hx-post="/accounts/{{ panel.account_id }}/summarise" hx-target="#research" hx-swap="outerHTML" hx-disabled-elt="find button">
+    {% if panel.summary %}
+    <input type="hidden" name="refresh" value="1">
+    <button type="submit" class="button button--small">Summarise again</button>
+    {% else %}
+    <button type="submit" class="button-primary">Summarise with AI</button>
+    {% endif %}
+  </form>
+  {% endif %}
+
+  {% else %}
+  {# unchecked, or error: the look up button, with the reason for a failed one above it #}
+  {% if panel.state == "error" %}
+  <p class="field-error" role="alert">{{ panel.message }}</p>
+  {% endif %}
+  <form class="research-form no-print" method="post" action="/accounts/{{ panel.account_id }}/research" hx-post="/accounts/{{ panel.account_id }}/research" hx-target="#research" hx-swap="outerHTML" hx-disabled-elt="find button">
+    <button type="submit" class="button-primary">Look up their website</button>
+  </form>
+  <p class="field-help">{% if panel.demo %}Demo accounts show sample news. Nothing is sent.{% else %}Visits {{ panel.host }} only. Nothing about this account is sent.{% endif %}</p>
+  {% endif %}
+
+  {% if panel.state != "off" %}
+  {% if panel.ai_hint == "off" %}
+  <p class="field-help research-hint">Turn on AI summaries in <a href="/settings/privacy">Data &amp; privacy</a> to get a short summary.</p>
+  {% elif panel.ai_hint == "key" %}
+  <p class="field-help research-hint">Add your OpenRouter API key in <a href="/settings/privacy">Data &amp; privacy</a> to get a short summary.</p>
+  {% endif %}
+  <p class="research-links no-print"><a href="/research">See all website lookups</a></p>
+  {% endif %}
+</section>

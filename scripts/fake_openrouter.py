@@ -1,9 +1,9 @@
-"""A local fake OpenRouter for the two calls cs-brief makes, for UI demos and manual checks.
+"""A local fake OpenRouter for the two calls Wardmind makes, for UI demos and manual checks.
 
 Run from the repo root:
     uv run python scripts/fake_openrouter.py --port 8798
-Then point cs-brief at it:
-    CS_BRIEF_OPENROUTER_API_BASE=http://127.0.0.1:8798/api/v1
+Then point Wardmind at it:
+    WARDMIND_OPENROUTER_API_BASE=http://127.0.0.1:8798/api/v1
 
 POST /api/v1/chat/completions answers with a summary written from the website text it is sent
 (deterministic: the same text always gives the same answer), with a small cost in usage.
@@ -37,7 +37,7 @@ def summary_for(user_text: str) -> dict[str, Any]:
     title = _field(user_text, "Page title")
     description = _field(user_text, "Page description")
     host = _field(user_text, "Website") or "the website"
-    about = description or f"{title or host} is a company whose website cs-brief read."
+    about = description or f"{title or host} is a company whose website Wardmind read."
     highlights: list[dict[str, str]] = []
     for line in user_text.splitlines():
         match = LINE.match(line.strip())

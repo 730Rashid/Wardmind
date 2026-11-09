@@ -19,14 +19,14 @@ import httpx
 import pytest
 from fastapi.testclient import TestClient
 
-from cs_brief.core import editing, importing, service
-from cs_brief.core import secrets as vault
-from cs_brief.core.feeds import catalog, setup
-from cs_brief.core.feeds import http as feed_http
-from cs_brief.core.feeds.models import Category, FeedRole, MatchBy, Schedule
-from cs_brief.core.settings import DataSource, Settings, save_settings
-from cs_brief.core.store import FEED_DRAFTS_DIR, ConnectionKind, LocalStore
-from cs_brief.web import app as web
+from wardmind.core import editing, importing, service
+from wardmind.core import secrets as vault
+from wardmind.core.feeds import catalog, setup
+from wardmind.core.feeds import http as feed_http
+from wardmind.core.feeds.models import Category, FeedRole, MatchBy, Schedule
+from wardmind.core.settings import DataSource, Settings, save_settings
+from wardmind.core.store import FEED_DRAFTS_DIR, ConnectionKind, LocalStore
+from wardmind.web import app as web
 
 ORIGIN = {"origin": "http://127.0.0.1"}
 HX = {"origin": "http://127.0.0.1", "HX-Request": "true"}

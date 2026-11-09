@@ -1,0 +1,80 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="import-map">
+  <header class="import-head">
+    <h1 class="page-title">Match your columns</h1>
+    <p class="date-line">
+      <span>{{ draft.source_name }}{% if draft.table.sheet %}, sheet "{{ draft.table.sheet }}"{% endif %}</span>
+      <span class="file-rows">{{ row_count }} {{ 'row' if row_count == 1 else 'rows' }}</span>
+    </p>
+  </header>
+
+  {% if sheet_names %}
+  <form class="sheet-form" method="post" action="/import/{{ draft_id | idpath }}/sheet">
+    <label for="sheet">Sheet</label>
+    <select id="sheet" name="sheet" data-autosubmit>
+      {% for name in sheet_names %}
+      <option value="{{ name }}"{% if name == draft.table.sheet %} selected{% endif %}>{{ name }}</option>
+      {% endfor %}
+    </select>
+    <button type="submit" class="button no-js-only">Use this sheet</button>
+  </form>
+  {% endif %}
+
+  {% if error %}<p class="field-error" role="alert">{{ error }}</p>{% endif %}
+
+  <form id="import-mapping" class="import-mapping" method="post" action="/import/{{ draft_id | idpath }}/commit">
+    {# Changing a choice refreshes the examples and the preview, and nothing else on the page. #}
+    <div class="mapping-fields" hx-post="/import/{{ draft_id | idpath }}/preview" hx-trigger="change" hx-include="#import-mapping" hx-swap="none">
+      <table class="match-table">
+        <caption class="visually-hidden">Match each Wardmind field to a column in your file</caption>
+        <thead>
+          <tr>
+            <th scope="col">Wardmind field</th>
+            <th scope="col">Your column</th>
+            <th scope="col">Example from row {{ example_row }}</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in rows %}
+          <tr>
+            <th scope="row" class="cell-field">
+              <label for="column-{{ row.index }}">{{ row.label }}</label>
+              {% if row.required %}<span class="required-word">Required</span>{% endif %}
+              <span class="field-help">{{ row.help }}</span>
+            </th>
+            <td class="cell-column">
+              <select id="column-{{ row.index }}" name="column-{{ row.index }}">
+                <option value="">Not in my file</option>
+                {% for header in headers %}
+                <option value="{{ header }}"{% if header == row.selected %} selected{% endif %}>{{ header }}</option>
+                {% endfor %}
+              </select>
+            </td>
+            <td class="cell-example" id="example-{{ row.index }}">{{ row.example }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+
+      {% if show_date_order %}
+      <fieldset class="date-order">
+        <legend>Dates in your file are</legend>
+        <label class="choice"><input type="radio" name="date_order" value="dmy"{% if date_choice == 'dmy' %} checked{% endif %}> Day first (31/12/2026)</label>
+        <label class="choice"><input type="radio" name="date_order" value="mdy"{% if date_choice == 'mdy' %} checked{% endif %}> Month first (12/31/2026)</label>
+      </fieldset>
+      {% endif %}
+    </div>
+  </form>
+
+  {% include "import/partials/what_happens.html" %}
+
+  <div class="import-actions">
+    {% include "import/partials/action.html" %}
+    <button type="submit" form="import-mapping" formaction="/import/{{ draft_id | idpath }}" class="button no-js-only">Update preview</button>
+    <form class="inline-form" method="post" action="/import/{{ draft_id | idpath }}/cancel">
+      <button type="submit" class="button">Cancel</button>
+    </form>
+  </div>
+</div>
+{% endblock %}

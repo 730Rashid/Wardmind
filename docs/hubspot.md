@@ -1,6 +1,6 @@
-# Connecting cs-brief to HubSpot
+# Connecting Wardmind to HubSpot
 
-cs-brief reads from HubSpot and never writes to it. It reads three things:
+Wardmind reads from HubSpot and never writes to it. It reads three things:
 - **companies:** your customers and their properties
 - **owners:** to show each account's CSM
 - **open high-priority tickets:** counted per company
@@ -16,22 +16,22 @@ Use a **Service Key**, HubSpot's replacement for private apps.
 
 A token from an existing legacy private app with the same scopes also works.
 
-## 2. Give cs-brief the key
+## 2. Give Wardmind the key
 Choose **one** of these:
 - **The page:** on **Settings, then Connections**, paste the key into "Access token" and choose
-  **Save token**. cs-brief stores it in your user profile (`%LOCALAPPDATA%\cs-brief` on
+  **Save token**. Wardmind stores it in your user profile (`%LOCALAPPDATA%\wardmind` on
   Windows), never in the project folder, so it isn't synced by OneDrive or committed to git.
   The page only ever shows the last 4 characters.
-- **The environment:** set `CS_BRIEF_HUBSPOT_TOKEN` before starting cs-brief. If it's set, it
+- **The environment:** set `WARDMIND_HUBSPOT_TOKEN` before starting Wardmind. If it's set, it
   takes precedence over a saved token.
 
 Then choose **HubSpot** as the data source and **Test connection**.
 
-## 3. What cs-brief reads
+## 3. What Wardmind reads
 These are the defaults. To use your own property names, create `config/hubspot.yaml` with only
 the fields you want to change (see "Using your own property names" below).
 
-| cs-brief field | HubSpot company property | Notes |
+| Wardmind field | HubSpot company property | Notes |
 |---|---|---|
 | Which companies | `lifecyclestage` = `customer` | `customer_property` / `customer_value` |
 | Name | `name` | standard |

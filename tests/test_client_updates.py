@@ -10,8 +10,8 @@ from datetime import date, datetime
 
 import pytest
 
-from cs_brief.core import client_updates, contacts, importing
-from cs_brief.core.client_updates import (
+from wardmind.core import client_updates, contacts, importing
+from wardmind.core.client_updates import (
     CODE_ALPHABET,
     CODE_PLACEHOLDER,
     MAX_NOTE,
@@ -21,10 +21,10 @@ from cs_brief.core.client_updates import (
     UpdateKind,
     UpdateStatus,
 )
-from cs_brief.core.contacts import ContactInput, ContactSource
-from cs_brief.core.importing import DateOrder
-from cs_brief.core.models import Account, Milestones
-from cs_brief.core.store import LocalStore
+from wardmind.core.contacts import ContactInput, ContactSource
+from wardmind.core.importing import DateOrder
+from wardmind.core.models import Account, Milestones
+from wardmind.core.store import LocalStore
 
 NOW = datetime(2026, 11, 8, 9, 0)
 LATER = datetime(2026, 11, 9, 9, 0)

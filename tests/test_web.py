@@ -19,10 +19,10 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from typer.testing import CliRunner
 
-from cs_brief import cli
-from cs_brief.core import service
-from cs_brief.core.connectors.demo import DemoConnector
-from cs_brief.web import app as web
+from wardmind import cli
+from wardmind.core import service
+from wardmind.core.connectors.demo import DemoConnector
+from wardmind.web import app as web
 
 WEB_DIR = Path(web.__file__).parent
 TEMPLATES = WEB_DIR / "templates"
@@ -114,7 +114,7 @@ def test_api_docs_are_not_served(client: TestClient, path: str) -> None:
 def test_unknown_path_renders_the_layout_with_the_copy(client: TestClient) -> None:
     response = client.get("/no-such-page")
     assert response.status_code == 404
-    assert "<title>Page not found - cs-brief</title>" in response.text
+    assert "<title>Page not found - Wardmind</title>" in response.text
     assert "This page doesn't exist." in _text(response)
     assert "Back to My book" in _text(response)
     assert 'class="top-bar"' in response.text
@@ -124,7 +124,7 @@ def test_account_page_shows_the_account_name(client: TestClient) -> None:
     account = next(a for a in DemoConnector().list_accounts() if a.id == "acc-001")
     response = client.get("/accounts/acc-001")
     assert response.status_code == 200
-    assert f"<title>{html.escape(account.name)} - cs-brief</title>" in response.text
+    assert f"<title>{html.escape(account.name)} - Wardmind</title>" in response.text
     assert account.name in _text(response)
 
 
@@ -244,7 +244,7 @@ def test_ui_binds_loopback_on_the_requested_port(server: dict[str, Any], timers:
     assert server["log_level"] == "warning"
     assert server["app"].docs_url is None
     assert timers == []
-    assert f"cs-brief is running at http://127.0.0.1:{port}/  (Ctrl+C to stop)" in result.output
+    assert f"Wardmind is running at http://127.0.0.1:{port}/  (Ctrl+C to stop)" in result.output
 
 
 def test_ui_opens_the_browser_one_second_later(
@@ -270,7 +270,7 @@ def test_ui_refuses_a_port_that_is_in_use(server: dict[str, Any], timers: list) 
         port = int(holder.getsockname()[1])
         result = CliRunner().invoke(cli.app, ["ui", "--port", str(port), "--no-browser"])
     assert result.exit_code != 0
-    assert f"Port {port} is in use. Try: cs-brief ui --port {port + 1}" in result.output
+    assert f"Port {port} is in use. Try: wardmind ui --port {port + 1}" in result.output
     assert server == {}
     assert timers == []
 

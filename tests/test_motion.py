@@ -6,9 +6,9 @@ from pathlib import Path
 
 import pytest
 
-from cs_brief.core.config import MotionWindows
-from cs_brief.core.models import Account, Milestones, Motion
-from cs_brief.core.scoring import classify_motion
+from wardmind.core.config import MotionWindows
+from wardmind.core.models import Account, Milestones, Motion
+from wardmind.core.scoring import classify_motion
 
 REPO = Path(__file__).resolve().parents[1]
 AS_OF = date(2026, 10, 19)

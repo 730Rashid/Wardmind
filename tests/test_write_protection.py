@@ -5,14 +5,14 @@ from __future__ import annotations
 import pytest
 from fastapi.testclient import TestClient
 
-from cs_brief.core.config import (
+from wardmind.core.config import (
     ScoringConfig,
     SignalRule,
     load_scoring_config,
     save_scoring_config,
 )
-from cs_brief.core.models import SignalKind
-from cs_brief.web.app import CROSS_SITE_MESSAGE, SECURITY_HEADERS, create_app, is_cross_site_write
+from wardmind.core.models import SignalKind
+from wardmind.web.app import CROSS_SITE_MESSAGE, SECURITY_HEADERS, create_app, is_cross_site_write
 
 HOST = "127.0.0.1:8000"
 
@@ -77,7 +77,7 @@ def test_scoring_config_round_trips_through_yaml(tmp_path):
     save_scoring_config(cfg, path)
     assert load_scoring_config(path) == cfg
     text = path.read_text(encoding="utf-8")
-    assert text.startswith("# cs-brief scoring configuration")
+    assert text.startswith("# Wardmind scoring configuration")
     # Signals are written in SignalKind order so diffs of the file stay readable.
     positions = [text.index(kind.value + ":") for kind in SignalKind]
     assert positions == sorted(positions)

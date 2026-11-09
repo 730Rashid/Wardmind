@@ -20,17 +20,17 @@ from typing import Any
 import pytest
 from fastapi.testclient import TestClient
 
-from cs_brief.core import editing, import_flow, importing, secrets, service
-from cs_brief.core.config import ScoringConfig
-from cs_brief.core.connectors.demo import DemoConnector
-from cs_brief.core.connectors.errors import ConnectionNotReady, ConnectorError
-from cs_brief.core.connectors.hubspot import API_BASE, CheckResult, ConnectionCheck, HubSpotMapping
-from cs_brief.core.importing import DateOrder
-from cs_brief.core.settings import DataSource, Settings, Theme, load_settings, save_settings
-from cs_brief.core.store import ConnectionKind, LocalStore
-from cs_brief.web import app as web
-from cs_brief.web import formatting
-from cs_brief.web.scoring_form import form_values
+from wardmind.core import editing, import_flow, importing, secrets, service
+from wardmind.core.config import ScoringConfig
+from wardmind.core.connectors.demo import DemoConnector
+from wardmind.core.connectors.errors import ConnectionNotReady, ConnectorError
+from wardmind.core.connectors.hubspot import API_BASE, CheckResult, ConnectionCheck, HubSpotMapping
+from wardmind.core.importing import DateOrder
+from wardmind.core.settings import DataSource, Settings, Theme, load_settings, save_settings
+from wardmind.core.store import ConnectionKind, LocalStore
+from wardmind.web import app as web
+from wardmind.web import formatting
+from wardmind.web.scoring_form import form_values
 
 TOKEN = "pat-na1-SECRETTEST-0000-1111-2222-333344445555"
 OTHER = "pat-na1-OTHERTOKEN-0000-1111-2222-333344445555"
@@ -164,7 +164,7 @@ def secrets_folder() -> Path:
 
 @pytest.fixture
 def config_folder() -> Path:
-    return Path(os.environ["CS_BRIEF_CONFIG_DIR"])
+    return Path(os.environ["WARDMIND_CONFIG_DIR"])
 
 
 @pytest.fixture
@@ -202,7 +202,7 @@ def hubspot_with_token(hub: StubHubSpot) -> StubHubSpot:
 def test_the_page_has_its_title_and_the_sub_navigation(client: TestClient) -> None:
     response = client.get("/settings/connections")
     assert response.status_code == 200
-    assert "<title>Connections - cs-brief</title>" in response.text
+    assert "<title>Connections - Wardmind</title>" in response.text
     links = [a for a in _tags(response.text, "a") if a.get("class") == "settings-link"]
     assert [a["href"] for a in links] == [
         "/settings/appearance",
@@ -240,7 +240,7 @@ def test_with_the_environment_token_the_status_says_where_it_is_set(
 ) -> None:
     monkeypatch.setenv(secrets.ENV_TOKEN, TOKEN)
     response = client.get("/settings/connections")
-    assert "Set by CS_BRIEF_HUBSPOT_TOKEN, ends in …5555. Change it where you set it." in _text(
+    assert "Set by WARDMIND_HUBSPOT_TOKEN, ends in …5555. Change it where you set it." in _text(
         response
     )
     assert "Remove token" not in response.text
@@ -364,12 +364,12 @@ def test_refresh_with_nothing_connected_still_redirects(
     assert hub.refreshes == 0
 
 
-# What cs-brief reads
+# What Wardmind reads
 
 
 def test_the_mapping_table_lists_the_effective_properties(client: TestClient) -> None:
     text = client.get("/settings/connections").text
-    assert "What cs-brief reads" in text
+    assert "What Wardmind reads" in text
     assert "<details" in text
     assert '<th scope="row">Which companies</th>' in text
     assert "<td>lifecyclestage = customer</td>" in text
@@ -384,7 +384,7 @@ def test_a_mapping_error_is_shown_in_place_of_the_table(
     response = client.get("/settings/connections")
     assert response.status_code == 200
     assert "config/hubspot.yaml has a value that isn&#39;t a number." in response.text
-    assert "<table" not in response.text.split("What cs-brief reads", 1)[1]
+    assert "<table" not in response.text.split("What Wardmind reads", 1)[1]
 
 
 # Saving the data source
@@ -596,7 +596,7 @@ def test_the_test_result_is_the_whole_page_without_htmx(
 ) -> None:
     response = client.post("/settings/connections/test", headers=ORIGIN)
     assert response.status_code == 200
-    assert "<title>Connections - cs-brief</title>" in response.text
+    assert "<title>Connections - Wardmind</title>" in response.text
     assert "check-list" in response.text
     assert response.headers["vary"] == "HX-Request"
 
@@ -669,7 +669,7 @@ def test_a_connector_error_is_shown_as_its_plain_message(
 def test_a_bad_base_url_is_shown_as_a_plain_message(
     client: TestClient, hubspot_with_token: StubHubSpot, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    monkeypatch.setenv("CS_BRIEF_HUBSPOT_API_BASE", "https://evil.example")
+    monkeypatch.setenv("WARDMIND_HUBSPOT_API_BASE", "https://evil.example")
     response = client.post("/settings/connections/test", headers=HX)
     assert response.status_code == 200
     assert "base_url must be API_BASE or a localhost URL" in response.text
@@ -714,7 +714,7 @@ def test_every_book_page_shows_the_error_with_the_way_out(
     response = client.get(path)
     assert response.status_code == 503
     text = _text(response)
-    assert f"<title>{ERROR_HEADING} - cs-brief</title>" in text
+    assert f"<title>{ERROR_HEADING} - Wardmind</title>" in text
     assert f'<h1 class="page-title">{ERROR_HEADING}</h1>' in response.text
     assert f"Couldn't load your book. {NO_TOKEN_MESSAGE}" in text
     assert '<a class="button" href="/settings/connections">Check Connections</a>' in response.text
@@ -1029,7 +1029,7 @@ def test_removing_a_sheet_asks_first_with_its_real_counts(client: TestClient) ->
     response = client.get("/settings/connections/sheet-1/remove")
     assert response.status_code == 200
     text = _text(response)
-    assert "<title>Remove Q4 renewals - cs-brief</title>" in response.text
+    assert "<title>Remove Q4 renewals - Wardmind</title>" in response.text
     assert "Remove Q4 renewals?" in text
     assert (
         "Its 2 accounts and their history leave your book. Edits you made to them are deleted too."

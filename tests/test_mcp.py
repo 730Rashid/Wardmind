@@ -11,13 +11,13 @@ import pytest
 from mcp import Client, StdioServerParameters
 from mcp.types import CallToolResult
 
-from cs_brief.core import briefs, contacts, service, summaries
-from cs_brief.core.connectors.demo import DemoConnector
-from cs_brief.core.connectors.errors import ConnectionNotReady
-from cs_brief.core.models import Motion
-from cs_brief.core.research import Topic
-from cs_brief.core.settings import DataSource, Settings, save_settings
-from cs_brief.mcp import server
+from wardmind.core import briefs, contacts, service, summaries
+from wardmind.core.connectors.demo import DemoConnector
+from wardmind.core.connectors.errors import ConnectionNotReady
+from wardmind.core.models import Motion
+from wardmind.core.research import Topic
+from wardmind.core.settings import DataSource, Settings, save_settings
+from wardmind.mcp import server
 
 REPO = Path(__file__).resolve().parents[1]
 TOOLS = {
@@ -201,11 +201,11 @@ async def test_weekly_brief_counts_the_whole_book_and_lists_ten_rows():
 
 
 @pytest.mark.skipif(
-    os.environ.get("CS_BRIEF_SKIP_SUBPROCESS") == "1",
-    reason="CS_BRIEF_SKIP_SUBPROCESS=1 skips the slow stdio smoke test",
+    os.environ.get("WARDMIND_SKIP_SUBPROCESS") == "1",
+    reason="WARDMIND_SKIP_SUBPROCESS=1 skips the slow stdio smoke test",
 )
 async def test_stdio_subprocess_serves_the_tools():
-    params = StdioServerParameters(command=sys.executable, args=["-m", "cs_brief", "mcp"], cwd=REPO)
+    params = StdioServerParameters(command=sys.executable, args=["-m", "wardmind", "mcp"], cwd=REPO)
     async with asyncio.timeout(SUBPROCESS_TIMEOUT_S):
         async with Client(params) as client:
             tools = await client.list_tools()

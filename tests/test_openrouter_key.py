@@ -8,8 +8,8 @@ from pathlib import Path
 
 import pytest
 
-from cs_brief.core import secrets
-from cs_brief.core.secrets import (
+from wardmind.core import secrets
+from wardmind.core.secrets import (
     ENV_OPENROUTER_KEY,
     ENV_SECRETS_DIR,
     ENV_TOKEN,
