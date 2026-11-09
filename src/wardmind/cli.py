@@ -1,4 +1,4 @@
-"""Wardmind command line: `wardmind score`, `wardmind mcp`, `wardmind ui`."""
+"""Wardmind command line: `wardmind score`, `wardmind mcp`, `wardmind ui`, `wardmind desktop`."""
 
 from __future__ import annotations
 
@@ -87,6 +87,14 @@ def mcp() -> None:
     from wardmind.mcp.server import run
 
     run()
+
+
+@app.command()
+def desktop() -> None:
+    """Open the dashboard in its own window (the desktop app)."""
+    from wardmind.desktop import run
+
+    raise typer.Exit(code=run())
 
 
 @app.command()

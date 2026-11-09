@@ -1,6 +1,16 @@
 // Marks the page as scripted so CSS can hide the no-JavaScript submit button.
 document.documentElement.classList.add("js");
 
+// Links to other websites (a customer's news, OpenRouter's model list) open in a new tab, so
+// Wardmind stays where it was. In the desktop app, a new tab means the computer's own browser.
+document.addEventListener("click", (event) => {
+  const link = event.target instanceof Element ? event.target.closest("a[href]") : null;
+  if (!(link instanceof HTMLAnchorElement)) return;
+  if (link.origin === window.location.origin || !/^https?:$/.test(link.protocol)) return;
+  link.target = "_blank";
+  link.rel = "noopener noreferrer";
+});
+
 // Every print button opens the browser's print dialog, where "Save as PDF" is one of the choices.
 document.querySelectorAll("[data-print]").forEach((button) => {
   button.addEventListener("click", () => window.print());

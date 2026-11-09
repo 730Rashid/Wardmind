@@ -12,6 +12,7 @@ A signal's contribution in risk points is `weight * normalised_risk`.
 from __future__ import annotations
 
 import os
+import sys
 import tempfile
 from pathlib import Path
 
@@ -91,8 +92,19 @@ class ScoringConfig(BaseModel):
 
 
 def config_dir() -> Path:
-    """Directory holding scoring.yaml / settings.yaml. Override with WARDMIND_CONFIG_DIR."""
-    return Path(os.environ.get("WARDMIND_CONFIG_DIR", Path.cwd() / "config"))
+    """Directory holding scoring.yaml / settings.yaml. Override with WARDMIND_CONFIG_DIR.
+
+    Run from source, it is `config/` in the folder Wardmind starts from. The desktop app
+    (Wardmind.exe, a frozen build) has no such folder of its own, so it keeps them in the
+    per-user folder beside the data: %LOCALAPPDATA%\\wardmind\\config on Windows."""
+    override = os.environ.get("WARDMIND_CONFIG_DIR", "").strip()
+    if override:
+        return Path(override)
+    if getattr(sys, "frozen", False):
+        from wardmind.core.secrets import secrets_dir
+
+        return secrets_dir() / "config"
+    return Path.cwd() / "config"
 
 
 def load_scoring_config(path: Path | None = None) -> ScoringConfig:

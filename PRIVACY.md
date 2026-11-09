@@ -135,8 +135,8 @@ agreeing it with them. Wardmind records who agreed and when.
 
 | What | Where |
 |---|---|
-| Appearance and other UI settings | `config/settings.yaml` in the folder you run Wardmind from |
-| Scoring weights and thresholds | `config/scoring.yaml` in the same folder |
+| Appearance and other UI settings | `config/settings.yaml` in the folder you run Wardmind from. The desktop app (Wardmind.exe) uses `%LOCALAPPDATA%\wardmind\config\settings.yaml` instead. |
+| Scoring weights and thresholds | `config/scoring.yaml` in the same folder (desktop app: `%LOCALAPPDATA%\wardmind\config\scoring.yaml`) |
 | HubSpot access token | `%LOCALAPPDATA%\wardmind\hubspot-token`, or the `WARDMIND_HUBSPOT_TOKEN` environment variable. The dashboard shows only its last 4 characters. |
 | Your connections, imported sheets, hand-added accounts, edits, readings, links, hidden accounts and notices | `%LOCALAPPDATA%\wardmind\data` |
 | Imports you started but didn't finish | `%LOCALAPPDATA%\wardmind\data\drafts`, deleted after 24 hours or by **Clear local cache** |
@@ -173,6 +173,10 @@ same folder, not with the keys, so treat that folder as private.
 - Other websites can't load its pages, images or scripts, or put it in a frame, so they can't
   read your book or tell that Wardmind is running.
 - Pages aren't kept in your browser's cache.
+- The desktop app (Wardmind.exe) runs the same dashboard on `127.0.0.1`, on a port chosen
+  fresh each time it starts, with all of the protections above. Its window's browser runs in
+  private mode, so it keeps no cookies, cache or website storage after you close it. Links to
+  other websites open in your normal browser, not in the Wardmind window.
 
 ## Removing everything
 
@@ -181,5 +185,7 @@ same folder, not with the keys, so treat that folder as private.
    summaries, unfinished imports, and every saved token and key. If you set
    `WARDMIND_HUBSPOT_TOKEN` or `WARDMIND_OPENROUTER_KEY` as environment variables, remove those
    yourself. Or simply delete the folder `%LOCALAPPDATA%\wardmind`.
-2. Delete `config/settings.yaml` to go back to the default appearance.
+2. Delete `config/settings.yaml` to go back to the default appearance (the desktop app's is
+   in `%LOCALAPPDATA%\wardmind\config`). To remove the desktop app itself, delete its
+   `Wardmind` folder.
 3. If you added the MCP server to Claude, remove it with `claude mcp remove wardmind`.

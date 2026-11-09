@@ -20,6 +20,8 @@ attention this week. It is reachable three ways, all backed by the same core cod
     - Connections: demo data or your data, HubSpot, spreadsheets and accounts added by hand.
     - Data & privacy: web research and AI summaries on or off, your OpenRouter key, and
       clearing the local cache.
+- **Desktop app:** `Wardmind.exe` (or `wardmind desktop`) shows the same dashboard in its own
+  window on Windows
 - **Claude (MCP):** `wardmind mcp` serves the book to Claude over stdio
 - **Terminal:** `wardmind score` prints the top of the book
 
@@ -37,6 +39,37 @@ connection changes the value; then the new value wins and the account page tells
 same customer turns up in two connections, Wardmind suggests linking them, and you confirm.
 Everything you add or change is stored in your user profile (`%LOCALAPPDATA%\wardmind\data`),
 not in this folder.
+
+## Desktop app (Windows)
+
+**Wardmind.exe** opens the dashboard in its own window, with no browser tab and no terminal.
+Closing the window stops Wardmind and its background data feed syncs.
+
+- **Get it:** build it with `.\packaging\build.ps1` (see below). Then double-click
+  `Wardmind\Wardmind.exe`, or copy the zip to another Windows 10 or 11 computer and unzip it
+  anywhere. Nothing needs installing; the window uses Microsoft Edge WebView2, which is part
+  of Windows.
+- **First run:** the app isn't code-signed, so Windows SmartScreen may say "Windows protected
+  your PC". Choose **More info > Run anyway**.
+- **Settings:** the desktop app keeps appearance and scoring settings in
+  `%LOCALAPPDATA%\wardmind\config`, beside your data, rather than in a `config` folder.
+- **Claude:** the same folder has `wardmind-cli.exe` for the MCP server:
+
+  ```powershell
+  claude mcp add wardmind -- "<path to the Wardmind folder>\wardmind-cli.exe" mcp
+  ```
+
+- **Links** to other websites (a customer's news, OpenRouter) open in your normal browser.
+- Only one Wardmind window can be open at a time.
+
+To build it (from this folder, after `uv` is installed):
+
+```powershell
+.\packaging\build.ps1
+```
+
+It writes `Wardmind\` and `Wardmind-<version>-windows-x64.zip` to `Wardmind-build` in your
+user folder. From source, `uv run wardmind desktop` opens the same window.
 
 ## Quickstart (Windows, PowerShell)
 
