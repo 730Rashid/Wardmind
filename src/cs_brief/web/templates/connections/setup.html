@@ -15,7 +15,7 @@
   <p class="field-error" role="alert">{{ top_error }}</p>
   {% endif %}
 
-  <form id="connection-setup" class="connections-section connection-form" method="post" action="/connections/add/{{ info.id }}">
+  <form id="connection-setup" class="connections-section connection-form" method="post" action="/connections/add/{{ info.id | idpath }}">
     {% if connection %}
     <input type="hidden" name="connection" value="{{ connection }}">
     {% endif %}

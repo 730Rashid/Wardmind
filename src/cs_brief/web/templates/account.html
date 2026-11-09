@@ -17,7 +17,7 @@
         <h1 class="account-name">{{ account.name }}</h1>
         {% if 'name' in edits %}{{ edited_marker() }}{% endif %}
         {% if prov %}
-        <a class="button button--small no-print" href="/accounts/{{ account.id | urlencode }}/edit">Edit account</a>
+        <a class="button button--small no-print" href="/accounts/{{ account.id | idpath }}/edit">Edit account</a>
         {% endif %}
       </div>
       <ul class="facts">
@@ -30,7 +30,7 @@
       <div class="source-row">
         <p class="source-line">{{ source_line }}</p>
         {% if linked %}
-        <form class="inline-form" method="post" action="/accounts/{{ account.id | urlencode }}/unlink">
+        <form class="inline-form" method="post" action="/accounts/{{ account.id | idpath }}/unlink">
           <button type="submit" class="button button--small">Unlink</button>
         </form>
         {% endif %}
@@ -40,7 +40,7 @@
         {% for notice in notices %}
         <li class="notice">
           <span>{{ notice.message }}</span>
-          <form class="inline-form" method="post" action="/accounts/{{ account.id | urlencode }}/notices/{{ notice.id | urlencode }}/dismiss">
+          <form class="inline-form" method="post" action="/accounts/{{ account.id | idpath }}/notices/{{ notice.id | idpath }}/dismiss">
             <button type="submit" class="button button--small">Dismiss</button>
           </form>
         </li>
@@ -99,7 +99,7 @@
       <dt>Owner</dt>
       <dd>{{ account.owner }}{% if 'owner' in edits %} {{ edited_marker() }}{% endif %}</dd>
       <dt>Started</dt>
-      <dd>{% if account.start_date is none %}Not known{% if prov %} <a class="no-print" href="/accounts/{{ account.id | urlencode }}/edit#field-start-date">Add it</a>{% endif %}{% else %}{{ account.start_date | day_label(today_day) }}, {{ detail.days_since_start | ago }}{% endif %}{% if 'start_date' in edits %} {{ edited_marker() }}{% endif %}</dd>
+      <dd>{% if account.start_date is none %}Not known{% if prov %} <a class="no-print" href="/accounts/{{ account.id | idpath }}/edit#field-start-date">Add it</a>{% endif %}{% else %}{{ account.start_date | day_label(today_day) }}, {{ detail.days_since_start | ago }}{% endif %}{% if 'start_date' in edits %} {{ edited_marker() }}{% endif %}</dd>
       <dt>Renews</dt>
       <dd>{{ account.renewal_date | day_label(today_day) }}{% if 'renewal_date' in edits %} {{ edited_marker() }}{% endif %}</dd>
       <dt>Onboarding milestones</dt>

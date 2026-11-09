@@ -53,7 +53,7 @@
       <div class="contact-actions no-print">
         <details class="contact-disclosure"{% if row.edit_open %} open{% endif %}>
           <summary class="button button--small">Edit</summary>
-          <form class="contact-form" method="post" action="/accounts/{{ account_path }}/contacts/{{ row.id }}/edit">
+          <form class="contact-form" method="post" action="/accounts/{{ account_path }}/contacts/{{ row.id | idpath }}/edit">
             {% if row.edit_errors.form %}<p class="field-error" role="alert">{{ row.edit_errors.form }}</p>{% endif %}
             {{ contact_fields('contact-' ~ row.id ~ '-edit', row.edit_values, row.edit_errors, row.edit_main) }}
             <div class="form-actions">
@@ -62,13 +62,13 @@
           </form>
         </details>
         {% if row.left %}
-        <form class="inline-form" method="post" action="/accounts/{{ account_path }}/contacts/{{ row.id }}/active">
+        <form class="inline-form" method="post" action="/accounts/{{ account_path }}/contacts/{{ row.id | idpath }}/active">
           <button type="submit" class="button button--small">Undo left</button>
         </form>
         {% else %}
         <details class="contact-disclosure"{% if row.left_open %} open{% endif %}>
           <summary class="button button--small">Mark as left</summary>
-          <form class="contact-form" method="post" action="/accounts/{{ account_path }}/contacts/{{ row.id }}/left">
+          <form class="contact-form" method="post" action="/accounts/{{ account_path }}/contacts/{{ row.id | idpath }}/left">
             <div class="field">
               <label for="contact-{{ row.id }}-left-on">Left on</label>
               <input type="date" id="contact-{{ row.id }}-left-on" name="left_on" value="{{ row.left_on }}"{% if row.left_errors.form %} aria-invalid="true" aria-describedby="contact-{{ row.id }}-left-error"{% endif %}>
@@ -80,7 +80,7 @@
           </form>
         </details>
         {% endif %}
-        <a class="button button--small" href="/accounts/{{ account_path }}/contacts/{{ row.id }}/remove">Remove</a>
+        <a class="button button--small" href="/accounts/{{ account_path }}/contacts/{{ row.id | idpath }}/remove">Remove</a>
       </div>
       {% endif %}
     </li>

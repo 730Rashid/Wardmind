@@ -33,18 +33,24 @@ Web research is off until you turn it on in **Settings > Data & privacy**. When 
 - **What is sent.** Only the visit itself. The site sees a request from your internet address,
   as it would from any visitor. No cookies are kept. Nothing about the account (ARR, owner,
   health, signals, notes) is sent, and nothing about your other accounts.
-- **Who sees it.** Only that customer's website. No search engine or other company is involved.
-- **When.** Only when you press the button, for that one account. Never in the background,
-  and never for the whole book.
-- **What is kept.** The result, on this computer, for 24 hours. **Clear local cache** removes
-  it, and so does turning web research off.
+- **Who sees it.** That customer's website. If its home page redirects to another public
+  website (a new domain, for example), that site is visited instead. No search engine or other
+  company is involved.
+- **When.** When you press **Look up their website** for one account or **Look up all
+  websites** for the whole book. If you added the MCP server, Claude can also look up an
+  account's website when you ask it about that customer. Never on a schedule.
+- **What is kept.** The result, on this computer, until you press **Clear local cache** or
+  turn web research off. A result older than 24 hours is fetched again the next time you look
+  it up. My book uses saved results for its news tags.
 - **Demo data.** Demo accounts are invented, so they show sample news and nothing is sent.
 - **Safety.** A website field comes from imported data, so cs-brief treats it as untrusted.
   It visits only public `https` websites. It refuses IP addresses, `localhost` and
   private-network names. It checks the address every connection resolves to, redirects
   included, and refuses this computer and private networks. Proxy settings from the
   environment are ignored, so that check can't be bypassed. If you're on a network that
-  requires a proxy, web research won't work there.
+  requires a proxy, web research won't work there. Each lookup has time and size limits, so a
+  slow or hostile website can't stall cs-brief. Website text given to Claude is labelled as
+  untrusted data that may contain instructions Claude must not follow.
 
 ## AI summaries in detail
 
@@ -83,13 +89,16 @@ until you add one.
   and you must type its key again.
 - **Addresses.** `https` only. Plain `http` is allowed only for `localhost`, for a test server
   of your own. A feed may point at your company's private network on purpose (an internal
-  export link), because you typed that address yourself.
-- **Files and databases** are read where they are. A SQLite database is opened read-only, and
-  only `SELECT` queries can run.
+  export link), because you typed that address yourself. A public feed can't use a redirect to
+  send cs-brief into your private network or this computer: a redirect to another site is only
+  followed to a public `https` address.
+- **Files and databases** are read where they are. A SQLite database is opened read-only, only
+  `SELECT` queries can run, and a query is stopped after 30 seconds.
 - **When.** On the schedule you picked for that feed (from every 15 minutes to once a day, when
   a file changes, or only when you press **Sync now**), while the dashboard is running.
-- **Limits.** A response over 25 MB or a source with more than 50,000 rows is refused rather
-  than cut short. Freshdesk's search returns at most 300 urgent tickets and Zendesk's at most
+- **Limits.** A response over 25 MB, more than 100 MB across all pages, a source with more
+  than 50,000 rows or 500 columns, or a request still unfinished after 2 minutes is refused
+  rather than cut short. Freshdesk's search returns at most 300 urgent tickets and Zendesk's at most
   1,000, so a very large ticket count can read low.
 - **Removing a feed** deletes its saved readings and its key.
 
@@ -131,31 +140,46 @@ agreeing it with them. cs-brief records who agreed and when.
 | HubSpot access token | `%LOCALAPPDATA%\cs-brief\hubspot-token`, or the `CS_BRIEF_HUBSPOT_TOKEN` environment variable. The dashboard shows only its last 4 characters. |
 | Your connections, imported sheets, hand-added accounts, edits, readings, links, hidden accounts and notices | `%LOCALAPPDATA%\cs-brief\data` |
 | Imports you started but didn't finish | `%LOCALAPPDATA%\cs-brief\data\drafts`, deleted after 24 hours or by **Clear local cache** |
-| Web research results | `%LOCALAPPDATA%\cs-brief\data\research`, kept for 24 hours |
+| Web research results | `%LOCALAPPDATA%\cs-brief\data\research`, until **Clear local cache** or turning web research off |
 | AI summaries | `%LOCALAPPDATA%\cs-brief\data\summaries` |
 | Contacts | `%LOCALAPPDATA%\cs-brief\data\contacts.json` |
 | Client update agreements, codes, your form link and updates waiting for review | `%LOCALAPPDATA%\cs-brief\data\client_updates.json` |
 | Data feed keys | `%LOCALAPPDATA%\cs-brief\feeds`, one file per feed. Only the last 4 characters are ever shown. |
 | Data feeds' latest data | `%LOCALAPPDATA%\cs-brief\data\sheets\feed-<n>.json` |
-| Feed setups you started but didn't finish | `%LOCALAPPDATA%\cs-brief\data\feed-drafts`, deleted after 24 hours |
+| Feed setups you started but didn't finish, with any key you typed for them | `%LOCALAPPDATA%\cs-brief\data\feed-drafts`, deleted after 24 hours or by **Clear local cache** |
 | OpenRouter API key | `%LOCALAPPDATA%\cs-brief\openrouter-key`, or the `CS_BRIEF_OPENROUTER_KEY` environment variable. Only its last 4 characters are ever shown. |
 
 On macOS and Linux, `%LOCALAPPDATA%\cs-brief` is `~/.local/state/cs-brief` (or
 `$XDG_STATE_HOME/cs-brief`).
 
-HubSpot data is held in memory while the app runs and isn't written to disk.
+HubSpot data is held in memory while the app runs and isn't saved as a copy. Your own edits to
+HubSpot accounts are saved, together with the value HubSpot had when you made each edit, and a
+notice may quote a value HubSpot changed.
+
+On macOS and Linux, the data files are readable only by you. On Windows they sit in your own
+user profile, which other users of the computer can't read.
+
+Some links work like passwords: a Google Sheet shared as "Anyone with the link", a signed
+export link, or your client update form's link. They are saved as connection settings in the
+same folder, not with the keys, so treat that folder as private.
 
 ## The dashboard's own safety
 
 - It listens on `127.0.0.1` only, so other computers on your network can't reach it. It
-  answers only to `127.0.0.1` and `localhost`.
+  answers only to `127.0.0.1` and `localhost`, which stops websites from reaching it by
+  pointing their own names at your computer.
 - Changes can only come from cs-brief's own pages. A form posted from another website is
   refused.
+- Other websites can't load its pages, images or scripts, or put it in a frame, so they can't
+  read your book or tell that cs-brief is running.
+- Pages aren't kept in your browser's cache.
 
 ## Removing everything
 
-1. In **Settings > Connections**, delete the HubSpot token and remove any connections, and in
-   **Settings > Data & privacy** remove the OpenRouter key. Or simply delete the folder
-   `%LOCALAPPDATA%\cs-brief`.
+1. **Settings > Data & privacy > Delete all local data** deletes everything cs-brief keeps on
+   this computer: connections, accounts, edits, contacts, client updates, saved lookups and
+   summaries, unfinished imports, and every saved token and key. If you set
+   `CS_BRIEF_HUBSPOT_TOKEN` or `CS_BRIEF_OPENROUTER_KEY` as environment variables, remove those
+   yourself. Or simply delete the folder `%LOCALAPPDATA%\cs-brief`.
 2. Delete `config/settings.yaml` to go back to the default appearance.
 3. If you added the MCP server to Claude, remove it with `claude mcp remove cs-brief`.

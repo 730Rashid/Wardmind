@@ -19,7 +19,7 @@ from cs_brief.core.feeds.models import FeedRole, FeedSettings, FeedStatus, Sched
 from cs_brief.core.feeds.providers import get_provider
 from cs_brief.core.importing import DateOrder, Table
 from cs_brief.core.models import Account
-from cs_brief.core.store import ConnectionConfig, LocalStore
+from cs_brief.core.store import WRITE_LOCK, ConnectionConfig, LocalStore
 
 TICK_SECONDS = 60  # how often the scheduler looks for due feeds
 ON_CHANGE_FALLBACK_MINUTES = 1440  # an ON_CHANGE feed whose mtime can't be read syncs daily
@@ -27,6 +27,10 @@ RETRY_MINUTES = 15  # after a failed sync, wait at least this long before trying
 
 _STOP_WAIT_SECONDS = 5.0  # stop() waits this long for a tick that is already running
 NO_SIGNAL_ROWS = "The source sent no rows."
+SYNC_FAILED = "cs-brief couldn't finish this sync. Try Sync now."
+_UNICODE_FAILED = (
+    "The key or password has characters that can't be sent. Check you copied only the key."
+)
 _DATE_ORDERS = ("dmy", "mdy", "ymd")
 _log = logging.getLogger(__name__)
 
@@ -98,47 +102,112 @@ def sync_feed(
     a failure: ingest's message is the last_error.
 
     Either way the status is updated and saved with the connection (store.update_connection):
-    success sets last_synced_at, counts and clears last_error; failure (FeedError, ValueError)
-    sets last_error to the plain message and keeps everything else. last_attempt_at is always
-    set. Never raises for a source problem; returns the outcome."""
+    success sets last_synced_at, counts and clears last_error; failure sets last_error and keeps
+    everything else (see _last_error for which messages are shown). last_attempt_at is always
+    set. Never raises for a source problem; returns the outcome.
+
+    Locking: the source is read with no lock held (it can be a network call). Everything after
+    that runs under store.WRITE_LOCK, starting with a fresh load of the connection: if it was
+    removed, or is now another provider or role, the fetched table is dropped and nothing is
+    written for it."""
     feed = _feed_of(config)
     provider = get_provider(feed.provider)
     provider_name = provider.info.name if provider is not None else feed.provider
     # Read the file's time before its data, so a change made during the sync is seen next time.
     mtime = provider.source_mtime(dict(feed.settings)) if provider is not None else None
     attempt = feed.status.model_copy(update={"last_attempt_at": now})
-    removed = 0
-    try:
-        if table is None:
+    if table is None:
+        try:
             table = fetch_table(config, store)
-        if feed.role is FeedRole.ACCOUNTS:
-            status, removed = _sync_accounts(
-                config, store, table, now=now, today=today, provider_name=provider_name
-            )
-        elif feed.role is FeedRole.CLIENT_UPDATES:
-            status = _sync_client_updates(
-                config,
-                store,
-                table,
-                book_ids={account.id for account in book_accounts},
-                now=now,
-            )
-        else:
-            status = _sync_signals(
-                config,
+        except Exception as exc:
+            status = attempt.model_copy(update={"last_error": _last_error(exc, fetching=True)})
+            _save_status(store, config, status)
+            return SyncOutcome(status=status)
+    removed = 0
+    with WRITE_LOCK:
+        current = _current_feed(store, config)
+        if current is None:
+            return SyncOutcome(status=attempt)
+        try:
+            status, removed = _apply(
+                current,
                 store,
                 table,
                 book_accounts=book_accounts,
                 now=now,
+                today=today,
                 provider_name=provider_name,
             )
-        status = status.model_copy(update={"source_mtime": mtime})
-    except FeedError as exc:
-        status = attempt.model_copy(update={"last_error": exc.message})
-    except ValueError as exc:
-        status = attempt.model_copy(update={"last_error": str(exc)})
-    _save_status(store, config, status)
+            status = status.model_copy(update={"source_mtime": mtime})
+        except Exception as exc:
+            status = attempt.model_copy(update={"last_error": _last_error(exc, fetching=False)})
+        _save_status(store, current, status)
     return SyncOutcome(status=status, removed_accounts=removed)
+
+
+def _last_error(exc: Exception, *, fetching: bool) -> str:
+    """What last_error says about a failed sync. Only cs-brief's own messages are shown: a
+    FeedError's; for a UnicodeError (httpx names the character of a key it can't send) the
+    key-characters message; and, from the mapping and validation step only, a plain ValueError's
+    message (type exactly ValueError: cs-brief raises those with its own text, while subclasses
+    such as pydantic's ValidationError carry the data). Anything else gets the generic message,
+    so no text from a library or the source reaches the screen."""
+    if isinstance(exc, FeedError):
+        return exc.message
+    if isinstance(exc, UnicodeError):
+        return _UNICODE_FAILED
+    if not fetching and type(exc) is ValueError:
+        return str(exc)
+    return SYNC_FAILED
+
+
+def _current_feed(store: LocalStore, config: ConnectionConfig) -> ConnectionConfig | None:
+    """The connection as it is now, when it is still this feed (same provider and role). None
+    when it was removed, or changed to another provider or role, while its source was read."""
+    latest = store.get_connection(config.id)
+    if latest is None or latest.feed is None or config.feed is None:
+        return None
+    if latest.feed.provider != config.feed.provider or latest.feed.role is not config.feed.role:
+        return None
+    return latest
+
+
+def _apply(
+    config: ConnectionConfig,
+    store: LocalStore,
+    table: Table,
+    *,
+    book_accounts: list[Account],
+    now: datetime,
+    today: date,
+    provider_name: str,
+) -> tuple[FeedStatus, int]:
+    """Process a fetched table for one feed by its role. Returns the status and, for an accounts
+    feed, how many accounts the last snapshot had that are gone now. Called with WRITE_LOCK held.
+    Raises FeedError, or ValueError with a mapping or validation message."""
+    feed = _feed_of(config)
+    if feed.role is FeedRole.ACCOUNTS:
+        return _sync_accounts(
+            config, store, table, now=now, today=today, provider_name=provider_name
+        )
+    if feed.role is FeedRole.CLIENT_UPDATES:
+        status = _sync_client_updates(
+            config,
+            store,
+            table,
+            book_ids={account.id for account in book_accounts},
+            now=now,
+        )
+        return status, 0
+    status = _sync_signals(
+        config,
+        store,
+        table,
+        book_accounts=book_accounts,
+        now=now,
+        provider_name=provider_name,
+    )
+    return status, 0
 
 
 def _feed_of(config: ConnectionConfig) -> FeedSettings:
@@ -285,11 +354,12 @@ def _sync_signals(
 def _save_status(store: LocalStore, config: ConnectionConfig, status: FeedStatus) -> None:
     """Write the status onto the connection as it is now (a change made meanwhile is kept). A
     connection removed during the sync is left alone."""
-    latest = store.get_connection(config.id)
-    if latest is None or latest.feed is None:
-        return
-    feed = latest.feed.model_copy(update={"status": status})
-    store.update_connection(latest.model_copy(update={"feed": feed}))
+    with WRITE_LOCK:
+        latest = store.get_connection(config.id)
+        if latest is None or latest.feed is None:
+            return
+        feed = latest.feed.model_copy(update={"status": status})
+        store.update_connection(latest.model_copy(update={"feed": feed}))
 
 
 def is_due(config: ConnectionConfig, now: datetime, mtime: float | None) -> bool:

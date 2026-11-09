@@ -4,10 +4,10 @@
   <h1 class="page-title">Delete {{ account.name }}?</h1>
   <p class="prose">It leaves your book, along with readings you added. This can't be undone.</p>
   <div class="error-actions">
-    <form class="inline-form" method="post" action="/accounts/{{ account.id | urlencode }}/delete">
+    <form class="inline-form" method="post" action="/accounts/{{ account.id | idpath }}/delete">
       <button type="submit" class="button-primary">Delete account</button>
     </form>
-    <a class="button" href="/accounts/{{ account.id | urlencode }}">Keep it</a>
+    <a class="button" href="/accounts/{{ account.id | idpath }}">Keep it</a>
   </div>
 </div>
 {% endblock %}

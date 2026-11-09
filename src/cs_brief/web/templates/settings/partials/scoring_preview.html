@@ -17,7 +17,7 @@
   {% for mover in preview.movers %}
   <li class="mover">
     <span class="mover-rank">{{ mover.rank }}</span>
-    <a class="account-link" href="/accounts/{{ mover.account_id | urlencode }}">{{ mover.name }}</a>
+    <a class="account-link" href="/accounts/{{ mover.account_id | idpath }}">{{ mover.name }}</a>
     <span class="mover-move">{% if mover.arrow %}<svg class="icon" aria-hidden="true" focusable="false"><use href="/static/icons.svg#{{ mover.arrow }}"/></svg>{% endif %}{{ mover.movement }}</span>
   </li>
   {% endfor %}

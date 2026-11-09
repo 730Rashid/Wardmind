@@ -499,4 +499,4 @@ def test_copy_has_a_working_fallback_when_the_clipboard_is_refused(client: TestC
 def test_static_files_are_revalidated_so_upgrades_never_run_stale_code(client: TestClient) -> None:
     for path in ("/static/js/app.js", "/static/css/app.css"):
         assert client.get(path).headers["cache-control"] == "no-cache"
-    assert "cache-control" not in client.get("/onboarding").headers
+    assert client.get("/onboarding").headers["cache-control"] == "no-store"

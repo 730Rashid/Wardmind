@@ -38,7 +38,13 @@ from cs_brief.core.feeds.models import (
 )
 from cs_brief.core.importing import DateOrder, FieldType, ImportIssue, Table
 from cs_brief.core.models import Account
-from cs_brief.core.store import FEED_DRAFTS_DIR, ConnectionConfig, ConnectionKind, LocalStore
+from cs_brief.core.store import (
+    FEED_DRAFTS_DIR,
+    WRITE_LOCK,
+    ConnectionConfig,
+    ConnectionKind,
+    LocalStore,
+)
 
 DRAFT_TTL = timedelta(hours=24)
 DRAFTS_DIR = FEED_DRAFTS_DIR
@@ -184,6 +190,57 @@ def _read(path: Path) -> FeedDraft | None:
         return None
 
 
+def _remove_orphan_draft_keys(store: LocalStore) -> int:
+    """Delete every draft key ("draft-<id>") that has no draft file: a key left by a setup that
+    was never saved. Returns how many were removed. Callers hold store.WRITE_LOCK."""
+    folder = vault.secrets_dir() / vault.FEED_SECRETS_DIR
+    if not folder.is_dir():
+        return 0
+    removed = 0
+    for path in folder.glob("draft-*"):
+        draft_id = path.name.removeprefix("draft-")
+        if not path.is_file() or _DRAFT_ID.fullmatch(draft_id) is None:
+            continue
+        if _draft_path(store, draft_id).exists():
+            continue
+        if vault.delete_secret(path.name):
+            removed += 1
+    return removed
+
+
+def purge_old_feed_drafts(store: LocalStore, *, now: datetime) -> int:
+    """Delete every feed setup older than DRAFT_TTL (and any unreadable one), with its draft key,
+    and every draft key that has no draft file. Returns how many drafts and orphaned keys went.
+    Holds store.WRITE_LOCK, so a setup being saved can't be mistaken for an orphan."""
+    moment = _naive(now)
+    removed = 0
+    with WRITE_LOCK:
+        folder = store.root / DRAFTS_DIR
+        if folder.is_dir():
+            for path in folder.glob("*.json"):
+                if _DRAFT_ID.fullmatch(path.stem) is None:
+                    continue
+                draft = _read(path)
+                if draft is None or moment - draft.created_at > DRAFT_TTL:
+                    path.unlink(missing_ok=True)
+                    vault.delete_secret(_secret_for(path.stem))
+                    removed += 1
+        removed += _remove_orphan_draft_keys(store)
+    return removed
+
+
+def clear_feed_drafts(store: LocalStore) -> None:
+    """Delete every unfinished feed setup, however new, with its draft key. Only Clear local cache
+    uses this (import drafts have their own clear, import_flow.clear_drafts)."""
+    with WRITE_LOCK:
+        folder = store.root / DRAFTS_DIR
+        if folder.is_dir():
+            for path in folder.glob("*.json"):
+                if _DRAFT_ID.fullmatch(path.stem) is not None:
+                    path.unlink(missing_ok=True)
+        _remove_orphan_draft_keys(store)  # with the drafts gone, every draft key is orphaned
+
+
 def start_draft(
     store: LocalStore,
     provider_id: str,
@@ -210,6 +267,7 @@ def start_draft(
     feed_name = import_flow.validate_name(name or info.name)
     moment = _naive(now)
     import_flow.purge_old_drafts(store, now=moment)
+    purge_old_feed_drafts(store, now=moment)
     existing: ConnectionConfig | None = None
     if connection_id is not None:
         existing = store.get_connection(connection_id)
@@ -232,10 +290,8 @@ def start_draft(
     if fetch_secret is None and _needs_secret(info, clean):
         field = _secret_field(info)
         raise ValueError(f"Fill in {field.label if field else 'the key'}.")
-    table = sync.fetch_with(provider_id, clean, fetch_secret)
+    table = sync.fetch_with(provider_id, clean, fetch_secret)  # the network: no lock held
     draft_id = token_hex(8)
-    if typed is not None:
-        vault.save_secret(_secret_for(draft_id), typed)
     mapping: dict[str, str] | None = None
     date_order: str | None = None
     if existing is not None and existing.mapping:
@@ -256,7 +312,12 @@ def start_draft(
         mapping=mapping,
         date_order=date_order,
     )
-    _write(store, draft)
+    # The key and the draft are saved together, so a purge of orphaned keys can't see the key
+    # before its draft file exists.
+    with WRITE_LOCK:
+        if typed is not None:
+            vault.save_secret(_secret_for(draft_id), typed)
+        _write(store, draft)
     return draft
 
 
@@ -498,46 +559,49 @@ def commit_draft(
     cleaned = _keep_for_role(draft.role, _mapping_for_role(draft.role, draft.table, mapping))
     order = _resolved_order(draft.table, cleaned, date_order)
     feed_name = import_flow.validate_name(draft.name or info.name)
+    # The book without this feed's own data (a new feed has none yet). Read before the lock: a
+    # live source in the book (HubSpot) is a network call.
+    book = book_accounts(draft.connection_id) if draft.role is not FeedRole.ACCOUNTS else []
 
-    if draft.connection_id is None:
-        config = store.add_connection(ConnectionKind.FEED, feed_name)
-    else:
-        existing = store.get_connection(draft.connection_id)
-        if existing is None or existing.kind is not ConnectionKind.FEED:
-            raise ValueError("That feed was removed. Start again from Add a connection.")
-        config = existing
-    if draft.has_secret:
-        vault.rename_secret(_secret_for(draft.id), sync.secret_name(config.id))
+    with WRITE_LOCK:
+        if draft.connection_id is None:
+            config = store.add_connection(ConnectionKind.FEED, feed_name)
+        else:
+            existing = store.get_connection(draft.connection_id)
+            if existing is None or existing.kind is not ConnectionKind.FEED:
+                raise ValueError("That feed was removed. Start again from Add a connection.")
+            config = existing
+        if draft.has_secret:
+            vault.rename_secret(_secret_for(draft.id), sync.secret_name(config.id))
 
-    feed = FeedSettings(
-        provider=draft.provider,
-        role=draft.role,
-        settings=dict(draft.settings),
-        schedule=draft.schedule,
-        match_by=draft.match_by,
-        status=FeedStatus(),
-    )
-    updated = config.model_copy(
-        update={
-            "name": feed_name,
-            "enabled": True,
-            "mapping": cleaned,
-            "date_order": order.value,
-            "feed": feed,
-        }
-    )
-    store.update_connection(updated)
-    book = book_accounts(updated.id) if draft.role is not FeedRole.ACCOUNTS else []
-    sync.sync_feed(
-        updated,
-        store,
-        book_accounts=book,
-        now=_naive(now),
-        today=today,
-        table=draft.table,
-    )
-    _draft_path(store, draft.id).unlink(missing_ok=True)
-    return store.get_connection(updated.id) or updated
+        feed = FeedSettings(
+            provider=draft.provider,
+            role=draft.role,
+            settings=dict(draft.settings),
+            schedule=draft.schedule,
+            match_by=draft.match_by,
+            status=FeedStatus(),
+        )
+        updated = config.model_copy(
+            update={
+                "name": feed_name,
+                "enabled": True,
+                "mapping": cleaned,
+                "date_order": order.value,
+                "feed": feed,
+            }
+        )
+        store.update_connection(updated)
+        sync.sync_feed(
+            updated,
+            store,
+            book_accounts=book,
+            now=_naive(now),
+            today=today,
+            table=draft.table,
+        )
+        _draft_path(store, draft.id).unlink(missing_ok=True)
+        return store.get_connection(updated.id) or updated
 
 
 def cancel_draft(store: LocalStore, draft_id: str) -> None:

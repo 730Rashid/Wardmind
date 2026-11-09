@@ -64,7 +64,7 @@
           <blockquote class="update-note"><p>{{ card.note }}</p></blockquote>
           {% endif %}
 
-          <form class="update-form" method="post" action="/client-updates/{{ card.id }}/accept{% if filter_query %}?{{ filter_query }}{% endif %}">
+          <form class="update-form" method="post" action="/client-updates/{{ card.id | idpath }}/accept{% if filter_query %}?{{ filter_query }}{% endif %}">
             {% if card.error %}<p class="field-error" role="alert">{{ card.error }}</p>{% endif %}
 
             {% if card.adds %}
@@ -109,7 +109,7 @@
 
             <div class="form-actions">
               <button type="submit" class="button-primary">{{ card.accept_label }}</button>
-              <button type="submit" class="button" formaction="/client-updates/{{ card.id }}/reject{% if filter_query %}?{{ filter_query }}{% endif %}">Reject</button>
+              <button type="submit" class="button" formaction="/client-updates/{{ card.id | idpath }}/reject{% if filter_query %}?{{ filter_query }}{% endif %}">Reject</button>
             </div>
           </form>
         </article>

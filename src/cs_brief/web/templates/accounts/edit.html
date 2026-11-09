@@ -2,7 +2,7 @@
 {% from "accounts/_form.html" import account_fields %}
 {% block content %}
 <div class="account-edit">
-  <p class="account-back"><a href="/accounts/{{ account.id | urlencode }}">Back to account</a></p>
+  <p class="account-back"><a href="/accounts/{{ account.id | idpath }}">Back to account</a></p>
   <header class="edit-head">
     <h1 class="page-title">Edit {{ account.name }}</h1>
     <p class="field-help">{{ source_line }}</p>
@@ -10,20 +10,20 @@
   {% if notice %}<p class="status-line" role="status">{{ notice }}</p>{% endif %}
   {% if refused %}<p class="field-error" role="alert">Nothing was saved. Fix the marked fields, then save again.</p>{% endif %}
 
-  <form class="account-form" method="post" action="/accounts/{{ account.id | urlencode }}/edit">
+  <form class="account-form" method="post" action="/accounts/{{ account.id | idpath }}/edit">
     {{ account_fields(values, errors, notes, false) }}
     <div class="form-actions">
       <button type="submit" class="button-primary">Save changes</button>
-      <a class="button" href="/accounts/{{ account.id | urlencode }}">Cancel</a>
+      <a class="button" href="/accounts/{{ account.id | idpath }}">Cancel</a>
     </div>
   </form>
   {% for name in notes %}
-  <form id="revert-{{ name | replace('_', '-') }}" class="revert-form" method="post" action="/accounts/{{ account.id | urlencode }}/revert/{{ name }}"></form>
+  <form id="revert-{{ name | replace('_', '-') }}" class="revert-form" method="post" action="/accounts/{{ account.id | idpath }}/revert/{{ name }}"></form>
   {% endfor %}
 
   <section class="account-section" aria-labelledby="reading-title">
     <h2 class="section-title" id="reading-title">Add a signal reading</h2>
-    <form class="reading-form" method="post" action="/accounts/{{ account.id | urlencode }}/readings">
+    <form class="reading-form" method="post" action="/accounts/{{ account.id | idpath }}/readings">
       {% if reading_error %}<p class="field-error" role="alert">{{ reading_error }}</p>{% endif %}
       <div class="reading-row">
         <div class="field">
@@ -54,12 +54,12 @@
   {% if prov.editable_in_place %}
   <div class="action-row">
     <p>Delete this account.</p>
-    <a class="button" href="/accounts/{{ account.id | urlencode }}/delete">Delete account</a>
+    <a class="button" href="/accounts/{{ account.id | idpath }}/delete">Delete account</a>
   </div>
   {% else %}
   <div class="action-row">
     <p>Hide this account from my book.</p>
-    <form class="inline-form" method="post" action="/accounts/{{ account.id | urlencode }}/hide">
+    <form class="inline-form" method="post" action="/accounts/{{ account.id | idpath }}/hide">
       <button type="submit" class="button">Hide account</button>
     </form>
   </div>

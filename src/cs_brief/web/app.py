@@ -7,6 +7,7 @@ and the MCP server use.
 from __future__ import annotations
 
 import math
+import os
 import re
 import time
 from collections.abc import AsyncIterator, Awaitable, Callable, Mapping
@@ -25,6 +26,7 @@ from fastapi.responses import HTMLResponse, PlainTextResponse, RedirectResponse,
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from jinja2 import Environment, FileSystemLoader, Undefined
+from starlette.concurrency import run_in_threadpool
 from starlette.datastructures import UploadFile
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.middleware.trustedhost import TrustedHostMiddleware
@@ -118,6 +120,8 @@ SECURITY_HEADERS = {
     # own form posts, which the cross-site write check then has to treat as unknown.
     "Referrer-Policy": "same-origin",
     "X-Frame-Options": "DENY",
+    # Other sites can't embed or fetch this app's responses (no-cors reads are refused).
+    "Cross-Origin-Resource-Policy": "same-origin",
 }
 _MOTION_ORDER = (Motion.CHURN, Motion.RENEWAL, Motion.ONBOARDING)  # the order on the filter
 # The brief's motion names. Churn reads "Churn watch" here, where the filter says "Churn".
@@ -130,6 +134,7 @@ _BRIEF_MOTION_LABELS: dict[Motion, str] = {
 
 _UNSAFE_METHODS = frozenset({"POST", "PUT", "PATCH", "DELETE"})
 CROSS_SITE_MESSAGE = "Changes can only be made from cs-brief's own pages."
+CROSS_SITE_LOAD_MESSAGE = "cs-brief's pages can only be opened from cs-brief itself."
 
 # The Appearance form's fields: the Settings enum each one must belong to, and its error message.
 _APPEARANCE_FIELDS: dict[str, tuple[type[StrEnum], str]] = {
@@ -161,6 +166,29 @@ def is_cross_site_write(method: str, headers: Mapping[str, str]) -> bool:
     if site is not None:
         return site not in ("same-origin", "none")
     return origin == "null"
+
+
+def is_cross_site_load(method: str, headers: Mapping[str, str]) -> bool:
+    """True for a request that another site's page started: an image, a script, a fetch or a frame.
+
+    A top-level navigation (a GET or HEAD of a document, such as a link from another site or the
+    address typed in) is let through, since that is how the app is opened. A request with no
+    Sec-Fetch-Site (old browsers, tests, curl) is not affected.
+    """
+    if headers.get("sec-fetch-site") != "cross-site":
+        return False
+    navigation = (
+        headers.get("sec-fetch-mode") == "navigate"
+        and method.upper() in ("GET", "HEAD")
+        and headers.get("sec-fetch-dest") == "document"
+    )
+    return not navigation
+
+
+def idpath(value: object) -> str:
+    """An id as one URL path segment: every slash and other reserved character is percent-encoded,
+    so an id can't add path segments."""
+    return quote(str(value), safe="")
 
 
 def money(value: float) -> str:
@@ -343,6 +371,7 @@ _env = Environment(
     loader=FileSystemLoader(TEMPLATES_DIR), autoescape=True, undefined=_LoudUndefined
 )
 _env.filters["money"] = money
+_env.filters["idpath"] = idpath
 _env.filters["money_short"] = money_short
 _env.filters["whole"] = whole
 _env.filters["day_label"] = formatting.day_label
@@ -1465,6 +1494,27 @@ def _render_new(
     )
 
 
+def _linked_notice(combined: CombinedConnector, account_id: str) -> str:
+    """What the duplicates page says after a link: the kept account's name, looked up by its id.
+    The generic line when that account is no longer in the book."""
+    account = next((item for item in combined.list_accounts() if item.id == account_id), None)
+    if account is None:
+        return "The accounts were linked."
+    return f"Linked {account.name}."
+
+
+def _hidden_notice(account_id: str) -> str:
+    """The name in 'X is hidden.' on My book, looked up by the account's id. 'An account' when the
+    name can't be read, and '' when the account isn't hidden (an old link or a made-up id)."""
+    if not account_id:
+        return ""
+    store = service.get_store()
+    if account_id not in store.hidden():
+        return ""
+    name = dict(_hidden_accounts(store)).get(account_id, account_id)
+    return "An account" if name == account_id else name
+
+
 def _refused(request: Request, page: str, message: str) -> HTMLResponse:
     """A plain 422 page for an action the book won't take, with the reason in the layout."""
     return _render(request, "not_found.html", page=page, status_code=422, message=message)
@@ -1848,6 +1898,24 @@ def _key_line(status: secrets.TokenStatus, today: date) -> str:
     return "No key saved."
 
 
+_DELETED_ALL_NOTICE = "All local data was deleted."
+
+
+def _deleted_all_notice() -> str:
+    """The notice after Delete all local data. The app can't unset an environment variable, so a
+    set one is named (its name only, never its value) with the words to remove it."""
+    names = [
+        name for name in (secrets.ENV_TOKEN, secrets.ENV_OPENROUTER_KEY) if os.environ.get(name)
+    ]
+    if not names:
+        return _DELETED_ALL_NOTICE
+    if len(names) == 1:
+        listed = f"the {names[0]} environment variable, which is still set"
+    else:
+        listed = f"the {names[0]} and {names[1]} environment variables, which are still set"
+    return f"{_DELETED_ALL_NOTICE} Also remove {listed}."
+
+
 def _render_privacy(
     request: Request,
     *,
@@ -2118,6 +2186,8 @@ def create_app() -> FastAPI:
     ) -> Response:
         if is_cross_site_write(request.method, request.headers):
             return PlainTextResponse(CROSS_SITE_MESSAGE, status_code=403)
+        if is_cross_site_load(request.method, request.headers):
+            return PlainTextResponse(CROSS_SITE_LOAD_MESSAGE, status_code=403)
         return await call_next(request)
 
     # Registered last so it wraps everything above, including the 403.
@@ -2130,6 +2200,10 @@ def create_app() -> FastAPI:
         if request.url.path.startswith("/static/"):
             # Revalidate every time (a cheap 304 locally) so an upgrade never runs stale JS or CSS.
             response.headers["Cache-Control"] = "no-cache"
+        else:
+            # Pages show the CSM's book. The browser keeps none of them, so Back or a shared
+            # computer can't show one from its cache.
+            response.headers["Cache-Control"] = "no-store"
         return response
 
     app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
@@ -2138,7 +2212,8 @@ def create_app() -> FastAPI:
     async def http_error(request: Request, exc: StarletteHTTPException) -> Response:
         if exc.status_code != 404:
             return await http_exception_handler(request, exc)
-        return _render(
+        return await run_in_threadpool(
+            _render,
             request,
             "not_found.html",
             page="Page not found",
@@ -2215,8 +2290,8 @@ def create_app() -> FastAPI:
             oob=partial,
             duplicate_count=0 if partial else _duplicate_count(),
             import_notice=[] if partial else _import_notice(imported, removed),
-            hidden_name="" if partial else hidden,
-            deleted_name="" if partial else deleted,
+            hidden_name="" if partial else _hidden_notice(hidden),
+            deleted_name="" if partial else ("The account" if deleted == "account" else ""),
             flags=flags,
         )
         response.headers["Vary"] = "HX-Request, HX-History-Restore-Request"
@@ -2340,10 +2415,13 @@ def create_app() -> FastAPI:
             except ValueError:
                 errors[field] = message
         if errors:
-            current = load_settings().model_copy(update=chosen)
-            return _render_appearance(request, current, errors=errors, status_code=422)
+            current = (await run_in_threadpool(load_settings)).model_copy(update=chosen)
+            return await run_in_threadpool(
+                _render_appearance, request, current, errors=errors, status_code=422
+            )
         # Only the four appearance choices change; the data source is kept as it was.
-        save_settings(load_settings().model_copy(update=chosen))
+        saved = (await run_in_threadpool(load_settings)).model_copy(update=chosen)
+        await run_in_threadpool(save_settings, saved)
         return RedirectResponse("/settings/appearance?saved=1", status_code=303)
 
     @app.get("/settings/scoring")
@@ -2365,8 +2443,14 @@ def create_app() -> FastAPI:
     @app.post("/settings/scoring/preview")
     async def scoring_preview(request: Request) -> HTMLResponse:
         """The preview partial for the posted form. htmx swaps it into the preview column."""
-        draft, errors = parse_scoring_form(await _posted_fields(request), load_scoring_config())
-        preview = _scoring_preview(draft) if draft is not None else _preview_alerts(errors)
+        fields = await _posted_fields(request)
+        base = await run_in_threadpool(load_scoring_config)
+        draft, errors = parse_scoring_form(fields, base)
+        preview = (
+            await run_in_threadpool(_scoring_preview, draft)
+            if draft is not None
+            else _preview_alerts(errors)
+        )
         return templates.TemplateResponse(
             request, "settings/partials/scoring_preview.html", {"preview": preview}
         )
@@ -2376,19 +2460,20 @@ def create_app() -> FastAPI:
         """Save the scoring form. A bad value re-renders the page with each message (422) and
         writes nothing. Cross-site posts never get here (see same_origin_writes)."""
         fields = await _posted_fields(request)
-        base = load_scoring_config()
+        base = await run_in_threadpool(load_scoring_config)
         draft, errors = parse_scoring_form(fields, base)
         if draft is None:
             # Keep what was typed, so the person fixes the one value instead of retyping the form.
             typed = {name: fields[name] for name in FIELD_NAMES if name in fields}
-            return _render_scoring(
+            return await run_in_threadpool(
+                _render_scoring,
                 request,
                 values={**form_values(base), **typed},
                 errors=errors,
                 preview=_preview_alerts(errors),
                 status_code=422,
             )
-        save_scoring_config(draft)
+        await run_in_threadpool(save_scoring_config, draft)
         return RedirectResponse("/settings/scoring?saved=1", status_code=303)
 
     # Data & privacy: web research on or off, and clearing the local cache. The notices are
@@ -2403,8 +2488,11 @@ def create_app() -> FastAPI:
         drafts: str = "",
         ai: str = "",
         key: str = "",
+        deleted_all: str = "",
     ) -> HTMLResponse:
-        if cleared == "1":
+        if deleted_all == "1":
+            notice = _deleted_all_notice()
+        elif cleared == "1":
             notice = _cache_notice(lookups, drafts)
         elif ai in ("on", "off"):
             notice = _ai_notice(ai)
@@ -2420,8 +2508,13 @@ def create_app() -> FastAPI:
         nothing. Turning it off also removes every saved lookup, sample news included."""
         choice = (await _posted_fields(request)).get("research", "")
         if choice not in ("on", "off"):
-            return _render_privacy(request, research_error=_RESEARCH_CHOICE_ERROR, status_code=422)
-        service.set_web_research(choice == "on")
+            return await run_in_threadpool(
+                _render_privacy,
+                request,
+                research_error=_RESEARCH_CHOICE_ERROR,
+                status_code=422,
+            )
+        await run_in_threadpool(service.set_web_research, choice == "on")
         query = urlencode({"research": choice})
         return RedirectResponse(f"/settings/privacy?{query}", status_code=303)
 
@@ -2434,6 +2527,26 @@ def create_app() -> FastAPI:
             {"cleared": "1", "lookups": str(cleared.research), "drafts": str(cleared.drafts)}
         )
         return RedirectResponse(f"/settings/privacy?{query}", status_code=303)
+
+    # Delete all local data: the confirmation page explains what goes and what stays. Nothing is
+    # deleted by opening it; the POST deletes, and a cross-site POST is refused before it gets here.
+
+    @app.get("/settings/privacy/delete-all")
+    def delete_all_page(request: Request) -> HTMLResponse:
+        """The confirmation page: what is deleted, what stays, and that it can't be undone."""
+        return _render(
+            request,
+            "settings/delete_all.html",
+            page="Delete all local data",
+            active="settings",
+        )
+
+    @app.post("/settings/privacy/delete-all")
+    def delete_all_local() -> RedirectResponse:
+        """Delete all local data (service.delete_all_local_data). The notice on the next page
+        names any environment variable still set, by name only, so the person can remove it."""
+        service.delete_all_local_data()
+        return RedirectResponse("/settings/privacy?deleted_all=1", status_code=303)
 
     # AI summaries and the OpenRouter key. The key is never echoed: not in a page, notice or URL.
 
@@ -2448,11 +2561,12 @@ def create_app() -> FastAPI:
         model = ""
         model_error = ""
         try:
-            model = service.checked_ai_model(model_text)
+            model = await run_in_threadpool(service.checked_ai_model, model_text)
         except ValueError as error:
             model_error = str(error)
         if choice_error or model_error:
-            return _render_privacy(
+            return await run_in_threadpool(
+                _render_privacy,
                 request,
                 ai_choice=None if choice_error else choice == "on",
                 ai_error=choice_error,
@@ -2460,8 +2574,8 @@ def create_app() -> FastAPI:
                 ai_model_error=model_error,
                 status_code=422,
             )
-        service.set_ai_model(model)
-        service.set_ai_summaries(choice == "on")
+        await run_in_threadpool(service.set_ai_model, model)
+        await run_in_threadpool(service.set_ai_summaries, choice == "on")
         return RedirectResponse(f"/settings/privacy?{urlencode({'ai': choice})}", status_code=303)
 
     @app.post("/settings/privacy/ai/key")
@@ -2470,11 +2584,15 @@ def create_app() -> FastAPI:
         the reason (422) and an empty input; the key is never shown back."""
         fields = await _posted_fields(request)
         try:
-            secrets.save_openrouter_key(fields.get("key", ""))
+            await run_in_threadpool(secrets.save_openrouter_key, fields.get("key", ""))
         except ValueError as error:
-            return _render_privacy(request, key_error=str(error), status_code=422)
+            return await run_in_threadpool(
+                _render_privacy, request, key_error=str(error), status_code=422
+            )
         except OSError:
-            return _render_privacy(request, key_error=_KEY_SAVE_FAILED, status_code=500)
+            return await run_in_threadpool(
+                _render_privacy, request, key_error=_KEY_SAVE_FAILED, status_code=500
+            )
         return RedirectResponse("/settings/privacy?key=saved", status_code=303)
 
     @app.post("/settings/privacy/ai/key/delete")
@@ -2513,16 +2631,17 @@ def create_app() -> FastAPI:
         refusal shows its reason in the panel (role=alert), with 200 so htmx swaps it in."""
         fields = await _posted_fields(request)
         try:
-            job = service.start_bulk_research(
+            job = await run_in_threadpool(
+                service.start_bulk_research,
                 summarise=fields.get("summarise") == "1",
                 refresh=fields.get("refresh") == "1",
             )
         except (research.ResearchOff, summaries.SummaryError) as problem:
             if _is_htmx(request):
-                return _job_panel(request, None, error=problem.message)
-            return _render_research(request, error=problem.message)
+                return await run_in_threadpool(_job_panel, request, None, error=problem.message)
+            return await run_in_threadpool(_render_research, request, error=problem.message)
         if _is_htmx(request):
-            return _job_panel(request, job)
+            return await run_in_threadpool(_job_panel, request, job)
         return RedirectResponse(f"/research?{urlencode({'job': job.id})}", status_code=303)
 
     @app.get("/research/jobs/{job_id}")
@@ -2540,17 +2659,23 @@ def create_app() -> FastAPI:
     async def summarise_website(request: Request, account_id: str) -> Response:
         """Summarise this account's website with AI, or again when refresh=1. A failure shows its
         reason in the section; a plain form post goes back to the section on success."""
-        account = _shown_account(account_id)
+        account = await run_in_threadpool(_shown_account, account_id)
         if account is None:
-            return _missing(request, "Account not found", f"No account with id {account_id}.")
+            return await run_in_threadpool(
+                _missing, request, "Account not found", f"No account with id {account_id}."
+            )
         fields = await _posted_fields(request)
         lookup_error = ""
         ai_error = ""
         ai_error_link = False
         try:
-            service.summarise_account(account_id, refresh=fields.get("refresh") == "1")
+            await run_in_threadpool(
+                service.summarise_account, account_id, refresh=fields.get("refresh") == "1"
+            )
         except LookupError:
-            return _missing(request, "Account not found", f"No account with id {account_id}.")
+            return await run_in_threadpool(
+                _missing, request, "Account not found", f"No account with id {account_id}."
+            )
         except research.ResearchError as problem:
             lookup_error = problem.message
         except summaries.SummaryError as problem:
@@ -2558,10 +2683,13 @@ def create_app() -> FastAPI:
             ai_error_link = isinstance(
                 problem, summaries.NoKey | summaries.KeyRejected | summaries.OutOfCredit
             )
-        panel = _research_panel(
+        editable = await run_in_threadpool(_research_editable, account_id)
+        result = await run_in_threadpool(service.cached_research, account_id)
+        panel = await run_in_threadpool(
+            _research_panel,
             account,
-            editable=_research_editable(account_id),
-            result=service.cached_research(account_id),
+            editable=editable,
+            result=result,
             error=lookup_error,
             ai_error=ai_error,
             ai_error_link=ai_error_link,
@@ -2573,7 +2701,9 @@ def create_app() -> FastAPI:
             response.headers["Vary"] = "HX-Request"
             return response
         if lookup_error or ai_error:
-            return _render_account(request, account_id, research_panel=panel)
+            return await run_in_threadpool(
+                _render_account, request, account_id, research_panel=panel
+            )
         return RedirectResponse(f"/accounts/{_quoted_id(account_id)}#research", status_code=303)
 
     # Your data: add an account. It works in demo mode too, and switches the book to Your data.
@@ -2590,14 +2720,24 @@ def create_app() -> FastAPI:
         fields = await _posted_fields(request)
         typed = {name: fields.get(name, "") for name in EDITABLE_FIELDS}
         try:
-            account = editing.create_account(service.get_store(), typed, today=date.today())
-        except editing.EditError as error:
-            return _render_new(
-                request, values=typed, errors=error.errors, refused=True, status_code=422
+            account = await run_in_threadpool(
+                editing.create_account, service.get_store(), typed, today=date.today()
             )
-        if load_settings().source is DataSource.DEMO:
-            save_settings(load_settings().model_copy(update={"source": DataSource.MINE}))
-        service.reset_connectors()
+        except editing.EditError as error:
+            return await run_in_threadpool(
+                _render_new,
+                request,
+                values=typed,
+                errors=error.errors,
+                refused=True,
+                status_code=422,
+            )
+        settings = await run_in_threadpool(load_settings)
+        if settings.source is DataSource.DEMO:
+            await run_in_threadpool(
+                save_settings, settings.model_copy(update={"source": DataSource.MINE})
+            )
+        await run_in_threadpool(service.reset_connectors)
         return RedirectResponse(f"/accounts/{_quoted_id(account.id)}?added=1", status_code=303)
 
     @app.get("/accounts/{account_id}")
@@ -2628,22 +2768,29 @@ def create_app() -> FastAPI:
         the section says so. A failed look up shows its reason in the section. htmx gets the
         section alone; a plain form post goes back to the section on the account page, or, when
         the look up failed, shows the account page with the section in its failed state."""
-        account = _shown_account(account_id)
+        account = await run_in_threadpool(_shown_account, account_id)
         if account is None:
-            return _missing(request, "Account not found", f"No account with id {account_id}.")
+            return await run_in_threadpool(
+                _missing, request, "Account not found", f"No account with id {account_id}."
+            )
         fields = await _posted_fields(request)
         result: research.SiteResearch | None = None
         error = ""
         try:
-            result = service.research_account(account_id, refresh=fields.get("refresh") == "1")
+            result = await run_in_threadpool(
+                service.research_account, account_id, refresh=fields.get("refresh") == "1"
+            )
         except LookupError:
-            return _missing(request, "Account not found", f"No account with id {account_id}.")
+            return await run_in_threadpool(
+                _missing, request, "Account not found", f"No account with id {account_id}."
+            )
         except research.ResearchOff:
             pass  # the section shows the off state
         except research.ResearchError as problem:
             error = problem.message
-        panel = _research_panel(
-            account, editable=_research_editable(account_id), result=result, error=error
+        editable = await run_in_threadpool(_research_editable, account_id)
+        panel = await run_in_threadpool(
+            _research_panel, account, editable=editable, result=result, error=error
         )
         if request.headers.get("HX-Request") == "true":
             response = templates.TemplateResponse(
@@ -2652,7 +2799,9 @@ def create_app() -> FastAPI:
             response.headers["Vary"] = "HX-Request"
             return response
         if error:
-            return _render_account(request, account_id, research_panel=panel)
+            return await run_in_threadpool(
+                _render_account, request, account_id, research_panel=panel
+            )
         return RedirectResponse(f"/accounts/{_quoted_id(account_id)}#research", status_code=303)
 
     # Your data: edit an account. Every route checks the id against the book first.
@@ -2675,18 +2824,24 @@ def create_app() -> FastAPI:
     @app.post("/accounts/{account_id}/edit")
     async def save_account(request: Request, account_id: str) -> Response:
         """Save the edit form. Every message comes back with the form (422), and nothing is kept."""
-        found = _editable_account(request, account_id)
+        found = await run_in_threadpool(_editable_account, request, account_id)
         if isinstance(found, HTMLResponse):
             return found
         combined, account, prov = found
         fields = await _posted_fields(request)
         submitted = {name: fields[name] for name in EDITABLE_FIELDS if name in fields}
         try:
-            changed = editing.edit_account(
-                service.get_store(), combined, account_id, submitted, now=datetime.now(UTC)
+            changed = await run_in_threadpool(
+                editing.edit_account,
+                service.get_store(),
+                combined,
+                account_id,
+                submitted,
+                now=datetime.now(UTC),
             )
         except editing.EditError as error:
-            return _render_edit(
+            return await run_in_threadpool(
+                _render_edit,
                 request,
                 account,
                 prov,
@@ -2719,7 +2874,7 @@ def create_app() -> FastAPI:
     async def add_reading_route(request: Request, account_id: str) -> Response:
         """Add a signal reading by hand. Champion left reads its Yes or No choice; every other
         signal reads the value box. A refusal shows the message with the form (422)."""
-        found = _editable_account(request, account_id)
+        found = await run_in_threadpool(_editable_account, request, account_id)
         if isinstance(found, HTMLResponse):
             return found
         combined, account, prov = found
@@ -2744,10 +2899,11 @@ def create_app() -> FastAPI:
         try:
             kind = SignalKind(reading["kind"])
         except ValueError:
-            return refuse(_UNKNOWN_SIGNAL)
+            return await run_in_threadpool(refuse, _UNKNOWN_SIGNAL)
         typed = reading["yes_no"] if kind is SignalKind.CHAMPION_LEFT else reading["value"]
         try:
-            editing.add_reading(
+            await run_in_threadpool(
+                editing.add_reading,
                 service.get_store(),
                 combined,
                 account_id,
@@ -2756,7 +2912,7 @@ def create_app() -> FastAPI:
                 now=datetime.now(UTC),
             )
         except editing.EditError as error:
-            return refuse(str(error))
+            return await run_in_threadpool(refuse, str(error))
         return RedirectResponse(
             f"/accounts/{_quoted_id(account_id)}?{urlencode({'reading': '1'})}", status_code=303
         )
@@ -2779,9 +2935,9 @@ def create_app() -> FastAPI:
         found = _editable_account(request, account_id)
         if isinstance(found, HTMLResponse):
             return found
-        combined, account, _ = found
+        combined, _, _ = found
         editing.set_hidden(service.get_store(), combined, account_id, True)
-        return RedirectResponse(f"/?{urlencode({'hidden': account.name})}", status_code=303)
+        return RedirectResponse(f"/?{urlencode({'hidden': account_id})}", status_code=303)
 
     @app.get("/accounts/{account_id}/delete")
     def delete_account_page(request: Request, account_id: str) -> HTMLResponse:
@@ -2813,7 +2969,7 @@ def create_app() -> FastAPI:
             editing.delete_account(service.get_store(), account_id)
         except editing.EditError as error:
             return _refused(request, f"Can't delete {account.name}", str(error))
-        return RedirectResponse(f"/?{urlencode({'deleted': account.name})}", status_code=303)
+        return RedirectResponse("/?deleted=account", status_code=303)
 
     @app.post("/accounts/{account_id}/unlink")
     def unlink_account(request: Request, account_id: str) -> Response:
@@ -2837,12 +2993,13 @@ def create_app() -> FastAPI:
     @app.post("/accounts/{account_id}/contacts")
     async def add_contact_route(request: Request, account_id: str) -> Response:
         """Add a contact to the account. Its name, job title and email are checked by the core."""
-        found = _editable_account(request, account_id)
+        found = await run_in_threadpool(_editable_account, request, account_id)
         if isinstance(found, HTMLResponse):
             return found
         typed = contact_pages.contact_typed(await _posted_fields(request))
         try:
-            contacts.add_contact(
+            await run_in_threadpool(
+                contacts.add_contact,
                 service.get_store(),
                 account_id,
                 contact_pages.contact_input(typed),
@@ -2853,7 +3010,9 @@ def create_app() -> FastAPI:
             refusal = contact_pages.FormRefusal(
                 form="add", values=typed, errors=contact_pages.errors_for(str(error))
             )
-            return _render_account(request, account_id, refusal=refusal, status_code=422)
+            return await run_in_threadpool(
+                _render_account, request, account_id, refusal=refusal, status_code=422
+            )
         return RedirectResponse(
             f"/accounts/{_quoted_id(account_id)}?{urlencode({'contact': 'added'})}", status_code=303
         )
@@ -2893,14 +3052,15 @@ def create_app() -> FastAPI:
     @app.post("/accounts/{account_id}/contacts/{contact_id}/edit")
     async def edit_contact_route(request: Request, account_id: str, contact_id: str) -> Response:
         """Save a contact's name, job title, email and main-contact flag."""
-        found = _editable_account(request, account_id)
+        found = await run_in_threadpool(_editable_account, request, account_id)
         if isinstance(found, HTMLResponse):
             return found
-        if _find_contact(account_id, contact_id) is None:
-            return _missing(request, "Contact not found", _NO_CONTACT)
+        if await run_in_threadpool(_find_contact, account_id, contact_id) is None:
+            return await run_in_threadpool(_missing, request, "Contact not found", _NO_CONTACT)
         typed = contact_pages.contact_typed(await _posted_fields(request))
         try:
-            contacts.update_contact(
+            await run_in_threadpool(
+                contacts.update_contact,
                 service.get_store(),
                 account_id,
                 contact_id,
@@ -2915,7 +3075,9 @@ def create_app() -> FastAPI:
                 values=typed,
                 errors=contact_pages.errors_for(str(error)),
             )
-            return _render_account(request, account_id, refusal=refusal, status_code=422)
+            return await run_in_threadpool(
+                _render_account, request, account_id, refusal=refusal, status_code=422
+            )
         return RedirectResponse(
             f"/accounts/{_quoted_id(account_id)}?{urlencode({'contact': 'saved'})}", status_code=303
         )
@@ -2924,11 +3086,11 @@ def create_app() -> FastAPI:
     async def mark_left_route(request: Request, account_id: str, contact_id: str) -> Response:
         """Mark a contact as having left on the date given (today when the box is blank). The
         last main contact leaving records the Champion left signal (the core does that)."""
-        found = _editable_account(request, account_id)
+        found = await run_in_threadpool(_editable_account, request, account_id)
         if isinstance(found, HTMLResponse):
             return found
-        if _find_contact(account_id, contact_id) is None:
-            return _missing(request, "Contact not found", _NO_CONTACT)
+        if await run_in_threadpool(_find_contact, account_id, contact_id) is None:
+            return await run_in_threadpool(_missing, request, "Contact not found", _NO_CONTACT)
         fields = await _posted_fields(request)
         typed = {"left_on": fields.get("left_on", "")}
         today = date.today()
@@ -2946,8 +3108,11 @@ def create_app() -> FastAPI:
                 values=typed,
                 errors={contact_pages.FORM: problem},
             )
-            return _render_account(request, account_id, refusal=refusal, status_code=422)
-        contacts.mark_left(
+            return await run_in_threadpool(
+                _render_account, request, account_id, refusal=refusal, status_code=422
+            )
+        await run_in_threadpool(
+            contacts.mark_left,
             service.get_store(),
             account_id,
             contact_id,
@@ -2985,7 +3150,7 @@ def create_app() -> FastAPI:
     @app.post("/accounts/{account_id}/client-updates/on")
     async def turn_on_updates_route(request: Request, account_id: str) -> Response:
         """Turn client updates on for the account: who agreed and when (today by default)."""
-        found = _editable_account(request, account_id)
+        found = await run_in_threadpool(_editable_account, request, account_id)
         if isinstance(found, HTMLResponse):
             return found
         fields = await _posted_fields(request)
@@ -2997,7 +3162,8 @@ def create_app() -> FastAPI:
             agreed_on = _parse_day(typed["agreed_on"])
             if agreed_on is None:
                 raise ValueError("Pick the date they agreed.")
-            client_updates.opt_in(
+            await run_in_threadpool(
+                client_updates.opt_in,
                 service.get_store(),
                 account_id,
                 agreed_with=typed["agreed_with"],
@@ -3008,7 +3174,9 @@ def create_app() -> FastAPI:
             refusal = contact_pages.FormRefusal(
                 form="on", values=typed, errors=contact_pages.opt_in_errors(str(error))
             )
-            return _render_account(request, account_id, refusal=refusal, status_code=422)
+            return await run_in_threadpool(
+                _render_account, request, account_id, refusal=refusal, status_code=422
+            )
         return RedirectResponse(
             f"/accounts/{_quoted_id(account_id)}?{urlencode({'updates': 'on'})}", status_code=303
         )
@@ -3058,13 +3226,14 @@ def create_app() -> FastAPI:
 
     @app.get("/duplicates")
     def duplicates_page(request: Request, linked: str = "", dismissed: str = "") -> HTMLResponse:
-        """Accounts from different connections that look like the same customer."""
+        """Accounts from different connections that look like the same customer. ?linked= is the id
+        of the account the link kept; its name is looked up, never read from the URL."""
         combined = _your_book()
         if combined is None:
             return _missing(request, "Page not found", _DUPLICATES_DEMO)
         status = ""
         if linked:
-            status = f"Linked {linked}."
+            status = _linked_notice(combined, linked)
         elif dismissed == "1":
             status = "Got it. They won't be suggested again."
         return _render_duplicates(request, combined, status=status)
@@ -3072,35 +3241,48 @@ def create_app() -> FastAPI:
     @app.post("/duplicates/link")
     async def link_duplicates(request: Request) -> Response:
         """Link two accounts into one, keeping the name of the one chosen."""
-        combined = _your_book()
+        combined = await run_in_threadpool(_your_book)
         if combined is None:
-            return _missing(request, "Page not found", _DUPLICATES_DEMO)
+            return await run_in_threadpool(_missing, request, "Page not found", _DUPLICATES_DEMO)
         fields = await _posted_fields(request)
         first = fields.get("first", "")
         second = fields.get("second", "")
         primary = fields.get("primary", "")
-        accounts = {account.id: account for account in combined.list_accounts()}
+        accounts = {
+            account.id: account for account in await run_in_threadpool(combined.list_accounts)
+        }
         if first not in accounts or second not in accounts:
-            return _render_duplicates(request, combined, error=_NOT_IN_BOOK_FORM, status_code=422)
-        name = accounts[primary].name if primary in accounts else accounts[first].name
+            return await run_in_threadpool(
+                _render_duplicates, request, combined, error=_NOT_IN_BOOK_FORM, status_code=422
+            )
+        kept = primary if primary in accounts else first
         try:
-            editing.link_accounts(service.get_store(), combined, [first, second], primary)
+            await run_in_threadpool(
+                editing.link_accounts, service.get_store(), combined, [first, second], primary
+            )
         except editing.EditError as error:
-            return _render_duplicates(request, combined, error=str(error), status_code=422)
-        return RedirectResponse(f"/duplicates?{urlencode({'linked': name})}", status_code=303)
+            return await run_in_threadpool(
+                _render_duplicates, request, combined, error=str(error), status_code=422
+            )
+        return RedirectResponse(f"/duplicates?{urlencode({'linked': kept})}", status_code=303)
 
     @app.post("/duplicates/dismiss")
     async def dismiss_duplicate_route(request: Request) -> Response:
         """Mark a suggested pair as not the same, so it is not suggested again."""
-        combined = _your_book()
+        combined = await run_in_threadpool(_your_book)
         if combined is None:
-            return _missing(request, "Page not found", _DUPLICATES_DEMO)
+            return await run_in_threadpool(_missing, request, "Page not found", _DUPLICATES_DEMO)
         fields = await _posted_fields(request)
         first, second = sorted((fields.get("first", ""), fields.get("second", "")))
-        suggested = {suggestion.account_ids for suggestion in combined.duplicate_suggestions()}
+        suggestions = await run_in_threadpool(combined.duplicate_suggestions)
+        suggested = {suggestion.account_ids for suggestion in suggestions}
         if (first, second) not in suggested:
-            return _render_duplicates(request, combined, error=_NOT_SUGGESTED, status_code=422)
-        editing.dismiss_duplicate(service.get_store(), combined, (first, second))
+            return await run_in_threadpool(
+                _render_duplicates, request, combined, error=_NOT_SUGGESTED, status_code=422
+            )
+        await run_in_threadpool(
+            editing.dismiss_duplicate, service.get_store(), combined, (first, second)
+        )
         return RedirectResponse("/duplicates?dismissed=1", status_code=303)
 
     @app.get("/settings/connections")
@@ -3131,8 +3313,9 @@ def create_app() -> FastAPI:
             notice = "Account shown again."
         elif removed == "token":
             notice = "Token removed."
-        elif removed:
-            notice = f"Removed {removed}."
+        elif removed == "connection":
+            # The connection is gone, so its name is not looked up: a generic line says so.
+            notice = "The connection was removed."
         elif refreshed == "1":
             notice = "Data refreshed."
         return _render_connections(request, notice=notice)
@@ -3145,11 +3328,15 @@ def create_app() -> FastAPI:
         try:
             chosen = DataSource(fields.get("source", ""))
         except ValueError:
-            return _render_connections(
-                request, source_error="Choose your data or demo data.", status_code=422
+            return await run_in_threadpool(
+                _render_connections,
+                request,
+                source_error="Choose your data or demo data.",
+                status_code=422,
             )
-        save_settings(load_settings().model_copy(update={"source": chosen}))
-        service.reset_connectors()
+        settings = await run_in_threadpool(load_settings)
+        await run_in_threadpool(save_settings, settings.model_copy(update={"source": chosen}))
+        await run_in_threadpool(service.reset_connectors)
         return RedirectResponse("/settings/connections?saved=source", status_code=303)
 
     @app.post("/settings/connections/token")
@@ -3159,13 +3346,19 @@ def create_app() -> FastAPI:
         (422) and an empty input; the token is never shown back."""
         fields = await _posted_fields(request)
         try:
-            secrets.save_hubspot_token(fields.get("token", ""))
+            await run_in_threadpool(secrets.save_hubspot_token, fields.get("token", ""))
         except ValueError as error:
-            return _render_connections(request, token_error=str(error), status_code=422)
+            return await run_in_threadpool(
+                _render_connections, request, token_error=str(error), status_code=422
+            )
         except OSError:
-            return _render_connections(request, token_error=_TOKEN_SAVE_FAILED, status_code=500)
-        service.get_store().add_connection(ConnectionKind.HUBSPOT, "HubSpot")
-        service.reset_connectors()
+            return await run_in_threadpool(
+                _render_connections, request, token_error=_TOKEN_SAVE_FAILED, status_code=500
+            )
+        await run_in_threadpool(
+            service.get_store().add_connection, ConnectionKind.HUBSPOT, "HubSpot"
+        )
+        await run_in_threadpool(service.reset_connectors)
         return RedirectResponse("/settings/connections?saved=token", status_code=303)
 
     @app.post("/settings/connections/token/delete")
@@ -3251,12 +3444,19 @@ def create_app() -> FastAPI:
             # Starlette reports a part over the limit as a 400 with a size message.
             too_large = error.status_code == 400 and "size" in str(error.detail)
             message = _too_large_paste() if too_large else _CHOOSE_FILE_OR_PASTE
-            return _render_import_form(request, store, target="new", error=message, status_code=422)
+            return await run_in_threadpool(
+                _render_import_form,
+                request,
+                store,
+                target="new",
+                error=message,
+                status_code=422,
+            )
         upload = form.get("file")
         has_file = isinstance(upload, UploadFile) and bool(upload.filename)
         pasted = _text_field(form.get("pasted"))
         has_paste = bool(pasted.strip())
-        target = _chosen_target(store, _text_field(form.get("target")))
+        target = await run_in_threadpool(_chosen_target, store, _text_field(form.get("target")))
         back = _back_value(_text_field(form.get("back")))
         new_name = _text_field(form.get("new_name")).strip()
 
@@ -3273,20 +3473,21 @@ def create_app() -> FastAPI:
             )
 
         if has_file and has_paste:
-            return refuse(_CHOOSE_ONE_SOURCE)
+            return await run_in_threadpool(refuse, _CHOOSE_ONE_SOURCE)
         if not has_file and not has_paste:
-            return refuse(_CHOOSE_FILE_OR_PASTE)
+            return await run_in_threadpool(refuse, _CHOOSE_FILE_OR_PASTE)
         if target == import_flow.NEW_TARGET and new_name:
             try:
                 import_flow.validate_name(new_name)
             except ValueError as error:
-                return refuse(str(error))
+                return await run_in_threadpool(refuse, str(error))
         try:
             if has_file and isinstance(upload, UploadFile):
                 # Read one byte past the limit: the reader then refuses an over-size file itself.
                 data = await upload.read(importing.MAX_BYTES + 1)
-                table = importing.read_upload(data, upload.filename or "")
-                draft = import_flow.save_draft(
+                table = await run_in_threadpool(importing.read_upload, data, upload.filename or "")
+                draft = await run_in_threadpool(
+                    import_flow.save_draft,
                     store,
                     table=table,
                     file_bytes=data,
@@ -3295,8 +3496,9 @@ def create_app() -> FastAPI:
                     back=back,
                 )
             else:
-                table = importing.read_pasted(pasted)
-                draft = import_flow.save_draft(
+                table = await run_in_threadpool(importing.read_pasted, pasted)
+                draft = await run_in_threadpool(
+                    import_flow.save_draft,
                     store,
                     table=table,
                     pasted_text=pasted,
@@ -3305,7 +3507,7 @@ def create_app() -> FastAPI:
                     back=back,
                 )
         except (importing.ImportError_, ValueError) as error:
-            return refuse(str(error))
+            return await run_in_threadpool(refuse, str(error))
         return RedirectResponse(f"/import/{draft.id}", status_code=303)
 
     @app.get("/import/{draft_id}")
@@ -3327,31 +3529,39 @@ def create_app() -> FastAPI:
     async def import_update(request: Request, draft_id: str) -> Response:
         """The mapping page without JavaScript: save the choices and show the page again."""
         store = service.get_store()
-        draft = import_flow.load_draft(store, draft_id)
+        draft = await run_in_threadpool(import_flow.load_draft, store, draft_id)
         if draft is None:
-            return _missing(request, "Import not found", _NO_DRAFT)
+            return await run_in_threadpool(_missing, request, "Import not found", _NO_DRAFT)
         fields = await _posted_fields(request)
         mapping = _submitted_mapping(fields)
         order_text = fields.get("date_order", "")
-        draft = import_flow.remember_choices(
-            store, draft, mapping=mapping, date_order=_as_order(order_text)
+        draft = await run_in_threadpool(
+            import_flow.remember_choices,
+            store,
+            draft,
+            mapping=mapping,
+            date_order=_as_order(order_text),
         )
-        return _render_mapping(request, store, draft, mapping, order_text)
+        return await run_in_threadpool(_render_mapping, request, store, draft, mapping, order_text)
 
     @app.post("/import/{draft_id}/preview")
     async def import_preview(request: Request, draft_id: str) -> Response:
         """The htmx partial: the examples and "What will happen", for the mapping as chosen."""
         store = service.get_store()
-        draft = import_flow.load_draft(store, draft_id)
+        draft = await run_in_threadpool(import_flow.load_draft, store, draft_id)
         if draft is None:
-            return _missing(request, "Import not found", _NO_DRAFT)
+            return await run_in_threadpool(_missing, request, "Import not found", _NO_DRAFT)
         fields = await _posted_fields(request)
         mapping = _submitted_mapping(fields)
         order_text = fields.get("date_order", "")
-        draft = import_flow.remember_choices(
-            store, draft, mapping=mapping, date_order=_as_order(order_text)
+        draft = await run_in_threadpool(
+            import_flow.remember_choices,
+            store,
+            draft,
+            mapping=mapping,
+            date_order=_as_order(order_text),
         )
-        view = _mapping_view(store, draft, mapping, order_text)
+        view = await run_in_threadpool(_mapping_view, store, draft, mapping, order_text)
         return templates.TemplateResponse(
             request,
             "import/partials/preview.html",
@@ -3362,18 +3572,20 @@ def create_app() -> FastAPI:
     async def import_sheet(request: Request, draft_id: str) -> Response:
         """Switch to another sheet of the same Excel file, then back to the mapping page."""
         store = service.get_store()
-        draft = import_flow.load_draft(store, draft_id)
+        draft = await run_in_threadpool(import_flow.load_draft, store, draft_id)
         if draft is None:
-            return _missing(request, "Import not found", _NO_DRAFT)
+            return await run_in_threadpool(_missing, request, "Import not found", _NO_DRAFT)
         fields = await _posted_fields(request)
         try:
-            import_flow.reread_sheet(store, draft, fields.get("sheet", ""))
+            await run_in_threadpool(import_flow.reread_sheet, store, draft, fields.get("sheet", ""))
         except importing.ImportError_ as error:
-            return _render_mapping(
+            current = await run_in_threadpool(_current_mapping, store, draft)
+            return await run_in_threadpool(
+                _render_mapping,
                 request,
                 store,
                 draft,
-                _current_mapping(store, draft),
+                current,
                 draft.date_order or "",
                 error=str(error),
                 status_code=422,
@@ -3384,24 +3596,40 @@ def create_app() -> FastAPI:
     async def import_commit(request: Request, draft_id: str) -> Response:
         """Import the draft. A refusal re-renders the mapping page with the reason (422)."""
         store = service.get_store()
-        draft = import_flow.load_draft(store, draft_id)
+        draft = await run_in_threadpool(import_flow.load_draft, store, draft_id)
         if draft is None:
-            return _missing(request, "Import not found", _NO_DRAFT)
+            return await run_in_threadpool(_missing, request, "Import not found", _NO_DRAFT)
         fields = await _posted_fields(request)
         mapping = _submitted_mapping(fields)
         order_text = fields.get("date_order", "")
-        order = import_flow.resolve_date_order(draft, mapping, order_text)
+        order = await run_in_threadpool(import_flow.resolve_date_order, draft, mapping, order_text)
         try:
-            outcome = import_flow.commit(
-                draft, mapping, order, store, now=datetime.now(UTC), today=date.today()
+            outcome = await run_in_threadpool(
+                import_flow.commit,
+                draft,
+                mapping,
+                order,
+                store,
+                now=datetime.now(UTC),
+                today=date.today(),
             )
         except ValueError as error:
-            return _render_mapping(
-                request, store, draft, mapping, order_text, error=str(error), status_code=422
+            return await run_in_threadpool(
+                _render_mapping,
+                request,
+                store,
+                draft,
+                mapping,
+                order_text,
+                error=str(error),
+                status_code=422,
             )
-        if load_settings().source is DataSource.DEMO:
-            save_settings(load_settings().model_copy(update={"source": DataSource.MINE}))
-        service.reset_connectors()
+        settings = await run_in_threadpool(load_settings)
+        if settings.source is DataSource.DEMO:
+            await run_in_threadpool(
+                save_settings, settings.model_copy(update={"source": DataSource.MINE})
+            )
+        await run_in_threadpool(service.reset_connectors)
         query = urlencode({"imported": outcome.connection.id, "removed": outcome.removed})
         return RedirectResponse(f"/?{query}", status_code=303)
 
@@ -3441,23 +3669,30 @@ def create_app() -> FastAPI:
     async def set_connection_enabled(request: Request, connection_id: str) -> Response:
         """Include a connection in the book, or leave it out. The checkbox submits this form."""
         store = service.get_store()
-        config = store.get_connection(connection_id)
+        config = await run_in_threadpool(store.get_connection, connection_id)
         if config is None:
-            return _missing(request, "Connection not found", _NO_CONNECTION)
+            return await run_in_threadpool(
+                _missing, request, "Connection not found", _NO_CONNECTION
+            )
         fields = await _posted_fields(request)
         enabled = fields.get("enabled") == "1"
-        store.update_connection(config.model_copy(update={"enabled": enabled}))
+        await run_in_threadpool(
+            store.update_connection, config.model_copy(update={"enabled": enabled})
+        )
         return RedirectResponse("/settings/connections?saved=connection", status_code=303)
 
     @app.post("/settings/connections/{connection_id}/rename")
     async def rename_connection(request: Request, connection_id: str) -> Response:
         """Rename a spreadsheet connection. A blank name, or one over 60 characters, is refused."""
         store = service.get_store()
-        config = store.get_connection(connection_id)
+        config = await run_in_threadpool(store.get_connection, connection_id)
         if config is None:
-            return _missing(request, "Connection not found", _NO_CONNECTION)
+            return await run_in_threadpool(
+                _missing, request, "Connection not found", _NO_CONNECTION
+            )
         if config.kind is not ConnectionKind.SPREADSHEET:
-            return _render_connections(
+            return await run_in_threadpool(
+                _render_connections,
                 request,
                 rename_errors={connection_id: "Only spreadsheets can be renamed."},
                 status_code=422,
@@ -3467,13 +3702,14 @@ def create_app() -> FastAPI:
         try:
             name = import_flow.validate_name(typed)
         except ValueError as error:
-            return _render_connections(
+            return await run_in_threadpool(
+                _render_connections,
                 request,
                 rename_errors={connection_id: str(error)},
                 rename_values={connection_id: typed},
                 status_code=422,
             )
-        store.update_connection(config.model_copy(update={"name": name}))
+        await run_in_threadpool(store.update_connection, config.model_copy(update={"name": name}))
         return RedirectResponse("/settings/connections?saved=connection", status_code=303)
 
     @app.get("/settings/connections/{connection_id}/remove")
@@ -3522,18 +3758,16 @@ def create_app() -> FastAPI:
         if config.kind is ConnectionKind.HUBSPOT:
             secrets.delete_hubspot_token()
         service.reset_connectors()
-        return RedirectResponse(
-            f"/settings/connections?{urlencode({'removed': config.name})}", status_code=303
-        )
+        return RedirectResponse("/settings/connections?removed=connection", status_code=303)
 
     @app.post("/settings/connections/hidden/{account_id}/show")
     async def show_hidden_account(request: Request, account_id: str) -> Response:
         """Bring a hidden account back into the book."""
         store = service.get_store()
-        if account_id not in store.hidden():
-            return _missing(request, "Account not found", _NOT_HIDDEN)
-        connector = _combined_or_none() or CombinedConnector([], store)
-        editing.set_hidden(store, connector, account_id, False)
+        if account_id not in await run_in_threadpool(store.hidden):
+            return await run_in_threadpool(_missing, request, "Account not found", _NOT_HIDDEN)
+        connector = await run_in_threadpool(_combined_or_none) or CombinedConnector([], store)
+        await run_in_threadpool(editing.set_hidden, store, connector, account_id, False)
         return RedirectResponse("/settings/connections?shown=1", status_code=303)
 
     # Data feeds: Sync now, then the Add a connection catalog, its setup card and the matching
@@ -3633,15 +3867,16 @@ def create_app() -> FastAPI:
         saved for (setup.start_draft decides)."""
         info = feed_catalog.provider_info(provider)
         if info is None:
-            return _missing(
+            return await run_in_threadpool(
+                _missing,
                 request,
                 "Add a connection",
                 _NO_PROVIDER,
                 back_href="/connections/add",
                 back_label="Back to Add a connection",
             )
-        if _feeds_demo():
-            return _feeds_demo_page(request, info.name, status_code=422)
+        if await run_in_threadpool(_feeds_demo):
+            return await run_in_threadpool(_feeds_demo_page, request, info.name, status_code=422)
         fields = await _posted_fields(request)
         form = feed_pages.SetupForm(
             name=fields.get("name", ""),
@@ -3670,7 +3905,8 @@ def create_app() -> FastAPI:
             secret_name = feed_pages.secret_key(info)
             secret = fields.get(secret_name, "") if secret_name else ""
             try:
-                draft = feed_setup.start_draft(
+                draft = await run_in_threadpool(
+                    feed_setup.start_draft,
                     service.get_store(),
                     info.id,
                     name=form.name,
@@ -3694,8 +3930,8 @@ def create_app() -> FastAPI:
                 top_error = error.message
             else:
                 return RedirectResponse(f"/connections/feeds/{draft.id}/match", status_code=303)
-        return _render_setup(
-            request, info, form, errors=errors, top_error=top_error, status_code=422
+        return await run_in_threadpool(
+            _render_setup, request, info, form, errors=errors, top_error=top_error, status_code=422
         )
 
     @app.get("/connections/feeds/{draft_id}/match")
@@ -3714,13 +3950,18 @@ def create_app() -> FastAPI:
     @app.post("/connections/feeds/{draft_id}/match")
     async def feed_match_update(request: Request, draft_id: str) -> Response:
         """The matching page without JavaScript: show it again with the choices as posted."""
-        if _feeds_demo():
-            return _feeds_demo_page(request, "Match your columns", status_code=422)
-        draft = feed_setup.load_draft(service.get_store(), draft_id, now=datetime.now(UTC))
+        if await run_in_threadpool(_feeds_demo):
+            return await run_in_threadpool(
+                _feeds_demo_page, request, "Match your columns", status_code=422
+            )
+        draft = await run_in_threadpool(
+            feed_setup.load_draft, service.get_store(), draft_id, now=datetime.now(UTC)
+        )
         if draft is None:
-            return _missing_setup(request)
+            return await run_in_threadpool(_missing_setup, request)
         fields = await _posted_fields(request)
-        return _render_match(
+        return await run_in_threadpool(
+            _render_match,
             request,
             draft,
             _submitted_mapping(fields, draft.role),
@@ -3730,14 +3971,18 @@ def create_app() -> FastAPI:
     @app.post("/connections/feeds/{draft_id}/preview")
     async def feed_match_preview(request: Request, draft_id: str) -> Response:
         """The htmx partial: the examples and "What will happen", for the mapping as posted."""
-        if _feeds_demo():
-            return _feeds_demo_page(request, "Match your columns", status_code=422)
-        draft = feed_setup.load_draft(service.get_store(), draft_id, now=datetime.now(UTC))
+        if await run_in_threadpool(_feeds_demo):
+            return await run_in_threadpool(
+                _feeds_demo_page, request, "Match your columns", status_code=422
+            )
+        draft = await run_in_threadpool(
+            feed_setup.load_draft, service.get_store(), draft_id, now=datetime.now(UTC)
+        )
         if draft is None:
-            return _missing_setup(request)
+            return await run_in_threadpool(_missing_setup, request)
         fields = await _posted_fields(request)
-        view = _match_view(
-            draft, _submitted_mapping(fields, draft.role), fields.get("date_order", "")
+        view = await run_in_threadpool(
+            _match_view, draft, _submitted_mapping(fields, draft.role), fields.get("date_order", "")
         )
         return templates.TemplateResponse(
             request,
@@ -3749,17 +3994,22 @@ def create_app() -> FastAPI:
     async def feed_match_commit(request: Request, draft_id: str) -> Response:
         """Save the feed from its draft, and run its first sync. A refusal re-renders the page
         with the reason (422). Success goes to Connections, which says how the first sync went."""
-        if _feeds_demo():
-            return _feeds_demo_page(request, "Match your columns", status_code=422)
+        if await run_in_threadpool(_feeds_demo):
+            return await run_in_threadpool(
+                _feeds_demo_page, request, "Match your columns", status_code=422
+            )
         store = service.get_store()
-        draft = feed_setup.load_draft(store, draft_id, now=datetime.now(UTC))
+        draft = await run_in_threadpool(
+            feed_setup.load_draft, store, draft_id, now=datetime.now(UTC)
+        )
         if draft is None:
-            return _missing_setup(request)
+            return await run_in_threadpool(_missing_setup, request)
         fields = await _posted_fields(request)
         mapping = _submitted_mapping(fields, draft.role)
         date_text = fields.get("date_order", "")
         try:
-            config = feed_setup.commit_draft(
+            config = await run_in_threadpool(
+                feed_setup.commit_draft,
                 store,
                 draft,
                 mapping,
@@ -3769,10 +4019,10 @@ def create_app() -> FastAPI:
                 today=date.today(),
             )
         except ValueError as error:
-            return _render_match(
-                request, draft, mapping, date_text, error=str(error), status_code=422
+            return await run_in_threadpool(
+                _render_match, request, draft, mapping, date_text, error=str(error), status_code=422
             )
-        service.reset_connectors()
+        await run_in_threadpool(service.reset_connectors)
         return RedirectResponse(
             f"/settings/connections?{urlencode({'feed_added': config.id})}", status_code=303
         )
@@ -3833,15 +4083,16 @@ def create_app() -> FastAPI:
     async def accept_update_route(request: Request, update_id: str) -> Response:
         """Apply one update the CSM has confirmed, then back to the page with what it did. A
         refusal shows its message on the card (422) with the values as typed."""
-        if _feeds_demo():
-            return _updates_demo_page(request, status_code=422)
+        if await run_in_threadpool(_feeds_demo):
+            return await run_in_threadpool(_updates_demo_page, request, status_code=422)
         store = service.get_store()
-        update = _pending_update(store, update_id)
+        update = await run_in_threadpool(_pending_update, store, update_id)
         if update is None:
-            return _update_gone(request)
+            return await run_in_threadpool(_update_gone, request)
         chosen = _chosen(request.query_params.getlist("kind"), UpdateKind)
         typed = contact_pages.update_typed(await _posted_fields(request))
-        before = {contact.id for contact in contacts.contacts_for(store, update.account_id)}
+        before_contacts = await run_in_threadpool(contacts.contacts_for, store, update.account_id)
+        before = {contact.id for contact in before_contacts}
         try:
             left_on = None
             if update.kind is UpdateKind.LEFT and typed["left_on"].strip():
@@ -3850,7 +4101,8 @@ def create_app() -> FastAPI:
                     raise ValueError("Pick the date they left.")
                 if left_on > date.today():
                     raise ValueError("The date they left can't be in the future.")
-            client_updates.accept(
+            await run_in_threadpool(
+                client_updates.accept,
                 store,
                 update_id,
                 values=contact_pages.update_values(update.kind, typed),
@@ -3859,16 +4111,17 @@ def create_app() -> FastAPI:
                 now=datetime.now(UTC),
             )
         except LookupError:
-            return _update_gone(request)
+            return await run_in_threadpool(_update_gone, request)
         except ValueError as error:
-            return _render_updates(
+            return await run_in_threadpool(
+                _render_updates,
                 request,
                 chosen=chosen,
                 errors={update_id: str(error)},
                 typed={update_id: typed},
                 status_code=422,
             )
-        after = contacts.contacts_for(store, update.account_id)
+        after = await run_in_threadpool(contacts.contacts_for, store, update.account_id)
         if update.kind is UpdateKind.ADD:
             added = [contact.id for contact in after if contact.id not in before]
             contact_id = added[0] if added else ""
@@ -3885,16 +4138,16 @@ def create_app() -> FastAPI:
     @app.post("/client-updates/{update_id}/reject")
     async def reject_update_route(request: Request, update_id: str) -> Response:
         """Reject one update: its text is deleted and nothing is applied."""
-        if _feeds_demo():
-            return _updates_demo_page(request, status_code=422)
+        if await run_in_threadpool(_feeds_demo):
+            return await run_in_threadpool(_updates_demo_page, request, status_code=422)
         store = service.get_store()
-        if _pending_update(store, update_id) is None:
-            return _update_gone(request)
+        if await run_in_threadpool(_pending_update, store, update_id) is None:
+            return await run_in_threadpool(_update_gone, request)
         chosen = _chosen(request.query_params.getlist("kind"), UpdateKind)
         try:
-            client_updates.reject(store, update_id, now=datetime.now(UTC))
+            await run_in_threadpool(client_updates.reject, store, update_id, now=datetime.now(UTC))
         except LookupError:
-            return _update_gone(request)
+            return await run_in_threadpool(_update_gone, request)
         query = [("kind", kind.value) for kind in UpdateKind if kind in chosen]
         query.append(("done", "reject"))
         return RedirectResponse(f"/client-updates?{urlencode(query)}", status_code=303)
@@ -3924,14 +4177,18 @@ def create_app() -> FastAPI:
     @app.post("/client-updates/setup/link")
     async def save_form_link_route(request: Request) -> Response:
         """Save the form's pre-filled link. A link that isn't one (422) is refused with why."""
-        if _feeds_demo():
-            return _updates_demo_page(request, status_code=422)
+        if await run_in_threadpool(_feeds_demo):
+            return await run_in_threadpool(_updates_demo_page, request, status_code=422)
         typed = (await _posted_fields(request)).get("link", "")
         try:
-            client_updates.set_form_link(service.get_store(), typed)
+            await run_in_threadpool(client_updates.set_form_link, service.get_store(), typed)
         except ValueError as error:
-            return _render_updates_setup(
-                request, link_value=typed, link_error=str(error), status_code=422
+            return await run_in_threadpool(
+                _render_updates_setup,
+                request,
+                link_value=typed,
+                link_error=str(error),
+                status_code=422,
             )
         return RedirectResponse("/client-updates/setup?saved=link", status_code=303)
 

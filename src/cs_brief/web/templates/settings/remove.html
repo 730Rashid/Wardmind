@@ -8,7 +8,7 @@
   <p class="prose">{{ leaving }} leave your book. Edits you made to them are deleted too.{% if is_hubspot %} The saved access token is deleted too.{% endif %}{% if is_feed %} Its saved key is deleted too.{% endif %}</p>
   {% endif %}
   <div class="error-actions">
-    <form class="inline-form" method="post" action="/settings/connections/{{ config.id }}/remove">
+    <form class="inline-form" method="post" action="/settings/connections/{{ config.id | idpath }}/remove">
       <button type="submit" class="button-primary">{{ 'Remove sheet' if is_sheet else 'Remove connection' }}</button>
     </form>
     <a class="button" href="/settings/connections">Keep it</a>

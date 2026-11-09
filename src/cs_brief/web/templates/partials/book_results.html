@@ -34,7 +34,7 @@
           </svg>
         </td>
         <td role="cell" class="cell-account">
-          <a class="account-link" href="/accounts/{{ item.account.id | urlencode }}">{{ item.account.name }}</a>
+          <a class="account-link" href="/accounts/{{ item.account.id | idpath }}">{{ item.account.name }}</a>
           {% if flags.get(item.account.id) %}
           <ul class="tags" aria-label="Topics from their website">
             {% for topic in flags.get(item.account.id) %}
@@ -72,7 +72,7 @@
             {{ item.health.label }}
           </span>
         </div>
-        <h3 class="card-title" id="{{ card_id }}"><a class="account-link" href="/accounts/{{ item.account.id | urlencode }}">{{ item.account.name }}</a></h3>
+        <h3 class="card-title" id="{{ card_id }}"><a class="account-link" href="/accounts/{{ item.account.id | idpath }}">{{ item.account.name }}</a></h3>
         <p class="card-owner">{{ item.account.owner }}</p>
         <p class="card-reason">{{ item.top_reason }}{% if others > 0 %}, and {{ others }} other {{ 'signal' if others == 1 else 'signals' }}{% endif %}.</p>
         <div class="card-figures">

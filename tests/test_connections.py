@@ -1046,10 +1046,10 @@ def test_removing_a_sheet_deletes_its_accounts_and_history(client: TestClient) -
         "/settings/connections/sheet-1/remove", headers=ORIGIN, follow_redirects=False
     )
     assert response.status_code == 303
-    assert response.headers["location"].startswith("/settings/connections?removed=Q4")
+    assert response.headers["location"] == "/settings/connections?removed=connection"
     assert store.get_connection("sheet-1") is None
     assert store.snapshot("sheet-1") is None
-    assert "Removed Q4 renewals." in _text(client.get(response.headers["location"]))
+    assert "The connection was removed." in _text(client.get(response.headers["location"]))
 
 
 def test_removing_hubspot_deletes_the_saved_token_too(

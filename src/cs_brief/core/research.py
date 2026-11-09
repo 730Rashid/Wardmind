@@ -31,6 +31,8 @@ import ipaddress
 import random
 import re
 import socket
+import sys
+import time
 import xml.etree.ElementTree as ET
 from collections.abc import Callable
 from datetime import UTC, date, datetime, timedelta
@@ -56,6 +58,13 @@ MAX_REQUESTS = 8  # per lookup, redirects included
 MAX_REDIRECTS = 3  # per fetch
 MAX_ARTICLES = 8
 MAX_TEXT = 300  # characters kept of a title or description
+MAX_INPUT_TEXT = 4_000  # characters of raw text looked at before tags are removed
+# Of a page, only this many bytes are parsed: the head and the first headlines come early.
+MAX_PARSE_BYTES = 512 * 1024
+PARSE_CHUNK = 16 * 1024  # characters handed to a parser at a time, with a deadline check between
+PARSE_SECONDS = 2.0  # per page or feed parsed: past it, what was gathered so far is used
+REQUEST_SECONDS = 20.0  # per HTTP request, from sending it to the last byte of its body
+LOOKUP_SECONDS = 60.0  # per lookup: no request starts after it
 CACHE_HOURS = 24
 # Tried in order, only when neither the home page nor a news page found there has a feed.
 FALLBACK_FEEDS = ("/feed", "/rss.xml", "/blog/rss.xml")
@@ -176,10 +185,23 @@ def website_host(domain: str | None) -> str:
     return host
 
 
+# IPv6 forms that embed an IPv4 address or tunnel to one. Refused whole, whatever they embed.
+_REFUSED_IPV6 = (
+    ipaddress.ip_network("::/96"),  # IPv4-compatible ::a.b.c.d (including ::127.0.0.1)
+    ipaddress.ip_network("64:ff9b::/96"),  # NAT64
+    ipaddress.ip_network("64:ff9b:1::/48"),  # local-use NAT64
+    ipaddress.ip_network("2002::/16"),  # 6to4
+    ipaddress.ip_network("2001::/32"),  # Teredo
+    ipaddress.ip_network("fec0::/10"),  # site-local (deprecated)
+)
+
+
 def _is_public(address: str) -> bool:
     ip = ipaddress.ip_address(address.split("%", 1)[0])  # drop an IPv6 zone id
     if isinstance(ip, ipaddress.IPv6Address) and ip.ipv4_mapped is not None:
         ip = ip.ipv4_mapped
+    if isinstance(ip, ipaddress.IPv6Address) and any(ip in net for net in _REFUSED_IPV6):
+        return False
     return ip.is_global and not ip.is_multicast
 
 
@@ -312,13 +334,15 @@ def tag_topics(title: str) -> list[Topic]:
     return [topic for topic in Topic if _mentions(topic, title)]
 
 
-_TAG = re.compile(r"</?[A-Za-z][^>]*>")
+_TAG = re.compile(r"<[^<>]*>")  # linear: a "<" with no ">" before the next "<" is never rescanned
 _SPACE = re.compile(r"\s+")
 
 
 def _plain(text: str) -> str:
     """Tags removed, entities decoded, whitespace collapsed. Tags go first, so an escaped tag
-    in a feed title stays text and is never read as markup."""
+    in a feed title stays text and is never read as markup. Only the first MAX_INPUT_TEXT
+    characters of `text` are looked at."""
+    text = text[:MAX_INPUT_TEXT]
     return _SPACE.sub(" ", html.unescape(_TAG.sub(" ", text))).strip()
 
 
@@ -434,15 +458,44 @@ class _PageParser(HTMLParser):
             self.feeds.append(url)
 
 
+def _feed_chunks(feed: Callable[[Any], object], data: Any, deadline: float) -> bool:
+    """Hand `data` to `feed` PARSE_CHUNK at a time. Returns False, with the rest left unfed, once
+    `deadline` (a time.monotonic() value) has passed; True when all of it was fed."""
+    for start in range(0, len(data), PARSE_CHUNK):
+        if time.monotonic() >= deadline:
+            return False
+        feed(data[start : start + PARSE_CHUNK])
+    return True
+
+
+# html.parser is linear on hostile input from these releases on (CVE-2025-6069 and related).
+_PARSER_FIXED = (
+    sys.version_info >= (3, 13, 5)
+    or (3, 12, 11) <= sys.version_info < (3, 13)
+    or (3, 11, 13) <= sys.version_info < (3, 12)
+)
+_SAFE_CLOSE_CHARS = 16_384  # a quadratic rescan of this much is still only milliseconds
+
+
 def parse_page(html: bytes, base_url: str) -> PageInfo:
     """Title, description and advertised feeds from a home page, using html.parser (no scripts
-    run, nothing else fetched). Text is unescaped, tag-free, whitespace-collapsed and cut to
-    MAX_TEXT. Feed hrefs are resolved against base_url; only https ones are kept, deduplicated.
-    Never raises on malformed HTML."""
+    run, nothing else fetched). Only the first MAX_PARSE_BYTES are read, fed PARSE_CHUNK at a
+    time; past PARSE_SECONDS the parse stops and what it gathered so far is used (nothing, for a
+    page that has no readable start: the same as an unreadable page). Text is unescaped,
+    tag-free, whitespace-collapsed and cut to MAX_TEXT. Feed hrefs are resolved against base_url;
+    only https ones are kept, deduplicated. Never raises on malformed HTML."""
     parser = _PageParser(base_url)
+    deadline = time.monotonic() + PARSE_SECONDS
+    text = html[:MAX_PARSE_BYTES].decode("utf-8", errors="replace")
     try:
-        parser.feed(html.decode("utf-8", errors="replace"))
-        parser.close()
+        finished = _feed_chunks(parser.feed, text, deadline)
+        # close() flushes what is still buffered, such as a <title> that never closes (Pythons
+        # with the CVE-2025-6069 fix hold title text until </title> or close()). On an older
+        # Python close() can rescan the leftover in one quadratic pass, which is the slowdown
+        # PARSE_SECONDS is here to stop, so there it runs only when little is left.
+        leftover = len(getattr(parser, "rawdata", ""))
+        if finished and (_PARSER_FIXED or leftover <= _SAFE_CLOSE_CHARS):
+            parser.close()
     except (AssertionError, ValueError):  # html.parser gives up on some broken markup
         pass
     parser.end_title()
@@ -572,18 +625,34 @@ def _has_doctype(xml: bytes) -> bool:
 
 _FEED_ROOTS = ("rss", f"{_ATOM}feed")
 _ENTRY_TAGS = ("item", f"{_ATOM}entry")
+# Byte-order marks of UTF-16 and UTF-32. Their NULs are also caught by _is_utf8.
+_NON_UTF8_MARKS = (
+    codecs.BOM_UTF16_LE,
+    codecs.BOM_UTF16_BE,
+    codecs.BOM_UTF32_LE,
+    codecs.BOM_UTF32_BE,
+)
+
+
+def _is_utf8(xml: bytes) -> bool:
+    """False for a UTF-16 or UTF-32 body: a byte-order mark, or a NUL among the first four bytes
+    (every such encoding of ASCII markup has one). Those are refused before any XML parsing, so
+    the DOCTYPE check on the bytes can't be dodged by re-encoding a document."""
+    return not (xml.startswith(_NON_UTF8_MARKS) or b"\x00" in xml[:4])
 
 
 def _entries(xml: bytes) -> list[tuple[str, str, date | None]]:
     """(title, link, published) for each complete RSS item or Atom entry, in document order.
     The body may have been cut off at MAX_BYTES (feeds that carry whole posts are big), so it
-    is parsed incrementally and the entries finished before the cut are kept."""
+    is parsed incrementally and the entries finished before the cut are kept. It is fed
+    PARSE_CHUNK at a time, and past PARSE_SECONDS the entries read so far are kept."""
     parser = ET.XMLPullParser(events=("start", "end"))
     root_tag: str | None = None
     entries: list[tuple[str, str, date | None]] = []
+    deadline = time.monotonic() + PARSE_SECONDS
     try:
-        parser.feed(xml)
-        parser.close()
+        if _feed_chunks(parser.feed, xml, deadline):
+            parser.close()
     except ET.ParseError:
         pass  # a cut-off body: the events before the error are still read below
     try:
@@ -607,8 +676,11 @@ def parse_feed(xml: bytes, base_url: str) -> list[Article]:
     deduplicated by URL. Uses xml.etree.ElementTree; a document with a DOCTYPE is refused (no
     entity tricks). Links are resolved against base_url; non-http(s) links drop the item.
     Dates: RSS pubDate (RFC 822) or Atom published/updated (ISO 8601). Raises ValueError when
-    the bytes aren't a feed at all; a feed with no usable items gives []. A feed cut off part
-    way (at MAX_BYTES) gives the items that were complete."""
+    the bytes aren't a feed at all (a UTF-16 or UTF-32 body is refused as not a feed); a feed with
+    no usable items gives []. A feed cut off part way (at MAX_BYTES, or at PARSE_SECONDS) gives
+    the items that were complete."""
+    if not _is_utf8(xml):
+        raise ValueError("not an RSS or Atom feed: only UTF-8 feeds are read")
     if _has_doctype(xml):
         raise ValueError("feeds with a DOCTYPE are refused")
     entries = _entries(xml)
@@ -660,7 +732,9 @@ class SiteClient:
     """Fetches pages for one lookup. Fresh cookies per client (none are kept between lookups),
     USER_AGENT, TIMEOUT_SECONDS, MAX_BYTES per body, MAX_REQUESTS per client, redirects
     followed by hand up to MAX_REDIRECTS and only to https URLs. The default transport is
-    GuardedTransport(); tests pass an httpx.MockTransport."""
+    GuardedTransport(); tests pass an httpx.MockTransport. Time limits: REQUEST_SECONDS for each
+    request in total (its body included), and LOOKUP_SECONDS for the whole lookup, counted from
+    this client's creation (service makes one client per lookup)."""
 
     def __init__(self, transport: httpx.BaseTransport | None = None) -> None:
         self._client = httpx.Client(
@@ -671,15 +745,18 @@ class SiteClient:
             headers={"User-Agent": USER_AGENT},
         )
         self._requests = 0
+        self._lookup_deadline = time.monotonic() + LOOKUP_SECONDS
 
     def fetch(self, url: str) -> Fetched:
         """GET an https URL. Raises SiteUnreachable for a non-https URL, a redirect to one,
-        too many redirects, the request budget used up, a non-2xx status, a timeout or any
-        transport error. BlockedWebsite from the guard propagates unchanged."""
+        too many redirects, the request budget used up, a non-2xx status, a timeout, a request
+        or lookup that took too long, or any transport error. BlockedWebsite from the guard
+        propagates unchanged."""
         target = url
         redirects = 0
         while True:
             host = _https_host(target)
+            deadline = time.monotonic() + REQUEST_SECONDS
             response = self._send(target, host)
             try:
                 if response.status_code in _REDIRECT_CODES:
@@ -693,7 +770,7 @@ class SiteClient:
                     raise SiteUnreachable(
                         f"{host} answered with an error ({response.status_code})."
                     )
-                body = self._read(response, host)
+                body = self._read(response, host, deadline)
                 media_type = response.headers.get("content-type", "").split(";")[0]
                 return Fetched(url=target, content_type=media_type.strip().lower(), body=body)
             finally:
@@ -706,6 +783,8 @@ class SiteClient:
         """One request, with the body still unread: the caller closes the response."""
         if self._requests >= MAX_REQUESTS:
             raise SiteUnreachable(f"Too many requests to {host} for one look up.")
+        if time.monotonic() >= self._lookup_deadline:
+            raise SiteUnreachable(f"Looking up {host} took too long, so cs-brief stopped.")
         self._requests += 1
         self._client.cookies.clear()  # no cookie a site sets is sent back, on any request
         request = self._client.build_request("GET", url)
@@ -714,13 +793,18 @@ class SiteClient:
         except (httpx.HTTPError, OSError) as error:
             raise _unreachable(host, error) from error
 
-    def _read(self, response: httpx.Response, host: str) -> bytes:
+    def _read(self, response: httpx.Response, host: str, deadline: float) -> bytes:
+        """The body, at most MAX_BYTES. Stops with SiteUnreachable once the request's `deadline`
+        or the lookup's has passed, however slowly the bytes arrive."""
+        limit = min(deadline, self._lookup_deadline)
         body = bytearray()
         try:
             for chunk in response.iter_bytes():
                 body.extend(chunk[: MAX_BYTES - len(body)])
                 if len(body) >= MAX_BYTES:
                     break
+                if time.monotonic() >= limit:
+                    raise SiteUnreachable(f"{host} took too long to send everything.")
         except (httpx.HTTPError, OSError) as error:
             raise _unreachable(host, error) from error
         return bytes(body)

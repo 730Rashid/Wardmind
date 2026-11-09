@@ -2,7 +2,7 @@
    While the look up runs, the panel asks for itself again after a second. When it has finished,
    the response asks htmx to reload the page once, so the table below shows the new lookups.
    Without JavaScript there is no polling: the page offers a plain link to refresh. #}
-<div id="bulk-job" class="bulk-job"{% if job and job.running %} hx-get="/research/jobs/{{ job.id }}" hx-trigger="load delay:1s" hx-swap="outerHTML"{% endif %}>
+<div id="bulk-job" class="bulk-job"{% if job and job.running %} hx-get="/research/jobs/{{ job.id | idpath }}" hx-trigger="load delay:1s" hx-swap="outerHTML"{% endif %}>
   {% if error %}
   <p class="alert" role="alert">{{ error }}</p>
   {% endif %}
@@ -33,7 +33,7 @@
     <h3 class="lookup-problems-title">Accounts that need attention</h3>
     <ul class="lookup-problems">
       {% for problem in problems %}
-      <li><a href="/accounts/{{ problem.id | urlencode }}#research">{{ problem.name }}</a>: {{ problem.message }}</li>
+      <li><a href="/accounts/{{ problem.id | idpath }}#research">{{ problem.name }}</a>: {{ problem.message }}</li>
       {% endfor %}
     </ul>
     {% endif %}

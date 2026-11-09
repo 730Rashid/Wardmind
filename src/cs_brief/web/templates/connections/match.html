@@ -17,8 +17,8 @@
 
   {% if error %}<p class="field-error" role="alert">{{ error }}</p>{% endif %}
 
-  <form id="feed-mapping" class="import-mapping" method="post" action="/connections/feeds/{{ draft_id }}/commit">
-    <div class="mapping-fields" hx-post="/connections/feeds/{{ draft_id }}/preview" hx-trigger="change" hx-include="#feed-mapping" hx-swap="none">
+  <form id="feed-mapping" class="import-mapping" method="post" action="/connections/feeds/{{ draft_id | idpath }}/commit">
+    <div class="mapping-fields" hx-post="/connections/feeds/{{ draft_id | idpath }}/preview" hx-trigger="change" hx-include="#feed-mapping" hx-swap="none">
       <table class="match-table">
         <caption class="visually-hidden">Match each cs-brief field to a column in the source</caption>
         <thead>
@@ -64,8 +64,8 @@
 
   <div class="import-actions">
     {% include "connections/partials/action.html" %}
-    <button type="submit" form="feed-mapping" formaction="/connections/feeds/{{ draft_id }}/match" class="button no-js-only">Update preview</button>
-    <form class="inline-form" method="post" action="/connections/feeds/{{ draft_id }}/cancel">
+    <button type="submit" form="feed-mapping" formaction="/connections/feeds/{{ draft_id | idpath }}/match" class="button no-js-only">Update preview</button>
+    <form class="inline-form" method="post" action="/connections/feeds/{{ draft_id | idpath }}/cancel">
       <button type="submit" class="button">Cancel</button>
     </form>
   </div>

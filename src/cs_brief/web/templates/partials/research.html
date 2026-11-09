@@ -39,7 +39,7 @@
   <p>Their website doesn't publish a news feed cs-brief could read.</p>
   {% endif %}
   <p class="research-footer">Looked up {{ panel.looked_up_days | ago }}.</p>
-  <form class="research-form no-print" method="post" action="/accounts/{{ panel.account_id | urlencode }}/research" hx-post="/accounts/{{ panel.account_id | urlencode }}/research" hx-target="#research" hx-swap="outerHTML" hx-disabled-elt="find button">
+  <form class="research-form no-print" method="post" action="/accounts/{{ panel.account_id }}/research" hx-post="/accounts/{{ panel.account_id }}/research" hx-target="#research" hx-swap="outerHTML" hx-disabled-elt="find button">
     <input type="hidden" name="refresh" value="1">
     <button type="submit" class="button button--small">Look up again</button>
   </form>
@@ -64,7 +64,7 @@
   <p class="field-error" role="alert">{{ panel.ai_error }}{% if panel.ai_error_link %} <a href="/settings/privacy">Data &amp; privacy</a>{% endif %}</p>
   {% endif %}
   {% if panel.ai_ready %}
-  <form class="research-form no-print" method="post" action="/accounts/{{ panel.account_id | urlencode }}/summarise" hx-post="/accounts/{{ panel.account_id | urlencode }}/summarise" hx-target="#research" hx-swap="outerHTML" hx-disabled-elt="find button">
+  <form class="research-form no-print" method="post" action="/accounts/{{ panel.account_id }}/summarise" hx-post="/accounts/{{ panel.account_id }}/summarise" hx-target="#research" hx-swap="outerHTML" hx-disabled-elt="find button">
     {% if panel.summary %}
     <input type="hidden" name="refresh" value="1">
     <button type="submit" class="button button--small">Summarise again</button>
@@ -79,7 +79,7 @@
   {% if panel.state == "error" %}
   <p class="field-error" role="alert">{{ panel.message }}</p>
   {% endif %}
-  <form class="research-form no-print" method="post" action="/accounts/{{ panel.account_id | urlencode }}/research" hx-post="/accounts/{{ panel.account_id | urlencode }}/research" hx-target="#research" hx-swap="outerHTML" hx-disabled-elt="find button">
+  <form class="research-form no-print" method="post" action="/accounts/{{ panel.account_id }}/research" hx-post="/accounts/{{ panel.account_id }}/research" hx-target="#research" hx-swap="outerHTML" hx-disabled-elt="find button">
     <button type="submit" class="button-primary">Look up their website</button>
   </form>
   <p class="field-help">{% if panel.demo %}Demo accounts show sample news. Nothing is sent.{% else %}Visits {{ panel.host }} only. Nothing about this account is sent.{% endif %}</p>

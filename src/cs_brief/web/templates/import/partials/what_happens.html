@@ -12,7 +12,7 @@
   <p class="field-help">and {{ preview.issues|length - 20 }} more in the download.</p>
   {% endif %}
   {% set problem_rows = preview.issues|map(attribute='row')|unique|list|length %}
-  <p><a href="/import/{{ draft_id }}/problems.csv">{% if problem_rows == 1 %}Download the row with a problem (CSV){% else %}Download the {{ problem_rows }} rows with problems (CSV){% endif %}</a></p>
+  <p><a href="/import/{{ draft_id | idpath }}/problems.csv">{% if problem_rows == 1 %}Download the row with a problem (CSV){% else %}Download the {{ problem_rows }} rows with problems (CSV){% endif %}</a></p>
   {% endif %}
 
   {% if preview.removed_ids %}

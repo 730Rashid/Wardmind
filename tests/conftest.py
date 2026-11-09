@@ -34,6 +34,20 @@ def no_feed_network(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 @pytest.fixture(autouse=True)
+def no_guarded_feed_dns(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A redirect to another origin from a public feed URL goes through feeds.http's guarded
+    transport, which would resolve the host's name. By default that transport answers from the
+    same table as feed_http.transport_factory, so no test resolves DNS. Tests of the guard
+    itself replace guarded_transport_factory."""
+
+    def answer_from_the_feed_table() -> httpx.BaseTransport:
+        factory = feed_http.transport_factory
+        return factory() if factory is not None else httpx.MockTransport(_refuse_feed_request)
+
+    monkeypatch.setattr(feed_http, "guarded_transport_factory", answer_from_the_feed_table)
+
+
+@pytest.fixture(autouse=True)
 def no_feed_scheduler(monkeypatch: pytest.MonkeyPatch) -> None:
     """A test never starts the background feed scheduler (the web app starts it on startup).
     Tests of the scheduler itself build their own FeedScheduler with a fake tick."""

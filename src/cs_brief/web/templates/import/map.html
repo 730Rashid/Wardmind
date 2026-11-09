@@ -10,7 +10,7 @@
   </header>
 
   {% if sheet_names %}
-  <form class="sheet-form" method="post" action="/import/{{ draft_id }}/sheet">
+  <form class="sheet-form" method="post" action="/import/{{ draft_id | idpath }}/sheet">
     <label for="sheet">Sheet</label>
     <select id="sheet" name="sheet" data-autosubmit>
       {% for name in sheet_names %}
@@ -23,9 +23,9 @@
 
   {% if error %}<p class="field-error" role="alert">{{ error }}</p>{% endif %}
 
-  <form id="import-mapping" class="import-mapping" method="post" action="/import/{{ draft_id }}/commit">
+  <form id="import-mapping" class="import-mapping" method="post" action="/import/{{ draft_id | idpath }}/commit">
     {# Changing a choice refreshes the examples and the preview, and nothing else on the page. #}
-    <div class="mapping-fields" hx-post="/import/{{ draft_id }}/preview" hx-trigger="change" hx-include="#import-mapping" hx-swap="none">
+    <div class="mapping-fields" hx-post="/import/{{ draft_id | idpath }}/preview" hx-trigger="change" hx-include="#import-mapping" hx-swap="none">
       <table class="match-table">
         <caption class="visually-hidden">Match each cs-brief field to a column in your file</caption>
         <thead>
@@ -71,8 +71,8 @@
 
   <div class="import-actions">
     {% include "import/partials/action.html" %}
-    <button type="submit" form="import-mapping" formaction="/import/{{ draft_id }}" class="button no-js-only">Update preview</button>
-    <form class="inline-form" method="post" action="/import/{{ draft_id }}/cancel">
+    <button type="submit" form="import-mapping" formaction="/import/{{ draft_id | idpath }}" class="button no-js-only">Update preview</button>
+    <form class="inline-form" method="post" action="/import/{{ draft_id | idpath }}/cancel">
       <button type="submit" class="button">Cancel</button>
     </form>
   </div>

@@ -18,6 +18,8 @@ import hashlib
 import io
 import re
 import unicodedata
+import zipfile
+from collections.abc import Iterable, Iterator
 from dataclasses import dataclass
 from dataclasses import field as dc_field
 from datetime import UTC, date, datetime, timedelta
@@ -33,6 +35,18 @@ from cs_brief.core.models import Account, Milestones, Signal, SignalKind
 
 MAX_BYTES = 5 * 1024 * 1024  # larger files are refused with a plain message
 MAX_ROWS = 5000  # data rows; more are refused with a plain message
+MAX_COLUMNS = 500  # columns with text; blank trailing columns don't count
+MAX_CELL_CHARS = 32_767  # Excel's own cell limit; a longer cell is refused
+TOO_MANY_COLUMNS_MESSAGE = (
+    f"That has more than {MAX_COLUMNS} columns. Remove the ones cs-brief doesn't need."
+)
+CELL_TOO_LONG_MESSAGE = (
+    f"A cell is longer than a spreadsheet allows ({MAX_CELL_CHARS:,} characters)."
+)
+# An .xlsx is a zip. Its parts are judged by their declared unpacked sizes before openpyxl opens
+# it, so a small file that unpacks to hundreds of megabytes is refused.
+MAX_XLSX_UNCOMPRESSED = 200_000_000  # all the parts together, unpacked
+MAX_XLSX_MEMBER = 100_000_000  # one part, unpacked
 
 
 class FieldType(StrEnum):
@@ -538,6 +552,9 @@ class DateOrder(StrEnum):
 
 
 class Table(BaseModel):
+    """The rows of a file or paste. Importers refuse a table with more than MAX_COLUMNS columns
+    with text, a cell longer than MAX_CELL_CHARS characters, or more than MAX_ROWS data rows."""
+
     source_name: str  # file name, or "Pasted cells"
     headers: list[str]  # stripped; blank headers become "Column <n>"
     rows: list[list[str]]  # every row padded or cut to len(headers); fully blank rows dropped
@@ -636,10 +653,20 @@ _FIELDS = {spec.key: spec for spec in IMPORT_FIELDS}
 _NEEDS_TOTAL = frozenset({"milestones_done", "milestones_overdue"})
 # Headers about monthly revenue are not annual recurring revenue, so they never map to ARR.
 _MONTHLY_WORDS = ("monthly", "mrr", "per month")
+# Account text fields longer than this get an issue: a required one skips the row, an optional
+# one is left empty and the row is kept.
+_ACCOUNT_TEXT_CHARS = 200
+_LIMITED_TEXT = frozenset({"name", "owner", "tier"})
+# A value longer than this isn't a date. Normal "date time" values are far shorter, and the time
+# pattern is slow on long runs of spaces.
+_DATE_TEXT_CHARS = 64
+# The line breaks str.splitlines() splits on, so the delimiter sample is cut the same way.
+_LINE_BREAK = re.compile(r"\r\n|[\n\r\x0b\x0c\x1c\x1d\x1e\x85\u2028\u2029]")
 
 _EMPTY_FILE = "That file is empty."
 _EMPTY_PASTE = "The pasted text is empty."
 _NOT_EXCEL = "That file isn't a readable Excel file. Save it as .xlsx or CSV and try again."
+_TOO_LARGE_UNPACKED = "That workbook is too large once unpacked."
 _XLS = "Old Excel files (.xls) aren't supported. Save it as .xlsx or CSV and try again."
 _TOO_BIG_FILE = (
     f"That file is larger than {MAX_BYTES // (1024 * 1024)} MB. Split it or remove extra columns."
@@ -731,6 +758,8 @@ def _parse_decimal(body: str) -> Decimal | None:
 
 def _without_time(text: str) -> str:
     """Drop a trailing time such as " 00:00:00" or "T10:30Z", so the date part can be read."""
+    if len(text) > _DATE_TEXT_CHARS:
+        return text  # too long to hold a date; the time pattern is slow on it
     match = _TIME_TAIL.fullmatch(text)
     return match.group(1).strip() if match else text
 
@@ -914,6 +943,15 @@ def _parse_row(
                 )
                 parsed.problem(number, index, missing, blocks=True)
             continue
+        if spec.key in _LIMITED_TEXT and len(cell) > _ACCOUNT_TEXT_CHARS:
+            # A required field skips the row; an optional one is left empty and the row is kept.
+            parsed.problem(
+                number,
+                index,
+                f"{spec.label} is longer than {_ACCOUNT_TEXT_CHARS} characters.",
+                blocks=spec.required,
+            )
+            continue
         try:
             parsed.values[spec.key] = _convert(spec, cell, date_order)
         except ValueError as exc:
@@ -948,7 +986,18 @@ def _ordered(problems: list[tuple[int, ImportIssue]]) -> list[ImportIssue]:
 
 
 def _sniff_delimiter(text: str) -> str:
-    sample = "\n".join(text.splitlines()[:50])
+    """The delimiter csv.Sniffer finds in the first 50 lines. Only those lines are split off, so
+    a file of millions of blank lines isn't split whole."""
+    lines: list[str] = []
+    start = 0
+    for found in _LINE_BREAK.finditer(text):
+        lines.append(text[start : found.start()])
+        start = found.end()
+        if len(lines) == 50:
+            break
+    if len(lines) < 50 and start < len(text):
+        lines.append(text[start:])
+    sample = "\n".join(lines)
     try:
         return csv.Sniffer().sniff(sample, delimiters=",;\t|").delimiter
     except csv.Error:
@@ -975,24 +1024,35 @@ def _decode(data: bytes) -> str:
 
 
 def _unique_headers(cells: list[str]) -> list[str]:
-    """Blank headers become "Column <n>"; repeats get " (2)", " (3)", and so on."""
+    """Blank headers become "Column <n>"; repeats get " (2)", " (3)", and so on. Linear: the
+    next copy number to try is remembered for each name, and a number below it is always taken."""
     used: set[str] = set()
+    next_copy: dict[str, int] = {}
     headers: list[str] = []
     for position, cell in enumerate(cells, start=1):
         base = cell or f"Column {position}"
         name = base
         if name in used:
-            copy = 2
+            copy = next_copy.get(base, 2)
             while f"{base} ({copy})" in used:
                 copy += 1
             name = f"{base} ({copy})"
+            next_copy[base] = copy + 1
         used.add(name)
         headers.append(name)
     return headers
 
 
+def _strip_cells(cells: list[str]) -> list[str]:
+    """The cells, stripped. A cell longer than MAX_CELL_CHARS is refused."""
+    stripped = [cell.strip() for cell in cells]
+    if any(len(cell) > MAX_CELL_CHARS for cell in stripped):
+        raise ImportError_(CELL_TOO_LONG_MESSAGE)
+    return stripped
+
+
 def _build_table(
-    records: list[_Record],
+    records: Iterable[_Record],
     source_name: str,
     *,
     what: str,
@@ -1000,30 +1060,47 @@ def _build_table(
     sheet_names: list[str] | None = None,
     sheet: str | None = None,
 ) -> Table:
-    """Strip cells, drop blank rows, take the first row as headers and fit every row to them.
-    The kept data rows keep their spreadsheet row numbers, so issues point at the right row."""
-    kept = [(number, [cell.strip() for cell in cells]) for number, cells in records]
-    kept = [(number, cells) for number, cells in kept if any(cells)]
-    if not kept:
+    """Strip cells, drop blank rows, take the first kept row as headers and fit every row to them.
+    The records are read one at a time and reading stops at the first limit broken, so a huge
+    file is refused without being read whole. The kept data rows keep their spreadsheet row
+    numbers, so issues point at the right row."""
+    too_many = _TOO_MANY_PASTE if what == "That paste" else _TOO_MANY_FILE
+    header: list[str] | None = None  # every stripped cell of the header row, untrimmed
+    numbers: list[int] = []
+    body: list[list[str]] = []  # each row cut to the header's width, trailing blanks dropped
+    for number, cells in records:
+        if not any(cells):  # the usual blank line, skipped before any other work
+            continue
+        row = _strip_cells(cells)
+        if not any(row):
+            continue
+        if header is None:
+            if any(row[MAX_COLUMNS:]):
+                raise ImportError_(TOO_MANY_COLUMNS_MESSAGE)
+            header = row
+            continue
+        width = len(header)
+        if width > MAX_COLUMNS and any(row[MAX_COLUMNS:width]):
+            raise ImportError_(TOO_MANY_COLUMNS_MESSAGE)
+        if len(body) == MAX_ROWS:
+            raise ImportError_(too_many)
+        fitted = row[:width]
+        while fitted and not fitted[-1]:
+            fitted.pop()
+        body.append(fitted)
+        numbers.append(number)
+    if header is None:
         raise ImportError_(empty)
-    header = kept[0][1]
-    body = [cells for _, cells in kept[1:]]
-    numbers = [number for number, _ in kept[1:]]
-    if len(body) > MAX_ROWS:
-        raise ImportError_(_TOO_MANY_PASTE if what == "That paste" else _TOO_MANY_FILE)
     # Trailing columns that are blank in the header and in every data row aren't columns.
-    width = len(header)
-    while (
-        width > 0
-        and not header[width - 1]
-        and all(len(row) < width or not row[width - 1] for row in body)
-    ):
-        width -= 1
-    fitted = [(row + [""] * width)[:width] for row in body]
+    head = list(header)
+    while head and not head[-1]:
+        head.pop()
+    width = max([len(head), *(len(row) for row in body)])
+    fitted_rows = [row + [""] * (width - len(row)) for row in body]
     return Table(
         source_name=source_name,
         headers=_unique_headers(header[:width]),
-        rows=fitted,
+        rows=fitted_rows,
         row_numbers=numbers,
         sheet_names=list(sheet_names or []),
         sheet=sheet,
@@ -1037,23 +1114,18 @@ def _table_from_text(text: str, source_name: str, *, delimiter: str | None, past
         raise ImportError_(_EMPTY_PASTE if pasted else _EMPTY_FILE)
     if delimiter is None:
         delimiter = _sniff_delimiter(text)
+    # One record per csv row, read lazily: a quoted cell that spans lines is still one record,
+    # and a blank line is a record of its own, so the numbers match the sheet.
+    records = enumerate(csv.reader(io.StringIO(text, newline=""), delimiter=delimiter), start=1)
     try:
-        # One record per csv row: a quoted cell that spans lines is still one record, and a
-        # blank line is a record of its own, so the numbers match the sheet.
-        records = [
-            (number, cells)
-            for number, cells in enumerate(
-                csv.reader(io.StringIO(text, newline=""), delimiter=delimiter), start=1
-            )
-        ]
+        return _build_table(
+            records,
+            source_name,
+            what=what,
+            empty=_EMPTY_PASTE if pasted else _EMPTY_FILE,
+        )
     except csv.Error:
         raise ImportError_(_UNREADABLE_PASTE if pasted else _UNREADABLE_FILE) from None
-    return _build_table(
-        records,
-        source_name,
-        what=what,
-        empty=_EMPTY_PASTE if pasted else _EMPTY_FILE,
-    )
 
 
 def _read_text_bytes(data: bytes, source_name: str, *, delimiter: str | None) -> Table:
@@ -1078,19 +1150,27 @@ def _xlsx_text(value: Any) -> str:
     return str(value).strip()
 
 
-def _sheet_records(workbook: Any, name: str) -> list[_Record]:
-    """Every row of a sheet, numbered as Excel numbers them (from 1), blank rows included."""
+def _sheet_records(workbook: Any, name: str) -> Iterator[_Record]:
+    """The non-blank rows of a sheet, numbered as Excel numbers them (from 1), read lazily.
+    openpyxl pads a read-only sheet's missing cells out to its dimension, so only the first
+    MAX_COLUMNS + 1 columns are read; a text cell beyond MAX_COLUMNS is refused by _build_table.
+    A padded row is skipped without converting its cells."""
     sheet_obj = workbook[name]
     if not hasattr(sheet_obj, "iter_rows"):  # chart sheets have no cells
-        return []
-    rows = sheet_obj.iter_rows(min_row=1, values_only=True)
-    return [
-        (number, [_xlsx_text(value) for value in row]) for number, row in enumerate(rows, start=1)
-    ]
+        return
+    rows = sheet_obj.iter_rows(min_row=1, max_col=MAX_COLUMNS + 1, values_only=True)
+    blank: tuple[object, ...] | None = None  # the last empty row seen
+    for number, row in enumerate(rows, start=1):
+        if row is blank:  # openpyxl hands out one shared object for every missing row
+            continue
+        if row.count(None) == len(row):
+            blank = row
+            continue
+        yield number, [_xlsx_text(value) for value in row]
 
 
-def _has_data(records: list[_Record]) -> bool:
-    return any(cell for _, cells in records for cell in cells)
+def _has_data(records: Iterable[_Record]) -> bool:
+    return any(any(cells) for _, cells in records)
 
 
 def _match_sheet(names: list[str], wanted: str) -> str:
@@ -1107,18 +1187,17 @@ def _match_sheet(names: list[str], wanted: str) -> str:
 
 def _pick_sheet(
     workbook: Any, names: list[str], wanted: str | None
-) -> tuple[str | None, list[_Record]]:
-    """The named sheet, or else the first sheet with any data."""
+) -> tuple[str | None, Iterable[_Record]]:
+    """The named sheet, or else the first sheet with any data. The rows are read lazily, so a
+    sheet is read once to check it has data and again, row by row, to build the table."""
     if wanted:
         chosen = _match_sheet(names, wanted)
-        records = _sheet_records(workbook, chosen)
-        if not _has_data(records):
+        if not _has_data(_sheet_records(workbook, chosen)):
             raise ImportError_(f"The sheet {_quote(chosen)} is empty.")
-        return chosen, records
+        return chosen, _sheet_records(workbook, chosen)
     for name in names:
-        records = _sheet_records(workbook, name)
-        if _has_data(records):
-            return name, records
+        if _has_data(_sheet_records(workbook, name)):
+            return name, _sheet_records(workbook, name)
     return (names[0] if names else None), []
 
 
@@ -1156,6 +1235,8 @@ def parse_date(text: str, order: DateOrder) -> date:
     raw = text.strip()
     if not raw:
         raise ValueError("is empty.")
+    if len(raw) > _DATE_TEXT_CHARS:
+        raise ValueError(f"{_quote(raw)} isn't a date.")
     value = _without_time(raw)
     found: date | None = None
     if _COMPACT_DATE.fullmatch(value):
@@ -1221,7 +1302,8 @@ def parse_number(text: str) -> float:
 def read_csv(data: bytes, source_name: str) -> Table:
     """Decode (UTF-8 with or without BOM, then cp1252), sniff the delimiter (comma,
     semicolon, tab, pipe) and read with the csv module. Raises ImportError_ for empty input,
-    no header row, more than MAX_ROWS rows or more than MAX_BYTES."""
+    no header row, more than MAX_ROWS rows, more than MAX_COLUMNS columns with text, a cell
+    longer than MAX_CELL_CHARS, or more than MAX_BYTES."""
     return _read_text_bytes(data, source_name, delimiter=None)
 
 
@@ -1236,12 +1318,27 @@ def read_pasted(text: str) -> Table:
     return _table_from_text(body, "Pasted cells", delimiter=delimiter, pasted=True)
 
 
+def _check_unpacked_size(data: bytes) -> None:
+    """Refuse an .xlsx whose parts would unpack to more than MAX_XLSX_UNCOMPRESSED together or
+    MAX_XLSX_MEMBER for one part, judged from the zip's own headers before openpyxl opens it. A
+    file that isn't a zip is the same error as a damaged workbook."""
+    try:
+        with zipfile.ZipFile(io.BytesIO(data)) as archive:
+            sizes = [info.file_size for info in archive.infolist()]
+    except Exception:  # zipfile raises several types for a damaged archive
+        raise ImportError_(_NOT_EXCEL) from None
+    if max(sizes, default=0) > MAX_XLSX_MEMBER or sum(sizes) > MAX_XLSX_UNCOMPRESSED:
+        raise ImportError_(_TOO_LARGE_UNPACKED)
+
+
 def read_xlsx(data: bytes, source_name: str, sheet: str | None = None) -> Table:
     """Read the named sheet (default: the first one with any data) with openpyxl in read-only,
     data-only mode. Dates become ISO strings, whole floats lose ".0". Raises ImportError_ for a
-    file that isn't a valid .xlsx, a missing sheet, or the limits above."""
+    file that isn't a valid .xlsx, a missing sheet, the column and cell limits above, or a
+    workbook that unpacks to more than MAX_XLSX_UNCOMPRESSED (or a part over MAX_XLSX_MEMBER)."""
     if len(data) > MAX_BYTES:
         raise ImportError_(_TOO_BIG_FILE)
+    _check_unpacked_size(data)
     try:
         workbook = load_workbook(io.BytesIO(data), read_only=True, data_only=True)
     except Exception:  # openpyxl raises many types for damaged files
@@ -1249,20 +1346,20 @@ def read_xlsx(data: bytes, source_name: str, sheet: str | None = None) -> Table:
     try:
         names = [str(name) for name in workbook.sheetnames]
         chosen, records = _pick_sheet(workbook, names, sheet)
+        return _build_table(
+            records,
+            source_name,
+            what="That file",
+            empty=_EMPTY_FILE,
+            sheet_names=names,
+            sheet=chosen,
+        )
     except ImportError_:
         raise
     except Exception:
         raise ImportError_(_NOT_EXCEL) from None
     finally:
         workbook.close()
-    return _build_table(
-        records,
-        source_name,
-        what="That file",
-        empty=_EMPTY_FILE,
-        sheet_names=names,
-        sheet=chosen,
-    )
 
 
 def read_upload(data: bytes, filename: str, sheet: str | None = None) -> Table:
@@ -1526,7 +1623,7 @@ def issues_csv(table: Table, issues: list[ImportIssue]) -> str:
         messages.setdefault(issue.row, []).append(issue.message)
     buffer = io.StringIO()
     writer = csv.writer(buffer)
-    writer.writerow([*table.headers, "Problems"])
+    writer.writerow([*(_formula_safe(header) for header in table.headers), "Problems"])
     for number, row in zip(_row_numbers(table), table.rows, strict=True):
         if number in messages:
             writer.writerow([_formula_safe(cell) for cell in [*row, " ".join(messages[number])]])

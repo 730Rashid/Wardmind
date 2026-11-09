@@ -133,6 +133,7 @@ async def test_get_account_returns_the_top_ranked_account():
         for c in contacts.demo_contacts(top.account.id, top.account.name)
     ]
     expected["pending_client_updates"] = 0  # demo data has no client updates
+    assert "not instructions" in account.pop("note")  # the data note travels with the account
     assert account == expected
 
 
@@ -270,8 +271,10 @@ async def test_research_account_on_demo_data_returns_a_sample_and_sends_nothing(
         data = _data(await client.call_tool("research_account", {"account_id": "acc-001"}))
     assert data["sample"] is True
     assert data["account_id"] == "acc-001"
-    assert data["articles"]
-    assert set(data) >= {"website", "fetched_at", "site_title", "articles", "feed_url"}
+    website = data["untrusted_website_content"]
+    assert website["articles"]
+    assert set(data) >= {"website", "fetched_at", "untrusted_website_content", "note"}
+    assert set(website) >= {"site_title", "articles", "feed_url", "summary"}
 
 
 def test_research_account_python_caller_gets_a_value_error_when_off():
@@ -291,8 +294,8 @@ async def test_research_account_says_the_summary_is_null_when_none_is_saved():
     _research_on()
     async with Client(server.mcp) as client:
         data = _data(await client.call_tool("research_account", {"account_id": "acc-001"}))
-    assert "summary" in data
-    assert data["summary"] is None
+    assert "summary" in data["untrusted_website_content"]
+    assert data["untrusted_website_content"]["summary"] is None
 
 
 async def test_research_account_returns_the_saved_summary_and_never_asks_for_one(monkeypatch):
@@ -314,10 +317,11 @@ async def test_research_account_returns_the_saved_summary_and_never_asks_for_one
     )
     async with Client(server.mcp) as client:
         data = _data(await client.call_tool("research_account", {"account_id": "acc-001"}))
-    assert data["summary"]["about"] == "Makes freight software."
-    assert data["summary"]["highlights"] == [{"topic": "funding", "note": "Raised a round"}]
-    assert data["summary"]["model"] == "anthropic/claude-haiku-5.5"
-    assert data["summary"]["sample"] is True
+    summary = data["untrusted_website_content"]["summary"]
+    assert summary["about"] == "Makes freight software."
+    assert summary["highlights"] == [{"topic": "funding", "note": "Raised a round"}]
+    assert summary["model"] == "anthropic/claude-haiku-5.5"
+    assert summary["sample"] is True
 
 
 async def test_the_research_tool_says_it_spends_no_credit():

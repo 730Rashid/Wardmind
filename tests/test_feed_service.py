@@ -392,8 +392,13 @@ def test_service_remove_connection_does_nothing_for_an_unknown_id(store: LocalSt
     service.remove_connection("sheet-1")
 
 
-def test_clear_local_cache_leaves_feed_keys_and_drafts_alone(store: LocalStore) -> None:
+def test_clear_local_cache_removes_feed_setups_but_keeps_saved_feed_keys(
+    store: LocalStore,
+) -> None:
+    # An unfinished setup is temporary (it holds a whole fetched source), so clearing the cache
+    # removes it and its key; a saved feed's key is not cache and stays.
     vault.save_secret("feed-1", SECRET)
+    vault.save_secret("draft-0123456789abcdef", SECRET)
     drafts = store.root / "feed-drafts"
     drafts.mkdir(parents=True, exist_ok=True)
     (drafts / "0123456789abcdef.json").write_text("{}", encoding="utf-8")
@@ -401,7 +406,8 @@ def test_clear_local_cache_leaves_feed_keys_and_drafts_alone(store: LocalStore) 
     service.clear_local_cache()
 
     assert vault.get_secret("feed-1") == SECRET
-    assert (drafts / "0123456789abcdef.json").exists()
+    assert vault.get_secret("draft-0123456789abcdef") is None
+    assert not (drafts / "0123456789abcdef.json").exists()
 
 
 # Contacts and client updates ---------------------------------------------------------------------

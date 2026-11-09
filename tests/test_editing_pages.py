@@ -474,7 +474,7 @@ def test_an_invalid_reading_is_refused_with_its_message(
 def test_hide_then_show_again_from_connections(client: TestClient, book: None) -> None:
     hidden = _post(client, f"/accounts/{LARKSPUR}/hide")
     assert hidden.status_code == 303
-    assert hidden.headers["location"] == "/?hidden=Larkspur+Freight"
+    assert hidden.headers["location"] == f"/?hidden={LARKSPUR}"
 
     book_page = client.get(hidden.headers["location"])
     assert book_page.status_code == 200
@@ -497,7 +497,7 @@ def test_hiding_the_only_account_keeps_my_book_with_the_notice(
 ) -> None:
     store.set_hidden(LARKSPUR, True)
     store.set_hidden(QUILLON, True)
-    page = client.get("/?hidden=Quillon+Health", follow_redirects=False)
+    page = client.get(f"/?hidden={QUILLON}", follow_redirects=False)
     assert page.status_code == 200
     assert "Quillon Health is hidden." in _text(page)
 
@@ -531,8 +531,8 @@ def test_delete_asks_first_then_removes_a_hand_added_account(
 
     deleted = _post(client, f"/accounts/{account_id}/delete")
     assert deleted.status_code == 303
-    assert deleted.headers["location"] == "/?deleted=Brindle+Studio"
-    assert "Brindle Studio was deleted." in _text(client.get(deleted.headers["location"]))
+    assert deleted.headers["location"] == "/?deleted=account"
+    assert "The account was deleted." in _text(client.get(deleted.headers["location"]))
     assert client.get(f"/accounts/{account_id}").status_code == 404
     assert all(account.id != account_id for account in store.manual().accounts)
 
@@ -634,7 +634,7 @@ def test_linking_merges_the_accounts_and_unlink_restores_them(
         {"first": LARKSPUR, "second": ACME, "primary": LARKSPUR},
     )
     assert linked.status_code == 303
-    assert linked.headers["location"] == "/duplicates?linked=Larkspur+Freight"
+    assert linked.headers["location"] == f"/duplicates?linked={LARKSPUR}"
     assert "Linked Larkspur Freight." in _text(client.get(linked.headers["location"]))
     assert "Same website" not in _text(client.get("/duplicates"))
 

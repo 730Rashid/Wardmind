@@ -58,7 +58,7 @@ from cs_brief.core.contacts import (
 from cs_brief.core.feeds.http import FeedError, check_url
 from cs_brief.core.importing import DateOrder, Table
 from cs_brief.core.models import Account
-from cs_brief.core.store import CLIENT_UPDATES_FILE, LocalStore
+from cs_brief.core.store import CLIENT_UPDATES_FILE, WRITE_LOCK, LocalStore
 
 CODE_PLACEHOLDER = "CSBRIEFCODE"
 CODE_ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789"  # no 0/O, 1/I/L
@@ -281,9 +281,10 @@ def set_form_link(store: LocalStore, link: str) -> str:
             )
         if len(text) > MAX_LINK:
             raise ValueError(f"Keep the form link under {MAX_LINK} characters.")
-    data = load(store)
-    data.settings = data.settings.model_copy(update={"form_link": text})
-    _save(store, data)
+    with WRITE_LOCK:
+        data = load(store)
+        data.settings = data.settings.model_copy(update={"form_link": text})
+        _save(store, data)
     return text
 
 
@@ -302,49 +303,52 @@ def opt_in(
         raise ValueError("The name of the person who agreed can't contain line breaks.")
     if agreed_on > now.date():
         raise ValueError("The date they agreed can't be in the future.")
-    data = load(store)
-    if account_id in data.consents:
-        raise ValueError("Client updates are already on for this client.")
-    code = _new_code({consent.code for consent in data.consents.values()})
-    consent = Consent(
-        account_id=account_id,
-        code=code,
-        agreed_with=name,
-        agreed_on=agreed_on,
-        created_at=_naive(now),
-    )
-    data.consents[account_id] = consent
-    _save(store, data)
+    with WRITE_LOCK:
+        data = load(store)
+        if account_id in data.consents:
+            raise ValueError("Client updates are already on for this client.")
+        code = _new_code({consent.code for consent in data.consents.values()})
+        consent = Consent(
+            account_id=account_id,
+            code=code,
+            agreed_with=name,
+            agreed_on=agreed_on,
+            created_at=_naive(now),
+        )
+        data.consents[account_id] = consent
+        _save(store, data)
     return consent
 
 
 def new_code(store: LocalStore, account_id: str, *, now: datetime) -> Consent:
     """Give an opted-in account a new code (the old link stops working). LookupError if off."""
-    data = load(store)
-    consent = data.consents.get(account_id)
-    if consent is None:
-        raise LookupError("Client updates are off for this client.")
-    # Every code in use, the account's own old one included, so the new one always differs.
-    code = _new_code({other.code for other in data.consents.values()})
-    updated = consent.model_copy(update={"code": code})
-    data.consents[account_id] = updated
-    _save(store, data)
+    with WRITE_LOCK:
+        data = load(store)
+        consent = data.consents.get(account_id)
+        if consent is None:
+            raise LookupError("Client updates are off for this client.")
+        # Every code in use, the account's own old one included, so the new one always differs.
+        code = _new_code({other.code for other in data.consents.values()})
+        updated = consent.model_copy(update={"code": code})
+        data.consents[account_id] = updated
+        _save(store, data)
     return updated
 
 
 def opt_out(store: LocalStore, account_id: str) -> bool:
     """Turn updates off: delete the consent and the account's PENDING updates. True if it was on."""
-    data = load(store)
-    was_on = data.consents.pop(account_id, None) is not None
-    kept = [
-        update
-        for update in data.updates
-        if not (update.account_id == account_id and update.status is UpdateStatus.PENDING)
-    ]
-    if was_on or len(kept) != len(data.updates):
-        data.updates = kept
-        _save(store, data)
-    return was_on
+    with WRITE_LOCK:
+        data = load(store)
+        was_on = data.consents.pop(account_id, None) is not None
+        kept = [
+            update
+            for update in data.updates
+            if not (update.account_id == account_id and update.status is UpdateStatus.PENDING)
+        ]
+        if was_on or len(kept) != len(data.updates):
+            data.updates = kept
+            _save(store, data)
+        return was_on
 
 
 def update_link(data: ClientUpdatesData, account_id: str) -> str | None:
@@ -365,6 +369,7 @@ def normalize_code(text: str) -> str:
 
 
 _LINE_BREAKS = re.compile(r"[\r\n\t\v\f\u0085  ]+")
+_HIDDEN_CATEGORIES = frozenset({"Cc", "Cf"})  # control and format characters: never kept
 _CHANGE_WORDS = frozenset(
     {"change", "changed", "changes", "changing", "update", "updated", "updates", "updating"}
     | {"moved", "move"}
@@ -436,10 +441,11 @@ def parse_kind(text: str) -> UpdateKind:
 
 
 def _clean_text(text: str, limit: int) -> str:
-    """Client text as kept: line breaks and tabs become spaces, other control characters are
-    removed, runs of spaces collapse, and it is cut to limit characters."""
+    """Client text as kept: line breaks and tabs become spaces, control characters and invisible
+    format characters (Cc and Cf: bidi overrides, zero-width marks) are removed, runs of spaces
+    collapse, and it is cut to limit characters."""
     spaced = _LINE_BREAKS.sub(" ", text)
-    kept = "".join(char for char in spaced if unicodedata.category(char) != "Cc")
+    kept = "".join(char for char in spaced if unicodedata.category(char) not in _HIDDEN_CATEGORIES)
     return " ".join(kept.split())[:limit].rstrip()
 
 
@@ -515,56 +521,59 @@ def ingest(
     date_order (None when it can't be). Raises ValueError when mapping lacks a required question.
     save=False counts what would happen without writing anything (the matching page's preview)."""
     columns = _columns(table, mapping)
-    data = load(store)
-    stamp = _naive(now)
-    known = {update.id for update in data.updates}
-    pending_per_account: dict[str, int] = {}
-    for update in data.updates:
-        if update.status is UpdateStatus.PENDING:
-            pending_per_account[update.account_id] = (
-                pending_per_account.get(update.account_id, 0) + 1
+    # Held from the load to the save: a CSM's opt-out or rejection made meanwhile can't be undone
+    # by writing back this sync's older copy of the file.
+    with WRITE_LOCK:
+        data = load(store)
+        stamp = _naive(now)
+        known = {update.id for update in data.updates}
+        pending_per_account: dict[str, int] = {}
+        for update in data.updates:
+            if update.status is UpdateStatus.PENDING:
+                pending_per_account[update.account_id] = (
+                    pending_per_account.get(update.account_id, 0) + 1
+                )
+        result = IngestResult()
+        added: list[ClientUpdate] = []
+        touched: set[str] = set()
+        for row in table.rows:
+            consent = _consent_for(data, normalize_code(_cell(row, columns, "code")))
+            if consent is None or consent.account_id not in book_ids:
+                result.ignored += 1
+                continue
+            update_id = _update_id(connection_id, row, columns)
+            if update_id in known:
+                result.already_seen += 1
+                continue
+            account_id = consent.account_id
+            if pending_per_account.get(account_id, 0) >= MAX_PENDING_PER_ACCOUNT:
+                result.ignored += 1
+                continue
+            kind_text = _cell(row, columns, "kind")
+            update = ClientUpdate(
+                id=update_id,
+                account_id=account_id,
+                kind=parse_kind(kind_text) if kind_text else UpdateKind.OTHER,
+                status=UpdateStatus.PENDING,
+                received_at=stamp,
+                name=_clean_text(_cell(row, columns, "name"), MAX_NAME),
+                title=_clean_text(_cell(row, columns, "title"), MAX_TITLE),
+                email=_clean_email(_cell(row, columns, "email")),
+                champion=_champion(_cell(row, columns, "champion")),
+                note=_clean_text(_cell(row, columns, "note"), MAX_NOTE),
+                submitted_by=_clean_text(_cell(row, columns, "submitted_by"), MAX_NAME),
+                submitted_at=_submitted(_cell(row, columns, "submitted_at"), date_order),
+                source_connection=connection_id,
             )
-    result = IngestResult()
-    added: list[ClientUpdate] = []
-    touched: set[str] = set()
-    for row in table.rows:
-        consent = _consent_for(data, normalize_code(_cell(row, columns, "code")))
-        if consent is None or consent.account_id not in book_ids:
-            result.ignored += 1
-            continue
-        update_id = _update_id(connection_id, row, columns)
-        if update_id in known:
-            result.already_seen += 1
-            continue
-        account_id = consent.account_id
-        if pending_per_account.get(account_id, 0) >= MAX_PENDING_PER_ACCOUNT:
-            result.ignored += 1
-            continue
-        kind_text = _cell(row, columns, "kind")
-        update = ClientUpdate(
-            id=update_id,
-            account_id=account_id,
-            kind=parse_kind(kind_text) if kind_text else UpdateKind.OTHER,
-            status=UpdateStatus.PENDING,
-            received_at=stamp,
-            name=_clean_text(_cell(row, columns, "name"), MAX_NAME),
-            title=_clean_text(_cell(row, columns, "title"), MAX_TITLE),
-            email=_clean_email(_cell(row, columns, "email")),
-            champion=_champion(_cell(row, columns, "champion")),
-            note=_clean_text(_cell(row, columns, "note"), MAX_NOTE),
-            submitted_by=_clean_text(_cell(row, columns, "submitted_by"), MAX_NAME),
-            submitted_at=_submitted(_cell(row, columns, "submitted_at"), date_order),
-            source_connection=connection_id,
-        )
-        added.append(update)
-        known.add(update_id)
-        pending_per_account[account_id] = pending_per_account.get(account_id, 0) + 1
-        touched.add(account_id)
-        result.new += 1
-    result.accounts = len(touched)
-    if save and added:
-        data.updates.extend(added)
-        _save(store, data)
+            added.append(update)
+            known.add(update_id)
+            pending_per_account[account_id] = pending_per_account.get(account_id, 0) + 1
+            touched.add(account_id)
+            result.new += 1
+        result.accounts = len(touched)
+        if save and added:
+            data.updates.extend(added)
+            _save(store, data)
     return result
 
 
@@ -691,67 +700,72 @@ def accept(
     applied (the CSM has read it). Source is ContactSource.CLIENT. LookupError for an unknown or
     decided update; ValueError (plain) when LEFT/CHANGE has no contact to apply to, or values
     don't validate. Nothing is changed when it raises."""
-    data = load(store)
-    update = _find_pending(data, update_id)
-    stamp = _naive(now)
-    kind = update.kind
-    if kind is UpdateKind.ADD:
-        typed = values if values is not None else _own_values(update)
-        contacts.add_contact(
-            store, update.account_id, typed, source=ContactSource.CLIENT, now=stamp
-        )
-    elif kind is UpdateKind.LEFT:
-        target = _chosen(contacts.contacts_for(store, update.account_id), update, contact_id)
-        if left_on is not None:
-            when = left_on
-        elif update.submitted_at is not None:
-            when = update.submitted_at.date()
-        else:
-            when = stamp.date()
-        contacts.mark_left(
-            store,
-            update.account_id,
-            target.id,
-            left_on=when,
-            source=ContactSource.CLIENT,
-            now=stamp,
-        )
-    elif kind is UpdateKind.CHANGE:
-        target = _chosen(contacts.contacts_for(store, update.account_id), update, contact_id)
-        typed = values if values is not None else _changed_values(update, target)
-        contacts.update_contact(
-            store,
-            update.account_id,
-            target.id,
-            typed,
-            source=ContactSource.CLIENT,
-            now=stamp,
-        )
-    # OTHER applies nothing: the CSM has read it.
-    data = load(store)
-    _replace(data, _decided(update, UpdateStatus.ACCEPTED, stamp))
-    _save(store, data)
+    with WRITE_LOCK:
+        data = load(store)
+        update = _find_pending(data, update_id)
+        stamp = _naive(now)
+        kind = update.kind
+        if kind is UpdateKind.ADD:
+            typed = values if values is not None else _own_values(update)
+            contacts.add_contact(
+                store, update.account_id, typed, source=ContactSource.CLIENT, now=stamp
+            )
+        elif kind is UpdateKind.LEFT:
+            target = _chosen(contacts.contacts_for(store, update.account_id), update, contact_id)
+            if left_on is not None:
+                when = left_on
+            elif update.submitted_at is not None:
+                when = update.submitted_at.date()
+            else:
+                when = stamp.date()
+            contacts.mark_left(
+                store,
+                update.account_id,
+                target.id,
+                left_on=when,
+                source=ContactSource.CLIENT,
+                now=stamp,
+            )
+        elif kind is UpdateKind.CHANGE:
+            target = _chosen(contacts.contacts_for(store, update.account_id), update, contact_id)
+            typed = values if values is not None else _changed_values(update, target)
+            contacts.update_contact(
+                store,
+                update.account_id,
+                target.id,
+                typed,
+                source=ContactSource.CLIENT,
+                now=stamp,
+            )
+        # OTHER applies nothing: the CSM has read it.
+        data = load(store)
+        _replace(data, _decided(update, UpdateStatus.ACCEPTED, stamp))
+        _save(store, data)
     return kind
 
 
 def reject(store: LocalStore, update_id: str, *, now: datetime) -> None:
     """Mark it REJECTED and clear its text. LookupError for an unknown or decided update."""
-    data = load(store)
-    update = _find_pending(data, update_id)
-    _replace(data, _decided(update, UpdateStatus.REJECTED, _naive(now)))
-    _save(store, data)
+    with WRITE_LOCK:
+        data = load(store)
+        update = _find_pending(data, update_id)
+        _replace(data, _decided(update, UpdateStatus.REJECTED, _naive(now)))
+        _save(store, data)
 
 
 def forget(store: LocalStore, gone: Callable[[str], bool]) -> None:
     """Drop the consents and updates of every account id for which gone(id) is true
     (service.remove_connection and editing.delete_account call it, like contacts.forget)."""
-    data = load(store)
-    consents = {account: consent for account, consent in data.consents.items() if not gone(account)}
-    updates = [update for update in data.updates if not gone(update.account_id)]
-    if len(consents) != len(data.consents) or len(updates) != len(data.updates):
-        data.consents = consents
-        data.updates = updates
-        _save(store, data)
+    with WRITE_LOCK:
+        data = load(store)
+        consents = {
+            account: consent for account, consent in data.consents.items() if not gone(account)
+        }
+        updates = [update for update in data.updates if not gone(update.account_id)]
+        if len(consents) != len(data.consents) or len(updates) != len(data.updates):
+            data.consents = consents
+            data.updates = updates
+            _save(store, data)
 
 
 def move_account(store: LocalStore, from_id: str, to_id: str) -> None:
@@ -759,19 +773,20 @@ def move_account(store: LocalStore, from_id: str, to_id: str) -> None:
     already has one (then from_id's is dropped)."""
     if from_id == to_id:
         return
-    data = load(store)
-    changed = False
-    updates: list[ClientUpdate] = []
-    for update in data.updates:
-        if update.status is UpdateStatus.PENDING and update.account_id == from_id:
-            update = update.model_copy(update={"account_id": to_id})
+    with WRITE_LOCK:
+        data = load(store)
+        changed = False
+        updates: list[ClientUpdate] = []
+        for update in data.updates:
+            if update.status is UpdateStatus.PENDING and update.account_id == from_id:
+                update = update.model_copy(update={"account_id": to_id})
+                changed = True
+            updates.append(update)
+        consent = data.consents.pop(from_id, None)
+        if consent is not None:
             changed = True
-        updates.append(update)
-    consent = data.consents.pop(from_id, None)
-    if consent is not None:
-        changed = True
-        if to_id not in data.consents:
-            data.consents[to_id] = consent.model_copy(update={"account_id": to_id})
-    if changed:
-        data.updates = updates
-        _save(store, data)
+            if to_id not in data.consents:
+                data.consents[to_id] = consent.model_copy(update={"account_id": to_id})
+        if changed:
+            data.updates = updates
+            _save(store, data)

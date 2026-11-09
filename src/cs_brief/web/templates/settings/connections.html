@@ -43,7 +43,7 @@
           <th scope="row" class="cell-connection">
             <span class="connection-name">{{ config.name }}</span>
             {% if line.source %}<span class="connection-source">{{ line.source }}</span>{% endif %}
-            <form class="include-form" method="post" action="/settings/connections/{{ config.id }}/enabled">
+            <form class="include-form" method="post" action="/settings/connections/{{ config.id | idpath }}/enabled">
               <label class="choice"><input type="checkbox" name="enabled" value="1" data-autosubmit{% if config.enabled %} checked{% endif %}> Include in my book</label>
               <button type="submit" class="button no-js-only">Save</button>
             </form>
@@ -73,25 +73,25 @@
             <form class="inline-form" method="post" action="/settings/connections/refresh">
               <button type="submit" class="button">Refresh</button>
             </form>
-            <a class="button" href="/settings/connections/{{ config.id }}/remove">Remove</a>
+            <a class="button" href="/settings/connections/{{ config.id | idpath }}/remove">Remove</a>
             {% elif config.kind.value == "spreadsheet" %}
             <a class="button" href="/import?target={{ config.id }}&amp;back=connections">Import again</a>
             <details class="rename"{% if rename_errors.get(config.id) %} open{% endif %}>
               <summary class="button">Rename</summary>
-              <form class="rename-form" method="post" action="/settings/connections/{{ config.id }}/rename">
+              <form class="rename-form" method="post" action="/settings/connections/{{ config.id | idpath }}/rename">
                 <label for="rename-{{ config.id }}">Name</label>
                 <input type="text" id="rename-{{ config.id }}" name="name" value="{{ rename_values.get(config.id, config.name) }}" maxlength="60" autocomplete="off"{% if rename_errors.get(config.id) %} aria-invalid="true" aria-describedby="rename-{{ config.id }}-error"{% endif %}>
                 <button type="submit" class="button">Save name</button>
               </form>
             </details>
-            <a class="button" href="/settings/connections/{{ config.id }}/remove">Remove</a>
+            <a class="button" href="/settings/connections/{{ config.id | idpath }}/remove">Remove</a>
             {% elif config.kind.value == "feed" %}
             {% if line.is_updates %}<a class="button" href="/client-updates">Review updates</a>{% endif %}
-            <form class="inline-form" method="post" action="/settings/connections/{{ config.id }}/sync">
+            <form class="inline-form" method="post" action="/settings/connections/{{ config.id | idpath }}/sync">
               <button type="submit" class="button">Sync now</button>
             </form>
-            <a class="button" href="/connections/add/{{ line.provider_id }}?connection={{ config.id }}">Change settings</a>
-            <a class="button" href="/settings/connections/{{ config.id }}/remove">Remove</a>
+            <a class="button" href="/connections/add/{{ line.provider_id | idpath }}?connection={{ config.id }}">Change settings</a>
+            <a class="button" href="/settings/connections/{{ config.id | idpath }}/remove">Remove</a>
             {% else %}
             <a class="button" href="/accounts/new">Add an account</a>
             {% endif %}
@@ -112,7 +112,7 @@
       {% for account_id, name in hidden_accounts %}
       <li>
         <span>{{ name }}</span>
-        <form class="inline-form" method="post" action="/settings/connections/hidden/{{ account_id | urlencode }}/show">
+        <form class="inline-form" method="post" action="/settings/connections/hidden/{{ account_id | idpath }}/show">
           <button type="submit" class="button">Show again</button>
         </form>
       </li>

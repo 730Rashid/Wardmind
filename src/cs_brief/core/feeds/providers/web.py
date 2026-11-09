@@ -14,7 +14,13 @@ from urllib.parse import parse_qs, urljoin, urlsplit
 from cs_brief.core import importing
 from cs_brief.core.feeds import catalog
 from cs_brief.core.feeds.http import FeedError, FeedHttp, check_url, same_origin
-from cs_brief.core.feeds.providers.base import MAX_PAGES, json_path, records_to_table
+from cs_brief.core.feeds.providers.base import (
+    MAX_PAGES,
+    MAX_ROWS,
+    MAX_TOTAL_BYTES,
+    json_path,
+    records_to_table,
+)
 from cs_brief.core.importing import Table
 
 # An HTTP header name: a token (RFC 7230), so no spaces, colons or line breaks.
@@ -122,6 +128,8 @@ def _json_records(data: object, records_path: str) -> list[object]:
 def _decode_json(body: bytes) -> object:
     try:
         return json.loads(body.decode("utf-8-sig"))
+    except RecursionError:  # json nests by recursion, so a very deep document ends here
+        raise FeedError("That JSON is nested too deeply.") from None
     except (UnicodeDecodeError, ValueError):
         raise FeedError("The web address didn't send JSON.") from None
 
@@ -224,7 +232,10 @@ class GoogleSheetsProvider:
         body = response.content
         if _is_html(body, response.headers.get("content-type", "")):
             raise FeedError(_SIGN_IN)
-        return importing.read_csv(body, "Google Sheets")
+        try:
+            return importing.read_csv(body, "Google Sheets")
+        except importing.ImportError_ as exc:
+            raise FeedError(str(exc)) from None
 
     def source_mtime(self, settings: dict[str, str]) -> float | None:
         return None
@@ -266,10 +277,21 @@ class JsonApiProvider:
         next_path = _text_of(settings.get("next_path"))
         records: list[object] = []
         visited: set[str] = set()
+        total_bytes = 0
         for page in range(1, MAX_PAGES + 1):
             visited.add(current)
-            data = http.get_json(current, headers=headers, auth=auth)
-            records.extend(_json_records(data, records_path))
+            body = http.get(current, headers=headers, auth=auth).content
+            total_bytes += len(body)
+            if total_bytes > MAX_TOTAL_BYTES:
+                raise FeedError(
+                    f"That source sent more than {MAX_TOTAL_BYTES // 1_000_000} MB in total."
+                )
+            data = _decode_json(body)
+            records.extend(
+                record for record in _json_records(data, records_path) if isinstance(record, dict)
+            )
+            if len(records) > MAX_ROWS:
+                raise FeedError(f"That source has more than {MAX_ROWS:,} rows.")
             following = _next_url(data, next_path, current, first) if next_path else None
             if following is None or following in visited:
                 break

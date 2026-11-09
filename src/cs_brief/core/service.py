@@ -35,7 +35,13 @@ from cs_brief.core.models import Account, Motion, ScoredAccount, Signal
 from cs_brief.core.onboarding import OnboardingBrief, onboarding_brief
 from cs_brief.core.scoring import score_book
 from cs_brief.core.settings import DataSource, Settings, load_settings, save_settings
-from cs_brief.core.store import ConnectionConfig, ConnectionKind, LocalStore, connection_for
+from cs_brief.core.store import (
+    WRITE_LOCK,
+    ConnectionConfig,
+    ConnectionKind,
+    LocalStore,
+    connection_for,
+)
 
 _log = logging.getLogger(__name__)
 
@@ -158,16 +164,17 @@ def remove_connection(connection_id: str) -> None:
     so every caller removes a feed the same way. HubSpot's saved token is not touched here (the
     Connections page removes it). An unknown id does nothing. Shared connectors are forgotten."""
     store = get_store()
-    config = store.get_connection(connection_id)
-    store.remove_connection(connection_id)
+    with WRITE_LOCK:  # a sync that is reading this feed can't write its data back afterwards
+        config = store.get_connection(connection_id)
+        store.remove_connection(connection_id)
 
-    def owned(account_id: str) -> bool:
-        return connection_for(account_id) == connection_id
+        def owned(account_id: str) -> bool:
+            return connection_for(account_id) == connection_id
 
-    contacts.forget(store, owned)
-    client_updates.forget(store, owned)
-    if config is not None and config.kind is ConnectionKind.FEED:
-        feed_setup.remove_feed_secret(connection_id)
+        contacts.forget(store, owned)
+        client_updates.forget(store, owned)
+        if config is not None and config.kind is ConnectionKind.FEED:
+            feed_setup.remove_feed_secret(connection_id)
     reset_connectors()
 
 
@@ -371,8 +378,9 @@ def set_web_research(on: bool) -> None:
 
 
 def clear_local_cache(now: datetime | None = None) -> CacheCleared:
-    """Delete what cs-brief keeps only to save time: saved web research (sample news included)
-    and unfinished imports (import_flow drafts). Also forgets in-memory connector caches
+    """Delete what cs-brief keeps only to save time: saved web research (sample news included),
+    unfinished imports (import_flow drafts) and unfinished feed setups (their drafts and keys,
+    whatever their age). Also forgets in-memory connector caches
     (reset_connectors), so the next page load re-reads every connection. Never touches
     connections, imported accounts, hand-added accounts, edits, readings, links, hidden accounts,
     settings or the token."""
@@ -382,6 +390,7 @@ def clear_local_cache(now: datetime | None = None) -> CacheCleared:
         drafts=import_flow.clear_drafts(store),
         summaries=summary_store().clear(),
     )
+    feed_setup.clear_feed_drafts(store)
     reset_connectors()
     return cleared
 
@@ -616,7 +625,9 @@ def check_openrouter_key() -> summaries.KeyInfo:
 # --- Data feeds (see core/feeds) -------------------------------------------------------------
 
 _feed_scheduler: feed_sync.FeedScheduler | None = None
-_FEED_FAILED = "cs-brief couldn't finish this sync. Try Sync now."
+_FEED_FAILED = feed_sync.SYNC_FAILED
+_HOUSEKEEPING_EVERY = timedelta(hours=1)
+_last_housekeeping: datetime | None = None  # when sync_due_feeds last ran housekeeping
 
 
 def _utc_now() -> datetime:
@@ -663,11 +674,31 @@ def sync_feed_now(connection_id: str) -> feed_sync.SyncOutcome:
     return outcome
 
 
+def housekeeping(now: datetime | None = None) -> None:
+    """Delete what has run out of time: unfinished imports and feed setups older than their 24
+    hours, with their feed keys, and feed keys left with no setup. Never raises: a failure is
+    logged by its exception type only, and the other clean-up still runs."""
+    moment = now if now is not None else _utc_now()
+    try:
+        import_flow.purge_old_drafts(get_store(), now=moment)
+    except Exception as exc:
+        _log.warning("Old imports weren't cleared (%s).", type(exc).__name__)
+    try:
+        feed_setup.purge_old_feed_drafts(get_store(), now=moment)
+    except Exception as exc:
+        _log.warning("Old feed setups weren't cleared (%s).", type(exc).__name__)
+
+
 def sync_due_feeds() -> int:
     """Sync every enabled feed that feed_sync.is_due says is due, one after another; return how
-    many were synced. Never raises for one feed's problem (it lands in that feed's status)."""
+    many were synced. Never raises for one feed's problem (it lands in that feed's status).
+    Runs housekeeping at most once an hour."""
+    global _last_housekeeping
     store = get_store()
     now = _utc_now()
+    if _last_housekeeping is None or now - _last_housekeeping >= _HOUSEKEEPING_EVERY:
+        _last_housekeeping = now
+        housekeeping(now)
     synced = 0
     for config in store.connections():
         feed = config.feed
@@ -691,19 +722,23 @@ def sync_due_feeds() -> int:
 
 def _record_failure(store: LocalStore, connection_id: str, now: datetime) -> None:
     """Show an unexpected failure on the feed's status, so the CSM sees it and it is retried."""
-    latest = store.get_connection(connection_id)
-    if latest is None or latest.feed is None:
-        return
-    status = latest.feed.status.model_copy(
-        update={"last_attempt_at": now, "last_error": _FEED_FAILED}
-    )
-    feed = latest.feed.model_copy(update={"status": status})
-    store.update_connection(latest.model_copy(update={"feed": feed}))
+    with WRITE_LOCK:
+        latest = store.get_connection(connection_id)
+        if latest is None or latest.feed is None:
+            return
+        status = latest.feed.status.model_copy(
+            update={"last_attempt_at": now, "last_error": _FEED_FAILED}
+        )
+        feed = latest.feed.model_copy(update={"status": status})
+        store.update_connection(latest.model_copy(update={"feed": feed}))
 
 
 def start_feed_scheduler() -> None:
-    """Start the background scheduler (idempotent). The web app calls it on startup."""
-    global _feed_scheduler
+    """Start the background scheduler (idempotent). The web app calls it on startup. Runs
+    housekeeping once before the first tick, which then waits its hour."""
+    global _feed_scheduler, _last_housekeeping
+    _last_housekeeping = _utc_now()
+    housekeeping(_last_housekeeping)
     if _feed_scheduler is None:
         _feed_scheduler = feed_sync.FeedScheduler(tick=sync_due_feeds)
     _feed_scheduler.start()
@@ -767,4 +802,16 @@ def delete_all_local_data() -> None:
     Environment variables are not touched (the page tells the CSM to remove those). Turns web
     research and AI summaries off and forgets shared connectors. Holds store.WRITE_LOCK so a
     running sync can't write anything back. Never raises for a file that is already gone."""
-    raise NotImplementedError
+    store = get_store()
+    with WRITE_LOCK:
+        store.clear_all()
+        import_flow.clear_drafts(store)
+        secrets.delete_hubspot_token()
+        secrets.delete_openrouter_key()
+        secrets.delete_all_feed_secrets()
+        research_cache().clear()
+        summary_store().clear()
+        save_settings(
+            load_settings().model_copy(update={"web_research": False, "ai_summaries": False})
+        )
+        reset_connectors()

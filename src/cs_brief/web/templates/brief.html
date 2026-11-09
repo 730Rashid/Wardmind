@@ -79,7 +79,7 @@
       {% for item in brief.top %}
       <li>
         <p class="top-line">
-          <a class="account-link" href="/accounts/{{ item.account.id | urlencode }}">{{ item.account.name }}</a>
+          <a class="account-link" href="/accounts/{{ item.account.id | idpath }}">{{ item.account.name }}</a>
           <span class="health health--{{ item.health.value }}"><svg class="icon" aria-hidden="true" focusable="false"><use href="/static/icons.svg#health-{{ item.health.value | replace('_', '-') }}"/></svg> {{ item.health.label }}</span>
           <span class="top-motion">{{ motion_labels[item.motion] }}</span>
           <span class="num">{{ item.account.arr | money }}</span>

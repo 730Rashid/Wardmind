@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import os
 import sqlite3
+import time
 from pathlib import Path
 from typing import Any
 
@@ -15,8 +16,16 @@ from cs_brief.core import importing
 from cs_brief.core.feeds import catalog
 from cs_brief.core.feeds.http import MAX_BYTES, FeedError, FeedHttp
 from cs_brief.core.feeds.providers.base import MAX_ROWS, cell_text
-from cs_brief.core.importing import Table
+from cs_brief.core.importing import (
+    CELL_TOO_LONG_MESSAGE,
+    MAX_CELL_CHARS,
+    MAX_COLUMNS,
+    TOO_MANY_COLUMNS_MESSAGE,
+    Table,
+)
 
+SQLITE_SECONDS = 30  # a query still running after this is stopped with a FeedError
+_PROGRESS_STEPS = 10_000  # SQLite virtual-machine steps between checks of the deadline
 _FILE_SUFFIXES = (".csv", ".tsv", ".txt", ".xlsx")
 _NOT_SUFFIX = "cs-brief can't read {kind}. Save it as .xlsx, CSV or TSV and try again."
 _ALLOWED_ACTIONS = frozenset(
@@ -102,18 +111,39 @@ class SqliteProvider:
             connection = sqlite3.connect(f"{path.resolve().as_uri()}?mode=ro", uri=True)
         except sqlite3.Error:
             raise FeedError("cs-brief couldn't open that file as a SQLite database.") from None
+        timed_out = False
+        deadline = time.monotonic() + SQLITE_SECONDS
+
+        def out_of_time() -> int:
+            nonlocal timed_out
+            if time.monotonic() < deadline:
+                return 0
+            timed_out = True
+            return 1  # a non-zero answer stops the query
+
         try:
             connection.set_authorizer(_authorize)
+            connection.set_progress_handler(out_of_time, _PROGRESS_STEPS)
+            # A value longer than a cell can hold fails inside SQLite, before it is copied here.
+            connection.setlimit(sqlite3.SQLITE_LIMIT_LENGTH, 4 * MAX_CELL_CHARS)
             cursor = connection.execute(query)
             if cursor.description is None:
                 raise FeedError("The query has to be a SELECT that returns columns.")
             names = [column[0] for column in cursor.description]
+            if len(names) > MAX_COLUMNS:
+                raise FeedError(TOO_MANY_COLUMNS_MESSAGE)
             fetched = cursor.fetchmany(MAX_ROWS + 1)
         except FeedError:
             raise
         except sqlite3.ProgrammingError:
             raise FeedError("Write one SELECT query, not several statements.") from None
         except sqlite3.Error as exc:
+            if timed_out:
+                raise FeedError(
+                    f"That query took longer than {SQLITE_SECONDS} seconds. Make it simpler."
+                ) from None
+            if "too big" in str(exc).casefold():
+                raise FeedError(CELL_TOO_LONG_MESSAGE) from None
             raise FeedError(_query_problem(exc)) from None
         finally:
             connection.close()
@@ -139,20 +169,19 @@ def _query_problem(exc: sqlite3.Error) -> str:
 
 def _table(names: list[str], fetched: list[tuple[Any, ...]], *, source_name: str) -> Table:
     """The result as text cells. Column names are made unique, blank ones numbered, and fully
-    blank rows dropped, like records_to_table."""
-    headers: list[str] = []
-    for position, name in enumerate(names, 1):
-        base = name.strip() or f"Column {position}"
-        header, copy = base, 2
-        while header in headers:
-            header = f"{base} ({copy})"
-            copy += 1
-        headers.append(header)
+    blank rows dropped, like records_to_table. More than MAX_COLUMNS columns, or a value longer
+    than MAX_CELL_CHARS, is a FeedError."""
+    if len(names) > MAX_COLUMNS:
+        raise FeedError(TOO_MANY_COLUMNS_MESSAGE)
+    headers = importing._unique_headers([name.strip() for name in names])
     rows: list[list[str]] = []
     for values in fetched:
         cells = [
             cell_text(v.decode("utf-8", "replace") if isinstance(v, bytes) else v) for v in values
         ]
-        if any(cells):
-            rows.append(cells)
+        if not any(cells):
+            continue
+        if any(len(cell) > MAX_CELL_CHARS for cell in cells):
+            raise FeedError(CELL_TOO_LONG_MESSAGE)
+        rows.append(cells)
     return Table(source_name=source_name, headers=headers, rows=rows)

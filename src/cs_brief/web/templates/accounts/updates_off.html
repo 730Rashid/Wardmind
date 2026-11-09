@@ -1,14 +1,14 @@
 {% extends "base.html" %}
 {% block content %}
 <div class="stack confirm">
-  <p class="date-line"><a href="/accounts/{{ account.id | urlencode }}">Back to {{ account.name }}</a></p>
+  <p class="date-line"><a href="/accounts/{{ account.id | idpath }}">Back to {{ account.name }}</a></p>
   <h1 class="page-title">Turn off client updates for {{ account.name }}?</h1>
   <p class="prose">Their update link stops working. {% if pending %}The {{ pending }} {{ 'update' if pending == 1 else 'updates' }} waiting for your review from this client {{ 'is' if pending == 1 else 'are' }} deleted with it.{% else %}No updates from this client are waiting, so nothing is deleted.{% endif %}</p>
   <div class="error-actions">
-    <form class="inline-form" method="post" action="/accounts/{{ account.id | urlencode }}/client-updates/off">
+    <form class="inline-form" method="post" action="/accounts/{{ account.id | idpath }}/client-updates/off">
       <button type="submit" class="button-primary">Turn off client updates</button>
     </form>
-    <a class="button" href="/accounts/{{ account.id | urlencode }}">Keep them on</a>
+    <a class="button" href="/accounts/{{ account.id | idpath }}">Keep them on</a>
   </div>
 </div>
 {% endblock %}

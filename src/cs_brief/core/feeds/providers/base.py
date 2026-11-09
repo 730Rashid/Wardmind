@@ -12,10 +12,17 @@ from typing import Any, Protocol
 
 from cs_brief.core.feeds.http import FeedError, FeedHttp
 from cs_brief.core.feeds.models import ProviderInfo
-from cs_brief.core.importing import Table
+from cs_brief.core.importing import (
+    CELL_TOO_LONG_MESSAGE,
+    MAX_CELL_CHARS,
+    MAX_COLUMNS,
+    TOO_MANY_COLUMNS_MESSAGE,
+    Table,
+)
 
 MAX_ROWS = 50_000  # a source with more rows is refused with a FeedError, not cut off
 MAX_PAGES = 100  # pagination stops here with a FeedError, so a loop can't run forever
+MAX_TOTAL_BYTES = 100_000_000  # a paginated source whose pages add up to more is refused
 
 # Mail providers whose domain says nothing about the customer's company.
 _FREE_MAIL = frozenset(
@@ -76,7 +83,8 @@ def records_to_table(
     become their items joined with ", " (objects in lists are skipped); None becomes "";
     numbers keep their JSON text (no "1.0" for 1); booleans become "true"/"false". Headers
     follow `columns` when given (missing keys give ""), else first-seen order across all
-    records. Raises FeedError when there are more than MAX_ROWS records."""
+    records. Raises FeedError when there are more than MAX_ROWS records, more than MAX_COLUMNS
+    columns, or a cell longer than MAX_CELL_CHARS."""
     if len(records) > MAX_ROWS:
         raise FeedError(f"This source has more than {MAX_ROWS:,} rows. Export fewer rows.")
     flat = [_flatten(record) for record in records if isinstance(record, dict)]
@@ -84,27 +92,41 @@ def records_to_table(
         found: dict[str, None] = {}  # first-seen order, no repeats
         for row in flat:
             found.update(dict.fromkeys(row))
+            if len(found) > MAX_COLUMNS:
+                raise FeedError(TOO_MANY_COLUMNS_MESSAGE)
         names = list(found)
     else:
         names = list(columns)
+        if len(names) > MAX_COLUMNS:
+            raise FeedError(TOO_MANY_COLUMNS_MESSAGE)
     headers = [name.strip() or f"Column {position}" for position, name in enumerate(names, 1)]
     rows: list[list[str]] = []
     for row in flat:
         cells = [row.get(name, "") for name in names]
-        if any(cells):  # a fully blank record is no row
-            rows.append(cells)
+        if not any(cells):  # a fully blank record is no row
+            continue
+        if any(len(cell) > MAX_CELL_CHARS for cell in cells):
+            raise FeedError(CELL_TOO_LONG_MESSAGE)
+        rows.append(cells)
     return Table(source_name=source_name, headers=headers, rows=rows)
 
 
 def _flatten(record: dict[str, Any], prefix: str = "") -> dict[str, str]:
-    """One record as text cells: nested objects become "parent.child" keys."""
+    """One record as text cells: nested objects become "parent.child" keys. The nesting is walked
+    with an explicit stack, not recursion, so a deeply nested record can't hit Python's recursion
+    limit. Keys come out in the same order a recursive walk would give."""
     cells: dict[str, str] = {}
-    for key, value in record.items():
-        name = f"{prefix}{key}"
-        if isinstance(value, dict):
-            cells.update(_flatten(value, f"{name}."))
-        else:
+    stack = [(iter(record.items()), prefix)]
+    while stack:
+        items, path = stack[-1]
+        for key, value in items:
+            name = f"{path}{key}"
+            if isinstance(value, dict):
+                stack.append((iter(value.items()), f"{name}."))
+                break
             cells[name] = cell_text(value)
+        else:
+            stack.pop()
     return cells
 
 

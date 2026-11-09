@@ -74,6 +74,9 @@ _CHECK_SAMPLE = 50  # companies sampled by check_connection for the property che
 _TICKET_BATCH = 100
 _SEARCH_PAGE = 100  # the search API's largest page
 _SEARCH_CAP = 10_000  # the search API returns at most this many results
+MAX_PAGES = 200  # pages of one list or search; a longer one stops with a HubSpotError
+MAX_BODY_BYTES = 25_000_000  # per response body; a larger one stops with a HubSpotError
+_CODED_HEADERS = frozenset({"content-encoding", "content-length", "transfer-encoding"})
 _TRUE_WORDS = frozenset({"true", "yes", "1"})
 _FALSE_WORDS = frozenset({"false", "no", "0"})
 _EPOCH_MS = re.compile(r"\d{10,}")  # HubSpot date properties come back as epoch milliseconds
@@ -86,6 +89,11 @@ _UNAUTHORIZED = (
 _RATE_LIMITED = "HubSpot is limiting requests right now. Wait a minute and try again."
 _UNAVAILABLE = "Couldn't reach HubSpot. Check your internet connection and try again."
 _LOOPING = "HubSpot kept sending the same page, so cs-brief stopped. Try again in a minute."
+_TOO_MANY_PAGES = (
+    "HubSpot sent more pages than cs-brief reads in one go, so cs-brief stopped. "
+    "Narrow what is shared with cs-brief in HubSpot and try again."
+)
+_TOO_LARGE = "HubSpot sent more data than cs-brief reads in one reply, so cs-brief stopped."
 _UNREADABLE = "HubSpot sent a reply cs-brief couldn't read. Try again in a minute."
 _ACCEPTED = "HubSpot accepted the access token."
 _SKIPPED_NO_TOKEN = "Skipped until the token works."
@@ -482,6 +490,7 @@ def _iter_pages(
     query string; POST sends it in the JSON body."""
     after: str | None = None
     seen: set[str] = set()
+    pages = 0
     while True:
         query = dict(params or {})
         body = dict(json) if json is not None else None
@@ -491,12 +500,15 @@ def _iter_pages(
             else:
                 body = {**(body or {}), "after": after}
         page = client.request(method, key, params=query or None, json=body)
+        pages += 1
         yield page
         after = _next_after(page)
         if after is None:
             return
         if after in seen:
             raise HubSpotError(_LOOPING)
+        if pages >= MAX_PAGES:
+            raise HubSpotError(_TOO_MANY_PAGES)
         seen.add(after)
 
 
@@ -605,7 +617,7 @@ class HubSpotClient:
         attempt = 0
         while True:
             try:
-                response = self._http.request(method, path, params=params, json=json)
+                response = self._fetch(method, path, params, json)
             except httpx.TransportError as exc:
                 if attempt >= self._max_retries:
                     raise HubSpotUnavailable(_UNAVAILABLE) from exc
@@ -627,6 +639,35 @@ class HubSpotClient:
                 attempt += 1
                 continue
             return response
+
+    def _fetch(
+        self,
+        method: str,
+        path: str,
+        params: dict[str, Any] | None,
+        json: dict[str, Any] | None,
+    ) -> httpx.Response:
+        """One request whose body is read in pieces, so a reply over MAX_BODY_BYTES stops early
+        with a HubSpotError instead of filling memory. The returned response holds the decoded
+        body, with the encoding headers removed so it isn't decoded twice."""
+        request = self._http.build_request(method, path, params=params, json=json)
+        response = self._http.send(request, stream=True)
+        try:
+            body = bytearray()
+            for chunk in response.iter_bytes():
+                body.extend(chunk)
+                if len(body) > MAX_BODY_BYTES:
+                    raise HubSpotError(_TOO_LARGE)
+        finally:
+            response.close()
+        headers = [
+            (name, value)
+            for name, value in response.headers.multi_items()
+            if name.lower() not in _CODED_HEADERS
+        ]
+        return httpx.Response(
+            response.status_code, headers=headers, content=bytes(body), request=request
+        )
 
     def _read(self, response: httpx.Response) -> dict[str, Any]:
         try:

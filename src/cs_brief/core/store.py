@@ -24,6 +24,7 @@ before changing them.
 
 from __future__ import annotations
 
+import functools
 import json
 import os
 import re
@@ -34,7 +35,7 @@ from collections.abc import Callable
 from datetime import UTC, date, datetime
 from enum import StrEnum
 from pathlib import Path
-from typing import Any
+from typing import Any, ParamSpec, TypeVar
 
 from pydantic import BaseModel, Field, TypeAdapter
 
@@ -95,6 +96,8 @@ CLIENT_UPDATES_FILE = "client_updates.json"
 # Hold it around load -> change -> save, never around network calls. Re-entrant, so helpers
 # that take it can call each other.
 WRITE_LOCK = threading.RLock()
+_P = ParamSpec("_P")
+_R = TypeVar("_R")
 
 _ALL_FILES = (
     _CONNECTIONS_FILE,
@@ -242,6 +245,18 @@ def _as_date(value: Any) -> Any:
     return value
 
 
+def _locked(method: Callable[_P, _R]) -> Callable[_P, _R]:
+    """Run a mutating LocalStore method holding WRITE_LOCK, so its load -> change -> save is one
+    step that no feed sync or other thread can interleave with."""
+
+    @functools.wraps(method)
+    def locked(*args: _P.args, **kwargs: _P.kwargs) -> _R:
+        with WRITE_LOCK:
+            return method(*args, **kwargs)
+
+    return locked
+
+
 class LocalStore:
     """Typed access to the files above. Every write is atomic; reads never raise."""
 
@@ -268,6 +283,7 @@ class LocalStore:
     def get_connection(self, connection_id: str) -> ConnectionConfig | None:
         return next((c for c in self.connections() if c.id == connection_id), None)
 
+    @_locked
     def add_connection(self, kind: ConnectionKind, name: str) -> ConnectionConfig:
         """HUBSPOT and MANUAL use their fixed ids and are returned as-is if they already exist.
         SPREADSHEET gets the next free "sheet-<n>" id, and FEED the next free "feed-<n>" id (its
@@ -317,6 +333,7 @@ class LocalStore:
                     numbers.append(int(m.group(1)))
         return max(numbers, default=0) + 1
 
+    @_locked
     def update_connection(self, config: ConnectionConfig) -> None:
         """Replace the connection with the same id. An unknown id is ignored, so a stale copy
         can't bring back a removed connection."""
@@ -326,6 +343,7 @@ class LocalStore:
         configs = [config if c.id == config.id else c for c in configs]
         _save(self._path(_CONNECTIONS_FILE), _CONNECTIONS_ADAPTER, configs)
 
+    @_locked
     def remove_connection(self, connection_id: str) -> None:
         """Remove it and its sheet snapshot. Edits, notices, hidden ids and link members that
         point at its accounts are removed too (ids are prefixed per connection, see ids below)."""
@@ -386,6 +404,7 @@ class LocalStore:
     def manual(self) -> ManualData:
         return _load(self._path(_MANUAL_FILE), _MANUAL_ADAPTER, ManualData)
 
+    @_locked
     def save_manual(self, data: ManualData) -> None:
         _save(self._path(_MANUAL_FILE), _MANUAL_ADAPTER, data)
 
@@ -396,6 +415,7 @@ class LocalStore:
             return None
         return _load(path, _SNAPSHOT_ADAPTER, lambda: None)
 
+    @_locked
     def save_snapshot(self, snapshot: ImportSnapshot) -> None:
         path = self._sheet_path(snapshot.connection_id)
         if path is None:
@@ -417,6 +437,7 @@ class LocalStore:
                     )
         return data
 
+    @_locked
     def set_edit(self, account_id: str, field: str, edit: FieldEdit) -> None:
         if field not in EDITABLE_FIELDS:
             raise ValueError(f"{field!r} can't be edited")
@@ -424,6 +445,7 @@ class LocalStore:
         data.setdefault(account_id, {})[field] = edit
         _save(self._path(_EDITS_FILE), _EDITS_ADAPTER, data)
 
+    @_locked
     def clear_edit(self, account_id: str, field: str) -> None:
         data = self.edits()
         fields = data.get(account_id)
@@ -445,6 +467,7 @@ class LocalStore:
             and (include_dismissed or not notice.dismissed)
         ]
 
+    @_locked
     def add_notice(self, account_id: str, field: str, message: str) -> Notice:
         found: list[Notice] = _load(self._path(_NOTICES_FILE), _NOTICES_ADAPTER, list)
         taken = {notice.id for notice in found}
@@ -462,6 +485,7 @@ class LocalStore:
         _save(self._path(_NOTICES_FILE), _NOTICES_ADAPTER, found)
         return notice
 
+    @_locked
     def dismiss_notice(self, notice_id: str) -> None:
         found: list[Notice] = _load(self._path(_NOTICES_FILE), _NOTICES_ADAPTER, list)
         if not any(notice.id == notice_id for notice in found):
@@ -472,6 +496,7 @@ class LocalStore:
         ]
         _save(self._path(_NOTICES_FILE), _NOTICES_ADAPTER, updated)
 
+    @_locked
     def remove_notices(self, account_id: str) -> int:
         """Delete every notice for one account, dismissed ones included. Returns how many went."""
         found: list[Notice] = _load(self._path(_NOTICES_FILE), _NOTICES_ADAPTER, list)
@@ -481,6 +506,7 @@ class LocalStore:
             _save(self._path(_NOTICES_FILE), _NOTICES_ADAPTER, kept)
         return removed
 
+    @_locked
     def move_notices(self, from_id: str, to_id: str) -> int:
         """Re-key every notice of from_id to to_id. Each keeps its id, its time and its dismissed
         flag. Returns how many moved."""
@@ -501,12 +527,14 @@ class LocalStore:
     def links(self) -> LinkData:
         return _load(self._path(_LINKS_FILE), _LINKS_ADAPTER, LinkData)
 
+    @_locked
     def save_links(self, data: LinkData) -> None:
         _save(self._path(_LINKS_FILE), _LINKS_ADAPTER, data)
 
     def hidden(self) -> list[str]:
         return _load(self._path(_HIDDEN_FILE), _HIDDEN_ADAPTER, list)
 
+    @_locked
     def set_hidden(self, account_id: str, hidden: bool) -> None:
         ids = self.hidden()
         if hidden and account_id not in ids:
@@ -518,6 +546,7 @@ class LocalStore:
         _save(self._path(_HIDDEN_FILE), _HIDDEN_ADAPTER, ids)
 
     # Everything ------------------------------------------------------------------------------
+    @_locked
     def clear_all(self) -> None:
         """Delete every file this store owns, the feed drafts and every feed's saved key (used by
         "Clear local data"). HubSpot's token and the OpenRouter key are not touched."""

@@ -36,7 +36,7 @@ from pydantic import BaseModel, Field
 
 from cs_brief.core.config import write_atomic
 from cs_brief.core.models import Signal, SignalKind
-from cs_brief.core.store import CONTACTS_FILE, LocalStore
+from cs_brief.core.store import CONTACTS_FILE, WRITE_LOCK, LocalStore
 
 MAX_CONTACTS_PER_ACCOUNT = 50
 MAX_NAME = 80
@@ -44,7 +44,17 @@ MAX_TITLE = 80
 MAX_EMAIL = 254
 SIGNAL_SOURCE = "contacts"  # Signal.source of the readings the champion rule records
 
-_EMAIL_SHAPE = re.compile(r"[^@\s]+@[^@\s]+\.[^@\s]+")
+# One address: a local part of plain ASCII letters, digits and these symbols, one @, then a domain
+# of at least two dot-separated labels of letters, digits and hyphens (no label starts or ends
+# with a hyphen). This refuses ? & % , ; quotes, angle brackets and spaces, which would let a
+# mailto link carry extra fields such as bcc or subject.
+_EMAIL_LABEL = r"[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?"
+_EMAIL_SHAPE = re.compile(
+    r"[A-Za-z0-9.!#$'*+/=^_`{|}~-]+@" + _EMAIL_LABEL + r"(?:\." + _EMAIL_LABEL + r")+"
+)
+# Characters a name or title can't hold: control characters, and format characters such as the
+# bidi overrides (U+202A-U+202E, U+2066-U+2069) and zero-width marks (U+200B-U+200F, U+FEFF).
+_FORMAT_CATEGORY = "Cf"
 _DEMO_PEOPLE = (
     ("Priya", "Shah"),
     ("Tomas", "Berg"),
@@ -132,6 +142,8 @@ def _plain_text(text: str, label: str, limit: int) -> str:
         raise ValueError(f"A {label} can't contain a line break.")
     if _has_control(text):
         raise ValueError(f"A {label} can't contain control characters.")
+    if any(unicodedata.category(char) == _FORMAT_CATEGORY for char in text):
+        raise ValueError(f"A {label} can't contain hidden formatting characters.")
     if len(text) > limit:
         raise ValueError(f"Keep the {label} under {limit} characters.")
     return text
@@ -261,31 +273,34 @@ def add_contact(
     """Validate and add. ValueError when the account already has MAX_CONTACTS_PER_ACCOUNT, or an
     active contact with the same email (casefolded) exists. Applies the champion rule."""
     clean = validate(values)
-    data = _load(store)
-    current = list(data.by_account.get(account_id, []))
-    if len(current) >= MAX_CONTACTS_PER_ACCOUNT:
-        raise ValueError(
-            f"This account already has {MAX_CONTACTS_PER_ACCOUNT} contacts. Remove one first."
+    with WRITE_LOCK:
+        data = _load(store)
+        current = list(data.by_account.get(account_id, []))
+        if len(current) >= MAX_CONTACTS_PER_ACCOUNT:
+            raise ValueError(
+                f"This account already has {MAX_CONTACTS_PER_ACCOUNT} contacts. Remove one first."
+            )
+        if _email_taken(current, clean.email):
+            raise ValueError("Another active contact already has this email address.")
+        before = _has_active_champion(current)
+        stamp = _naive(now)
+        contact = Contact(
+            id=_new_id({c.id for c in current}),
+            name=clean.name,
+            title=clean.title,
+            email=clean.email,
+            champion=clean.champion,
+            status=ContactStatus.ACTIVE,
+            left_on=None,
+            source=source,
+            updated_at=stamp,
         )
-    if _email_taken(current, clean.email):
-        raise ValueError("Another active contact already has this email address.")
-    before = _has_active_champion(current)
-    stamp = _naive(now)
-    contact = Contact(
-        id=_new_id({c.id for c in current}),
-        name=clean.name,
-        title=clean.title,
-        email=clean.email,
-        champion=clean.champion,
-        status=ContactStatus.ACTIVE,
-        left_on=None,
-        source=source,
-        updated_at=stamp,
-    )
-    current.append(contact)
-    data.by_account[account_id] = current
-    _save(store, data)
-    _champion_rule(store, account_id, before=before, after=_has_active_champion(current), now=stamp)
+        current.append(contact)
+        data.by_account[account_id] = current
+        _save(store, data)
+        _champion_rule(
+            store, account_id, before=before, after=_has_active_champion(current), now=stamp
+        )
     return contact
 
 
@@ -301,27 +316,30 @@ def update_contact(
     """Replace name, title, email and champion. LookupError for an unknown id. Applies the
     champion rule."""
     clean = validate(values)
-    data = _load(store)
-    current = list(data.by_account.get(account_id, []))
-    index = _index_of(current, contact_id)
-    if _email_taken(current, clean.email, except_id=contact_id):
-        raise ValueError("Another active contact already has this email address.")
-    stamp = _naive(now)
-    before = _has_active_champion(current)
-    updated = current[index].model_copy(
-        update={
-            "name": clean.name,
-            "title": clean.title,
-            "email": clean.email,
-            "champion": clean.champion,
-            "source": source,
-            "updated_at": stamp,
-        }
-    )
-    current[index] = updated
-    data.by_account[account_id] = current
-    _save(store, data)
-    _champion_rule(store, account_id, before=before, after=_has_active_champion(current), now=stamp)
+    with WRITE_LOCK:
+        data = _load(store)
+        current = list(data.by_account.get(account_id, []))
+        index = _index_of(current, contact_id)
+        if _email_taken(current, clean.email, except_id=contact_id):
+            raise ValueError("Another active contact already has this email address.")
+        stamp = _naive(now)
+        before = _has_active_champion(current)
+        updated = current[index].model_copy(
+            update={
+                "name": clean.name,
+                "title": clean.title,
+                "email": clean.email,
+                "champion": clean.champion,
+                "source": source,
+                "updated_at": stamp,
+            }
+        )
+        current[index] = updated
+        data.by_account[account_id] = current
+        _save(store, data)
+        _champion_rule(
+            store, account_id, before=before, after=_has_active_champion(current), now=stamp
+        )
     return updated
 
 
@@ -336,55 +354,62 @@ def mark_left(
 ) -> Contact:
     """Status LEFT on that date (champion flag kept, so the history says who it was). LookupError
     for an unknown id. Applies the champion rule."""
-    data = _load(store)
-    current = list(data.by_account.get(account_id, []))
-    index = _index_of(current, contact_id)
-    stamp = _naive(now)
-    before = _has_active_champion(current)
-    updated = current[index].model_copy(
-        update={
-            "status": ContactStatus.LEFT,
-            "left_on": left_on,
-            "source": source,
-            "updated_at": stamp,
-        }
-    )
-    current[index] = updated
-    data.by_account[account_id] = current
-    _save(store, data)
-    _champion_rule(store, account_id, before=before, after=_has_active_champion(current), now=stamp)
+    with WRITE_LOCK:
+        data = _load(store)
+        current = list(data.by_account.get(account_id, []))
+        index = _index_of(current, contact_id)
+        stamp = _naive(now)
+        before = _has_active_champion(current)
+        updated = current[index].model_copy(
+            update={
+                "status": ContactStatus.LEFT,
+                "left_on": left_on,
+                "source": source,
+                "updated_at": stamp,
+            }
+        )
+        current[index] = updated
+        data.by_account[account_id] = current
+        _save(store, data)
+        _champion_rule(
+            store, account_id, before=before, after=_has_active_champion(current), now=stamp
+        )
     return updated
 
 
 def mark_active(store: LocalStore, account_id: str, contact_id: str, *, now: datetime) -> Contact:
     """Undo mark_left (a mistake). Applies the champion rule."""
-    data = _load(store)
-    current = list(data.by_account.get(account_id, []))
-    index = _index_of(current, contact_id)
-    if _email_taken(current, current[index].email, except_id=contact_id):
-        raise ValueError("Another active contact already has this email address.")
-    stamp = _naive(now)
-    before = _has_active_champion(current)
-    updated = current[index].model_copy(
-        update={"status": ContactStatus.ACTIVE, "left_on": None, "updated_at": stamp}
-    )
-    current[index] = updated
-    data.by_account[account_id] = current
-    _save(store, data)
-    _champion_rule(store, account_id, before=before, after=_has_active_champion(current), now=stamp)
+    with WRITE_LOCK:
+        data = _load(store)
+        current = list(data.by_account.get(account_id, []))
+        index = _index_of(current, contact_id)
+        if _email_taken(current, current[index].email, except_id=contact_id):
+            raise ValueError("Another active contact already has this email address.")
+        stamp = _naive(now)
+        before = _has_active_champion(current)
+        updated = current[index].model_copy(
+            update={"status": ContactStatus.ACTIVE, "left_on": None, "updated_at": stamp}
+        )
+        current[index] = updated
+        data.by_account[account_id] = current
+        _save(store, data)
+        _champion_rule(
+            store, account_id, before=before, after=_has_active_champion(current), now=stamp
+        )
     return updated
 
 
 def remove_contact(store: LocalStore, account_id: str, contact_id: str) -> bool:
     """Delete it for good. True if one was removed. Readings already recorded stay (history)."""
-    data = _load(store)
-    current = list(data.by_account.get(account_id, []))
-    kept = [contact for contact in current if contact.id != contact_id]
-    if len(kept) == len(current):
-        return False
-    data.by_account[account_id] = kept
-    _save(store, data)
-    return True
+    with WRITE_LOCK:
+        data = _load(store)
+        current = list(data.by_account.get(account_id, []))
+        kept = [contact for contact in current if contact.id != contact_id]
+        if len(kept) == len(current):
+            return False
+        data.by_account[account_id] = kept
+        _save(store, data)
+        return True
 
 
 def move_contacts(store: LocalStore, from_id: str, to_id: str) -> int:
@@ -392,25 +417,26 @@ def move_contacts(store: LocalStore, from_id: str, to_id: str) -> int:
     matches an active contact already on to_id is dropped. Returns how many moved."""
     if from_id == to_id:
         return 0
-    data = _load(store)
-    moving = data.by_account.get(from_id, [])
-    if not moving:
-        return 0
-    target = list(data.by_account.get(to_id, []))
-    active_emails = {
-        contact.email.casefold()
-        for contact in target
-        if contact.status is ContactStatus.ACTIVE and contact.email
-    }
-    moved: list[Contact] = []
-    for contact in moving:
-        if contact.email and contact.email.casefold() in active_emails:
-            continue
-        moved.append(contact)
-    data.by_account.pop(from_id, None)
-    data.by_account[to_id] = [*target, *moved]
-    _save(store, data)
-    return len(moved)
+    with WRITE_LOCK:
+        data = _load(store)
+        moving = data.by_account.get(from_id, [])
+        if not moving:
+            return 0
+        target = list(data.by_account.get(to_id, []))
+        active_emails = {
+            contact.email.casefold()
+            for contact in target
+            if contact.status is ContactStatus.ACTIVE and contact.email
+        }
+        moved: list[Contact] = []
+        for contact in moving:
+            if contact.email and contact.email.casefold() in active_emails:
+                continue
+            moved.append(contact)
+        data.by_account.pop(from_id, None)
+        data.by_account[to_id] = [*target, *moved]
+        _save(store, data)
+        return len(moved)
 
 
 def find_contact(contacts: list[Contact], *, email: str, name: str) -> Contact | None:
@@ -430,14 +456,15 @@ def find_contact(contacts: list[Contact], *, email: str, name: str) -> Contact |
 
 def forget(store: LocalStore, gone: Callable[[str], bool]) -> int:
     """Delete the contacts of every account id for which gone(id) is true; how many accounts."""
-    data = _load(store)
-    gone_ids = [account for account in data.by_account if gone(account)]
-    if not gone_ids:
-        return 0
-    for account in gone_ids:
-        del data.by_account[account]
-    _save(store, data)
-    return len(gone_ids)
+    with WRITE_LOCK:
+        data = _load(store)
+        gone_ids = [account for account in data.by_account if gone(account)]
+        if not gone_ids:
+            return 0
+        for account in gone_ids:
+            del data.by_account[account]
+        _save(store, data)
+        return len(gone_ids)
 
 
 def demo_contacts(account_id: str, account_name: str) -> list[Contact]:

@@ -23,6 +23,7 @@ from cs_brief.core import importing
 from cs_brief.core.config import write_atomic
 from cs_brief.core.importing import IMPORT_FIELDS, DateOrder, FieldType, ImportIssue, Table
 from cs_brief.core.store import (
+    WRITE_LOCK,
     ConnectionConfig,
     ConnectionKind,
     ImportRecord,
@@ -478,27 +479,28 @@ def save_import(
     ones that changed. An ImportRecord is appended. Returns how many accounts of the last snapshot
     aren't in this one.
     """
-    previous = store.snapshot(connection_id)
-    earlier = [] if previous is None else previous.accounts
-    removed = sum(1 for account in earlier if account.id not in kept_ids)
-    signals = importing.merge_into_snapshot_signals(
-        [] if previous is None else previous.signals, result.signals, kept_ids
-    )
-    record = ImportRecord(
-        imported_at=stamp,
-        file_name=file_name,
-        accounts=result.ready_rows,
-        skipped_rows=result.skipped_rows,
-    )
-    history = [*([] if previous is None else previous.history), record]
-    store.save_snapshot(
-        ImportSnapshot(
-            connection_id=connection_id,
-            accounts=result.accounts,
-            signals=signals,
-            history=history,
+    with WRITE_LOCK:  # the snapshot read here must be the one it replaces
+        previous = store.snapshot(connection_id)
+        earlier = [] if previous is None else previous.accounts
+        removed = sum(1 for account in earlier if account.id not in kept_ids)
+        signals = importing.merge_into_snapshot_signals(
+            [] if previous is None else previous.signals, result.signals, kept_ids
         )
-    )
+        record = ImportRecord(
+            imported_at=stamp,
+            file_name=file_name,
+            accounts=result.ready_rows,
+            skipped_rows=result.skipped_rows,
+        )
+        history = [*([] if previous is None else previous.history), record]
+        store.save_snapshot(
+            ImportSnapshot(
+                connection_id=connection_id,
+                accounts=result.accounts,
+                signals=signals,
+                history=history,
+            )
+        )
     return removed
 
 
@@ -551,45 +553,46 @@ def commit(
     accounts are replaced; its readings keep their history and only changed values are added; the
     connection remembers the mapping and date order, and is enabled.
     """
-    _check_target(store, draft.target)
-    cleaned = clean_mapping(draft.table, mapping)
-    checked = preview(draft, cleaned, date_order, store, now=now, today=today)
-    if checked.blocker:
-        raise ValueError(checked.blocker)
+    with WRITE_LOCK:  # local files only; held from the connection's read to its last save
+        _check_target(store, draft.target)
+        cleaned = clean_mapping(draft.table, mapping)
+        checked = preview(draft, cleaned, date_order, store, now=now, today=today)
+        if checked.blocker:
+            raise ValueError(checked.blocker)
 
-    if draft.target == NEW_TARGET:
-        name = validate_name(draft.new_name or default_name(draft.source_name))
-        config = store.add_connection(ConnectionKind.SPREADSHEET, name)
-    else:
-        config = store.get_connection(draft.target)
-        if config is None:
-            raise ValueError("That connection was removed. Start the import again.")
+        if draft.target == NEW_TARGET:
+            name = validate_name(draft.new_name or default_name(draft.source_name))
+            config = store.add_connection(ConnectionKind.SPREADSHEET, name)
+        else:
+            config = store.get_connection(draft.target)
+            if config is None:
+                raise ValueError("That connection was removed. Start the import again.")
 
-    result = _build(draft, cleaned, date_order, config.id, now=now, today=today)
-    stamp = _as_naive_utc(now)
-    removed = save_import(
-        store,
-        config.id,
-        result,
-        kept_ids={account.id for account in result.accounts},
-        file_name=draft.source_name,
-        stamp=stamp,
-    )
-    updated = config.model_copy(
-        update={
-            "mapping": cleaned,
-            "date_order": date_order.value,
-            "last_imported_at": stamp,
-            "last_file_name": draft.source_name,
-            "enabled": True,
-        }
-    )
-    store.update_connection(updated)
-    delete_draft(store, draft.id)
-    return CommitResult(
-        connection=updated,
-        ready_rows=result.ready_rows,
-        skipped_rows=result.skipped_rows,
-        issue_count=len(result.issues),
-        removed=removed,
-    )
+        result = _build(draft, cleaned, date_order, config.id, now=now, today=today)
+        stamp = _as_naive_utc(now)
+        removed = save_import(
+            store,
+            config.id,
+            result,
+            kept_ids={account.id for account in result.accounts},
+            file_name=draft.source_name,
+            stamp=stamp,
+        )
+        updated = config.model_copy(
+            update={
+                "mapping": cleaned,
+                "date_order": date_order.value,
+                "last_imported_at": stamp,
+                "last_file_name": draft.source_name,
+                "enabled": True,
+            }
+        )
+        store.update_connection(updated)
+        delete_draft(store, draft.id)
+        return CommitResult(
+            connection=updated,
+            ready_rows=result.ready_rows,
+            skipped_rows=result.skipped_rows,
+            issue_count=len(result.issues),
+            removed=removed,
+        )

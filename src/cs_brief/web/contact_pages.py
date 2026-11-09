@@ -187,13 +187,15 @@ def refused_values(
 
 
 def _mailto(email: str) -> str:
-    """The email when contacts.validate accepts it (it is linked), else ""."""
+    """The email for a mailto: link when contacts.validate accepts it, else "". Everything but the
+    @ is percent-encoded, so a stored address can't add a ?bcc= or &subject= to the link."""
     if not email:
         return ""
     try:
-        return contacts.validate(ContactInput(name="Contact", email=email)).email
+        checked = contacts.validate(ContactInput(name="Contact", email=email)).email
     except ValueError:
         return ""
+    return quote(checked, safe="@")
 
 
 def _label(contact: Contact) -> str:

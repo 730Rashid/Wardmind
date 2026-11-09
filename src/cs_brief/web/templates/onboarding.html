@@ -22,7 +22,7 @@
     <tbody>
       {% for item, brief in rows %}
       <tr>
-        <th scope="row" class="cell-account"><a class="account-link" href="/onboarding/{{ item.account.id | urlencode }}">{{ item.account.name }}</a></th>
+        <th scope="row" class="cell-account"><a class="account-link" href="/onboarding/{{ item.account.id | idpath }}">{{ item.account.name }}</a></th>
         <td class="cell-health"><span class="health health--{{ item.health.value }}"><svg class="icon" aria-hidden="true" focusable="false"><use href="/static/icons.svg#health-{{ item.health.value | replace('_', '-') }}"/></svg> {{ item.health.label }}</span></td>
         <td class="cell-day">{% if brief.day is none %}Start date not known{% else %}Day {{ brief.day }} of {{ brief.window_days }}{% endif %}</td>
         <td class="cell-plan">
@@ -31,7 +31,7 @@
             <span class="plan-words">{{ plan_summary(brief.milestones) }}</span>
           </span>
         </td>
-        <td class="cell-action"><a href="/onboarding/{{ item.account.id | urlencode }}" aria-label="Prepare brief for {{ item.account.name }}">Prepare brief</a></td>
+        <td class="cell-action"><a href="/onboarding/{{ item.account.id | idpath }}" aria-label="Prepare brief for {{ item.account.name }}">Prepare brief</a></td>
       </tr>
       {% endfor %}
     </tbody>
