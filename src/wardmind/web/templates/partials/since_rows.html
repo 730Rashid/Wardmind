@@ -7,7 +7,7 @@
   {% for row in since.rows %}
   <li class="since-row">
     <p class="since-head">
-      <span class="tag">{{ row.label }}</span>
+      <span class="tag since-tag since-tag--{{ row.kind }}">{{ row.label }}</span>
       {% if row.account_id %}
       <a class="account-link" href="/accounts/{{ row.account_id | idpath }}">{{ row.name }}</a>
       {% else %}

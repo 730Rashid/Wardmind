@@ -944,54 +944,143 @@ a.button {
   fill: var(--bar);
 }
 
-/* Signal history: one rule down the left, a date per group, one reading per line. */
+/* Signal history: a rail down the left with a dot per day. Each day is a date heading over a small
+   card of readings, one per row with a hairline between them; the reading the score uses now
+   carries a "Current" badge, and older readings are muted. */
 .timeline {
+  --rail-x: 0.3125rem;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
   margin: 0;
-  padding-inline-start: var(--space-4);
-  border-inline-start: 1px solid var(--line);
+  padding-inline-start: var(--space-5);
+}
+
+.timeline::before {
+  content: "";
+  position: absolute;
+  inset-block: 0.5rem 0.5rem;
+  inset-inline-start: var(--rail-x);
+  border-inline-start: 2px solid var(--line-strong);
+}
+
+.timeline-day {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
 }
 
 .timeline dt {
-  margin-block-start: var(--space-4);
+  position: relative;
+  margin: 0;
   font-size: var(--t-sm);
   line-height: var(--lh-sm);
-  color: var(--ink-muted);
+  font-weight: 600;
+  color: var(--ink);
   font-variant-numeric: tabular-nums;
 }
 
-.timeline dt:first-child {
-  margin-block-start: 0;
+/* The day's dot sits on the rail, level with the date. */
+.timeline dt::before {
+  content: "";
+  position: absolute;
+  inset-block-start: 0.4em;
+  inset-inline-start: calc(-1 * var(--space-5) + var(--rail-x) - 0.25rem + 1px);
+  inline-size: 0.5rem;
+  block-size: 0.5rem;
+  border-radius: 50%;
+  background: var(--paper);
+  border: 2px solid var(--control);
+}
+
+.timeline-day:first-child dt::before {
+  background: var(--accent);
+  border-color: var(--accent);
 }
 
 .timeline dd {
   display: grid;
-  grid-template-columns: 12rem minmax(0, 1fr) auto;
+  grid-template-columns: 11rem minmax(0, 1fr) auto;
   column-gap: var(--space-4);
   align-items: baseline;
-  margin: var(--space-1) 0 0;
+  margin: 0;
+  padding: var(--space-2) var(--space-3);
+  background: var(--sunken);
+  border: 1px solid var(--line);
+  border-block-start-width: 0;
 }
 
-.timeline-label,
-.timeline-current {
+.timeline dt + dd {
+  border-block-start-width: 1px;
+  border-start-start-radius: var(--radius-control);
+  border-start-end-radius: var(--radius-control);
+}
+
+.timeline dd:last-child {
+  border-end-start-radius: var(--radius-control);
+  border-end-end-radius: var(--radius-control);
+}
+
+.timeline-label {
   font-size: var(--t-sm);
   line-height: var(--lh-sm);
   color: var(--ink-muted);
+}
+
+.timeline-sentence {
+  min-inline-size: 0;
 }
 
 .timeline-sentence--older {
   color: var(--ink-muted);
 }
 
+/* "Current" is a small badge; where a reading came from (added by you, from contacts) is plain
+   muted text. */
+.timeline-current {
+  justify-self: end;
+  padding: 0 var(--space-2);
+  border-radius: var(--radius-tag);
+  background: var(--tag-violet-bg);
+  color: var(--tag-violet-ink);
+  font-size: var(--t-sm);
+  line-height: var(--lh-sm);
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.timeline-current--origin {
+  padding: 0;
+  background: none;
+  color: var(--ink-muted);
+  font-weight: 400;
+}
+
+/* Account facts: label and value side by side, a hairline between rows. */
 .facts-list {
   display: grid;
   grid-template-columns: max-content minmax(0, 1fr);
-  gap: var(--space-2) var(--space-4);
+  align-items: baseline;
+  column-gap: var(--space-4);
   margin: 0;
+}
+
+.facts-list dt,
+.facts-list dd {
+  padding-block: var(--space-2);
+  border-block-start: 1px solid var(--line);
+}
+
+.facts-list > :nth-child(-n + 2) {
+  padding-block-start: 0;
+  border-block-start: 0;
 }
 
 .facts-list dt {
   font-size: var(--t-sm);
-  line-height: var(--lh-sm);
+  line-height: var(--lh-body);
   color: var(--ink-muted);
 }
 
@@ -1058,6 +1147,7 @@ a.button {
 @media (max-width: 559px) {
   .timeline dd {
     grid-template-columns: minmax(0, 1fr) auto;
+    row-gap: var(--space-1);
   }
 
   .timeline-label {
@@ -4544,26 +4634,41 @@ a.button-primary {
   margin: 0;
 }
 
-/* Follow-ups: a list with a rule between items. */
-.journal-list {
+/* Follow-ups, notes, "Since last week" and "Follow-ups due this week" share the signal history's
+   look: one sunken box, a row per item with a hairline between rows. */
+.journal-list,
+.since-list,
+.due-list {
   display: flex;
   flex-direction: column;
+  gap: 0;
   margin: 0;
   padding: 0;
   list-style: none;
+  background: var(--sunken);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-control);
+}
+
+.journal-item,
+.note,
+.since-row,
+.due-row {
+  padding: var(--space-3) var(--space-4);
+  border-block-start: 1px solid var(--line);
+}
+
+.journal-item:first-child,
+.note:first-child,
+.since-row:first-child,
+.due-row:first-child {
+  border-block-start: 0;
 }
 
 .journal-item {
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
-  padding-block: var(--space-3);
-  border-block-start: 1px solid var(--line);
-}
-
-.journal-list > .journal-item:first-child {
-  padding-block-start: 0;
-  border-block-start: 0;
 }
 
 .journal-meta,
@@ -4672,13 +4777,6 @@ a.button-primary {
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
-  padding-block: var(--space-3);
-  border-block-start: 1px solid var(--line);
-}
-
-.notes-list > .note:first-child {
-  padding-block-start: 0;
-  border-block-start: 0;
 }
 
 .note-meta {
@@ -4693,9 +4791,20 @@ a.button-primary {
   font-variant-numeric: tabular-nums;
 }
 
+/* The kind is a small badge: grey for a note, blue for a contact (call, meeting, email). */
 .note-kind {
-  color: var(--ink);
-  font-weight: 600;
+  padding: 0 var(--space-2);
+  border-radius: var(--radius-tag);
+  background: var(--tag-slate-bg);
+  color: var(--tag-slate-ink);
+  font-weight: 500;
+}
+
+.note-kind--call,
+.note-kind--meeting,
+.note-kind--email {
+  background: var(--tag-blue-bg);
+  color: var(--tag-blue-ink);
 }
 
 .note-text {
@@ -4846,14 +4955,31 @@ a.button-primary {
   border-radius: var(--radius-card);
 }
 
-.since-list,
-.due-list {
+.since-row {
   display: flex;
   flex-direction: column;
-  gap: var(--space-3);
-  margin: 0;
-  padding: 0;
-  list-style: none;
+  gap: var(--space-1);
+}
+
+/* The change's tag takes a colour by kind: worse red, rising amber, new blue, better green. */
+.since-tag--worse {
+  background: var(--tag-red-bg);
+  color: var(--tag-red-ink);
+}
+
+.since-tag--rising {
+  background: var(--tag-orange-bg);
+  color: var(--tag-orange-ink);
+}
+
+.since-tag--new {
+  background: var(--tag-blue-bg);
+  color: var(--tag-blue-ink);
+}
+
+.since-tag--better {
+  background: var(--tag-green-bg);
+  color: var(--tag-green-ink);
 }
 
 .since-head,
@@ -4966,13 +5092,18 @@ a.button-primary {
     gap: var(--space-3);
   }
 
-  .since-list {
+  .since-list,
+  .due-list {
     gap: 0;
+    background: none;
+    border: 0;
   }
 
   .since-row,
   .due-row {
     display: block;
+    padding: 0;
+    border: 0;
     font-size: var(--t-sm);
     line-height: var(--lh-sm);
   }

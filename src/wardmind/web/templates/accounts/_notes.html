@@ -43,7 +43,7 @@
     {% for note in journal.notes %}
     <article class="note" id="note-{{ note.id }}">
       <p class="note-meta">
-        <span class="note-kind">{{ note.kind_label }}</span>
+        <span class="note-kind note-kind--{{ note.kind }}">{{ note.kind_label }}</span>
         <span class="note-day">{{ note.day }}</span>
         {% if note.edited %}{{ edited_marker() }}{% endif %}
       </p>

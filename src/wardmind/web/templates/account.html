@@ -92,15 +92,17 @@
       {% if timeline_days %}
       <dl class="timeline">
         {% for day, entries in timeline_days %}
-        <dt><time datetime="{{ day.isoformat() }}">{{ day | day_label(today_day) }}</time></dt>
-        {% for entry in entries %}
-        {% set origin = origins.get((entry.kind.value, entry.observed_at, entry.value), '') %}
-        <dd>
-          <span class="timeline-label">{{ entry.label }}</span>
-          <span class="timeline-sentence{% if not entry.is_latest %} timeline-sentence--older{% endif %}">{{ entry.plain_english }}</span>
-          {% if entry.is_latest %}<span class="timeline-current">Current{% if origin %}. {{ origin }}.{% endif %}</span>{% elif origin %}<span class="timeline-current">{{ origin }}</span>{% endif %}
-        </dd>
-        {% endfor %}
+        <div class="timeline-day">
+          <dt><time datetime="{{ day.isoformat() }}">{{ day | day_label(today_day) }}</time></dt>
+          {% for entry in entries %}
+          {% set origin = origins.get((entry.kind.value, entry.observed_at, entry.value), '') %}
+          <dd{% if entry.is_latest %} class="timeline-entry--latest"{% endif %}>
+            <span class="timeline-label">{{ entry.label }}</span>
+            <span class="timeline-sentence{% if not entry.is_latest %} timeline-sentence--older{% endif %}">{{ entry.plain_english }}</span>
+            {% if entry.is_latest %}<span class="timeline-current">Current{% if origin %}. {{ origin }}.{% endif %}</span>{% elif origin %}<span class="timeline-current timeline-current--origin">{{ origin }}</span>{% endif %}
+          </dd>
+          {% endfor %}
+        </div>
         {% endfor %}
       </dl>
       {% else %}
