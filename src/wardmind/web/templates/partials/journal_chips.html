@@ -1,0 +1,9 @@
+{# The journal's small labels on a card or a row of My book: a snooze (muted), the earliest open follow-up
+   (late ones are worded and marked as late) and nothing else. The contact line sits in the card's meta. #}
+{% set chips = journal_chips.get(item.account.id) %}
+{% if chips and (chips.snooze or chips.follow_up) %}
+<ul class="chip-list" aria-label="Follow-ups and snoozes">
+  {% if chips.snooze %}<li class="chip chip--muted">{{ chips.snooze }}</li>{% endif %}
+  {% if chips.follow_up %}<li class="chip{% if chips.late %} chip--late{% endif %}"><svg class="icon" aria-hidden="true" focusable="false"><use href="/static/icons.svg#status-{{ 'overdue' if chips.late else 'next' }}"/></svg>{{ chips.follow_up }}</li>{% endif %}
+</ul>
+{% endif %}

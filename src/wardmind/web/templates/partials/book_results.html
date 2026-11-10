@@ -43,6 +43,7 @@
           </ul>
           {% endif %}
           <span class="owner">{{ item.account.owner }}</span>
+          {% include "partials/journal_chips.html" %}
         </td>
         <td role="cell" class="cell-motion"><span class="pill pill--{{ item.motion.value }}"><svg class="icon" aria-hidden="true" focusable="false"><use href="/static/icons.svg#motion-{{ item.motion.value }}"/></svg>{{ item.motion.label }}</span></td>
         <td role="cell" class="cell-arr num">{{ item.account.arr | money }}</td>
@@ -73,7 +74,7 @@
           </span>
         </div>
         <h3 class="card-title" id="{{ card_id }}"><a class="account-link" href="/accounts/{{ item.account.id | idpath }}">{{ item.account.name }}</a></h3>
-        <p class="card-owner">{{ item.account.owner }}</p>
+        <p class="card-owner">{{ item.account.owner }}{% set contact = journal_chips.get(item.account.id) %}{% if contact and contact.contact %}<span class="card-contact">{{ contact.contact }}</span>{% endif %}</p>
         <p class="card-reason">{{ item.top_reason }}{% if others > 0 %}, and {{ others }} other {{ 'signal' if others == 1 else 'signals' }}{% endif %}.</p>
         <div class="card-figures">
           <span class="card-priority">
@@ -85,6 +86,7 @@
           </span>
           <span><strong>{{ item.account.arr | money }}</strong> ARR</span>
         </div>
+        {% include "partials/journal_chips.html" %}
         <ul class="tag-list card-tags" aria-label="Tags">
           <li class="pill pill--{{ item.motion.value }}"><svg class="icon" aria-hidden="true" focusable="false"><use href="/static/icons.svg#motion-{{ item.motion.value }}"/></svg>{{ item.motion.label }}</li>
           {% for topic in flags.get(item.account.id, []) %}

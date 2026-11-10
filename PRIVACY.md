@@ -14,7 +14,7 @@ Only these, and only when you set them up:
 | Web research, **off by default** | The customer's own website, and nowhere else | An ordinary visit to that website, when you press **Look up their website** on its account page or **Look up all websites**. Nothing about the account is sent. |
 | AI summaries, **off by default**, with your own OpenRouter key | `openrouter.ai`, and the company running the model you chose | Only the text web research read from the customer's public website. Nothing from your book. |
 | Data feeds you add (**Settings > Connections > Add a connection**) | Only the address or product you set up: your own file or SQLite database (nothing leaves), a link or API you typed, Google Sheets, Stripe, Chargebee, Zendesk, Freshdesk, PostHog or Airtable | Read requests with the key you gave that feed, on the schedule you chose. Nothing from your book is sent, and nothing is ever written to the source. |
-| Claude, if you add the MCP server | Anthropic, as part of your Claude conversation | Whatever the tools return when Claude calls them: account names, ARR, owners, signals and briefs. This is covered by your own Claude account's terms. |
+| Claude, if you add the MCP server | Anthropic, as part of your Claude conversation | Whatever the tools return when Claude calls them: account names, ARR, owners, signals, briefs, and from your journal the last-contact dates, follow-ups, snoozes and outcomes (never the text of your notes). This is covered by your own Claude account's terms. |
 
 Spreadsheets you import and accounts you add by hand never leave your computer.
 
@@ -131,6 +131,29 @@ agreeing it with them. Wardmind records who agreed and when.
   Wardmind to read it, so treat that link like a password. Microsoft Forms, with responses in
   an Excel workbook in your OneDrive, or an Airtable form avoids this.
 
+## Notes, follow-ups and score history
+
+**Your journal** holds the notes, calls, meetings and emails you log, your follow-ups, snoozes and
+renewal outcomes. It is your own record of your customers, so:
+
+- It stays on this computer, in `%LOCALAPPDATA%\wardmind\data\journal.json`. Notes you type
+  while trying the demo data go in a separate file, `demo-journal.json`, and never mix with
+  your own accounts.
+- Claude, through the MCP server, sees when you last contacted an account, how many notes you
+  keep, your open follow-ups, any snooze and recorded outcomes, but never the text of a note.
+- A renewal outcome also keeps what Wardmind thought of the account when you recorded it (its
+  risk, health and signal values), so the scoring can later learn from real outcomes. Nothing
+  learns from it yet, and it never leaves your computer.
+- Removing a note, follow-up or outcome deletes it. Removing a connection or deleting a
+  hand-added account deletes its accounts' journal.
+
+**Score history** (your data only): one snapshot a day of every account's name, rank, risk,
+health, ARR and signal values, kept for two years in `%LOCALAPPDATA%\wardmind\data\history`,
+one file per day. These are the same facts My book shows, kept so Wardmind can say what changed
+since last week and show each account's trend. Removing a connection or deleting an account
+removes it from every day's file. With demo data, nothing is recorded: the demo's history is
+worked out from its sample readings.
+
 ## What is stored, and where
 
 | What | Where |
@@ -143,6 +166,8 @@ agreeing it with them. Wardmind records who agreed and when.
 | Web research results | `%LOCALAPPDATA%\wardmind\data\research`, until **Clear local cache** or turning web research off |
 | AI summaries | `%LOCALAPPDATA%\wardmind\data\summaries` |
 | Contacts | `%LOCALAPPDATA%\wardmind\data\contacts.json` |
+| Notes, touches, follow-ups, snoozes and renewal outcomes | `%LOCALAPPDATA%\wardmind\data\journal.json` (demo data: `demo-journal.json`) |
+| Score history, one snapshot a day for two years | `%LOCALAPPDATA%\wardmind\data\history` |
 | Client update agreements, codes, your form link and updates waiting for review | `%LOCALAPPDATA%\wardmind\data\client_updates.json` |
 | Data feed keys | `%LOCALAPPDATA%\wardmind\feeds`, one file per feed. Only the last 4 characters are ever shown. |
 | Data feeds' latest data | `%LOCALAPPDATA%\wardmind\data\sheets\feed-<n>.json` |
@@ -181,7 +206,8 @@ same folder, not with the keys, so treat that folder as private.
 ## Removing everything
 
 1. **Settings > Data & privacy > Delete all local data** deletes everything Wardmind keeps on
-   this computer: connections, accounts, edits, contacts, client updates, saved lookups and
+   this computer: connections, accounts, edits, contacts, client updates, notes, follow-ups,
+   outcomes, score history, saved lookups and
    summaries, unfinished imports, and every saved token and key. If you set
    `WARDMIND_HUBSPOT_TOKEN` or `WARDMIND_OPENROUTER_KEY` as environment variables, remove those
    yourself. Or simply delete the folder `%LOCALAPPDATA%\wardmind`.

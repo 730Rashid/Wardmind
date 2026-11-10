@@ -47,10 +47,11 @@ class Landing(StrEnum):
 
     BOOK = "book"
     BRIEF = "brief"
+    TODAY = "today"
 
     @property
     def path(self) -> str:
-        return {"book": "/", "brief": "/brief"}[self.value]
+        return {"book": "/", "brief": "/brief", "today": "/today"}[self.value]
 
 
 class DataSource(StrEnum):

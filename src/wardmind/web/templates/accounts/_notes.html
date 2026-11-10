@@ -1,0 +1,82 @@
+{# Notes and touches: a form to add one (its kind, a date, the text), then the notes newest first. A
+   note's Edit and Remove sit in a disclosure; Remove is a second button inside it. A call, meeting
+   or email counts as contact with the customer; a plain note doesn't. #}
+{% from "partials/edited.html" import edited_marker %}
+{% macro kind_choices(name, current, error, error_id) -%}
+<fieldset class="journal-kinds"{% if error %} aria-describedby="{{ error_id }}"{% endif %}>
+  <legend>Kind</legend>
+  {% for value, label in [("note", "Note"), ("call", "Call"), ("meeting", "Meeting"), ("email", "Email")] %}
+  <label class="choice"><input type="radio" name="{{ name }}" value="{{ value }}"{% if current == value %} checked{% endif %}> {{ label }}</label>
+  {% endfor %}
+  {% if error %}<p class="field-error" id="{{ error_id }}">{{ error }}</p>{% endif %}
+</fieldset>
+{%- endmacro %}
+
+<section class="account-section journal-section" id="notes" aria-labelledby="notes-heading">
+  <h2 class="section-title" id="notes-heading">Notes and touches</h2>
+  {% if journal.demo %}
+  <p class="field-help">You're on demo data. Notes and follow-ups here are kept apart from your own data.</p>
+  {% endif %}
+
+  {% set form = journal.note_form %}
+  <form class="journal-form" method="post" action="/accounts/{{ account.id | idpath }}/notes">
+    <input type="hidden" name="back" value="account">
+    {% if form.errors.form %}<p class="field-error" role="alert">{{ form.errors.form }}</p>{% endif %}
+    {{ kind_choices('kind', form.values.get('kind', 'note'), form.errors.kind, 'note-kind-error') }}
+    <div class="field">
+      <label for="note-day">Date</label>
+      <input type="date" id="note-day" name="happened_on" value="{{ form.values.get('happened_on', '') }}"{% if form.errors.happened_on %} aria-invalid="true" aria-describedby="note-day-error"{% endif %}>
+      {% if form.errors.happened_on %}<p class="field-error" id="note-day-error">{{ form.errors.happened_on }}</p>{% endif %}
+    </div>
+    <div class="field">
+      <label for="note-text">Note</label>
+      <textarea id="note-text" name="text" rows="4" maxlength="4000"{% if form.errors.text %} aria-invalid="true" aria-describedby="note-text-error"{% endif %}>{{ form.values.get('text', '') }}</textarea>
+      {% if form.errors.text %}<p class="field-error" id="note-text-error">{{ form.errors.text }}</p>{% endif %}
+    </div>
+    <div class="form-actions">
+      <button type="submit" class="button-primary">Add note</button>
+    </div>
+  </form>
+
+  {% if journal.notes %}
+  <div class="journal-list notes-list">
+    {% for note in journal.notes %}
+    <article class="note" id="note-{{ note.id }}">
+      <p class="note-meta">
+        <span class="note-kind">{{ note.kind_label }}</span>
+        <span class="note-day">{{ note.day }}</span>
+        {% if note.edited %}{{ edited_marker() }}{% endif %}
+      </p>
+      <p class="note-text">{{ note.text }}</p>
+      <details class="note-disclosure"{% if note.edit_open %} open{% endif %}>
+        <summary class="button button--small">Edit or remove</summary>
+        <form class="journal-form" method="post" action="/accounts/{{ account.id | idpath }}/notes/{{ note.id | idpath }}/edit">
+          <input type="hidden" name="back" value="account">
+          {% if note.edit.errors.form %}<p class="field-error" role="alert">{{ note.edit.errors.form }}</p>{% endif %}
+          {{ kind_choices('kind', note.edit.values.get('kind', note.kind), note.edit.errors.kind, 'note-' ~ note.id ~ '-kind-error') }}
+          <div class="field">
+            <label for="note-{{ note.id }}-day">Date</label>
+            <input type="date" id="note-{{ note.id }}-day" name="happened_on" value="{{ note.edit.values.get('happened_on', '') }}"{% if note.edit.errors.happened_on %} aria-invalid="true" aria-describedby="note-{{ note.id }}-day-error"{% endif %}>
+            {% if note.edit.errors.happened_on %}<p class="field-error" id="note-{{ note.id }}-day-error">{{ note.edit.errors.happened_on }}</p>{% endif %}
+          </div>
+          <div class="field">
+            <label for="note-{{ note.id }}-text">Note</label>
+            <textarea id="note-{{ note.id }}-text" name="text" rows="4" maxlength="4000"{% if note.edit.errors.text %} aria-invalid="true" aria-describedby="note-{{ note.id }}-text-error"{% endif %}>{{ note.edit.values.get('text', '') }}</textarea>
+            {% if note.edit.errors.text %}<p class="field-error" id="note-{{ note.id }}-text-error">{{ note.edit.errors.text }}</p>{% endif %}
+          </div>
+          <div class="form-actions">
+            <button type="submit" class="button-primary">Save note</button>
+          </div>
+        </form>
+        <form class="inline-form" method="post" action="/accounts/{{ account.id | idpath }}/notes/{{ note.id | idpath }}/remove">
+          <input type="hidden" name="back" value="account">
+          <button type="submit" class="button button--small">Remove note</button>
+        </form>
+      </details>
+    </article>
+    {% endfor %}
+  </div>
+  {% else %}
+  <p>No notes yet.</p>
+  {% endif %}
+</section>

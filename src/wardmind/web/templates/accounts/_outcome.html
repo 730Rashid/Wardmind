@@ -1,0 +1,64 @@
+{# The renewal outcome box in the aside: what was recorded (each with its Remove), and a form to record
+   one. The form opens by itself when the renewal date has passed and nothing answers it yet. #}
+{% set form = journal.outcome_form %}
+<section class="outcome-box" id="outcome" aria-labelledby="outcome-heading">
+  <h3 class="section-title" id="outcome-heading">Renewal outcome</h3>
+
+  {% if journal.outcomes %}
+  <ul class="outcome-list">
+    {% for item in journal.outcomes %}
+    <li class="outcome">
+      <p>{{ item.line }}</p>
+      {% if item.note %}<p class="outcome-note">{{ item.note }}</p>{% endif %}
+      <details class="outcome-disclosure">
+        <summary class="button button--small">Remove</summary>
+        <form class="inline-form" method="post" action="/accounts/{{ account.id | idpath }}/outcomes/{{ item.id | idpath }}/remove">
+          <input type="hidden" name="back" value="account">
+          <button type="submit" class="button button--small">Remove this outcome</button>
+        </form>
+      </details>
+    </li>
+    {% endfor %}
+  </ul>
+  {% endif %}
+
+  <details class="outcome-disclosure outcome-add"{% if journal.outcome_open %} open{% endif %}>
+    <summary class="button button--small">Record the outcome</summary>
+    {% if journal.awaiting %}<p class="outcome-awaiting">{{ journal.awaiting }}</p>{% endif %}
+    <form class="journal-form" method="post" action="/accounts/{{ account.id | idpath }}/outcome">
+      <input type="hidden" name="back" value="account">
+      {% if form.errors.form %}<p class="field-error" role="alert">{{ form.errors.form }}</p>{% endif %}
+      <fieldset class="journal-kinds">
+        <legend>What happened</legend>
+        {% for value, label in [("renewed", "Renewed"), ("expanded", "Expanded"), ("contracted", "Contracted"), ("churned", "Churned")] %}
+        <label class="choice"><input type="radio" name="kind" value="{{ value }}"{% if form.values.get('kind', '') == value %} checked{% endif %}> {{ label }}</label>
+        {% endfor %}
+        {% if form.errors.kind %}<p class="field-error">{{ form.errors.kind }}</p>{% endif %}
+      </fieldset>
+      <div class="field">
+        <label for="outcome-renewal">Renewal date</label>
+        <input type="date" id="outcome-renewal" name="renewal_date" value="{{ form.values.get('renewal_date', '') }}"{% if form.errors.renewal_date %} aria-invalid="true" aria-describedby="outcome-renewal-error"{% endif %}>
+        {% if form.errors.renewal_date %}<p class="field-error" id="outcome-renewal-error">{{ form.errors.renewal_date }}</p>{% endif %}
+      </div>
+      <div class="field">
+        <label for="outcome-decided">Decided on</label>
+        <input type="date" id="outcome-decided" name="decided_on" value="{{ form.values.get('decided_on', '') }}"{% if form.errors.decided_on %} aria-invalid="true" aria-describedby="outcome-decided-error"{% endif %}>
+        {% if form.errors.decided_on %}<p class="field-error" id="outcome-decided-error">{{ form.errors.decided_on }}</p>{% endif %}
+      </div>
+      <div class="field">
+        <label for="outcome-arr">New ARR</label>
+        <input type="text" id="outcome-arr" name="arr_after" value="{{ form.values.get('arr_after', '') }}" inputmode="decimal" autocomplete="off" aria-describedby="outcome-arr-help{% if form.errors.arr_after %} outcome-arr-error{% endif %}"{% if form.errors.arr_after %} aria-invalid="true"{% endif %}>
+        <p class="field-help" id="outcome-arr-help">Leave blank if you don't know it. Not needed for a churn.</p>
+        {% if form.errors.arr_after %}<p class="field-error" id="outcome-arr-error">{{ form.errors.arr_after }}</p>{% endif %}
+      </div>
+      <div class="field">
+        <label for="outcome-note">Note</label>
+        <textarea id="outcome-note" name="note" rows="3" maxlength="1000"{% if form.errors.note %} aria-invalid="true" aria-describedby="outcome-note-error"{% endif %}>{{ form.values.get('note', '') }}</textarea>
+        {% if form.errors.note %}<p class="field-error" id="outcome-note-error">{{ form.errors.note }}</p>{% endif %}
+      </div>
+      <div class="form-actions">
+        <button type="submit" class="button-primary">Record outcome</button>
+      </div>
+    </form>
+  </details>
+</section>

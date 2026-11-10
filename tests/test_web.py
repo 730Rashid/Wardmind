@@ -27,7 +27,7 @@ from wardmind.web import app as web
 WEB_DIR = Path(web.__file__).parent
 TEMPLATES = WEB_DIR / "templates"
 STATIC = WEB_DIR / "static"
-NAV_LINKS = ["/", "/brief", "/onboarding", "/client-updates", "/settings"]
+NAV_LINKS = ["/today", "/", "/brief", "/onboarding", "/client-updates", "/settings"]
 CSP = (
     "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; "
     "font-src 'self'; connect-src 'self'; base-uri 'none'; form-action 'self'; "

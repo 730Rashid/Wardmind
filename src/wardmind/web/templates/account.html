@@ -9,8 +9,24 @@
   <div class="account-main">
     <p class="account-back no-print"><a href="/">Back to My book</a></p>
     {% if status %}
-    <p class="status-line" role="status">{{ status }}</p>
+    <div class="status-row">
+      <p class="status-line" role="status">{{ status }}</p>
+      {% if journal.undo_id %}
+      <form class="inline-form" method="post" action="/accounts/{{ account.id | idpath }}/follow-ups/{{ journal.undo_id | idpath }}/undo">
+        <input type="hidden" name="back" value="account">
+        <button type="submit" class="button button--small">Undo</button>
+      </form>
+      {% endif %}
+    </div>
+    {% elif journal.undo_id %}
+    <div class="status-row">
+      <form class="inline-form" method="post" action="/accounts/{{ account.id | idpath }}/follow-ups/{{ journal.undo_id | idpath }}/undo">
+        <input type="hidden" name="back" value="account">
+        <button type="submit" class="button button--small">Undo</button>
+      </form>
+    </div>
     {% endif %}
+    {% if journal.refused %}<p class="field-error" role="alert">{{ journal.refused }}</p>{% endif %}
 
     <header class="account-head">
       <div class="account-title">
@@ -25,6 +41,8 @@
         <li>{{ detail | motion_fact }}{% if motion_field in edits %} {{ edited_marker() }}{% endif %}</li>
         <li>{{ account.arr | money }} ARR{% if 'arr' in edits %} {{ edited_marker() }}{% endif %}</li>
         <li>{{ account.owner }}{% if 'owner' in edits %} {{ edited_marker() }}{% endif %}</li>
+        <li>{{ journal.last_contact }}</li>
+        {% if journal.open_count %}<li>Open follow-ups: {{ journal.open_count }}</li>{% endif %}
       </ul>
       {% if prov %}
       <div class="source-row">
@@ -53,10 +71,11 @@
       <p class="account-summary">{{ detail.explanation.summary }}</p>
     </header>
 
-    <section class="account-section next-step" aria-labelledby="next-step-heading">
-      <h2 class="section-title" id="next-step-heading">Next step</h2>
-      <p>{{ detail.explanation.suggested_action }}</p>
-    </section>
+    {% include "accounts/_next_step.html" %}
+
+    {% include "accounts/_follow_ups.html" %}
+
+    {% include "accounts/_notes.html" %}
 
     {% include "accounts/_contacts.html" %}
 
@@ -65,6 +84,7 @@
       {% set longest = detail.breakdown | map(attribute="max_points") | max %}
       {{ breakdown_table(detail.breakdown, longest, "How each signal adds to the risk score") }}
       <p class="risk-sentence">{{ risk_sentence(detail.scored.risk, detail.scored.priority, health, thresholds) }}</p>
+      {% include "accounts/_trend.html" %}
     </section>
 
     <section class="account-section history" aria-labelledby="history-heading">
@@ -96,8 +116,6 @@
     <dl class="facts-list">
       <dt>Tier</dt>
       <dd>{{ account.tier }}{% if 'tier' in edits %} {{ edited_marker() }}{% endif %}</dd>
-      <dt>Owner</dt>
-      <dd>{{ account.owner }}{% if 'owner' in edits %} {{ edited_marker() }}{% endif %}</dd>
       <dt>Started</dt>
       <dd>{% if account.start_date is none %}Not known{% if prov %} <a class="no-print" href="/accounts/{{ account.id | idpath }}/edit#field-start-date">Add it</a>{% endif %}{% else %}{{ account.start_date | day_label(today_day) }}, {{ detail.days_since_start | ago }}{% endif %}{% if 'start_date' in edits %} {{ edited_marker() }}{% endif %}</dd>
       <dt>Renews</dt>
@@ -107,6 +125,7 @@
       <dt>Data source</dt>
       <dd>{{ connector_label }}</dd>
     </dl>
+    {% include "accounts/_outcome.html" %}
     {% include "accounts/_updates_box.html" %}
   </aside>
 </div>

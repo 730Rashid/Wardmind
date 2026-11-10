@@ -1,0 +1,18 @@
+{# Risk over the last 90 days, as an inline SVG sparkline in a 300 by 60 box with risk 100 at the top. The
+   two faint bands are the watch and at-risk zones; the dot is the latest reading, in its health's colour.
+   The caption under it says the numbers, so the chart is never the only way to read the trend. #}
+{% if trend.shown %}
+<div class="trend">
+  <h3 class="trend-title" id="trend-heading">Risk over the last 90 days</h3>
+  <svg class="trend-chart" viewBox="0 0 300 60" role="img" aria-label="{{ trend.label }}" focusable="false">
+    {% for zone in trend.zones %}
+    <rect class="trend-zone {{ zone.css }}" x="0" y="{{ zone.y }}" width="300" height="{{ zone.height }}"/>
+    {% endfor %}
+    {% if trend.points %}
+    <polyline class="trend-line" points="{{ trend.points }}"/>
+    {% endif %}
+    <circle class="trend-dot trend-dot--{{ trend.dot_health }}" cx="{{ trend.dot_x }}" cy="{{ trend.dot_y }}" r="3.5"/>
+  </svg>
+  <p class="trend-caption">{{ trend.caption }}</p>
+</div>
+{% endif %}

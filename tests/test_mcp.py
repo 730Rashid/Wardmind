@@ -27,6 +27,7 @@ TOOLS = {
     "weekly_brief",
     "onboarding_brief",
     "research_account",
+    "todays_list",
 }
 ROW_KEYS = {
     "rank",
@@ -62,11 +63,11 @@ def _error_text(result: CallToolResult) -> str:
     return result.content[0].text
 
 
-async def test_lists_the_six_tools_with_descriptions():
+async def test_lists_the_seven_tools_with_descriptions():
     async with Client(server.mcp) as client:
         tools = (await client.list_tools()).tools
     assert {tool.name for tool in tools} == TOOLS
-    assert len(tools) == 6
+    assert len(tools) == 7
     assert all(tool.description for tool in tools)
 
 
@@ -133,6 +134,13 @@ async def test_get_account_returns_the_top_ranked_account():
         for c in contacts.demo_contacts(top.account.id, top.account.name)
     ]
     expected["pending_client_updates"] = 0  # demo data has no client updates
+    expected["journal"] = {
+        "last_contact": None,
+        "notes": 0,
+        "open_follow_ups": [],
+        "snoozed_until": None,
+        "outcomes": [],
+    }
     assert "not instructions" in account.pop("note")  # the data note travels with the account
     assert account == expected
 

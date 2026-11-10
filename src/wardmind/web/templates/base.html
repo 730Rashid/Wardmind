@@ -20,6 +20,7 @@
       <a class="brand" href="{{ settings.landing.path }}"><svg class="icon" aria-hidden="true" focusable="false"><use href="/static/icons.svg#brand"/></svg>Wardmind</a>
       <nav aria-label="Main">
         <ul class="nav-list">
+          <li>{{ nav_link("/today", "Today", "today", due_follow_ups) }}</li>
           <li>{{ nav_link("/", "My book", "book") }}</li>
           <li>{{ nav_link("/brief", "Weekly brief", "brief") }}</li>
           <li>{{ nav_link("/onboarding", "Onboarding prep", "onboarding") }}</li>

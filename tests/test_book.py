@@ -52,8 +52,15 @@ def _row_ranks(markup: str) -> list[int]:
     return [int(card or row) for card, row in found]
 
 
+def _without_since(markup: str) -> str:
+    """The page without its "Since last week" panel: that panel links accounts too, but it is not a
+    card or a row of the book."""
+    return re.sub(r'<section class="since-panel".*?</section>', "", markup, flags=re.S)
+
+
 def _account_links(markup: str) -> list[str]:
-    return [a["href"] or "" for a in _tags(markup, "a") if a.get("class") == "account-link"]
+    tags = _tags(_without_since(markup), "a")
+    return [a["href"] or "" for a in tags if a.get("class") == "account-link"]
 
 
 def _checked(markup: str, name: str) -> list[str]:
@@ -178,7 +185,7 @@ def test_search_matches_account_names_only(client: TestClient) -> None:
     assert len(expected) == 3
 
     markup = client.get("/?q=BRINDLE").text
-    names = set(re.findall(r'href="/accounts/[^"]+">([^<]+)</a>', markup))
+    names = set(re.findall(r'href="/accounts/[^"]+">([^<]+)</a>', _without_since(markup)))
     assert names == expected
     assert len(_row_ranks(markup)) == 3
 

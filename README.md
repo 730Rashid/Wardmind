@@ -6,7 +6,8 @@ attention this week. It is reachable three ways, all backed by the same core cod
 ![Wardmind: the ranked book, an account page, the weekly brief and onboarding prep](docs/demo.gif)
 
 - **Web dashboard:** `wardmind ui` opens a local page at http://127.0.0.1:8000 with:
-  - **My book:** the ranked list
+  - **Today:** follow-ups due, accounts that need attention, and renewals to record
+  - **My book:** the ranked list, with what changed since last week
   - **Account pages:** the score breakdown, signal history and next step
   - **Weekly brief:** a one-page summary with **Print or save as PDF** (fits on 2 A4 pages)
   - **Onboarding prep:** pick an account to get a call brief. It covers where the account is on
@@ -88,14 +89,15 @@ uv run wardmind ui         # dashboard at http://127.0.0.1:8000
 claude mcp add wardmind -- uv --directory "<path to this folder>" run wardmind mcp
 ```
 
-The server exposes six tools:
+The server exposes seven tools:
 
 | Tool | What it returns |
 |---|---|
 | `list_book` | accounts in priority order; optional `motion`, `search`, `limit` |
-| `get_account` | everything about one account |
+| `get_account` | everything about one account, including your journal (dates, follow-ups and outcomes; never note text) |
 | `explain_score` | why the account ranks where it does, with a short summary |
-| `weekly_brief` | totals, counts by health and motion, call-outs, and the top accounts |
+| `weekly_brief` | totals, counts by health and motion, call-outs, the top accounts, and what changed since last week |
+| `todays_list` | your follow-ups due, accounts that need attention, renewals to record |
 | `onboarding_brief` | a prep brief for an onboarding call: plan status, agenda, questions |
 | `research_account` | what the customer's own website says: title, description, recent news (only when web research is on) |
 
@@ -119,6 +121,40 @@ You match the source's columns once, see what will happen before saving, and the
 on its schedule. Settings > Connections shows when each feed last synced, any problem, and rows
 that didn't match an account. Feeds only read, and each feed's key is sent only to its own
 source ([PRIVACY.md](PRIVACY.md#data-feeds-in-detail)).
+
+## Today, notes and follow-ups
+
+Wardmind tells you which accounts need attention. The journal is where you record what you did
+about them:
+
+- **Notes and touches:** on each account page, add a dated note, or log a call, meeting or
+  email. The account then shows when you last contacted it.
+- **Follow-ups:** "do this by <date>", one click from the suggested next step. Mark them done
+  (with Undo), move them, or remove them.
+- **Snooze:** "I've dealt with this, leave it off Today for 7 days". A snooze ends by itself,
+  or sooner if the account's health gets worse.
+- **Renewal outcomes:** once a renewal date passes, record how it went: renewed, expanded,
+  contracted or churned. Wardmind keeps what it thought of the account at that moment, so the
+  scoring can learn from real outcomes later.
+- **Today** (first in the top bar, with a count of what's due) lists:
+  - follow-ups due today or late
+  - at-risk and watch accounts you haven't touched in 14 days
+  - renewals waiting for their outcome
+  - what's coming up this week, and what's snoozed
+
+You can also make Today the screen Wardmind opens on (Settings > Appearance).
+
+## Score history: what changed since last week
+
+With your data, Wardmind keeps one score snapshot a day: every account's rank, risk, health and
+signal values. It takes one when you open My book, and every hour while Wardmind is open.
+- **My book** and the **Weekly brief** say what changed since last week: accounts that got worse
+  or better, rising risk, and accounts that joined or left your book.
+- Each **account page** shows its risk over the last 90 days.
+
+History starts the day you first use this version, so the weekly comparison appears a week
+later. With demo data, the history is worked out from the sample readings, so you can see it
+straight away.
 
 ## Contacts and client updates
 

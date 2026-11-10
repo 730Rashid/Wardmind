@@ -1,0 +1,56 @@
+{# Follow-ups: the open ones by due date, each with Done, Move (a date box and a button) and Remove.
+   Recently done ones sit below with Undo. The section is left out when there are neither. #}
+{% if journal.follow_ups or journal.done %}
+<section class="account-section journal-section" id="follow-ups" aria-labelledby="follow-ups-heading">
+  <h2 class="section-title" id="follow-ups-heading">Follow-ups</h2>
+
+  {% if journal.follow_ups %}
+  <ul class="journal-list">
+    {% for item in journal.follow_ups %}
+    <li class="journal-item" id="follow-up-{{ item.id }}">
+      <p class="journal-meta"><span class="due{% if item.late %} due--late{% endif %}">{% if item.late %}<svg class="icon" aria-hidden="true" focusable="false"><use href="/static/icons.svg#status-overdue"/></svg>{% endif %}{{ item.due_label }}</span></p>
+      <p class="journal-text">{{ item.text }}</p>
+      <div class="journal-actions">
+        <form class="inline-form" method="post" action="/accounts/{{ account.id | idpath }}/follow-ups/{{ item.id | idpath }}/done">
+          <input type="hidden" name="back" value="account">
+          <button type="submit" class="button button--small">Done</button>
+        </form>
+        <form class="inline-form move-form" method="post" action="/accounts/{{ account.id | idpath }}/follow-ups/{{ item.id | idpath }}/move">
+          <input type="hidden" name="back" value="account">
+          <label class="visually-hidden" for="move-{{ item.id }}">New due date</label>
+          <input type="date" id="move-{{ item.id }}" name="due" value="{{ item.move.values.get('due', '') }}"{% if item.move.errors.due %} aria-invalid="true" aria-describedby="move-{{ item.id }}-error"{% endif %}>
+          <button type="submit" class="button button--small">Move</button>
+          {% if item.move.errors.due %}<span class="field-error" id="move-{{ item.id }}-error">{{ item.move.errors.due }}</span>{% endif %}
+          {% if item.move.errors.form %}<span class="field-error" role="alert">{{ item.move.errors.form }}</span>{% endif %}
+        </form>
+        <form class="inline-form" method="post" action="/accounts/{{ account.id | idpath }}/follow-ups/{{ item.id | idpath }}/remove">
+          <input type="hidden" name="back" value="account">
+          <button type="submit" class="button button--small">Remove</button>
+        </form>
+      </div>
+    </li>
+    {% endfor %}
+  </ul>
+  {% else %}
+  <p class="field-help">No open follow-ups.</p>
+  {% endif %}
+
+  {% if journal.done %}
+  <div class="journal-done">
+    <p class="field-help">Done in the last two weeks</p>
+    <ul class="journal-list">
+      {% for item in journal.done %}
+      <li class="journal-item journal-item--done">
+        <p class="journal-meta"><span class="field-help">{{ item.done_label }}</span></p>
+        <p class="journal-text">{{ item.text }}</p>
+        <form class="inline-form" method="post" action="/accounts/{{ account.id | idpath }}/follow-ups/{{ item.id | idpath }}/undo">
+          <input type="hidden" name="back" value="account">
+          <button type="submit" class="button button--small">Undo</button>
+        </form>
+      </li>
+      {% endfor %}
+    </ul>
+  </div>
+  {% endif %}
+</section>
+{% endif %}

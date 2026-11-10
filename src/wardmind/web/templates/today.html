@@ -1,0 +1,164 @@
+{% extends "base.html" %}
+{# Today: what needs the CSM now, in the order it's worth doing. Each section is left out when empty.
+   Every form here returns to this page (back=today), except the links, which go to an account. #}
+{% block content %}
+<div class="today">
+  <header class="today-head">
+    <h1 class="page-title">Today</h1>
+    <p class="date-line">{{ today }}</p>
+    <p class="summary">
+      {% if today_page.summary %}<span class="summary-line">{{ today_page.summary }}</span>{% endif %}
+      <span class="summary-line summary-line--muted">{{ today_page.contacted }}</span>
+    </p>
+  </header>
+
+  {% if notice or undo_id %}
+  <div class="status-row">
+    {% if notice %}<p class="status-line" role="status">{{ notice }}</p>{% endif %}
+    {% if undo_id %}
+    <form class="inline-form" method="post" action="/accounts/{{ undo_account | idpath }}/follow-ups/{{ undo_id | idpath }}/undo">
+      <input type="hidden" name="back" value="today">
+      <button type="submit" class="button button--small">Undo</button>
+    </form>
+    {% endif %}
+  </div>
+  {% endif %}
+
+  {% if today_page.due %}
+  <section class="account-section today-section" id="today-due" aria-labelledby="today-due-heading">
+    <h2 class="section-title" id="today-due-heading">Due</h2>
+    <ul class="today-list">
+      {% for row in today_page.due %}
+      <li class="today-item">
+        <div class="today-item-head">
+          <a class="account-link" href="/accounts/{{ row.account_id | idpath }}">{{ row.name }}</a>
+          <span class="due{% if row.late %} due--late{% endif %}">{% if row.late %}<svg class="icon" aria-hidden="true" focusable="false"><use href="/static/icons.svg#status-overdue"/></svg>{% endif %}{{ row.due_label }}</span>
+        </div>
+        <p class="today-text">{{ row.text }}</p>
+        <div class="today-actions">
+          <form class="inline-form" method="post" action="/accounts/{{ row.account_id | idpath }}/follow-ups/{{ row.follow_up_id | idpath }}/done">
+            <input type="hidden" name="back" value="today">
+            <button type="submit" class="button button--small">Done</button>
+          </form>
+          <form class="inline-form" method="post" action="/accounts/{{ row.account_id | idpath }}/follow-ups/{{ row.follow_up_id | idpath }}/move">
+            <input type="hidden" name="back" value="today">
+            <input type="hidden" name="days" value="1">
+            <button type="submit" class="button button--small">Tomorrow</button>
+          </form>
+          <form class="inline-form" method="post" action="/accounts/{{ row.account_id | idpath }}/follow-ups/{{ row.follow_up_id | idpath }}/move">
+            <input type="hidden" name="back" value="today">
+            <input type="hidden" name="days" value="7">
+            <button type="submit" class="button button--small">+1 week</button>
+          </form>
+        </div>
+      </li>
+      {% endfor %}
+    </ul>
+  </section>
+  {% endif %}
+
+  {% if today_page.attention %}
+  <section class="account-section today-section" id="today-attention" aria-labelledby="today-attention-heading">
+    <h2 class="section-title" id="today-attention-heading">Needs attention</h2>
+    <ul class="today-list">
+      {% for row in today_page.attention %}
+      <li class="today-item">
+        <div class="today-item-head">
+          <span class="health health--{{ row.health }}"><svg class="icon" aria-hidden="true" focusable="false"><use href="/static/icons.svg#health-{{ row.health | replace('_', '-') }}"/></svg>{{ row.health_label }}</span>
+          <a class="account-link" href="/accounts/{{ row.account_id | idpath }}">{{ row.name }}</a>
+          <span class="today-rank">#{{ row.rank }}</span>
+        </div>
+        <p class="today-reason">{{ row.reason }}</p>
+        <p class="field-help">{{ row.contact }}</p>
+        <div class="today-actions">
+          <form class="inline-form" method="post" action="/accounts/{{ row.account_id | idpath }}/follow-ups">
+            <input type="hidden" name="back" value="today">
+            <input type="hidden" name="text" value="{{ row.suggested }}">
+            <input type="hidden" name="days" value="7">
+            <button type="submit" class="button button--small">Add follow-up</button>
+          </form>
+          <form class="inline-form" method="post" action="/accounts/{{ row.account_id | idpath }}/snooze">
+            <input type="hidden" name="back" value="today">
+            <input type="hidden" name="days" value="7">
+            <button type="submit" class="button button--small">Snooze 7 days</button>
+          </form>
+          <a class="button button--small" href="/accounts/{{ row.account_id | idpath }}#notes">Log a call</a>
+        </div>
+      </li>
+      {% endfor %}
+    </ul>
+  </section>
+  {% endif %}
+
+  {% if today_page.renewals %}
+  <section class="account-section today-section" id="today-renewals" aria-labelledby="today-renewals-heading">
+    <h2 class="section-title" id="today-renewals-heading">Renewals to record</h2>
+    <ul class="today-list">
+      {% for row in today_page.renewals %}
+      <li class="today-item">
+        <div class="today-item-head">
+          <a class="account-link" href="/accounts/{{ row.account_id | idpath }}">{{ row.name }}</a>
+        </div>
+        <p class="field-help">{{ row.passed }}</p>
+        <div class="today-actions">
+          <a class="button button--small" href="/accounts/{{ row.account_id | idpath }}#outcome">Record the outcome</a>
+        </div>
+      </li>
+      {% endfor %}
+    </ul>
+  </section>
+  {% endif %}
+
+  {% if today_page.upcoming %}
+  <section class="account-section today-section" id="today-upcoming" aria-labelledby="today-upcoming-heading">
+    <h2 class="section-title" id="today-upcoming-heading">Coming up</h2>
+    <ul class="today-list">
+      {% for row in today_page.upcoming %}
+      <li class="today-item">
+        <div class="today-item-head">
+          <a class="account-link" href="/accounts/{{ row.account_id | idpath }}">{{ row.name }}</a>
+          <span class="due">{{ row.due_label }}</span>
+        </div>
+        <p class="today-text">{{ row.text }}</p>
+        <div class="today-actions">
+          <form class="inline-form" method="post" action="/accounts/{{ row.account_id | idpath }}/follow-ups/{{ row.follow_up_id | idpath }}/done">
+            <input type="hidden" name="back" value="today">
+            <button type="submit" class="button button--small">Done</button>
+          </form>
+        </div>
+      </li>
+      {% endfor %}
+    </ul>
+  </section>
+  {% endif %}
+
+  {% if today_page.snoozed %}
+  <section class="account-section today-section" id="today-snoozed" aria-labelledby="today-snoozed-heading">
+    <h2 class="section-title" id="today-snoozed-heading">Snoozed</h2>
+    <ul class="today-list">
+      {% for row in today_page.snoozed %}
+      <li class="today-item">
+        <div class="today-item-head">
+          <a class="account-link" href="/accounts/{{ row.account_id | idpath }}">{{ row.name }}</a>
+          <span class="chip chip--muted">{{ row.line }}</span>
+        </div>
+        <div class="today-actions">
+          <form class="inline-form" method="post" action="/accounts/{{ row.account_id | idpath }}/wake">
+            <input type="hidden" name="back" value="today">
+            <button type="submit" class="button button--small">Wake</button>
+          </form>
+        </div>
+      </li>
+      {% endfor %}
+    </ul>
+  </section>
+  {% endif %}
+
+  {% if today_page.empty %}
+  <div class="empty empty-card">
+    <p>Nothing needs you today.</p>
+    <p><a href="/">Go to My book</a></p>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

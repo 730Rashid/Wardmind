@@ -97,6 +97,7 @@ def test_rank_one_page_has_the_facts_row(client: TestClient, detail: AccountDeta
         formatting.motion_fact(detail),
         f"{web.money(account.arr)} ARR",
         account.owner,
+        "Not contacted yet",  # the last-contact fact, from the journal
     ]
     assert "health--" in items[0]
 
@@ -182,7 +183,8 @@ def test_account_facts_aside_lists_the_facts(client: TestClient, detail: Account
     today = date.today()  # the page renders against the real today, as the route does
 
     keys = [_plain(key) for key in re.findall(r"<dt>(.*?)</dt>", aside)]
-    assert keys == ["Tier", "Owner", "Started", "Renews", "Onboarding milestones", "Data source"]
+    # The owner is in the header only; the aside no longer repeats it.
+    assert keys == ["Tier", "Started", "Renews", "Onboarding milestones", "Data source"]
 
     values = [_plain(value) for value in re.findall(r"<dd>(.*?)</dd>", aside)]
     milestones = account.milestones
@@ -191,7 +193,6 @@ def test_account_facts_aside_lists_the_facts(client: TestClient, detail: Account
         milestone_text += f", {milestones.overdue} overdue"
     assert values == [
         account.tier,
-        account.owner,
         f"{formatting.day_label(account.start_date, today)}, "
         f"{formatting.ago(detail.days_since_start)}",
         formatting.day_label(account.renewal_date, today),
@@ -213,7 +214,7 @@ def test_overdue_milestones_are_named_in_the_facts(monkeypatch: pytest.MonkeyPat
     markup = client.get(f"/accounts/{target.id}").text
     aside = _block(markup, r'<aside class="account-aside"[^>]*>(.*?)</aside>')
     values = [_plain(value) for value in re.findall(r"<dd>(.*?)</dd>", aside)]
-    assert values[4] == "2 of 6 done, 1 overdue"
+    assert values[3] == "2 of 6 done, 1 overdue"
 
 
 def test_account_with_no_readings_says_so(monkeypatch: pytest.MonkeyPatch):

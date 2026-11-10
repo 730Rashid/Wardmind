@@ -4397,3 +4397,632 @@ a.button-primary {
 .updates-gone .inline-form {
   margin: 0;
 }
+
+/* The journal: chips and due labels on My book, the Today page, the account page's next step,
+   follow-ups, notes, the risk trend, the renewal outcome, and "Since last week". Colour is only ever
+   a token; every label carries its word, and a late item also carries its icon and a heavier weight. */
+
+/* Chips: the tag shape, in neutral slate. A snooze is muted; a late follow-up is heavier and outlined. */
+.chip-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin: var(--space-3) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0.125rem 0.5rem;
+  border: 1px solid color-mix(in srgb, currentColor 16%, transparent);
+  border-radius: var(--radius-tag);
+  background: var(--tag-slate-bg);
+  color: var(--tag-slate-ink);
+  font-size: var(--t-sm);
+  line-height: var(--lh-sm);
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.chip .icon {
+  width: 0.875rem;
+  height: 0.875rem;
+}
+
+.chip--muted {
+  background: transparent;
+  color: var(--ink-muted);
+  border-color: var(--line-strong);
+}
+
+.chip--late {
+  background: var(--surface);
+  color: var(--ink);
+  border-color: var(--ink);
+  font-weight: 600;
+}
+
+/* A due label: muted, and bold with its icon when late. */
+.due {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-size: var(--t-sm);
+  line-height: var(--lh-sm);
+  color: var(--ink-muted);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.due--late {
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.card-contact {
+  display: block;
+  margin-block-start: var(--space-1);
+}
+
+/* Status line with the Undo button beside it. */
+.status-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+}
+
+.status-row > .status-line {
+  margin: 0;
+}
+
+/* Journal sections are cards like the others on the account page. */
+.journal-section {
+  gap: var(--space-4);
+}
+
+.journal-section > details > summary {
+  display: inline-block;
+  list-style: none;
+  cursor: pointer;
+}
+
+.journal-section > details > summary::-webkit-details-marker,
+.outcome-disclosure > summary::-webkit-details-marker {
+  display: none;
+}
+
+.journal-section > details[open] > summary,
+.outcome-disclosure[open] > summary {
+  margin-block-end: var(--space-3);
+}
+
+/* The next step's compact row: the quick follow-up, the snooze, and a link to log a call. */
+.step-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--space-4) var(--space-5);
+}
+
+.step-form {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--space-3);
+  margin: 0;
+}
+
+.step-form .field {
+  min-inline-size: 0;
+}
+
+.step-form input[type="text"],
+.step-form input[type="date"],
+.step-form select {
+  padding-block: var(--space-2);
+  padding-inline: var(--space-3);
+}
+
+.step-form input[type="text"] {
+  inline-size: min(24rem, 100%);
+}
+
+.snooze-state {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-2);
+  max-inline-size: 28rem;
+}
+
+.snooze-state > p,
+.step-link {
+  margin: 0;
+}
+
+/* Follow-ups: a list with a rule between items. */
+.journal-list {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.journal-item {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding-block: var(--space-3);
+  border-block-start: 1px solid var(--line);
+}
+
+.journal-list > .journal-item:first-child {
+  padding-block-start: 0;
+  border-block-start: 0;
+}
+
+.journal-meta,
+.journal-text {
+  margin: 0;
+}
+
+.journal-meta {
+  font-size: var(--t-sm);
+  line-height: var(--lh-sm);
+}
+
+.journal-item--done .journal-text {
+  color: var(--ink-muted);
+}
+
+.journal-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+}
+
+.journal-actions .inline-form,
+.journal-actions .move-form {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.move-form input[type="date"] {
+  padding-block: var(--space-1);
+  padding-inline: var(--space-2);
+}
+
+.journal-done {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding-block-start: var(--space-4);
+  border-block-start: 1px solid var(--line);
+}
+
+.journal-done > .field-help {
+  margin: 0;
+}
+
+/* The forms in notes and outcomes: one column of at most 40rem, each label above its input. */
+.journal-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  max-inline-size: 40rem;
+  margin: 0;
+}
+
+.journal-form .field {
+  min-inline-size: 0;
+}
+
+.journal-form input:not([type="radio"]):not([type="checkbox"]) {
+  inline-size: 100%;
+  max-inline-size: 24rem;
+  padding-block: var(--space-2);
+  padding-inline: var(--space-3);
+}
+
+.journal-form textarea {
+  inline-size: 100%;
+  min-block-size: 5rem;
+  padding: var(--space-2) var(--space-3);
+  font: inherit;
+  color: var(--ink);
+  background: var(--surface);
+  border: 1px solid var(--control);
+  border-radius: var(--radius-control);
+  resize: vertical;
+}
+
+.journal-kinds {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-5);
+  min-inline-size: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.journal-kinds legend {
+  flex-basis: 100%;
+  margin-block-end: var(--space-1);
+  font-size: var(--t-sm);
+  line-height: var(--lh-sm);
+  font-weight: 600;
+}
+
+/* Notes: newest first, a rule between them, the text kept as typed (line breaks included). */
+.notes-list {
+  margin-block-start: var(--space-2);
+}
+
+.note {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding-block: var(--space-3);
+  border-block-start: 1px solid var(--line);
+}
+
+.notes-list > .note:first-child {
+  padding-block-start: 0;
+  border-block-start: 0;
+}
+
+.note-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1) var(--space-3);
+  margin: 0;
+  font-size: var(--t-sm);
+  line-height: var(--lh-sm);
+  color: var(--ink-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.note-kind {
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.note-text {
+  margin: 0;
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+}
+
+.note-disclosure {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-3);
+}
+
+.note-disclosure > .inline-form {
+  margin: 0;
+}
+
+/* The renewal outcome box in the aside: as the updates box, with a rule above it. */
+.outcome-box {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding-block-start: var(--space-4);
+  border-block-start: 1px solid var(--line);
+}
+
+.outcome-box > .section-title {
+  margin: 0;
+}
+
+.outcome-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.outcome > p {
+  margin: 0;
+}
+
+.outcome-note {
+  margin: var(--space-1) 0 0;
+  color: var(--ink-muted);
+  font-size: var(--t-sm);
+  line-height: var(--lh-sm);
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+}
+
+.outcome-disclosure {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+.outcome-disclosure > .inline-form {
+  margin: 0;
+}
+
+.outcome-add {
+  align-items: stretch;
+}
+
+.outcome-awaiting {
+  margin: 0;
+}
+
+/* The risk trend: a faint watch and at-risk band behind the line, and the latest reading as a dot. */
+.trend {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin-block-start: var(--space-4);
+}
+
+.trend-title {
+  margin: 0;
+  font-size: var(--t-sm);
+  line-height: var(--lh-sm);
+  font-weight: 600;
+}
+
+.trend-chart {
+  display: block;
+  inline-size: 100%;
+  max-inline-size: 30rem;
+  block-size: auto;
+  overflow: visible;
+}
+
+.trend-zone {
+  opacity: 0.5;
+}
+
+.trend-zone--at-risk {
+  fill: var(--tag-red-bg);
+}
+
+.trend-zone--watch {
+  fill: var(--tag-orange-bg);
+}
+
+.trend-line {
+  fill: none;
+  stroke: var(--ink-muted);
+  stroke-width: 1.5;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+
+.trend-dot {
+  stroke: var(--surface);
+  stroke-width: 1.5;
+}
+
+.trend-dot--at_risk {
+  fill: var(--risk);
+}
+
+.trend-dot--watch {
+  fill: var(--watch);
+}
+
+.trend-dot--healthy {
+  fill: var(--healthy);
+}
+
+.trend-caption {
+  margin: 0;
+  font-size: var(--t-sm);
+  line-height: var(--lh-sm);
+  color: var(--ink-muted);
+}
+
+/* "Since last week" and "Follow-ups due this week": a list of rows, each a tag and a sentence. */
+.since-panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-5);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-card);
+}
+
+.since-list,
+.due-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.since-head,
+.due-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-2) var(--space-3);
+  margin: 0;
+}
+
+.since-sentence,
+.since-more {
+  margin: 0;
+}
+
+.since-sentence {
+  color: var(--ink-muted);
+}
+
+.since-more {
+  font-size: var(--t-sm);
+  line-height: var(--lh-sm);
+  color: var(--ink-muted);
+}
+
+.since-name {
+  font-weight: 600;
+}
+
+.due-text {
+  color: var(--ink-muted);
+}
+
+/* Today: a column of sections, each a card, each item a row with its actions beneath. */
+.today {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+}
+
+.today-head {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.today-head .summary {
+  margin: 0;
+}
+
+.today-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.today-item {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding-block-start: var(--space-3);
+  border-block-start: 1px solid var(--line);
+}
+
+.today-list > .today-item:first-child {
+  padding-block-start: 0;
+  border-block-start: 0;
+}
+
+.today-item-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+}
+
+.today-item > p {
+  margin: 0;
+}
+
+.today-rank {
+  color: var(--ink-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.today-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.today-actions .inline-form {
+  display: inline-flex;
+  margin: 0;
+}
+
+.today-section .chip {
+  white-space: normal;
+}
+
+/* The brief on paper: the two lists of this week's changes and follow-ups print one line each, with
+   the gaps between sections tightened, so the brief still fits two A4 pages with the demo book. */
+@media print {
+  .brief {
+    gap: var(--space-3);
+  }
+
+  .since-list {
+    gap: 0;
+  }
+
+  .since-row,
+  .due-row {
+    display: block;
+    font-size: var(--t-sm);
+    line-height: var(--lh-sm);
+  }
+
+  .since-head,
+  .due-row > .due,
+  .due-row > .due-text {
+    display: inline;
+  }
+
+  .since-head {
+    margin-inline-end: var(--space-2);
+  }
+
+  .since-sentence,
+  .since-more {
+    display: inline;
+  }
+
+  .since-sentence {
+    margin-inline-start: var(--space-1);
+  }
+
+  .top-list > li + li {
+    margin-block-start: var(--space-3);
+  }
+
+  /* One step down in type for the long lists, as the onboarding brief does on paper. */
+  .top-list,
+  .notable,
+  .motions {
+    font-size: var(--t-sm);
+    line-height: var(--lh-sm);
+  }
+
+  .motions th,
+  .motions td {
+    padding-block: var(--space-1);
+  }
+
+  .brief-section {
+    gap: var(--space-3);
+  }
+}
+
+@media (max-width: 559px) {
+  .today-item-head,
+  .due-row,
+  .since-head {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}

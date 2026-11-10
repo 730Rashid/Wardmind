@@ -49,6 +49,14 @@
     <p class="duplicates" role="status">{{ duplicate_count }} {{ 'account' if duplicate_count == 1 else 'accounts' }} might be duplicates. <a href="/duplicates">Review them.</a></p>
     {% endif %}
 
+    {% if since %}
+    <section class="since-panel" aria-labelledby="since-heading">
+      <h2 class="section-title" id="since-heading">Since last week</h2>
+      {% include "partials/since_rows.html" %}
+      {% if since.more %}<p class="since-more"><a href="/brief">See all in the weekly brief</a></p>{% endif %}
+    </section>
+    {% endif %}
+
     <div class="toolbar">
       <div class="search">
         <label class="search-label" for="q">Search accounts</label>

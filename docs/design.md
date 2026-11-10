@@ -651,3 +651,53 @@ Motion windows                                       |
 - cream-and-terracotta palettes
 - fade-up entrance animations on sections
 - icons without words
+
+## Today, notes and follow-ups
+The journal is the CSM's own record of what they did with each account, and Today is the working
+page built on it. Both keep the same principles: the reason is the hero, colour names a kind of
+thing and never stands alone, and every state says what it is in words.
+
+### Today (`/today`)
+- First in the nav, with a count of follow-ups due today or earlier. It can be the landing screen
+  (Settings > Appearance, "Opens on").
+- The summary is a sentence: "3 follow-ups due, 5 accounts need attention and 1 renewal to record."
+  A count of zero is left out. The line under it says how many accounts were contacted this week.
+- Sections, in order, each left out when empty: Due, Needs attention, Renewals to record, Coming up
+  (the next seven days), Snoozed. When all are empty: "Nothing needs you today." and a link to My book.
+- Every button posts back here (`back=today`). The status line after an action is a fixed sentence,
+  and Done offers Undo beside it.
+
+### Account page additions
+- **Facts row:** "Contacted 12 days ago" (or "Not contacted yet"), and "Open follow-ups: N" only
+  above zero.
+- **Next step (action row):** a quick follow-up whose text starts as the suggested step and whose
+  due date is a week out; a snooze of 3, 7, 14 or 30 days (or a date up to 90 days ahead); and a
+  "Log a call or meeting" link. While snoozed, the line reads "Snoozed until Mon 16 Nov. It comes
+  back sooner if its health gets worse." with a Wake now button.
+- **Follow-ups:** open ones by due date. A late one is bold, with its icon and the words "3 days
+  late". Each has Done, Move (a date box and a button) and Remove. Done in the last two weeks sits
+  below, each with Undo.
+- **Notes and touches:** the kind is chosen by radio buttons (Note, Call, Meeting, Email). Newest
+  first. Edit or remove sits in a disclosure, and Remove is a second button inside it.
+- **Renewal outcome** (aside): what was recorded, each with Remove. The form opens by itself when
+  the renewal date has passed and nothing answers it: "The renewal date passed 12 days ago. How did
+  it go?"
+- **Risk over the last 90 days:** a sparkline under the breakdown. Risk runs from 0 at the bottom to
+  100 at the top; the two faint bands are the watch and at-risk zones; the dot is the latest reading,
+  in its health's colour. The caption gives the numbers, so the chart is never the only reading.
+
+### Components
+- **Chip:** the tag shape in neutral slate, on My book's cards and rows. A snooze is muted. A late
+  follow-up is outlined and bold, with its icon and words.
+- **Due label:** "Due today", "Due tomorrow", "Due in 5 days", "1 day late". Late is bold with an
+  icon, so it never rests on colour.
+- **Sparkline:** server-computed SVG geometry in a 300 by 60 box. Its colours come from classes, not
+  inline styles (the CSP forbids those).
+- **Action row:** a flex-wrap row of small buttons. Each form posts on its own, with its return target.
+- **Since last week:** on My book, five changes (full page only, so an htmx refresh doesn't repeat
+  it); on the brief, up to twelve, with "and N more" beyond that.
+
+### Print
+- The brief prints each "since last week" change on one line and at a smaller size. The follow-ups
+  due this week are hidden in print (`no-print`). In an emulated print at 673px (A4 less margins) the
+  brief measures about 1,820px, against about 2,000px for two A4 pages.

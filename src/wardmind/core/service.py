@@ -13,7 +13,17 @@ from datetime import UTC, date, datetime, timedelta
 
 from pydantic import BaseModel, ValidationError
 
-from wardmind.core import bulk, client_updates, contacts, import_flow, research, secrets, summaries
+from wardmind.core import (
+    bulk,
+    client_updates,
+    contacts,
+    history,
+    import_flow,
+    journal,
+    research,
+    secrets,
+    summaries,
+)
 from wardmind.core.briefs import AccountDetail, account_detail, suggest_action
 from wardmind.core.config import ScoringConfig, load_scoring_config
 from wardmind.core.connectors.base import Connector
@@ -33,7 +43,7 @@ from wardmind.core.feeds.models import FeedRole
 from wardmind.core.feeds.providers import get_provider
 from wardmind.core.models import Account, Motion, ScoredAccount, Signal
 from wardmind.core.onboarding import OnboardingBrief, onboarding_brief
-from wardmind.core.scoring import score_book
+from wardmind.core.scoring import latest_signals, score_book
 from wardmind.core.settings import DataSource, Settings, load_settings, save_settings
 from wardmind.core.store import (
     WRITE_LOCK,
@@ -159,8 +169,8 @@ def get_combined() -> CombinedConnector | None:
 def remove_connection(connection_id: str) -> None:
     """Remove a connection and what came with it (its accounts, history, edits, notices, links,
     hidden entries and readings; see LocalStore.remove_connection), plus the contacts, client
-    update consents and updates of the accounts it owned (contacts.forget, client_updates.forget
-    with store.connection_for(id) == connection_id). A feed's saved key goes too,
+    update consents and updates, journal entries and score history of the accounts it owned
+    (each forget with store.connection_for(id) == connection_id). A feed's saved key goes too,
     so every caller removes a feed the same way. HubSpot's saved token is not touched here (the
     Connections page removes it). An unknown id does nothing. Shared connectors are forgotten."""
     store = get_store()
@@ -173,6 +183,8 @@ def remove_connection(connection_id: str) -> None:
 
         contacts.forget(store, owned)
         client_updates.forget(store, owned)
+        journal.Journal(store).forget(owned)
+        history.HistoryStore(store).forget(owned)
         if config is not None and config.kind is ConnectionKind.FEED:
             feed_setup.remove_feed_secret(connection_id)
     reset_connectors()
@@ -692,13 +704,15 @@ def housekeeping(now: datetime | None = None) -> None:
 def sync_due_feeds() -> int:
     """Sync every enabled feed that feed_sync.is_due says is due, one after another; return how
     many were synced. Never raises for one feed's problem (it lands in that feed's status).
-    Runs housekeeping at most once an hour."""
+    Runs housekeeping, and records the day's score snapshot (remember_book), at most once an
+    hour."""
     global _last_housekeeping
     store = get_store()
     now = _utc_now()
     if _last_housekeeping is None or now - _last_housekeeping >= _HOUSEKEEPING_EVERY:
         _last_housekeeping = now
         housekeeping(now)
+        remember_book()
     synced = 0
     for config in store.connections():
         feed = config.feed
@@ -815,3 +829,143 @@ def delete_all_local_data() -> None:
             load_settings().model_copy(update={"web_research": False, "ai_summaries": False})
         )
         reset_connectors()
+
+
+# --- The journal and score history (see core/journal.py, core/history.py) -------------------
+
+
+def _demo_mode() -> bool:
+    return load_settings().source is DataSource.DEMO
+
+
+def get_journal() -> journal.Journal:
+    """The journal for the data showing: demo data has its own file, so notes typed while trying
+    the demo never mix with real accounts."""
+    return journal.Journal(get_store(), demo=_demo_mode())
+
+
+def account_journal(account_id: str) -> journal.AccountJournal:
+    return get_journal().for_account(account_id)
+
+
+def due_follow_up_count(today: date | None = None) -> int:
+    """For the Today badge on every page: open follow-ups due today or earlier, read from the
+    journal file alone (like pending_client_update_count, it never asks a connector, so it may
+    count a follow-up on an account that has left the book)."""
+    day = today if today is not None else date.today()
+    return sum(
+        1
+        for entry in get_journal().all().values()
+        for follow_up in entry.follow_ups
+        if follow_up.status is journal.FollowUpStatus.OPEN and follow_up.due <= day
+    )
+
+
+def history_store() -> history.HistoryStore:
+    return history.HistoryStore(get_store())
+
+
+def remember_book(now: datetime | None = None, today: date | None = None) -> bool:
+    """Your data: record today's score snapshot, unless one was taken in the last hour; return
+    whether one was written. Demo data: nothing is recorded (its history is worked out from the
+    sample readings). Never raises: a failure (a connection that can't load, a full disk) is
+    logged by its exception type only, because a snapshot must never break a page."""
+    if _demo_mode():
+        return False
+    moment = now if now is not None else _utc_now()
+    day = today if today is not None else date.today()
+    try:
+        store = history_store()
+        saved = store.load(day)
+        if saved is not None and moment - saved.taken_at < history.REWRITE_AFTER:
+            return False
+        connector = get_connector()
+        signals = connector.list_signals()
+        book = get_book(connector, as_of=day)
+        return store.save(history.snapshot_of(book, signals, day, moment))
+    except Exception as exc:
+        _log.warning("Today's score history wasn't recorded (%s).", type(exc).__name__)
+        return False
+
+
+def _demo_snapshot(day: date, now: datetime) -> history.BookSnapshot:
+    demo = DemoConnector()
+    return history.rescored_snapshot(
+        demo.list_accounts(), demo.list_signals(), load_scoring_config(), day, now
+    )
+
+
+def week_changes(
+    book: list[ScoredAccount], today: date | None = None
+) -> history.WeekChanges | None:
+    """What changed since a week ago: the book compared with the snapshot on or before
+    today - WEEK_DAYS. Your data: None until a snapshot that old exists. Demo data: compared with
+    the demo book scored as of that day."""
+    day = today if today is not None else date.today()
+    week_ago = day - timedelta(days=history.WEEK_DAYS)
+    if _demo_mode():
+        earlier: history.BookSnapshot | None = _demo_snapshot(week_ago, _utc_now())
+    else:
+        earlier = history_store().on_or_before(week_ago)
+    return None if earlier is None else history.changes_since(book, earlier)
+
+
+def history_started() -> date | None:
+    """The first day with a recorded snapshot (Your data), or None (none yet, or demo data)."""
+    return None if _demo_mode() else history_store().first_day()
+
+
+_DEMO_TREND_STEP = 3  # the demo trend is worked out every 3 days
+
+
+def account_trend(
+    scored: ScoredAccount, rank: int, today: date | None = None
+) -> list[history.TrendPoint]:
+    """The account's risk over the last TREND_DAYS days, ending with today's point from the book
+    now (`scored`, at `rank`). Your data: the recorded snapshots before today. Demo data: the
+    demo book scored every few days, starting from its first reading."""
+    day = today if today is not None else date.today()
+    since = day - timedelta(days=history.TREND_DAYS)
+    account_id = scored.account.id
+    if _demo_mode():
+        demo = DemoConnector()
+        accounts = demo.list_accounts()
+        signals = demo.list_signals()
+        config = load_scoring_config()
+        first = min((signal.observed_at.date() for signal in signals), default=day)
+        moment = _utc_now()
+        snapshots = []
+        point = max(since, first)
+        while point < day:
+            snapshots.append(history.rescored_snapshot(accounts, signals, config, point, moment))
+            point += timedelta(days=_DEMO_TREND_STEP)
+    else:
+        snapshots = [snap for snap in history_store().between(since, day) if snap.day < day]
+    points = history.trend_points(snapshots, account_id)
+    points.append(history.TrendPoint(day=day, risk=scored.risk, health=scored.health, rank=rank))
+    return points
+
+
+def today_view(today: date | None = None) -> journal.TodayView:
+    """The Today page: follow-ups due, accounts needing attention, renewals awaiting an outcome,
+    follow-ups coming up and snoozed accounts (journal.today_view over the book now)."""
+    day = today if today is not None else date.today()
+    return journal.today_view(get_book(as_of=day), get_journal().all(), day)
+
+
+def record_outcome(
+    account_id: str, values: journal.OutcomeInput, today: date | None = None
+) -> journal.Outcome:
+    """Record how the account's renewal went, with its scores and latest signal values now.
+    LookupError("That account isn't in your book.") for an unknown id; ValueError for bad
+    values (journal's messages)."""
+    day = today if today is not None else date.today()
+    connector = get_connector()
+    scored = find_account(get_book(connector, as_of=day), account_id)
+    if scored is None:
+        raise LookupError("That account isn't in your book.")
+    readings = latest_signals(connector.list_signals(account_id)).get(account_id, {})
+    latest = {kind: signal.value for kind, signal in readings.items()}
+    return get_journal().record_outcome(
+        account_id, values, scored, latest, now=_utc_now(), today=day
+    )

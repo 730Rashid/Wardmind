@@ -1,0 +1,21 @@
+{# "Since last week": each change with its kind and its sentence, linked to its account when the account is
+   still in the book. When there are none, the message says why (no snapshot yet, or no changes). #}
+{% if since.message %}
+<p>{{ since.message }}</p>
+{% else %}
+<ul class="since-list">
+  {% for row in since.rows %}
+  <li class="since-row">
+    <p class="since-head">
+      <span class="tag">{{ row.label }}</span>
+      {% if row.account_id %}
+      <a class="account-link" href="/accounts/{{ row.account_id | idpath }}">{{ row.name }}</a>
+      {% else %}
+      <span class="since-name">{{ row.name }}</span>
+      {% endif %}
+    </p>
+    <p class="since-sentence">{{ row.sentence }}</p>
+  </li>
+  {% endfor %}
+</ul>
+{% endif %}

@@ -37,8 +37,10 @@ from wardmind.core import (
     client_updates,
     contacts,
     editing,
+    history,
     import_flow,
     importing,
+    journal,
     research,
     secrets,
     service,
@@ -92,7 +94,7 @@ from wardmind.core.store import (
     Notice,
     connection_for,
 )
-from wardmind.web import contact_pages, feed_pages, formatting
+from wardmind.web import contact_pages, feed_pages, formatting, journal_pages
 from wardmind.web.scoring_form import (
     FIELD_NAMES,
     UNIT_HINTS,
@@ -422,6 +424,7 @@ def _render(
         "today_day": today_day,
         "problems": problems,
         "pending_updates": _pending_count(),
+        "due_follow_ups": _due_count(),
         **context,
     }
     return templates.TemplateResponse(request, template, values, status_code=status_code)
@@ -484,6 +487,11 @@ def _pending_count() -> int:
         return service.pending_client_update_count()
     except ConnectorError:
         return 0
+
+
+def _due_count() -> int:
+    """The Today badge: open follow-ups due today or earlier, read from the journal file alone."""
+    return service.due_follow_up_count()
 
 
 def _duplicate_count() -> int:
@@ -2093,11 +2101,16 @@ def _render_account(
     status: str = "",
     research_panel: _ResearchPanel | None = None,
     refusal: contact_pages.FormRefusal | None = None,
+    journal_refusal: journal_pages.JournalRefusal | None = None,
+    why: str = "",
+    undo: str = "",
     status_code: int = 200,
 ) -> HTMLResponse:
     """One account's page. Without `research_panel`, the website section shows what is already
     saved, which is a file read and never a network call. `refusal` is a contact or client update
-    form that was refused: its page comes back with the form's values and messages (422)."""
+    form that was refused: its page comes back with the form's values and messages (422).
+    `journal_refusal` is the same for a journal form. `why` is a refusal sent back from Today, and
+    `undo` the id of a follow-up that was just marked done (its Undo button is offered)."""
     connector = service.get_connector()
     detail = service.get_account_detail(account_id, connector)
     if detail is None:
@@ -2139,6 +2152,23 @@ def _render_account(
         if editable
         else None
     )
+    config = load_scoring_config()
+    account_journal = service.account_journal(account_id)
+    found_undo = journal_pages.find_follow_up({account_id: account_journal}, undo)
+    journal_panel = journal_pages.panel(
+        scored=detail.scored,
+        account_journal=account_journal,
+        suggested=detail.explanation.suggested_action,
+        today=today,
+        now=datetime.now(UTC).replace(tzinfo=None),  # naive UTC, as the journal keeps its times
+        demo=load_settings().source is DataSource.DEMO,
+        refusal=journal_refusal,
+        why=why,
+        undo_id=found_undo[1].id if found_undo is not None else "",
+    )
+    trend = journal_pages.sparkline(
+        service.account_trend(detail.scored, detail.rank, today), config.thresholds, today
+    )
     return _render(
         request,
         "account.html",
@@ -2162,7 +2192,190 @@ def _render_account(
         contacts=section,
         account_path=contact_pages.account_path(account_id),
         updates_box=box,
+        journal=journal_panel,
+        trend=trend,
     )
+
+
+# --- The journal: notes, follow-ups, snoozes and renewal outcomes (see core/journal.py) -------
+# Every journal form posts to a route in create_app. A form sent from Today (back=today) returns
+# to Today; any other value of `back` returns to the account page. Notices travel as fixed codes in
+# the query (?journal=, ?why=, ?day=, ?undo=), never as the text a CSM typed.
+
+_SINCE_LIMIT = 5  # "Since last week" on My book lists this many changes, then a link to the brief
+_WEEK_FOLLOW_UPS = 8  # "Follow-ups due this week" on the brief lists this many
+_DAY_LIMIT = 4000  # a days shortcut is clamped to this; the core keeps the real date range
+_NO_NOTE = "That note isn't in this account."
+_NO_FOLLOW_UP = "That follow-up isn't in this account."
+_NO_OUTCOME = "That outcome isn't in this account."
+_PICK_DAY = "Pick a date, such as 2026-11-16."
+_PICK_DAYS = "Pick 3, 7, 14 or 30 days."
+_PICK_SNOOZE = "Pick a date after today."
+_PICK_KIND = "Pick Note, Call, Meeting or Email."
+_PICK_OUTCOME = "Pick Renewed, Expanded, Contracted or Churned."
+_PICK_RENEWAL = "Pick the renewal date it answers."
+_PICK_DECIDED = "Pick the date they decided."
+_ARR_AMOUNT = "Enter the new ARR as an amount, such as $120,000."
+
+
+def _journal_back(fields: Mapping[str, str]) -> str:
+    """'today' when the form was sent from Today, else 'account'. Nothing else is a target."""
+    return "today" if fields.get("back") == "today" else "account"
+
+
+def _journal_redirect(back: str, account_id: str, anchor: str = "", **query: str) -> str:
+    """Where a journal action goes: the Today page, or the account page at its section."""
+    params = urlencode({name: value for name, value in query.items() if value})
+    if back == "today":
+        return f"/today?{params}" if params else "/today"
+    target = f"/accounts/{_quoted_id(account_id)}"
+    if params:
+        target += f"?{params}"
+    return f"{target}#{anchor}" if anchor else target
+
+
+def _book_account(account_id: str) -> ScoredAccount | None:
+    """The account as the book scores it now, or None when it isn't in the book (hidden too)."""
+    return service.find_account(service.get_book(), account_id)
+
+
+def _day_field(fields: Mapping[str, str], name: str, default: date, message: str) -> date:
+    """The date a date box holds, the default when it is blank, or ValueError(message)."""
+    text = fields.get(name, "").strip()
+    if not text:
+        return default
+    day = journal_pages.parse_day(text)
+    if day is None:
+        raise ValueError(message)
+    return day
+
+
+def _days_from(text: str, message: str) -> int:
+    """A whole number of days from a shortcut box, clamped to _DAY_LIMIT, or ValueError(message)."""
+    try:
+        days = int(text.strip())
+    except ValueError:
+        raise ValueError(message) from None
+    return max(-_DAY_LIMIT, min(days, _DAY_LIMIT))
+
+
+def _due_day(fields: Mapping[str, str], today: date) -> date:
+    """A follow-up's due date: the date box, else today plus the days shortcut, else a week."""
+    if fields.get("due", "").strip():
+        return _day_field(fields, "due", today, _PICK_DAY)
+    if fields.get("days", "").strip():
+        return today + timedelta(days=_days_from(fields["days"], _PICK_DAY))
+    return today + timedelta(days=journal.FOLLOW_UP_DEFAULT_DAYS)
+
+
+def _snooze_day(fields: Mapping[str, str], today: date) -> date:
+    """The day a snooze lasts until. A date box, when filled in, wins over the menu of days (the
+    menu always posts a value, so the box must be able to override it); otherwise today plus one
+    of the snooze choices."""
+    if fields.get("until", "").strip():
+        day = journal_pages.parse_day(fields["until"])
+        if day is None:
+            raise ValueError(_PICK_SNOOZE)
+        return day
+    if not fields.get("days", "").strip():
+        raise ValueError(_PICK_SNOOZE)
+    days = _days_from(fields["days"], _PICK_DAYS)
+    if days not in journal.SNOOZE_CHOICES:
+        raise ValueError(_PICK_DAYS)
+    return today + timedelta(days=days)
+
+
+def _note_kind(text: str) -> journal.TouchKind:
+    try:
+        return journal.TouchKind(text)
+    except ValueError:
+        raise ValueError(_PICK_KIND) from None
+
+
+def _follow_up_text(fields: Mapping[str, str], scored: ScoredAccount) -> str:
+    """The follow-up's text: as typed, or the account's next step (cut to 200) when blank."""
+    text = fields.get("text", "")
+    return text if text.strip() else journal_pages.cut_text(scored.suggested_action)
+
+
+def _outcome_input(
+    scored: ScoredAccount, fields: Mapping[str, str], today: date
+) -> journal.OutcomeInput:
+    """The outcome form's values, parsed. A blank renewal date is the account's, a blank decision
+    date is today, and a blank new ARR is left out (not needed for a churn)."""
+    try:
+        kind = journal.OutcomeKind(fields.get("kind", ""))
+    except ValueError:
+        raise ValueError(_PICK_OUTCOME) from None
+    renewal = _day_field(fields, "renewal_date", scored.account.renewal_date, _PICK_RENEWAL)
+    decided = _day_field(fields, "decided_on", today, _PICK_DECIDED)
+    arr_text = fields.get("arr_after", "").strip()
+    try:
+        arr_after = importing.parse_money(arr_text) if arr_text else None
+    except ValueError:
+        raise ValueError(_ARR_AMOUNT) from None
+    return journal.OutcomeInput(
+        kind=kind,
+        renewal_date=renewal,
+        decided_on=decided,
+        arr_after=arr_after,
+        note=fields.get("note", ""),
+    )
+
+
+async def _journal_action(
+    request: Request,
+    account_id: str,
+    *,
+    form: str,
+    anchor: str,
+    act: Callable[[ScoredAccount, Mapping[str, str], date], dict[str, str]],
+    refused_anchor: str = "",
+    item_id: str = "",
+    shows_refusal: bool = True,
+) -> Response:
+    """The one path every journal form takes. The account must be in the book (404 otherwise).
+    `act` makes the change and returns the fixed-code query for the redirect. A value it refuses
+    (ValueError) re-renders the account page with 422 and the values as typed, next to their
+    messages; from Today, or when no form on the page can show the message, it redirects to the
+    account page with the refusal's fixed reason instead. An unknown note or follow-up is a 404
+    with a message and a way back, never a 500."""
+    scored = await run_in_threadpool(_book_account, account_id)
+    if scored is None:
+        return await run_in_threadpool(
+            _missing, request, "Account not found", f"No account with id {account_id}."
+        )
+    fields = await _posted_fields(request)
+    back = _journal_back(fields)
+    today = date.today()
+    try:
+        query = await run_in_threadpool(act, scored, fields, today)
+    except ValueError as error:
+        message = str(error)
+        code = journal_pages.why_code(message)
+        if back == "today" or not shows_refusal or code in ("gone", "done"):
+            return RedirectResponse(
+                _journal_redirect("account", account_id, refused_anchor or anchor, why=code),
+                status_code=303,
+            )
+        refusal = journal_pages.JournalRefusal(
+            form=form,
+            item_id=item_id,
+            values=journal_pages.typed_values(form, fields),
+            errors=journal_pages.field_errors(form, message),
+        )
+        return await run_in_threadpool(
+            _render_account, request, account_id, journal_refusal=refusal, status_code=422
+        )
+    except LookupError as error:
+        if back == "today":
+            href, label = "/today", "Back to Today"
+        else:
+            href, label = f"/accounts/{_quoted_id(account_id)}", "Back to the account"
+        return await run_in_threadpool(
+            _missing, request, "Not found", str(error), back_href=href, back_label=label
+        )
+    return RedirectResponse(_journal_redirect(back, account_id, anchor, **query), status_code=303)
 
 
 @asynccontextmanager
@@ -2247,8 +2460,14 @@ def create_app() -> FastAPI:
         restore. With Your data and nothing connected, this is the Setup page instead."""
         if _needs_setup():
             return RedirectResponse("/setup", status_code=303)
+        partial = request.headers.get("HX-Request") == "true" and (
+            "HX-History-Restore-Request" not in request.headers
+        )
+        if not partial:
+            service.remember_book()  # today's score snapshot, which "Since last week" compares with
+        today = date.today()
         book = service.get_book()
-        brief = briefs.weekly_brief(book, as_of=date.today())
+        brief = briefs.weekly_brief(book, as_of=today)
         params = request.query_params
         motions = _chosen(params.getlist("motion"), Motion)
         healths = _chosen(params.getlist("health"), Health)
@@ -2269,8 +2488,22 @@ def create_app() -> FastAPI:
             brief.counts_by_health[Health.WATCH],
         )
         groups = _filter_groups(brief, flags, motions, healths, topics)
-        partial = request.headers.get("HX-Request") == "true" and (
-            "HX-History-Restore-Request" not in request.headers
+        journals = service.get_journal().all()
+        chips = {
+            item.account.id: journal_pages.book_chips(
+                journals.get(item.account.id, journal.AccountJournal()), item.health, today
+            )
+            for item in book
+        }
+        since = (
+            None
+            if partial
+            else journal_pages.since_view(
+                service.week_changes(book, today),
+                service.history_started(),
+                today,
+                limit=_SINCE_LIMIT,
+            )
         )
         response = _render(
             request,
@@ -2293,14 +2526,24 @@ def create_app() -> FastAPI:
             hidden_name="" if partial else _hidden_notice(hidden),
             deleted_name="" if partial else ("The account" if deleted == "account" else ""),
             flags=flags,
+            journal_chips=chips,
+            since=since,
         )
         response.headers["Vary"] = "HX-Request, HX-History-Restore-Request"
         return response
 
     @app.get("/brief")
     def weekly_brief(request: Request) -> HTMLResponse:
-        """The weekly brief: where ARR sits, this week's call-outs, the motions and the top ten."""
-        brief = briefs.weekly_brief(service.get_book(), as_of=date.today(), top_n=10)
+        """The weekly brief: where ARR sits, this week's call-outs, what changed since last
+        week, the follow-ups due this week, the motions and the top ten."""
+        today = date.today()
+        book = service.get_book()
+        brief = briefs.weekly_brief(book, as_of=today, top_n=10)
+        week_follow_ups, more_follow_ups = journal_pages.week_follow_ups(
+            journal.today_view(book, service.get_journal().all(), today),
+            today,
+            limit=_WEEK_FOLLOW_UPS,
+        )
         first, second = summary_sentences(
             brief.counts_by_health[Health.AT_RISK],
             brief.arr_at_risk,
@@ -2329,6 +2572,14 @@ def create_app() -> FastAPI:
             motion_rows=motion_rows,
             motion_labels=_BRIEF_MOTION_LABELS,
             source=_brief_source(),
+            since=journal_pages.since_view(
+                service.week_changes(book, today),
+                service.history_started(),
+                today,
+                limit=history.MAX_CHANGES,
+            ),
+            week_follow_ups=week_follow_ups,
+            more_follow_ups=more_follow_ups,
         )
 
     @app.get("/onboarding")
@@ -2750,17 +3001,23 @@ def create_app() -> FastAPI:
         unlinked: str = "",
         contact: str = "",
         updates: str = "",
+        journal_code: str = Query("", alias="journal"),
+        day: str = "",
+        undo: str = "",
+        why: str = "",
     ) -> HTMLResponse:
         """One account's call prep: summary, next step, score breakdown and signal history. With
         Your data showing, it also has the edit link, where each figure came from, the notices,
         the readings added by hand, the contacts and the client updates box. The website section
-        shows only what is already saved."""
+        shows only what is already saved. The journal parts (follow-ups, notes, the trend and the
+        renewal outcome) are on it too; `journal`, `day`, `undo` and `why` are its fixed codes."""
         status = (
             _account_status(added, edited, reading, unlinked)
             or _CONTACT_NOTICES.get(contact, "")
             or _UPDATES_NOTICES.get(updates, "")
+            or journal_pages.notice_text(journal_code, day, date.today())
         )
-        return _render_account(request, account_id, status=status)
+        return _render_account(request, account_id, status=status, why=why, undo=undo)
 
     @app.post("/accounts/{account_id}/research")
     async def look_up_website(request: Request, account_id: str) -> Response:
@@ -2803,6 +3060,227 @@ def create_app() -> FastAPI:
                 _render_account, request, account_id, research_panel=panel
             )
         return RedirectResponse(f"/accounts/{_quoted_id(account_id)}#research", status_code=303)
+
+    # The journal. Each form posts here and returns to the account page or to Today (see
+    # _journal_action). Demo data has its own journal, so these work with either data source.
+
+    @app.get("/today")
+    def today_page_route(
+        request: Request,
+        journal_code: str = Query("", alias="journal"),
+        day: str = "",
+        undo: str = "",
+    ) -> HTMLResponse:
+        """Today: what needs the CSM now. Follow-ups due, accounts that need attention, renewals
+        awaiting their outcome, the next week's follow-ups and the snoozed accounts. Each action
+        on the page returns here with a fixed status line; `undo` offers Undo for a follow-up just
+        marked done."""
+        today_day = date.today()
+        page = journal_pages.today_page(service.today_view(today_day), today_day)
+        found = journal_pages.find_follow_up(service.get_journal().all(), undo)
+        return _render(
+            request,
+            "today.html",
+            page="Today",
+            active="today",
+            book=True,
+            today_page=page,
+            notice=journal_pages.notice_text(journal_code, day, today_day),
+            undo_account=found[0] if found is not None else "",
+            undo_id=found[1].id if found is not None else "",
+        )
+
+    @app.post("/accounts/{account_id}/notes")
+    async def add_note_route(request: Request, account_id: str) -> Response:
+        """Add a note, or a call, meeting or email, dated today unless a date is given. A note
+        needs its text; a refused one comes back with 422 and what was typed."""
+
+        def act(scored: ScoredAccount, fields: Mapping[str, str], today: date) -> dict[str, str]:
+            service.get_journal().add_note(
+                account_id,
+                _note_kind(fields.get("kind", "")),
+                fields.get("text", ""),
+                _day_field(fields, "happened_on", today, _PICK_DAY),
+                now=datetime.now(UTC),
+                today=today,
+            )
+            return {"journal": "note-added"}
+
+        return await _journal_action(request, account_id, form="note", anchor="notes", act=act)
+
+    @app.post("/accounts/{account_id}/notes/{note_id}/edit")
+    async def edit_note_route(request: Request, account_id: str, note_id: str) -> Response:
+        """Change a note's kind, date or text. Its edit form stays open when a save is refused."""
+
+        def act(scored: ScoredAccount, fields: Mapping[str, str], today: date) -> dict[str, str]:
+            service.get_journal().update_note(
+                account_id,
+                note_id,
+                _note_kind(fields.get("kind", "")),
+                fields.get("text", ""),
+                _day_field(fields, "happened_on", today, _PICK_DAY),
+                now=datetime.now(UTC),
+                today=today,
+            )
+            return {"journal": "note-saved"}
+
+        return await _journal_action(
+            request, account_id, form="note-edit", anchor="notes", act=act, item_id=note_id
+        )
+
+    @app.post("/accounts/{account_id}/notes/{note_id}/remove")
+    async def remove_note_route(request: Request, account_id: str, note_id: str) -> Response:
+        """Delete a note from the account's journal."""
+
+        def act(scored: ScoredAccount, fields: Mapping[str, str], today: date) -> dict[str, str]:
+            if not service.get_journal().remove_note(account_id, note_id):
+                raise LookupError(_NO_NOTE)
+            return {"journal": "note-removed"}
+
+        return await _journal_action(
+            request, account_id, form="", anchor="notes", act=act, shows_refusal=False
+        )
+
+    @app.post("/accounts/{account_id}/follow-ups")
+    async def add_follow_up_route(request: Request, account_id: str) -> Response:
+        """Add a follow-up: its text, and its due date from the date box, the days shortcut (from
+        today) or a week from today. Blank text is the account's next step."""
+
+        def act(scored: ScoredAccount, fields: Mapping[str, str], today: date) -> dict[str, str]:
+            service.get_journal().add_follow_up(
+                account_id,
+                _follow_up_text(fields, scored),
+                _due_day(fields, today),
+                now=datetime.now(UTC),
+                today=today,
+            )
+            return {"journal": "follow-up-added"}
+
+        return await _journal_action(
+            request,
+            account_id,
+            form="follow-up",
+            anchor="follow-ups",
+            refused_anchor="next-step",
+            act=act,
+        )
+
+    @app.post("/accounts/{account_id}/follow-ups/{follow_up_id}/done")
+    async def done_follow_up_route(
+        request: Request, account_id: str, follow_up_id: str
+    ) -> Response:
+        """Mark a follow-up done. Its status line offers Undo for it."""
+
+        def act(scored: ScoredAccount, fields: Mapping[str, str], today: date) -> dict[str, str]:
+            done = service.get_journal().complete_follow_up(
+                account_id, follow_up_id, now=datetime.now(UTC)
+            )
+            return {"journal": "done", "undo": done.id}
+
+        return await _journal_action(
+            request, account_id, form="", anchor="follow-ups", act=act, shows_refusal=False
+        )
+
+    @app.post("/accounts/{account_id}/follow-ups/{follow_up_id}/undo")
+    async def reopen_follow_up_route(
+        request: Request, account_id: str, follow_up_id: str
+    ) -> Response:
+        """Reopen a follow-up that was marked done, keeping its due date."""
+
+        def act(scored: ScoredAccount, fields: Mapping[str, str], today: date) -> dict[str, str]:
+            service.get_journal().reopen_follow_up(account_id, follow_up_id)
+            return {"journal": "reopened"}
+
+        return await _journal_action(
+            request, account_id, form="", anchor="follow-ups", act=act, shows_refusal=False
+        )
+
+    @app.post("/accounts/{account_id}/follow-ups/{follow_up_id}/move")
+    async def move_follow_up_route(
+        request: Request, account_id: str, follow_up_id: str
+    ) -> Response:
+        """Move an open follow-up to a new due date (the date box, or the days shortcut)."""
+
+        def act(scored: ScoredAccount, fields: Mapping[str, str], today: date) -> dict[str, str]:
+            due = _due_day(fields, today)
+            service.get_journal().move_follow_up(account_id, follow_up_id, due, today=today)
+            return {"journal": "moved", "day": due.isoformat()}
+
+        return await _journal_action(
+            request,
+            account_id,
+            form="move",
+            anchor="follow-ups",
+            act=act,
+            item_id=follow_up_id,
+        )
+
+    @app.post("/accounts/{account_id}/follow-ups/{follow_up_id}/remove")
+    async def remove_follow_up_route(
+        request: Request, account_id: str, follow_up_id: str
+    ) -> Response:
+        """Delete a follow-up from the account's journal."""
+
+        def act(scored: ScoredAccount, fields: Mapping[str, str], today: date) -> dict[str, str]:
+            if not service.get_journal().remove_follow_up(account_id, follow_up_id):
+                raise LookupError(_NO_FOLLOW_UP)
+            return {"journal": "follow-up-removed"}
+
+        return await _journal_action(
+            request, account_id, form="", anchor="follow-ups", act=act, shows_refusal=False
+        )
+
+    @app.post("/accounts/{account_id}/snooze")
+    async def snooze_route(request: Request, account_id: str) -> Response:
+        """Leave the account off Today for 3, 7, 14 or 30 days, or until a date up to 90 days out.
+        It records the account's health now: a worse health ends the snooze early."""
+
+        def act(scored: ScoredAccount, fields: Mapping[str, str], today: date) -> dict[str, str]:
+            until = _snooze_day(fields, today)
+            service.get_journal().snooze(
+                account_id, until, scored.health, now=datetime.now(UTC), today=today
+            )
+            return {"journal": "snoozed", "day": until.isoformat()}
+
+        return await _journal_action(
+            request, account_id, form="snooze", anchor="next-step", act=act
+        )
+
+    @app.post("/accounts/{account_id}/wake")
+    async def wake_route(request: Request, account_id: str) -> Response:
+        """End the account's snooze now, so it is back on Today when it needs attention."""
+
+        def act(scored: ScoredAccount, fields: Mapping[str, str], today: date) -> dict[str, str]:
+            service.get_journal().wake(account_id)
+            return {"journal": "woke"}
+
+        return await _journal_action(
+            request, account_id, form="", anchor="next-step", act=act, shows_refusal=False
+        )
+
+    @app.post("/accounts/{account_id}/outcome")
+    async def record_outcome_route(request: Request, account_id: str) -> Response:
+        """Record how the renewal went: renewed, expanded, contracted or churned, with the new ARR
+        if it is known. Wardmind keeps what it thought of the account at that moment."""
+
+        def act(scored: ScoredAccount, fields: Mapping[str, str], today: date) -> dict[str, str]:
+            service.record_outcome(account_id, _outcome_input(scored, fields, today), today=today)
+            return {"journal": "outcome-recorded"}
+
+        return await _journal_action(request, account_id, form="outcome", anchor="outcome", act=act)
+
+    @app.post("/accounts/{account_id}/outcomes/{outcome_id}/remove")
+    async def remove_outcome_route(request: Request, account_id: str, outcome_id: str) -> Response:
+        """Delete a recorded outcome (a mistake)."""
+
+        def act(scored: ScoredAccount, fields: Mapping[str, str], today: date) -> dict[str, str]:
+            if not service.get_journal().remove_outcome(account_id, outcome_id):
+                raise LookupError(_NO_OUTCOME)
+            return {"journal": "outcome-removed"}
+
+        return await _journal_action(
+            request, account_id, form="", anchor="outcome", act=act, shows_refusal=False
+        )
 
     # Your data: edit an account. Every route checks the id against the book first.
 

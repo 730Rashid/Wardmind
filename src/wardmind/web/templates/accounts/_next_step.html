@@ -1,0 +1,62 @@
+{# The Next step section: the suggested action, then one compact row. It holds a quick follow-up
+   (its text starts as the suggested step, due a week out), a snooze (or, while snoozed, the note
+   and Wake now) and a link to log a call. Every form returns to this account page. #}
+{% set add = journal.add_follow_up %}
+<section class="account-section next-step" id="next-step" aria-labelledby="next-step-heading">
+  <h2 class="section-title" id="next-step-heading">Next step</h2>
+  <p>{{ detail.explanation.suggested_action }}</p>
+
+  <div class="step-actions">
+    <form class="step-form" method="post" action="/accounts/{{ account.id | idpath }}/follow-ups">
+      <input type="hidden" name="back" value="account">
+      {% if add.errors.form %}<p class="field-error" role="alert">{{ add.errors.form }}</p>{% endif %}
+      <div class="field">
+        <label for="add-follow-up-text">Follow-up</label>
+        <input type="text" id="add-follow-up-text" name="text" value="{{ add.values.get('text', '') }}" maxlength="200" autocomplete="off"{% if add.errors.text %} aria-invalid="true" aria-describedby="add-follow-up-text-error"{% endif %}>
+        {% if add.errors.text %}<p class="field-error" id="add-follow-up-text-error">{{ add.errors.text }}</p>{% endif %}
+      </div>
+      <div class="field">
+        <label for="add-follow-up-due">Due</label>
+        <input type="date" id="add-follow-up-due" name="due" value="{{ add.values.get('due', '') }}"{% if add.errors.due %} aria-invalid="true" aria-describedby="add-follow-up-due-error"{% endif %}>
+        {% if add.errors.due %}<p class="field-error" id="add-follow-up-due-error">{{ add.errors.due }}</p>{% endif %}
+      </div>
+      <div class="form-actions">
+        <button type="submit" class="button">Add follow-up</button>
+      </div>
+    </form>
+
+    {% if journal.snooze %}
+    <div class="step-form snooze-state">
+      <p>{{ journal.snooze.line }}. It comes back sooner if its health gets worse.</p>
+      <form class="inline-form" method="post" action="/accounts/{{ account.id | idpath }}/wake">
+        <input type="hidden" name="back" value="account">
+        <button type="submit" class="button">Wake now</button>
+      </form>
+    </div>
+    {% else %}
+    <form class="step-form" method="post" action="/accounts/{{ account.id | idpath }}/snooze">
+      <input type="hidden" name="back" value="account">
+      {% if journal.snooze_form.errors.form %}<p class="field-error" role="alert">{{ journal.snooze_form.errors.form }}</p>{% endif %}
+      <div class="field">
+        <label for="snooze-days">Snooze for</label>
+        <select id="snooze-days" name="days"{% if journal.snooze_form.errors.days %} aria-invalid="true" aria-describedby="snooze-days-error"{% endif %}>
+          {% for days in journal.snooze_choices %}
+          <option value="{{ days }}"{% if days == 7 %} selected{% endif %}>{{ days }} days</option>
+          {% endfor %}
+        </select>
+        {% if journal.snooze_form.errors.days %}<p class="field-error" id="snooze-days-error">{{ journal.snooze_form.errors.days }}</p>{% endif %}
+      </div>
+      <div class="field">
+        <label for="snooze-until">Or until</label>
+        <input type="date" id="snooze-until" name="until" value="{{ journal.snooze_form.values.get('until', '') }}"{% if journal.snooze_form.errors.until %} aria-invalid="true" aria-describedby="snooze-until-error"{% endif %}>
+        {% if journal.snooze_form.errors.until %}<p class="field-error" id="snooze-until-error">{{ journal.snooze_form.errors.until }}</p>{% endif %}
+      </div>
+      <div class="form-actions">
+        <button type="submit" class="button">Snooze</button>
+      </div>
+    </form>
+    {% endif %}
+
+    <p class="step-link"><a href="#notes">Log a call or meeting</a></p>
+  </div>
+</section>

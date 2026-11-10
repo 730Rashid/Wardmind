@@ -45,6 +45,30 @@
     {% endif %}
   </section>
 
+  <section class="brief-section since-section" aria-labelledby="since-heading">
+    <h2 class="section-title" id="since-heading">Since last week</h2>
+    {% include "partials/since_rows.html" %}
+    {% if since.more %}<p class="since-more">and {{ since.more }} more</p>{% endif %}
+  </section>
+
+  <section class="brief-section due-section no-print" aria-labelledby="due-heading">
+    <h2 class="section-title" id="due-heading">Follow-ups due this week</h2>
+    {% if week_follow_ups %}
+    <ul class="due-list">
+      {% for item in week_follow_ups %}
+      <li class="due-row">
+        <a class="account-link" href="/accounts/{{ item.account_id | idpath }}">{{ item.name }}</a>
+        <span class="due{% if item.late %} due--late{% endif %}">{{ item.due_label }}</span>
+        <span class="due-text">{{ item.text }}</span>
+      </li>
+      {% endfor %}
+    </ul>
+    {% if more_follow_ups %}<p class="since-more">and {{ more_follow_ups }} more</p>{% endif %}
+    {% else %}
+    <p>Nothing is due in the next seven days.</p>
+    {% endif %}
+  </section>
+
   <section class="brief-section" aria-labelledby="motion-heading">
     <h2 class="section-title" id="motion-heading">Accounts by motion</h2>
     <table class="motions">

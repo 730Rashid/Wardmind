@@ -39,7 +39,7 @@
   <fieldset aria-describedby="landing-help{% if errors.landing %} landing-error{% endif %}">
     <legend>Opens on</legend>
     <div class="choices">
-      {% for value, label in [("book", "My book"), ("brief", "Weekly brief")] %}
+      {% for value, label in [("today", "Today"), ("book", "My book"), ("brief", "Weekly brief")] %}
       <label class="choice"><input type="radio" name="landing" value="{{ value }}"{% if current.landing.value == value %} checked{% endif %}> {{ label }}</label>
       {% endfor %}
     </div>
