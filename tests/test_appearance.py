@@ -143,6 +143,7 @@ def test_appearance_marks_settings_current_and_lists_the_sub_navigation(client: 
     assert [a["href"] for a in links] == [
         "/settings/appearance",
         "/settings/scoring",
+        "/settings/books",
         "/settings/connections",
         "/settings/mailbox",
         "/settings/privacy",
@@ -152,7 +153,8 @@ def test_appearance_marks_settings_current_and_lists_the_sub_navigation(client: 
 
 def test_appearance_form_posts_to_itself_with_the_four_fieldsets(client: TestClient) -> None:
     response = client.get("/settings/appearance")
-    forms = _tags(response.text, "form")
+    # The header's book switcher has forms of its own; only the page's forms are counted here.
+    forms = [f for f in _tags(response.text, "form") if f["action"] != "/books/switch"]
     assert [(f["method"], f["action"]) for f in forms] == [("post", "/settings/appearance")]
     legends = re.findall(r"<legend>(.*?)</legend>", response.text)
     assert legends == ["Theme", "Accent colour", "Density", "Opens on"]

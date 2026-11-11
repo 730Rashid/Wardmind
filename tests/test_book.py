@@ -336,7 +336,8 @@ def test_accessibility_hooks_are_present(client: TestClient) -> None:
 def test_search_blur_does_not_trigger_a_refresh(client: TestClient) -> None:
     # A bare "change" trigger fires when the search box loses focus, re-rendering the results
     # just as Tab moves focus into them, which drops keyboard focus to <body>.
-    form = _tags(client.get("/").text, "form")[0]
+    # The header's book switcher has forms too; the search form is the first one after it.
+    form = next(f for f in _tags(client.get("/").text, "form") if f["action"] != "/books/switch")
     triggers = [part.strip() for part in (form["hx-trigger"] or "").split(",")]
     assert "change" not in triggers
     assert "change from:.filter-input" in triggers

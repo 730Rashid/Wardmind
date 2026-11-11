@@ -1,0 +1,86 @@
+{% extends "settings/layout.html" %}
+{% block settings %}
+<div class="books">
+  <section class="books-section" aria-labelledby="books-title">
+    <h2 class="section-title" id="books-title">Your books</h2>
+    <p class="prose">A book keeps its own accounts, connections, notes and keys, apart from the others on this computer. The open book is the one My book shows.</p>
+    {% if demo %}
+    <p class="field-help">Demo data is showing, so no book is open. Open a book to see its data.</p>
+    {% endif %}
+
+    <ul class="book-list">
+      {% for row in books %}
+      <li class="book-item{% if row.is_open %} book-item--open{% endif %}">
+        <div class="book-head">
+          <p class="book-name">{{ row.label }}</p>
+          {% if row.is_open %}<p class="book-open-mark">Open</p>{% endif %}
+        </div>
+        {% if row.delete_error %}
+        <p class="field-error" role="alert">{{ row.delete_error }}</p>
+        {% endif %}
+        {% if row.is_first %}
+        <p class="field-help">The first book. It can be renamed, but it can't be deleted.</p>
+        {% elif row.is_open %}
+        <p class="field-help">Open a different book to delete this one.</p>
+        {% endif %}
+
+        <div class="book-actions">
+          {% if not row.is_open %}
+          <form class="inline-form" method="post" action="/books/switch">
+            <input type="hidden" name="book" value="{{ row.id }}">
+            <button type="submit" class="button">Open</button>
+          </form>
+          {% endif %}
+
+          <details class="book-rename"{% if row.rename_error %} open{% endif %}>
+            <summary class="button">Rename</summary>
+            <form class="book-form" method="post" action="/settings/books/{{ row.id | idpath }}/rename">
+              {% if row.rename_error %}
+              <p class="field-error" role="alert" id="rename-{{ row.id }}-error">{{ row.rename_error }}</p>
+              {% endif %}
+              <div class="field">
+                <label for="rename-{{ row.id }}">Name<span class="visually-hidden"> for {{ row.label }}</span></label>
+                <input type="text" name="label" id="rename-{{ row.id }}" value="{{ row.rename_value }}" maxlength="40" autocomplete="off" spellcheck="false"{% if row.rename_error %} aria-invalid="true" aria-describedby="rename-{{ row.id }}-error"{% endif %}>
+              </div>
+              <button type="submit" class="button">Save name</button>
+            </form>
+          </details>
+
+          {% if row.can_delete %}
+          <details class="book-delete"{% if row.delete_error %} open{% endif %}>
+            <summary class="button">Delete</summary>
+            <form class="book-form" method="post" action="/settings/books/{{ row.id | idpath }}/delete">
+              <div class="field-check">
+                <label class="choice"><input type="checkbox" name="confirm" value="1"{% if row.delete_error %} aria-invalid="true"{% endif %}> Delete this book and everything in it. This can't be undone.</label>
+              </div>
+              <button type="submit" class="button">Delete</button>
+            </form>
+          </details>
+          {% endif %}
+        </div>
+      </li>
+      {% endfor %}
+    </ul>
+  </section>
+
+  <section class="books-section books-add" aria-labelledby="add-book-title">
+    <h2 class="section-title" id="add-book-title">Add a book</h2>
+    {% if can_add %}
+    <form class="book-form" method="post" action="/settings/books/add">
+      <div class="field">
+        <label for="field-book-label">Name</label>
+        <input type="text" name="label" id="field-book-label" value="{{ add_value }}" maxlength="40" autocomplete="off" spellcheck="false" aria-describedby="book-label-help{% if add_error %} book-label-error{% endif %}"{% if add_error %} aria-invalid="true"{% endif %}>
+        {% if add_error %}
+        <p class="field-error" role="alert" id="book-label-error">{{ add_error }}</p>
+        {% endif %}
+        <p class="field-help" id="book-label-help">Book names aren't encrypted, so use something like Book 2 rather than a client's or employer's name.</p>
+      </div>
+      <button type="submit" class="button-primary">Add book</button>
+    </form>
+    <p class="field-help">A new book isn't opened when it's added. Open it from its row when you want to use it.</p>
+    {% else %}
+    <p class="field-help">Wardmind keeps up to {{ max_books }} books. Delete one to add another.</p>
+    {% endif %}
+  </section>
+</div>
+{% endblock %}

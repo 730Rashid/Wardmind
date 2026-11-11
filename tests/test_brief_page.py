@@ -76,7 +76,7 @@ def test_brief_page_is_the_weekly_brief(client: TestClient) -> None:
     assert '<a class="nav-link" href="/brief" aria-current="page">Weekly brief</a>' in markup
     assert '<h1 class="page-title">Weekly brief</h1>' in markup
     assert f'<p class="date-line">{formatting.week_of(date.today())}</p>' in markup
-    assert "Showing demo data" in _text(response)
+    assert '<summary class="book-switcher-summary">Demo data</summary>' in response.text
 
 
 def test_summary_sentences_match_my_book(client: TestClient, brief: WeeklyBrief) -> None:

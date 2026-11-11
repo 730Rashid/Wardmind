@@ -198,8 +198,14 @@ worked out from its sample readings.
 | Data feeds' latest data | `%LOCALAPPDATA%\wardmind\data\sheets\feed-<n>.json` |
 | Feed setups you started but didn't finish, with any key you typed for them | `%LOCALAPPDATA%\wardmind\data\feed-drafts`, deleted after 24 hours or by **Clear local cache** |
 | OpenRouter API key | `%LOCALAPPDATA%\wardmind\openrouter-key`, or the `WARDMIND_OPENROUTER_KEY` environment variable. Only its last 4 characters are ever shown. |
+| The list of books: each book's id and name, and which one is open (names aren't encrypted, so don't use a client's name) | `%LOCALAPPDATA%\wardmind\books.json` |
+| Every book after the first: its own data folder, keys and scoring, laid out like the first book's | `%LOCALAPPDATA%\wardmind\books\<id>` |
 | Encryption keys, when encryption is on (each one locked by Windows, your password or your recovery key; never the key itself in plain form) | `%LOCALAPPDATA%\wardmind\keys.json` and `keys.json.bak` |
 | While a password-protected Wardmind is unlocked: a key Windows protects, so Claude can read your book (deleted when Wardmind locks, unusable after 12 hours) | `%LOCALAPPDATA%\wardmind\unlock-ticket.json` |
+
+The table describes the first book. Each other book keeps the same files in its own folder,
+`%LOCALAPPDATA%\wardmind\books\<id>`, so books never share accounts, notes, connections or
+keys. Appearance settings and the HubSpot field mapping are shared by all books.
 
 On macOS and Linux, `%LOCALAPPDATA%\wardmind` is `~/.local/state/wardmind` (or
 `$XDG_STATE_HOME/wardmind`).

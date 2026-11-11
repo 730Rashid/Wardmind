@@ -1,4 +1,5 @@
-"""Wardmind command line: `wardmind score`, `wardmind mcp`, `wardmind ui`, `wardmind desktop`."""
+"""Wardmind command line: `wardmind score`, `wardmind books`, `wardmind mcp`, `wardmind ui`,
+`wardmind desktop`."""
 
 from __future__ import annotations
 
@@ -7,14 +8,16 @@ from typing import Annotated
 
 import typer
 
-from wardmind.core import service
+from wardmind.core import books, service
 from wardmind.core.briefs import WeeklyBrief, weekly_brief
 from wardmind.core.connectors.errors import ConnectorError
 from wardmind.core.models import Health, Motion, ScoredAccount
+from wardmind.core.settings import DataSource, load_settings
 
 app = typer.Typer(no_args_is_help=True, add_completion=False, help=__doc__)
 
 _NAME_WIDTH = 28  # longer account names are cut to this width
+_BOOK_ID_HELP = "Use this book (its id, from `wardmind books`) instead of the open one."
 
 
 @app.command()
@@ -24,8 +27,10 @@ def score(
         Motion | None,
         typer.Option(help="Show one motion only: churn, renewal or onboarding."),
     ] = None,
+    book_id: Annotated[str | None, typer.Option("--book", help=_BOOK_ID_HELP)] = None,
 ) -> None:
     """Print the top of the ranked book with each account's top reason."""
+    _pin(book_id)
     as_of = date.today()
     try:
         book = service.filter_book(service.get_book(as_of=as_of), motion=motion)
@@ -81,9 +86,37 @@ def _cut(name: str) -> str:
     return name if len(name) <= _NAME_WIDTH else name[: _NAME_WIDTH - 3] + "..."
 
 
+def _pin(book_id: str | None) -> None:
+    """Pin this process to one book when --book is given. An unknown id exits with 2, with the
+    message on stderr, before anything else runs. Without --book the open book is used."""
+    if book_id is None:
+        return
+    try:
+        books.pin(book_id)
+    except books.BookError as error:
+        typer.echo(str(error), err=True)
+        raise typer.Exit(code=2) from None
+
+
+@app.command("books")
+def books_() -> None:
+    """List the books on this computer, and which one is open."""
+    listed = books.load()
+    open_id = books.active_id()
+    width = max(len(book.id) for book in listed.books)
+    for book in listed.books:
+        marker = "  (open)" if book.id == open_id else ""
+        typer.echo(f"{book.id:<{width}}  {book.label}{marker}")
+    if load_settings().source is DataSource.DEMO:
+        typer.echo("Demo data is showing instead of these books.")
+    else:
+        typer.echo("Your data is showing, not demo data.")
+
+
 @app.command()
-def mcp() -> None:
+def mcp(book_id: Annotated[str | None, typer.Option("--book", help=_BOOK_ID_HELP)] = None) -> None:
     """Run the MCP server over stdio."""
+    _pin(book_id)
     from wardmind.mcp.server import run
 
     run()

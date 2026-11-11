@@ -47,7 +47,16 @@ class TokenStatus(BaseModel):
 
 
 def secrets_dir() -> Path:
-    """The per-user, local-only folder described in the module docstring (not created here)."""
+    """The open book's secrets folder (core/books.py): root_dir() for the first book, else
+    root_dir()/books/<id>. Not created here."""
+    from wardmind.core import books
+
+    return books.book_folder(books.active_id())
+
+
+def root_dir() -> Path:
+    """The per-user, local-only folder described in the module docstring (not created here).
+    It holds books.json, keys.json and session.json, and is the first book's folder."""
     override = os.environ.get(ENV_SECRETS_DIR, "").strip()
     if override:
         return Path(override)

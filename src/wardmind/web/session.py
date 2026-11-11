@@ -26,11 +26,11 @@ from pathlib import Path
 from urllib.parse import urlencode, urlsplit
 
 from wardmind.core.config import write_atomic
-from wardmind.core.secrets import secrets_dir
+from wardmind.core.secrets import root_dir
 
 SESSION_COOKIE = "wardmind_session"
 ENTER_PATH = "/enter"
-SESSION_FILE = "session.json"  # in secrets_dir(): the running app's entry link, for `wardmind open`
+SESSION_FILE = "session.json"  # in root_dir(): the running app's entry link, for `wardmind open`
 OPEN_PREFIXES = ("/static/",)  # served without the cookie: CSS, fonts, icons and htmx only
 TOKEN_BYTES = 32
 
@@ -89,7 +89,7 @@ def safe_next(path: str | None) -> str:
 
 
 def session_path(folder: Path | None = None) -> Path:
-    return (folder if folder is not None else secrets_dir()) / SESSION_FILE
+    return (folder if folder is not None else root_dir()) / SESSION_FILE
 
 
 def publish(gate: SessionGate, base_url: str, folder: Path | None = None) -> Path:

@@ -53,12 +53,14 @@ attention this week. It is reachable three ways, all backed by the same core cod
     - Appearance: theme, accent colour, density, and which screen it opens on. These are saved
       to `config/settings.yaml`.
     - Scoring: sliders for every weight and threshold, with a live preview of how your top 10
-      would reorder. These are saved to `config/scoring.yaml`.
+      would reorder. These are saved to `config/scoring.yaml` (a second book keeps its own).
+    - Books: keep separate books on one computer, each with its own accounts, connections,
+      notes, scoring and keys. Switch between them, or to the demo data, from the header.
     - Connections: demo data or your data, HubSpot, spreadsheets and accounts added by hand.
     - Mailbox: log client emails into each account's activity history, read-only, with an app
       password.
-    - Data & privacy: web research and AI summaries on or off, your OpenRouter key, and
-      clearing the local cache.
+    - Data & privacy: web research and AI summaries on or off, your OpenRouter key, encryption
+      and auto-lock, and clearing the local cache.
 - **Desktop app:** `Wardmind.exe` (or `wardmind desktop`) shows the same dashboard in its own
   window on Windows
 - **Claude (MCP):** `wardmind mcp` serves the book to Claude over stdio
@@ -127,6 +129,9 @@ uv run wardmind open       # open the running dashboard in another browser windo
 ```powershell
 claude mcp add wardmind -- uv --directory "<path to this folder>" run wardmind mcp
 ```
+
+It reads the book open in the app. To give Claude one book whatever is open, add
+`--book <id>` (`wardmind books` lists the ids). Every result names the book it came from.
 
 The server exposes seven tools:
 

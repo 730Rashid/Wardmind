@@ -305,7 +305,7 @@ def test_the_key_file_holds_no_key_in_the_clear() -> None:
     text = vault.keys_path().read_text(encoding="utf-8")
     session = vault._session
     assert session is not None
-    assert session.book_key.hex() not in text
+    assert session.book_keys["default"].hex() not in text
     assert vault.KEYS_BACKUP in {p.name for p in vault.keys_path().parent.iterdir()}
 
 

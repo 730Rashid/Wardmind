@@ -20,6 +20,7 @@ ALLOWED = {
     "core/vault.py": "the vault itself",
     "core/config.py": "scoring.yaml and write_atomic for plain settings files",
     "core/settings.py": "settings.yaml: appearance, read before unlock",
+    "core/books.py": "books.json: book ids and labels (no customer data), read before unlock",
     "core/connectors/demo.py": "the packaged, invented demo data",
     "core/connectors/hubspot.py": "hubspot.yaml: the property mapping, no customer data",
     "core/feeds/providers/files.py": "a spreadsheet the user picked, wherever it is",

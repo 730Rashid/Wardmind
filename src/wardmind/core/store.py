@@ -26,7 +26,6 @@ from __future__ import annotations
 
 import functools
 import json
-import os
 import re
 import secrets
 import shutil
@@ -42,7 +41,7 @@ from pydantic import BaseModel, Field, TypeAdapter
 from wardmind.core import vault
 from wardmind.core.feeds.models import FeedSettings
 from wardmind.core.models import Account, Signal
-from wardmind.core.secrets import delete_all_feed_secrets, secrets_dir
+from wardmind.core.secrets import delete_all_feed_secrets
 
 ENV_DATA_DIR = "WARDMIND_DATA_DIR"
 MANUAL_CONNECTION_ID = "manual"
@@ -220,11 +219,11 @@ _HIDDEN_ADAPTER: TypeAdapter[Any] = TypeAdapter(list[str])
 
 
 def data_dir() -> Path:
-    """WARDMIND_DATA_DIR if set, else secrets.secrets_dir() / "data". Not created here."""
-    override = os.environ.get(ENV_DATA_DIR, "").strip()
-    if override:
-        return Path(override)
-    return secrets_dir() / "data"
+    """The open book's data folder (core/books.py): for the first book WARDMIND_DATA_DIR if
+    set, else secrets.secrets_dir() / "data". Not created here."""
+    from wardmind.core import books
+
+    return books.book_data_dir(books.active_id())
 
 
 def _now() -> datetime:

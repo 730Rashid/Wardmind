@@ -1,7 +1,7 @@
 # Privacy lock, multiple books and shared books: design
 
-Status: being built in phases (see E). Phase 0 (the session check) and phase 1 (encryption at
-rest, 1a and 1b) are done. It was drafted from
+Status: being built in phases (see E). Phase 0 (the session check), phase 1 (encryption at
+rest, 1a and 1b) and phase 2 (multiple books) are done. It was drafted from
 a read-only review of the code on 2026-11-11. While the user was away they asked for the
 recommended answers to be used; the answers taken are at the end.
 
@@ -361,3 +361,40 @@ Changes from sections A, B and E above, after a review of the code:
 - "Lock now" in the header whenever encryption is on. `sync_due_feeds` does nothing while
   locked. The MCP tools answer "Wardmind is locked. Open the app and unlock it." for `Locked`
   and a plain message for `Damaged`.
+
+### Phase 2 as built
+
+Changes from section C, chosen so that nothing already on disk moves:
+
+- **The first book is the folder that was already there.** `core/books.py`: the book "default"
+  ("Book 1" until renamed) is `%LOCALAPPDATA%\wardmind` itself, laid out as before. Every other
+  book is `books\<id>\` under it (`b-` and 8 hex digits), with its own `data\`, secrets and
+  `scoring.yaml`. `books.json` (plain: ids, labels, which is open) sits at the root. No
+  migration step exists, so there is nothing to interrupt.
+- **Paths follow the open book.** `secrets.secrets_dir()` and `store.data_dir()` return the open
+  book's folders; `secrets.root_dir()` is the per-user folder (keys.json, books.json,
+  session.json, the unlock ticket, the desktop app's config). `config.scoring_path()` gives a
+  book its own scoring once saved; until then it reads the first book's.
+- **Demo data stays a switch, not a folder.** `settings.source` still chooses demo or your data,
+  so the `DataSource.DEMO` branches remain (removing them would have touched about 40 test
+  files for no change a user can see). The switcher shows Demo data beside the books. Notes
+  typed on demo accounts are kept with the first book whichever book was open.
+- **Keys: one master key, one key per book.** `keys.json` holds every book's key wrapped by the
+  master key (one password opens all books). `vault.locate(path)` maps a file to its book and
+  logical path, checking the books' own folders before the first book's; a file under
+  `books\<id>` of a book that isn't listed belongs to no book. A file copied from one book into
+  another fails as `Damaged`. Turning encryption on or off covers every book. Adding a book while
+  encryption is on gives it a key (needs Wardmind unlocked); deleting one removes its key first,
+  then its folder.
+- **One book open per process.** The web app and the MCP server follow `books.json`'s current
+  book; `wardmind mcp --book <id>` (or `WARDMIND_BOOK`) pins a process to one. Every MCP result
+  names its book (`list_book` keeps its list shape, so each row does), and no tool switches
+  books. `wardmind books` lists them.
+- **UI:** a book switcher in the header (a disclosure of POST buttons, no script) and Settings >
+  Books: add, rename, open and delete. Labels are plain text, so the add form says to use
+  something like "Book 2" rather than a client's or employer's name.
+- **Delete all local data** deletes the keys first, then every other book's folder and
+  `books.json`, then clears the first book as before.
+- **Not in this phase:** a per-book backup download, and feeds of books that aren't open don't
+  sync until that book is opened.
+

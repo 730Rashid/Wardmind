@@ -41,8 +41,9 @@ NO_TOKEN_MESSAGE = (
     "HubSpot is connected, but no access token is saved. Add one on the Connections page."
 )
 ERROR_HEADING = "Couldn't load your book"
-SOURCE_MINE = "Showing your data"
-SOURCE_DEMO = "Showing demo data"
+# The header's book switcher shows the open book's name, or "Demo data" (see base.html).
+SOURCE_MINE = '<summary class="book-switcher-summary">Book 1</summary>'
+SOURCE_DEMO = '<summary class="book-switcher-summary">Demo data</summary>'
 EMPTY_TOKEN_INPUT = (
     '<input type="password" name="token" autocomplete="off" spellcheck="false" id="token">'
 )
@@ -207,6 +208,7 @@ def test_the_page_has_its_title_and_the_sub_navigation(client: TestClient) -> No
     assert [a["href"] for a in links] == [
         "/settings/appearance",
         "/settings/scoring",
+        "/settings/books",
         "/settings/connections",
         "/settings/mailbox",
         "/settings/privacy",
@@ -719,7 +721,12 @@ def test_every_book_page_shows_the_error_with_the_way_out(
     assert f'<h1 class="page-title">{ERROR_HEADING}</h1>' in response.text
     assert f"Couldn't load your book. {NO_TOKEN_MESSAGE}" in text
     assert '<a class="button" href="/settings/connections">Check Connections</a>' in response.text
-    forms = [(f["method"], f["action"]) for f in _tags(response.text, "form")]
+    # The header's book switcher has forms of its own; only the page's forms are counted here.
+    forms = [
+        (f["method"], f["action"])
+        for f in _tags(response.text, "form")
+        if f["action"] != "/books/switch"
+    ]
     assert forms == [("post", "/settings/connections/use-demo")]
     assert "Switch to demo data" in text
     assert all(a.get("aria-current") is None for a in _tags(response.text, "a"))

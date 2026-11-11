@@ -6,8 +6,8 @@ place and every later write is encrypted:
 
 - `keys.json` (in the per-user Wardmind folder, plain JSON) holds a random 32-byte master key in
   "slots", each a different way to unwrap it: Windows (DPAPI, nothing to type), a recovery code
-  shown once, and in phase 1b an optional password (Argon2id). It also holds one random book key,
-  wrapped by the master key.
+  shown once, and an optional password (Argon2id). It also holds one random key per book
+  (core/books.py), each wrapped by the master key, so one password opens every book.
 - Each file is AES-256-GCM under its own key: HKDF-SHA256(book key, b"wardmind file v1\\0" + its
   logical path, e.g. "data/journal.json"). The header and the logical path are the additional
   authenticated data, so a file swapped for another, or a changed byte, fails as `Damaged`.
@@ -100,34 +100,58 @@ class SlotKind(StrEnum):
 # --- Where the files are --------------------------------------------------------------------
 
 
-def _secrets_dir() -> Path:
-    from wardmind.core.secrets import secrets_dir
+def _root_dir() -> Path:
+    """The per-user Wardmind folder: keys.json, its backup and the unlock ticket live here."""
+    from wardmind.core.secrets import root_dir
 
-    return secrets_dir()
+    return root_dir()
 
 
-def _data_dir() -> Path:
-    from wardmind.core.store import data_dir
+def _book_ids() -> list[str]:
+    from wardmind.core import books
 
-    return data_dir()
+    return books.all_ids()
+
+
+def _book_roots(book_id: str) -> tuple[Path, Path]:
+    """(data folder, secrets folder) of a book."""
+    from wardmind.core import books
+
+    return books.book_data_dir(book_id), books.book_folder(book_id)
 
 
 def keys_path() -> Path:
-    return _secrets_dir() / KEYS_FILE
+    return _root_dir() / KEYS_FILE
+
+
+def locate(path: Path) -> tuple[str, str]:
+    """(book id, logical path) of a managed file. The logical path is the file's name inside its
+    book, used in its key and its authenticated data: "data/<path under the data folder>" or
+    "secrets/<path under the book's folder>" (POSIX slashes). Books in their own folders are
+    checked before the first book, whose folder holds theirs. VaultError for a file outside every
+    book (it can't be encrypted)."""
+    from wardmind.core import books
+
+    resolved = Path(os.path.abspath(path))
+    ordered = sorted(_book_ids(), key=lambda book_id: book_id == books.DEFAULT_BOOK)
+    for book_id in ordered:
+        data, secrets_root = _book_roots(book_id)
+        for tag, root in (("data", data), ("secrets", secrets_root)):
+            base = Path(os.path.abspath(root))
+            with contextlib.suppress(ValueError):
+                relative = resolved.relative_to(base)
+                if not relative.parts:
+                    continue
+                if book_id == books.DEFAULT_BOOK and tag == "secrets":
+                    if relative.parts[0] == books.BOOKS_DIR:
+                        break  # a folder of a book that isn't listed: not the first book's
+                return book_id, f"{tag}/{relative.as_posix()}"
+    raise VaultError(f"{path} isn't in a Wardmind book's data or secrets folder.")
 
 
 def logical_path(path: Path) -> str:
-    """The file's name inside the book, used in its key and its authenticated data:
-    "data/<path under the data folder>" or "secrets/<path under the secrets folder>" (POSIX
-    slashes). VaultError for a file outside both (it can't be encrypted)."""
-    resolved = Path(os.path.abspath(path))
-    for tag, root in (("data", _data_dir()), ("secrets", _secrets_dir())):
-        base = Path(os.path.abspath(root))
-        with contextlib.suppress(ValueError):
-            relative = resolved.relative_to(base)
-            if relative.parts:
-                return f"{tag}/{relative.as_posix()}"
-    raise VaultError(f"{path} isn't in Wardmind's data or secrets folder.")
+    """The logical path of locate(path)."""
+    return locate(path)[1]
 
 
 SECRET_FILES = ("hubspot-token", "openrouter-key")  # in the secrets folder
@@ -135,16 +159,22 @@ SECRET_FOLDERS = ("feeds",)  # every file directly in these folders of the secre
 
 
 def managed_files() -> list[Path]:
-    """Every file the vault encrypts: the data folder (recursively), the two key files and the
-    named feed secrets. Dotfiles and *.tmp are skipped. Never the whole secrets folder: it also
-    holds the virtualenv, config, keys.json and session.json."""
+    """Every file the vault encrypts, in every book: the data folder (recursively), the two key
+    files and the named feed secrets. Dotfiles and *.tmp are skipped. Never a whole secrets
+    folder: the first book's also holds the virtualenv, config, keys.json and session.json."""
     found: list[Path] = []
-    data = _data_dir()
+    for book_id in _book_ids():
+        found.extend(_book_files(book_id))
+    return found
+
+
+def _book_files(book_id: str) -> list[Path]:
+    found: list[Path] = []
+    data, root = _book_roots(book_id)
     if data.is_dir():
         for path in sorted(data.rglob("*")):
             if path.is_file() and not _skipped(path):
                 found.append(path)
-    root = _secrets_dir()
     for name in SECRET_FILES:
         path = root / name
         if path.is_file():
@@ -227,11 +257,24 @@ class KeyFile:
     state: State
     epoch: int
     slots: tuple[Slot, ...]
-    book_nonce: bytes
-    book_wrapped: bytes
+    books: dict[str, tuple[bytes, bytes]]  # book id -> (nonce, wrapped book key)
 
     def slot(self, kind: SlotKind) -> Slot | None:
         return next((slot for slot in self.slots if slot.kind is kind), None)
+
+    def replace(
+        self,
+        *,
+        state: State | None = None,
+        slots: tuple[Slot, ...] | None = None,
+        books: dict[str, tuple[bytes, bytes]] | None = None,
+    ) -> KeyFile:
+        return KeyFile(
+            state if state is not None else self.state,
+            self.epoch,
+            slots if slots is not None else self.slots,
+            books if books is not None else self.books,
+        )
 
 
 def _b64(raw: bytes) -> str:
@@ -256,8 +299,13 @@ def _parse_keys(text: str) -> KeyFile:
             Slot(SlotKind(item["kind"]), {k: v for k, v in item.items() if k != "kind"})
             for item in raw["slots"]
         )
-        book = raw["books"][DEFAULT_BOOK]
-        return KeyFile(state, epoch, slots, _unb64(book["nonce"]), _unb64(book["wrapped"]))
+        books = {
+            str(book_id): (_unb64(entry["nonce"]), _unb64(entry["wrapped"]))
+            for book_id, entry in raw["books"].items()
+        }
+        if DEFAULT_BOOK not in books:
+            raise KeyError(DEFAULT_BOOK)
+        return KeyFile(state, epoch, slots, books)
     except (KeyError, TypeError, ValueError) as error:
         raise Damaged("Wardmind's key file is damaged.") from error
 
@@ -270,7 +318,8 @@ def _dump_keys(keys: KeyFile) -> str:
             "epoch": keys.epoch,
             "slots": [{"kind": slot.kind.value, **slot.fields} for slot in keys.slots],
             "books": {
-                DEFAULT_BOOK: {"nonce": _b64(keys.book_nonce), "wrapped": _b64(keys.book_wrapped)}
+                book_id: {"nonce": _b64(nonce), "wrapped": _b64(wrapped)}
+                for book_id, (nonce, wrapped) in keys.books.items()
             },
         },
         indent=2,
@@ -308,7 +357,7 @@ def _save_keys(keys: KeyFile) -> None:
     global _keys_cache
     text = _dump_keys(keys)
     _write_raw(keys_path(), text.encode("utf-8"))
-    _write_raw(_secrets_dir() / KEYS_BACKUP, text.encode("utf-8"))
+    _write_raw(_root_dir() / KEYS_BACKUP, text.encode("utf-8"))
     with _keys_lock:
         _keys_cache = None
 
@@ -317,7 +366,7 @@ def _delete_keys() -> None:
     global _keys_cache
     for name in (KEYS_FILE, KEYS_BACKUP):
         with contextlib.suppress(FileNotFoundError):
-            (_secrets_dir() / name).unlink()
+            (_root_dir() / name).unlink()
     with _keys_lock:
         _keys_cache = None
 
@@ -488,9 +537,9 @@ def has_windows_unlock() -> bool:
 @dataclass
 class _Session:
     master: bytes
-    book_key: bytes
     epoch: int
-    file_keys: dict[str, bytes]
+    book_keys: dict[str, bytes]  # unwrapped as each book is first used
+    file_keys: dict[tuple[str, str], bytes]  # (book id, logical path) -> file key
     from_ticket: bool = False  # the MCP server or CLI, unlocked by the app's ticket
 
 
@@ -503,17 +552,41 @@ def is_unlocked() -> bool:
     return _session is not None
 
 
+def _book_label(book_id: str) -> bytes:
+    return b"wardmind book " + book_id.encode("ascii")
+
+
+def _unwrap_book(keys: KeyFile, master: bytes, book_id: str) -> bytes:
+    entry = keys.books.get(book_id)
+    if entry is None:
+        raise Damaged("Wardmind's key file has no key for this book.")
+    return _unwrap(
+        master, entry[0], entry[1], _book_label(book_id), "Wardmind's key file doesn't match."
+    )
+
+
 def _open_book(keys: KeyFile, master: bytes, *, from_ticket: bool = False) -> _Session:
-    book = _unwrap(
-        master,
-        keys.book_nonce,
-        keys.book_wrapped,
-        b"wardmind book " + DEFAULT_BOOK.encode("ascii"),
-        "Wardmind's key file doesn't match its book.",
-    )
+    """A session for this master key. The first book's key is unwrapped at once, which checks
+    the master key; the others as they are used."""
+    first = _unwrap_book(keys, master, DEFAULT_BOOK)
     return _Session(
-        master=master, book_key=book, epoch=keys.epoch, file_keys={}, from_ticket=from_ticket
+        master=master,
+        epoch=keys.epoch,
+        book_keys={DEFAULT_BOOK: first},
+        file_keys={},
+        from_ticket=from_ticket,
     )
+
+
+def _book_key(session: _Session, book_id: str) -> bytes:
+    key = session.book_keys.get(book_id)
+    if key is None:
+        keys = load_keys()
+        if keys is None:
+            raise Locked("Wardmind is locked.")
+        key = _unwrap_book(keys, session.master, book_id)
+        session.book_keys[book_id] = key
+    return key
 
 
 def unlock(*, password: str | None = None, recovery: str | None = None) -> None:
@@ -600,7 +673,7 @@ TICKET_HOURS = 12  # a ticket left behind by a crash stops working after this lo
 
 
 def _ticket_path() -> Path:
-    return _secrets_dir() / TICKET_FILE
+    return _root_dir() / TICKET_FILE
 
 
 def _write_ticket(master: bytes) -> None:
@@ -637,7 +710,7 @@ def _replace_slots(keep: Callable[[Slot], bool], add: list[Slot]) -> None:
     if keys is None:
         raise VaultError("Encryption is off.")
     slots = tuple(slot for slot in keys.slots if keep(slot)) + tuple(add)
-    _save_keys(KeyFile(keys.state, keys.epoch, slots, keys.book_nonce, keys.book_wrapped))
+    _save_keys(keys.replace(slots=slots))
 
 
 def set_password(password: str) -> None:
@@ -675,11 +748,12 @@ def replace_recovery_code() -> str:
     return code
 
 
-def _file_key(session: _Session, logical: str) -> bytes:
-    key = session.file_keys.get(logical)
+def _file_key(session: _Session, book_id: str, logical: str) -> bytes:
+    key = session.file_keys.get((book_id, logical))
     if key is None:
-        key = _hkdf(session.book_key, b"wardmind file v1\x00" + logical.encode("utf-8"))
-        session.file_keys[logical] = key
+        book = _book_key(session, book_id)
+        key = _hkdf(book, b"wardmind file v1\x00" + logical.encode("utf-8"))
+        session.file_keys[(book_id, logical)] = key
     return key
 
 
@@ -690,15 +764,19 @@ def is_encrypted(raw: bytes) -> bool:
     return raw.startswith(MAGIC)
 
 
-def encrypt(plain: bytes, logical: str, session: _Session | None = None) -> bytes:
+def encrypt(
+    plain: bytes, logical: str, session: _Session | None = None, *, book: str = DEFAULT_BOOK
+) -> bytes:
     use = session if session is not None else _active_session()
     nonce = os.urandom(NONCE_BYTES)
     header = MAGIC + bytes([FORMAT_VERSION, ALG_AES256GCM]) + use.epoch.to_bytes(4, "big") + nonce
-    sealed = AESGCM(_file_key(use, logical)).encrypt(nonce, plain, header + logical.encode())
+    sealed = AESGCM(_file_key(use, book, logical)).encrypt(nonce, plain, header + logical.encode())
     return header + sealed
 
 
-def decrypt(raw: bytes, logical: str, session: _Session | None = None) -> bytes:
+def decrypt(
+    raw: bytes, logical: str, session: _Session | None = None, *, book: str = DEFAULT_BOOK
+) -> bytes:
     if len(raw) < HEADER_BYTES + TAG_BYTES:
         raise Damaged(f"{logical} is damaged: it's too short.")
     header = raw[:HEADER_BYTES]
@@ -707,7 +785,7 @@ def decrypt(raw: bytes, logical: str, session: _Session | None = None) -> bytes:
     use = session if session is not None else _active_session()
     nonce = header[10:HEADER_BYTES]
     try:
-        return AESGCM(_file_key(use, logical)).decrypt(
+        return AESGCM(_file_key(use, book, logical)).decrypt(
             nonce, raw[HEADER_BYTES:], header + logical.encode()
         )
     except InvalidTag as error:
@@ -723,7 +801,8 @@ def read_bytes(path: Path) -> bytes:
     raw = path.read_bytes()
     if not is_encrypted(raw):
         return raw
-    return decrypt(raw, logical_path(path))
+    book_id, logical = locate(path)
+    return decrypt(raw, logical, book=book_id)
 
 
 def read_text(path: Path) -> str:
@@ -736,7 +815,8 @@ def write_bytes(path: Path, data: bytes) -> None:
     On POSIX the file is 0600 and new folders 0700; on Windows the profile folder's ACL applies."""
     current = state()
     if current in (State.ON, State.ENCRYPTING):
-        data = encrypt(data, logical_path(path))
+        book_id, logical = locate(path)
+        data = encrypt(data, logical, book=book_id)
     _write_raw(path, data)
 
 
@@ -749,7 +829,8 @@ def move(old: Path, new: Path) -> None:
     name (its key and authenticated data depend on the name), then the old one is removed."""
     raw = old.read_bytes()
     if is_encrypted(raw):
-        write_bytes(new, decrypt(raw, logical_path(old)))
+        book_id, logical = locate(old)
+        write_bytes(new, decrypt(raw, logical, book=book_id))
         old.unlink()
     else:
         _replace(old, new)
@@ -807,10 +888,10 @@ def enable(
         if password is None and not dpapi:
             raise VaultError("Choose a password: Windows protection isn't available here.")
         master = os.urandom(KEY_BYTES)
-        book = os.urandom(KEY_BYTES)
-        book_nonce, book_wrapped = _wrap(
-            master, book, b"wardmind book " + DEFAULT_BOOK.encode("ascii")
-        )
+        book_keys = {book_id: os.urandom(KEY_BYTES) for book_id in [DEFAULT_BOOK, *_book_ids()]}
+        wrapped_books = {
+            book_id: _wrap(master, key, _book_label(book_id)) for book_id, key in book_keys.items()
+        }
         unlock_slot = (
             _password_slot(master, password) if password is not None else _dpapi_slot(master)
         )
@@ -818,12 +899,11 @@ def enable(
             state=State.ENCRYPTING,
             epoch=1,
             slots=(unlock_slot, _recovery_slot(master, shown)),
-            book_nonce=book_nonce,
-            book_wrapped=book_wrapped,
+            books=wrapped_books,
         )
         _save_keys(keys)
         with _session_lock:
-            _session = _Session(master=master, book_key=book, epoch=1, file_keys={})
+            _session = _Session(master=master, epoch=1, book_keys=book_keys, file_keys={})
             _locked_by_user = False
         _encrypt_all()
         _save_keys(_with_state(keys, State.ON))
@@ -875,14 +955,17 @@ def resume() -> None:
 
 
 def _with_state(keys: KeyFile, new: State) -> KeyFile:
-    return KeyFile(new, keys.epoch, keys.slots, keys.book_nonce, keys.book_wrapped)
+    return keys.replace(state=new)
 
 
 def _encrypt_all() -> None:
     session = _active_session()
     for path in managed_files():
         _rewrite(
-            path, lambda raw, logical: raw if is_encrypted(raw) else encrypt(raw, logical, session)
+            path,
+            lambda raw, book_id, logical: (
+                raw if is_encrypted(raw) else encrypt(raw, logical, session, book=book_id)
+            ),
         )
 
 
@@ -890,17 +973,59 @@ def _decrypt_all() -> None:
     session = _active_session()
     for path in managed_files():
         _rewrite(
-            path, lambda raw, logical: decrypt(raw, logical, session) if is_encrypted(raw) else raw
+            path,
+            lambda raw, book_id, logical: (
+                decrypt(raw, logical, session, book=book_id) if is_encrypted(raw) else raw
+            ),
         )
 
 
-def _rewrite(path: Path, change: Callable[[bytes, str], bytes]) -> None:
-    """Replace the file with change(its bytes), atomically, keeping its modified time (the
-    "saved on" dates of keys and tokens come from it). Unchanged files are left alone."""
+def _rewrite(path: Path, change: Callable[[bytes, str, str], bytes]) -> None:
+    """Replace the file with change(its bytes, its book, its logical path), atomically, keeping
+    its modified time (the "saved on" dates of keys and tokens come from it). Unchanged files
+    are left alone."""
     raw = path.read_bytes()
-    updated = change(raw, logical_path(path))
+    updated = change(raw, *locate(path))
     if updated == raw:
         return
     info = path.stat()
     _write_raw(path, updated)
     os.utime(path, ns=(info.st_atime_ns, info.st_mtime_ns))
+
+
+# --- Books (core/books.py): a key for each -----------------------------------------------------
+
+
+def add_book_key(book_id: str) -> None:
+    """Give a new book its own key, wrapped by the master key. Nothing to do while encryption is
+    off. Locked when Wardmind isn't unlocked; VaultError while encryption is being turned on or
+    off."""
+    with _migrate_lock:
+        keys = load_keys()
+        if keys is None or book_id in keys.books:
+            return
+        if keys.state is not State.ON:
+            raise VaultError("Wait until encryption has finished turning on or off.")
+        session = _active_session()
+        key = os.urandom(KEY_BYTES)
+        books = {**keys.books, book_id: _wrap(session.master, key, _book_label(book_id))}
+        _save_keys(keys.replace(books=books))
+        with _session_lock:
+            session.book_keys[book_id] = key
+
+
+def remove_book_key(book_id: str) -> None:
+    """Forget a deleted book's key, so whatever is left of its files can't be read. The first
+    book's key is never removed (VaultError)."""
+    if book_id == DEFAULT_BOOK:
+        raise VaultError("The first book's key can't be removed.")
+    with _migrate_lock:
+        keys = load_keys()
+        if keys is not None and book_id in keys.books:
+            books = {key: value for key, value in keys.books.items() if key != book_id}
+            _save_keys(keys.replace(books=books))
+        with _session_lock:
+            if _session is not None:
+                _session.book_keys.pop(book_id, None)
+                for cached in [item for item in _session.file_keys if item[0] == book_id]:
+                    del _session.file_keys[cached]

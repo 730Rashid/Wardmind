@@ -32,6 +32,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 
 from wardmind.core import (
+    books,
     briefs,
     bulk,
     client_updates,
@@ -387,13 +388,6 @@ def _filter_groups(
     return groups
 
 
-def _source_note(settings: Settings) -> str:
-    """The top bar's note. It reads the saved choice rather than the connector, so it can't fail."""
-    if settings.source is DataSource.MINE:
-        return "Showing your data"
-    return "Showing demo data"
-
-
 def _connector_label() -> str:
     """The data source as a fact: 'Demo data', 'Your data', or the connector's name."""
     name = service.get_connector().name
@@ -467,7 +461,8 @@ def _render(
         "page": page,
         "active": active,
         "settings": current,
-        "source_note": _source_note(current),
+        # The header's book switcher (see _book_menu, in the Books block below create_app).
+        "book_menu": _book_menu(current),
         "today": format_today(today_day),
         "today_day": today_day,
         "problems": problems,
@@ -2776,6 +2771,166 @@ def _turn_on_encryption(entry: _PendingKey) -> str:
     return "encryption-on"
 
 
+# --- Books (Settings > Books and the header switcher) ---------------------------------------------
+# The switcher in the header and the Books page (see core/books.py). books.json is plain, so
+# nothing here needs the vault: a locked book still shows its label. A change to the books from a
+# locked book is refused by the lock gate (see create_app) before it reaches these helpers.
+
+_DEMO_CHOICE = "demo"  # the switcher's value for Demo data; no book id is "demo"
+_BOOK_NOTICES = {
+    "book-missing": "That book no longer exists. The list below is up to date.",
+    "renamed": "Book renamed.",
+    "deleted": "The book and everything in it were deleted.",
+    "locked": "Unlock Wardmind first.",
+    "books-vault": (
+        "Wardmind can't change books right now. If encryption is turning on or off, wait for it "
+        "to finish, then try again."
+    ),
+    "books-failed": (
+        "Wardmind couldn't save the list of books. Check that your user profile folder is "
+        "writable, then try again."
+    ),
+}
+_DELETE_CONFIRM = "Tick the box to confirm you want to delete this book."
+_NO_BOOK = "That book doesn't exist. Pick one from the list."
+
+
+def _book_menu(current: Settings) -> dict[str, Any]:
+    """The header switcher: the open book's label, or Demo data when Demo data is showing; then
+    every book, with the open one marked, and Demo data after them."""
+    listed = books.load()
+    if current.source is DataSource.DEMO:
+        open_id, label = None, "Demo data"
+    else:
+        chosen = listed.get(books.active_id()) or listed.books[0]
+        open_id, label = chosen.id, chosen.label
+    return {
+        "current": label,
+        "demo_current": open_id is None,
+        "books": [
+            {"id": book.id, "label": book.label, "current": book.id == open_id}
+            for book in listed.books
+        ],
+    }
+
+
+def _book_exists(book_id: str) -> bool:
+    return books.load().get(book_id) is not None
+
+
+def _book_notice(code: str, book_id: str) -> str:
+    """The fixed sentence for a notice code. The one code that names a book ("added") takes its
+    id from the URL and looks the label up in books.json, so no label comes from a query string."""
+    if code == "added":
+        added = books.load().get(book_id)
+        if added is None:
+            return "Book added. Open it to use it."
+        return f"{added.label} added. Open it to use it."
+    return _BOOK_NOTICES.get(code, "")
+
+
+def _books_redirect(notice: str, book_id: str = "") -> RedirectResponse:
+    """Back to Settings > Books with one notice code, and the id of the book it is about."""
+    query = {"notice": notice, "book": book_id} if book_id else {"notice": notice}
+    return RedirectResponse(f"/settings/books?{urlencode(query)}", status_code=303)
+
+
+def _books_failure(error: Exception) -> str:
+    """The notice code for a books change that failed for a reason other than its name (a
+    BookError has its own message on the page)."""
+    if isinstance(error, vault.Locked):
+        return "locked"
+    if isinstance(error, vault.VaultError):
+        return "books-vault"
+    return "books-failed"
+
+
+def _book_write(change: Callable[[], _R]) -> _R:
+    """Run one change to the books under the store's write lock, so a running sync can't write
+    in the middle of it."""
+    from wardmind.core.store import WRITE_LOCK
+
+    with WRITE_LOCK:
+        return change()
+
+
+def _open_demo() -> None:
+    """Show Demo data. The open book stays as it was, so switching back opens the same one."""
+
+    def change() -> None:
+        save_settings(load_settings().model_copy(update={"source": DataSource.DEMO}))
+
+    _book_write(change)
+    service.reset_connectors()
+
+
+def _open_book(book_id: str) -> None:
+    """Make the book the one that opens, and show your data. BookError for an unknown id."""
+
+    def change() -> None:
+        books.switch(book_id)
+        save_settings(load_settings().model_copy(update={"source": DataSource.MINE}))
+
+    _book_write(change)
+    service.reset_connectors()
+
+
+def _missing_book(request: Request) -> HTMLResponse:
+    return _missing(
+        request, "Book not found", _NO_BOOK, back_href="/settings/books", back_label="Back to Books"
+    )
+
+
+def _render_books(
+    request: Request,
+    *,
+    notice: str = "",
+    add_value: str | None = None,
+    add_error: str = "",
+    rename_values: Mapping[str, str] | None = None,
+    rename_errors: Mapping[str, str] | None = None,
+    delete_errors: Mapping[str, str] | None = None,
+    status_code: int = 200,
+) -> HTMLResponse:
+    """Settings > Books: each book with Open, Rename and Delete, then the form to add one. A
+    refused change passes back what was typed and its message, by the book it was for."""
+    listed = books.load()
+    demo = load_settings().source is DataSource.DEMO
+    open_id = books.active_id()
+    typed = rename_values or {}
+    renames = rename_errors or {}
+    deletes = delete_errors or {}
+    rows = [
+        {
+            "id": book.id,
+            "label": book.label,
+            "is_open": not demo and book.id == open_id,
+            "is_first": book.is_default,
+            # The same rule core/books.py applies: the first book and the open book stay.
+            "can_delete": not book.is_default and book.id != open_id,
+            "rename_value": typed.get(book.id, book.label),
+            "rename_error": renames.get(book.id, ""),
+            "delete_error": deletes.get(book.id, ""),
+        }
+        for book in listed.books
+    ]
+    return _render(
+        request,
+        "settings/books.html",
+        page="Books",
+        active="settings",
+        section="books",
+        status_code=status_code,
+        notice=notice,
+        demo=demo,
+        books=rows,
+        can_add=len(listed.books) < books.MAX_BOOKS,
+        max_books=books.MAX_BOOKS,
+        add_value=books.suggested_label() if add_value is None else add_value,
+        add_error=add_error,
+    )
+
+
 def create_app(gate: session.SessionGate | None = None) -> FastAPI:
     """Build the web app: no API docs, a host allow-list, and security headers on every response.
 
@@ -3425,6 +3580,89 @@ def create_app(gate: session.SessionGate | None = None) -> FastAPI:
         vault.lock()
         service.reset_connectors()
         return RedirectResponse(lock.UNLOCK_PATH, status_code=303)
+
+    # --- Books: the switcher and Settings > Books (see core/books.py) -------------------------
+    # The switch form in the header, and the Books page. Every change holds the store's write
+    # lock (see _book_write). A bad name or a refused delete is answered on the page (422); a
+    # locked book never gets here, because the lock gate answers first.
+
+    @app.post("/books/switch")
+    async def switch_book(request: Request) -> Response:
+        """Open a book, or show Demo data. The field is a book id, or "demo". An unknown id goes
+        back to Settings > Books with a notice and changes nothing."""
+        choice = (await _posted_fields(request)).get("book", "")
+        try:
+            if choice == _DEMO_CHOICE:
+                await run_in_threadpool(_open_demo)
+            else:
+                await run_in_threadpool(_open_book, choice)
+        except books.BookError:
+            return _books_redirect("book-missing")
+        except (vault.VaultError, OSError) as error:
+            return _books_redirect(_books_failure(error))
+        return RedirectResponse("/", status_code=303)
+
+    @app.get("/settings/books")
+    def books_page(request: Request, notice: str = "", book: str = "") -> HTMLResponse:
+        """The Books page. ?notice= is one code from _BOOK_NOTICES, or "added" with ?book= the new
+        book's id; any other value shows nothing."""
+        return _render_books(request, notice=_book_notice(notice, book))
+
+    @app.post("/settings/books/add")
+    async def add_book(request: Request) -> Response:
+        """Add a book. It is not opened: its row offers Open. A blank or taken name, or too many
+        books, re-shows the form (422) with the reason and saves nothing."""
+        typed = (await _posted_fields(request)).get("label", "")
+        try:
+            added = await run_in_threadpool(_book_write, lambda: books.add(typed))
+        except books.BookError as error:
+            return await run_in_threadpool(
+                _render_books, request, add_value=typed, add_error=str(error), status_code=422
+            )
+        except (vault.VaultError, OSError) as error:
+            return _books_redirect(_books_failure(error))
+        return _books_redirect("added", added.id)
+
+    @app.post("/settings/books/{book_id}/rename")
+    async def rename_book(request: Request, book_id: str) -> Response:
+        """Rename a book. A blank or taken name re-shows that book's row (422) with the reason."""
+        if not await run_in_threadpool(_book_exists, book_id):
+            return await run_in_threadpool(_missing_book, request)
+        typed = (await _posted_fields(request)).get("label", "")
+        try:
+            await run_in_threadpool(_book_write, lambda: books.rename(book_id, typed))
+        except books.BookError as error:
+            return await run_in_threadpool(
+                _render_books,
+                request,
+                rename_values={book_id: typed},
+                rename_errors={book_id: str(error)},
+                status_code=422,
+            )
+        except (vault.VaultError, OSError) as error:
+            return _books_redirect(_books_failure(error))
+        return _books_redirect("renamed")
+
+    @app.post("/settings/books/{book_id}/delete")
+    async def delete_book(request: Request, book_id: str) -> Response:
+        """Delete a book with its folder and its key. The confirm box must be ticked. The first
+        book and the open book can't be deleted: that row says so (422)."""
+        if not await run_in_threadpool(_book_exists, book_id):
+            return await run_in_threadpool(_missing_book, request)
+        if not (await _posted_fields(request)).get("confirm"):
+            return await run_in_threadpool(
+                _render_books, request, delete_errors={book_id: _DELETE_CONFIRM}, status_code=422
+            )
+        try:
+            await run_in_threadpool(_book_write, lambda: books.delete(book_id))
+        except books.BookError as error:
+            return await run_in_threadpool(
+                _render_books, request, delete_errors={book_id: str(error)}, status_code=422
+            )
+        except (vault.VaultError, OSError) as error:
+            return _books_redirect(_books_failure(error))
+        await run_in_threadpool(service.reset_connectors)
+        return _books_redirect("deleted")
 
     # --- Renewals: the honest forecast (see core/forecast.py) ---------------------------------
 

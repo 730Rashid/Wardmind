@@ -11,7 +11,7 @@ from pathlib import Path
 import httpx
 import pytest
 
-from wardmind.core import bulk, research, service, summaries
+from wardmind.core import books, bulk, research, service, summaries
 from wardmind.core.feeds import http as feed_http
 from wardmind.core.secrets import ENV_OPENROUTER_KEY, ENV_SECRETS_DIR, ENV_TOKEN
 from wardmind.core.store import ENV_DATA_DIR
@@ -73,9 +73,12 @@ def isolated_config_dir(
     monkeypatch.delenv(ENV_API_BASE, raising=False)
     monkeypatch.delenv(ENV_OPENROUTER_KEY, raising=False)
     monkeypatch.delenv(summaries.ENV_API_BASE, raising=False)
+    monkeypatch.delenv(books.ENV_BOOK, raising=False)
+    books.forget_cache()
     service.reset_connectors()
     yield folder
     service.reset_connectors()
+    books.forget_cache()
 
 
 @pytest.fixture(autouse=True)

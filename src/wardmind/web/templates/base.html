@@ -29,7 +29,37 @@
           <li>{{ nav_link("/settings", "Settings", "settings") }}</li>
         </ul>
       </nav>
-      <p class="source-note">{{ source_note }}</p>
+      <details class="book-switcher">
+        <summary class="book-switcher-summary">{{ book_menu.current }}</summary>
+        <div class="book-switcher-menu">
+          <p class="book-switcher-heading">Books</p>
+          <ul class="book-switcher-list">
+            {% for book in book_menu.books %}
+            <li>
+              {% if book.current %}
+              <span class="book-switcher-item" aria-current="true">{{ book.label }}</span>
+              {% else %}
+              <form class="book-switcher-form" method="post" action="/books/switch">
+                <input type="hidden" name="book" value="{{ book.id }}">
+                <button type="submit" class="book-switcher-button">{{ book.label }}</button>
+              </form>
+              {% endif %}
+            </li>
+            {% endfor %}
+            <li>
+              {% if book_menu.demo_current %}
+              <span class="book-switcher-item" aria-current="true">Demo data</span>
+              {% else %}
+              <form class="book-switcher-form" method="post" action="/books/switch">
+                <input type="hidden" name="book" value="demo">
+                <button type="submit" class="book-switcher-button">Demo data</button>
+              </form>
+              {% endif %}
+            </li>
+          </ul>
+          <a class="book-switcher-manage" href="/settings/books">Manage books</a>
+        </div>
+      </details>
       {% if can_lock %}
       <form class="lock-now-form" method="post" action="/lock">
         <button type="submit" class="button lock-now-button">Lock now</button>

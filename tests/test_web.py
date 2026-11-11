@@ -84,7 +84,7 @@ def test_nav_route_is_html_and_marks_its_own_link_current(client: TestClient, pa
     nav = [a for a in _anchors(response.text) if a.get("class") == "nav-link"]
     assert [a["href"] for a in nav] == NAV_LINKS
     assert [a["href"] for a in nav if a.get("aria-current") == "page"] == [path]
-    assert "Showing demo data" in _text(response)
+    assert '<summary class="book-switcher-summary">Demo data</summary>' in response.text
 
 
 @pytest.mark.parametrize("path", ["/", "/accounts/acc-001"])

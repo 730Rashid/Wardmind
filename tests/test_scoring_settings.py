@@ -293,7 +293,12 @@ def test_a_cross_site_post_is_refused_and_writes_nothing(
 def test_the_save_button_is_a_plain_submit_outside_the_htmx_wrapper(client: TestClient) -> None:
     text = client.get("/settings/scoring").text
     walk = _walk(text)
-    forms = [(attrs, ancestors) for tag, attrs, ancestors in walk if tag == "form"]
+    # The header's book switcher has forms of its own; only the page's forms are counted here.
+    forms = [
+        (attrs, ancestors)
+        for tag, attrs, ancestors in walk
+        if tag == "form" and attrs.get("action") != "/books/switch"
+    ]
     assert len(forms) == 1
     form, _ = forms[0]
     assert form["id"] == "scoring-form"
@@ -313,10 +318,13 @@ def test_the_save_button_is_a_plain_submit_outside_the_htmx_wrapper(client: Test
     assert 'id="preview-title"' not in partial
     assert 'id="preview-title"' in client.get("/settings/scoring").text
 
+    # Only the scoring form's own buttons: the header's book switcher has submit buttons too.
     (save,) = [
         (attrs, ancestors)
         for tag, attrs, ancestors in walk
-        if tag == "button" and attrs.get("type") == "submit"
+        if tag == "button"
+        and attrs.get("type") == "submit"
+        and any(name == "form" and found.get("id") == "scoring-form" for name, found in ancestors)
     ]
     save_attrs, save_ancestors = save
     assert save_attrs.get("class") == "button-primary"

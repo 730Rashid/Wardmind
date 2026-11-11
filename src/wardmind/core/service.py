@@ -14,6 +14,7 @@ from datetime import UTC, date, datetime, timedelta
 from pydantic import BaseModel, ValidationError
 
 from wardmind.core import (
+    books,
     bulk,
     client_updates,
     contacts,
@@ -830,14 +831,17 @@ def delete_all_local_data() -> None:
     Deletes every connection, snapshot, hand-added account, edit, reading, link, hidden entry,
     notice, contact and client update (store.clear_all); unfinished imports and feed setups;
     saved web research and AI summaries; the HubSpot token, the OpenRouter key and every feed key;
-    and the encryption keys first (core/vault.py), so anything left behind can't be read.
+    and the encryption keys first (core/vault.py), so anything left behind can't be read. Every
+    book but the first is deleted with its folder, and the books list goes too (core/books.py),
+    so the first book is the open one when the rest is cleared.
     Environment variables are not touched (the page tells the CSM to remove those). Turns web
     research and AI summaries off and forgets shared connectors. Holds store.WRITE_LOCK so a
     running sync can't write anything back. Never raises for a file that is already gone."""
-    store = get_store()
     with WRITE_LOCK:
         # The keys go first: if anything below fails, what is left can't be read.
         vault.destroy_keys()
+        books.delete_everything()
+        store = get_store()
         store.clear_all()
         import_flow.clear_drafts(store)
         secrets.delete_hubspot_token()
@@ -957,8 +961,11 @@ def _demo_mode() -> bool:
 
 def get_journal() -> journal.Journal:
     """The journal for the data showing: demo data has its own file, so notes typed while trying
-    the demo never mix with real accounts."""
-    return journal.Journal(get_store(), demo=_demo_mode())
+    the demo never mix with real accounts. The demo's notes are kept with the first book, so
+    they are the same whichever book was open last (core/books.py)."""
+    if _demo_mode():
+        return journal.Journal(LocalStore(books.book_data_dir(books.DEFAULT_BOOK)), demo=True)
+    return journal.Journal(get_store())
 
 
 def account_journal(account_id: str) -> journal.AccountJournal:

@@ -300,13 +300,6 @@ p {
   border-bottom-color: var(--accent);
 }
 
-.source-note {
-  margin-inline-start: auto;
-  font-size: var(--t-sm);
-  line-height: var(--lh-sm);
-  color: var(--ink-muted);
-}
-
 .skip-link {
   position: absolute;
   top: var(--space-2);
@@ -364,10 +357,6 @@ button {
 
   .top-bar-inner {
     gap: var(--space-2) var(--space-4);
-  }
-
-  .source-note {
-    margin-inline-start: 0;
   }
 }
 
@@ -7269,4 +7258,213 @@ a.button-primary {
 /* The new-password boxes only matter for "Use a password"; hide them while Windows is chosen. */
 .encryption-start:has(input[name="method"][value="windows"]:checked) .encryption-password-field {
   display: none;
+}
+
+/* Books: the header switcher and Settings > Books. */
+
+/* Header switcher. A disclosure: the summary is the open book's name, and the menu sits over the
+   page beneath the header. No script: the forms post to /books/switch. */
+.book-switcher {
+  position: relative;
+  margin-inline-start: auto;
+}
+
+.book-switcher-summary {
+  display: inline-block;
+  padding-block: var(--space-1);
+  padding-inline: var(--space-3);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-control);
+  background: var(--surface);
+  color: var(--ink);
+  font-weight: 600;
+  list-style: none;
+  cursor: pointer;
+}
+
+.book-switcher-summary::-webkit-details-marker {
+  display: none;
+}
+
+.book-switcher[open] > .book-switcher-summary {
+  background: var(--sunken);
+}
+
+.book-switcher-menu {
+  position: absolute;
+  z-index: 10;
+  inset-block-start: calc(100% + var(--space-2));
+  inset-inline-end: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-inline-size: 15rem;
+  padding: var(--space-3);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-card);
+}
+
+.book-switcher-heading {
+  margin: 0;
+  color: var(--ink-muted);
+  font-size: var(--t-sm);
+  line-height: var(--lh-sm);
+}
+
+.book-switcher-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.book-switcher-form {
+  margin: 0;
+}
+
+.book-switcher-button {
+  display: block;
+  inline-size: 100%;
+  padding-block: var(--space-2);
+  padding-inline: var(--space-3);
+  border-color: transparent;
+  background: transparent;
+  color: var(--ink);
+  text-align: start;
+  cursor: pointer;
+}
+
+.book-switcher-button:hover {
+  background: var(--sunken);
+}
+
+/* The open book: bold, with a dot in the accent colour, so it reads without its colour. */
+.book-switcher-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding-block: var(--space-2);
+  padding-inline: var(--space-3);
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.book-switcher-item::before {
+  flex: none;
+  inline-size: 0.5rem;
+  block-size: 0.5rem;
+  border-radius: 50%;
+  background: var(--accent);
+  content: "";
+}
+
+.book-switcher-manage {
+  padding-block-start: var(--space-2);
+  border-block-start: 1px solid var(--line);
+  font-size: var(--t-sm);
+  line-height: var(--lh-sm);
+}
+
+/* Settings > Books. Each book is a row: its name, then the actions. A disclosure that opens
+   takes a full row, so its form sits under the buttons. */
+.book-list {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.book-item {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding-block: var(--space-4);
+  border-block-end: 1px solid var(--line);
+}
+
+.book-item--open {
+  padding-inline-start: var(--space-3);
+  box-shadow: inset 3px 0 0 var(--accent);
+}
+
+.book-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-1) var(--space-3);
+}
+
+.book-name {
+  margin: 0;
+  font-size: var(--t-md);
+  line-height: var(--lh-md);
+  font-weight: 600;
+}
+
+.book-open-mark {
+  margin: 0;
+  color: var(--accent);
+  font-size: var(--t-sm);
+  line-height: var(--lh-sm);
+  font-weight: 600;
+}
+
+.book-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: var(--space-2) var(--space-3);
+}
+
+.book-actions > details {
+  display: block;
+}
+
+.book-actions > details > summary {
+  display: inline-block;
+  list-style: none;
+  cursor: pointer;
+}
+
+.book-actions > details > summary::-webkit-details-marker {
+  display: none;
+}
+
+.book-actions > details[open] {
+  flex-basis: 100%;
+}
+
+.book-form {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-3);
+  max-inline-size: 28rem;
+  margin-block-start: var(--space-2);
+}
+
+.book-form .field {
+  inline-size: 100%;
+}
+
+.book-form input[type="text"] {
+  inline-size: min(20rem, 100%);
+  padding-block: var(--space-2);
+  padding-inline: var(--space-3);
+}
+
+.books-add {
+  margin-block-start: var(--space-6);
+}
+
+.books-add .book-form {
+  margin-block-start: var(--space-3);
+}
+
+.books-add > .field-help {
+  margin-block-start: var(--space-3);
 }

@@ -109,6 +109,7 @@ def test_the_page_has_its_title_and_is_in_the_settings_navigation(client: TestCl
     assert [href for href, _ in links] == [
         "/settings/appearance",
         "/settings/scoring",
+        "/settings/books",
         "/settings/connections",
         "/settings/mailbox",
         "/settings/privacy",

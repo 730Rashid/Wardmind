@@ -101,15 +101,30 @@ def config_dir() -> Path:
     if override:
         return Path(override)
     if getattr(sys, "frozen", False):
-        from wardmind.core.secrets import secrets_dir
+        from wardmind.core.secrets import root_dir
 
-        return secrets_dir() / "config"
+        return root_dir() / "config"
     return Path.cwd() / "config"
 
 
+def scoring_path(*, saving: bool = False) -> Path:
+    """The open book's scoring.yaml (core/books.py). The first book uses config_dir()'s, as
+    before books. Another book has its own file in its folder once its scoring is saved; until
+    then it reads the first book's."""
+    from wardmind.core import books
+
+    shared = config_dir() / "scoring.yaml"
+    book_id = books.active_id()
+    if book_id == books.DEFAULT_BOOK:
+        return shared
+    own = books.book_folder(book_id) / "scoring.yaml"
+    return own if saving or own.exists() else shared
+
+
 def load_scoring_config(path: Path | None = None) -> ScoringConfig:
-    """Load and validate scoring.yaml; fall back to built-in defaults if it doesn't exist."""
-    path = path or config_dir() / "scoring.yaml"
+    """Load and validate scoring.yaml; fall back to built-in defaults if it doesn't exist.
+    Without a path: the open book's scoring (scoring_path)."""
+    path = path or scoring_path()
     if not path.exists():
         return ScoringConfig()
     data = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
@@ -124,8 +139,9 @@ _SCORING_HEADER = """\
 
 
 def save_scoring_config(config: ScoringConfig, path: Path | None = None) -> None:
-    """Write scoring.yaml atomically: a temp file in the same folder, then a replace."""
-    path = path or config_dir() / "scoring.yaml"
+    """Write scoring.yaml atomically: a temp file in the same folder, then a replace. Without a
+    path: the open book's own file (scoring_path(saving=True))."""
+    path = path or scoring_path(saving=True)
     data = config.model_dump(mode="json")
     data["signals"] = {kind.value: data["signals"][kind.value] for kind in SignalKind}
     body = yaml.safe_dump(data, sort_keys=False, default_flow_style=None)

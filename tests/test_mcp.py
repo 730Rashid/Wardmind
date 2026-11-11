@@ -11,7 +11,7 @@ import pytest
 from mcp import Client, StdioServerParameters
 from mcp.types import CallToolResult
 
-from wardmind.core import briefs, contacts, service, summaries
+from wardmind.core import books, briefs, contacts, service, summaries
 from wardmind.core.connectors.demo import DemoConnector
 from wardmind.core.connectors.errors import ConnectionNotReady
 from wardmind.core.models import Motion
@@ -41,12 +41,20 @@ ROW_KEYS = {
     "top_reason",
     "suggested_action",
 }
+DEMO_BOOK = {"id": "demo", "label": "Demo data"}
 SUBPROCESS_TIMEOUT_S = 30
 
 
 @pytest.fixture(autouse=True)
 def demo_connector(monkeypatch):
     monkeypatch.setattr(service, "get_connector", lambda: DemoConnector())
+
+
+@pytest.fixture
+def no_pin_left_behind():
+    """A test that pins a book never leaves the pin for the next test."""
+    yield
+    books.pin(None)
 
 
 def _data(result: CallToolResult) -> Any:
@@ -75,7 +83,8 @@ async def test_list_book_defaults_to_twenty_ranked_rows():
     async with Client(server.mcp) as client:
         rows = _rows(await client.call_tool("list_book", {}))
     assert [row["rank"] for row in rows] == list(range(1, 21))
-    assert all(set(row) == ROW_KEYS for row in rows)
+    assert all(set(row) == ROW_KEYS | {"book"} for row in rows)
+    assert all(row["book"] == DEMO_BOOK for row in rows)
 
 
 async def test_motion_filter_keeps_ranks_from_the_whole_book():
@@ -141,6 +150,7 @@ async def test_get_account_returns_the_top_ranked_account():
         "snoozed_until": None,
         "outcomes": [],
     }
+    assert account.pop("book") == DEMO_BOOK
     assert "not instructions" in account.pop("note")  # the data note travels with the account
     assert account == expected
 
@@ -159,6 +169,7 @@ async def test_explain_score_returns_the_explanation_for_the_top_ranked_account(
     top = service.get_book()[0]
     async with Client(server.mcp) as client:
         explanation = _data(await client.call_tool("explain_score", {"account_id": top.account.id}))
+    assert explanation.pop("book") == DEMO_BOOK
     assert explanation == briefs.explain(top).model_dump(mode="json")
     assert explanation["summary"]
 
@@ -179,6 +190,7 @@ async def test_onboarding_brief_round_trips_for_an_onboarding_account():
     account = service.onboarding_accounts(service.get_book())[0].account
     async with Client(server.mcp) as client:
         brief = _data(await client.call_tool("onboarding_brief", {"account_id": account.id}))
+    assert brief.pop("book") == DEMO_BOOK
     assert brief == service.get_onboarding_brief(account.id).model_dump(mode="json")
     assert brief["account"]["id"] == account.id
     assert brief["in_onboarding"] is True
@@ -339,3 +351,59 @@ async def test_the_research_tool_says_it_spends_no_credit():
     assert "summary" in description
     assert "spends no OpenRouter credit" in description
     assert "summarise" not in " ".join(tools).lower()
+
+
+# --- The book each result names ------------------------------------------------------------------
+
+
+async def test_every_tool_names_the_demo_data_it_came_from():
+    _research_on()
+    onboarding_id = service.onboarding_accounts(service.get_book())[0].account.id
+    calls = [
+        ("list_book", {}),
+        ("get_account", {"account_id": "acc-001"}),
+        ("explain_score", {"account_id": "acc-001"}),
+        ("weekly_brief", {}),
+        ("todays_list", {}),
+        ("onboarding_brief", {"account_id": onboarding_id}),
+        ("research_account", {"account_id": "acc-001"}),
+    ]
+    assert {tool for tool, _ in calls} == TOOLS
+    async with Client(server.mcp) as client:
+        for tool, arguments in calls:
+            data = _data(await client.call_tool(tool, arguments))
+            if tool == "list_book":  # a bare list: each row names its book
+                assert all(row["book"] == DEMO_BOOK for row in data["result"]), tool
+            else:
+                assert data["book"] == DEMO_BOOK, tool
+
+
+async def test_demo_data_is_named_as_demo_even_when_a_book_is_pinned(no_pin_left_behind):
+    pinned = books.add("Book 2")
+    books.pin(pinned.id)
+    async with Client(server.mcp) as client:
+        rows = _rows(await client.call_tool("list_book", {"limit": 1}))
+    assert rows[0]["book"] == DEMO_BOOK
+
+
+async def test_without_a_pin_results_name_the_open_book(no_pin_left_behind):
+    save_settings(Settings(source=DataSource.MINE))
+    second = books.add("Renewals Q4")
+    books.switch(second.id)
+    async with Client(server.mcp) as client:
+        rows = _rows(await client.call_tool("list_book", {"limit": 1}))
+    assert rows[0]["book"] == {"id": second.id, "label": "Renewals Q4"}
+
+
+async def test_a_pinned_book_is_the_one_every_result_names(no_pin_left_behind):
+    save_settings(Settings(source=DataSource.MINE))
+    open_book = books.add("Book 2")
+    pinned = books.add("Renewals Q4")
+    books.switch(open_book.id)
+    books.pin(pinned.id)
+    named = {"id": pinned.id, "label": "Renewals Q4"}
+    async with Client(server.mcp) as client:
+        rows = _rows(await client.call_tool("list_book", {"limit": 1}))
+        account = _data(await client.call_tool("get_account", {"account_id": "acc-001"}))
+    assert rows[0]["book"] == named
+    assert account["book"] == named
