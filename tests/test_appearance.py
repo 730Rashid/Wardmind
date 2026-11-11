@@ -286,11 +286,13 @@ def test_ui_opens_the_landing_screen(
     port = _free_port()
     result = CliRunner().invoke(cli.app, ["ui", "--port", str(port)])
     assert result.exit_code == 0, result.output
-    url = f"http://127.0.0.1:{port}/brief"
-    assert f"Wardmind is running at {url}" in result.output
+    assert f"Wardmind is running at http://127.0.0.1:{port}" in result.output
     (timer,) = timers
     timer.function(*timer.args)
-    assert opened == [url]
+    # The browser opens the sign-in link, which lands on the chosen screen.
+    (link,) = opened
+    assert link.startswith(f"http://127.0.0.1:{port}/enter?t=")
+    assert link.endswith("&next=%2Fbrief")
 
 
 def test_css_has_a_selector_for_every_accent_and_compact_density() -> None:
