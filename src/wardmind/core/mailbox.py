@@ -42,8 +42,7 @@ from typing import NamedTuple
 
 from pydantic import BaseModel, Field
 
-from wardmind.core import research, secrets
-from wardmind.core.config import write_atomic
+from wardmind.core import research, secrets, vault
 from wardmind.core.contacts import Contact
 from wardmind.core.journal import (
     Direction,
@@ -178,7 +177,7 @@ class MailMessage(BaseModel):
 def load_settings(store: LocalStore) -> MailboxSettings | None:
     """The saved settings, or None when no mailbox is connected (or the file is unreadable)."""
     try:
-        text = (store.root / MAILBOX_FILE).read_text(encoding="utf-8")
+        text = vault.read_text(store.root / MAILBOX_FILE)
         return MailboxSettings.model_validate_json(text)
     except (OSError, ValueError):  # ValidationError and JSON errors are ValueErrors
         return None
@@ -187,7 +186,7 @@ def load_settings(store: LocalStore) -> MailboxSettings | None:
 def save_settings(store: LocalStore, settings: MailboxSettings) -> None:
     """Write mailbox.json atomically under store.WRITE_LOCK."""
     with WRITE_LOCK:
-        write_atomic(store.root / MAILBOX_FILE, settings.model_dump_json(indent=2) + "\n")
+        vault.write_text(store.root / MAILBOX_FILE, settings.model_dump_json(indent=2) + "\n")
 
 
 def disconnect(store: LocalStore) -> None:
@@ -374,6 +373,8 @@ def sync(
     except MailboxError as error:
         _record(store, settings, now, error=error.message)
         raise
+    except vault.VaultError:
+        raise  # a locked or damaged book: nothing can be recorded, and it isn't the mailbox's fault
     except Exception:  # whatever it was, the attempt is recorded and the password isn't shown
         _record(store, settings, now, error=_SYNC_FAILED)
         raise MailboxError(_SYNC_FAILED) from None

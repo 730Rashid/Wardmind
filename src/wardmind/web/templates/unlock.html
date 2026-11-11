@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en"{% if settings.theme.value != "system" %} data-theme="{{ settings.theme.value }}"{% endif %} data-accent="{{ settings.accent.value }}" data-density="{{ settings.density.value }}">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Unlock - Wardmind</title>
+  <link rel="stylesheet" href="/static/css/app.css">
+</head>
+<body>
+  <a class="skip-link" href="#content">Skip to content</a>
+  <main id="content" tabindex="-1" class="lock-page">
+    <section class="lock-card" aria-labelledby="unlock-title">
+      <h1 id="unlock-title" class="page-title">Wardmind is locked</h1>
+      <p class="field-help">Your data is encrypted on this computer. Unlock Wardmind to carry on.</p>
+      {% if alert %}
+      <p class="field-error" role="alert">{{ alert }}</p>
+      {% endif %}
+      {% if errors.get("windows") %}
+      <p class="field-error" role="alert">{{ errors.get("windows") }}</p>
+      {% endif %}
+
+      {% if has_windows %}
+      <form class="lock-section" method="post" action="/unlock">
+        <input type="hidden" name="next" value="{{ next }}">
+        <input type="hidden" name="windows" value="1">
+        <p class="field-help">Your Windows account unlocks Wardmind on this computer.</p>
+        <button type="submit" class="button-primary">Unlock</button>
+      </form>
+      {% endif %}
+
+      {% if has_password %}
+      <form class="lock-section" method="post" action="/unlock">
+        <input type="hidden" name="next" value="{{ next }}">
+        <label for="unlock-password">Password</label>
+        <input id="unlock-password" class="lock-input" name="password" type="password" autocomplete="current-password" autofocus required{% if errors.get("password") %} aria-invalid="true" aria-describedby="unlock-password-error"{% endif %}>
+        {% if errors.get("password") %}
+        <p id="unlock-password-error" class="field-error" role="alert">{{ errors.get("password") }}</p>
+        {% endif %}
+        <button type="submit" class="button-primary">Unlock</button>
+      </form>
+      {% endif %}
+
+      <details class="lock-disclosure"{% if errors.get("recovery") %} open{% endif %}>
+        <summary>Use your recovery key</summary>
+        <form class="lock-section" method="post" action="/unlock">
+          <input type="hidden" name="next" value="{{ next }}">
+          <label for="unlock-recovery">Recovery key</label>
+          <input id="unlock-recovery" class="lock-input" name="recovery" type="text" autocomplete="off" spellcheck="false" autocapitalize="characters"{% if errors.get("recovery") %} aria-invalid="true" aria-describedby="unlock-recovery-error"{% endif %}>
+          <p class="field-help">The recovery key you saved when you turned on encryption.</p>
+          {% if errors.get("recovery") %}
+          <p id="unlock-recovery-error" class="field-error" role="alert">{{ errors.get("recovery") }}</p>
+          {% endif %}
+          <button type="submit" class="button">Unlock with recovery key</button>
+        </form>
+      </details>
+    </section>
+  </main>
+</body>
+</html>

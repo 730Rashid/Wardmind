@@ -66,6 +66,9 @@ class DataSource(StrEnum):
         return {"demo": "Demo data", "mine": "Your data"}[self.value]
 
 
+AUTO_LOCK_CHOICES = (5, 15, 30, 60, 0)  # minutes; 0 means never
+
+
 class Settings(BaseModel):
     theme: Theme = Theme.SYSTEM
     accent: Accent = Accent.PLUM
@@ -78,6 +81,16 @@ class Settings(BaseModel):
     # used while web_research is on too. ai_model is an OpenRouter model id.
     ai_summaries: bool = False
     ai_model: str = DEFAULT_AI_MODEL
+    # Encryption at rest (core/vault.py): lock after this many idle minutes; 0 never locks.
+    auto_lock_minutes: int = 15
+
+    @field_validator("auto_lock_minutes")
+    @classmethod
+    def _auto_lock(cls, value: int) -> int:
+        """One of AUTO_LOCK_CHOICES; anything else falls back to the default."""
+        if value not in AUTO_LOCK_CHOICES:
+            raise ValueError("Pick 5, 15, 30 or 60 minutes, or never.")
+        return value
 
     @field_validator("ai_model")
     @classmethod

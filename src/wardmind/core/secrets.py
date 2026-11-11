@@ -12,17 +12,17 @@ them. Nothing here may log, print or raise with the token in the message.
 
 from __future__ import annotations
 
-import contextlib
 import os
 import re
 import shutil
-import tempfile
 from collections.abc import Callable
 from datetime import datetime
 from enum import StrEnum
 from pathlib import Path
 
 from pydantic import BaseModel
+
+from wardmind.core import vault
 
 ENV_TOKEN = "WARDMIND_HUBSPOT_TOKEN"
 ENV_SECRETS_DIR = "WARDMIND_SECRETS_DIR"
@@ -100,7 +100,7 @@ def _secret_path(file_name: str) -> Path:
 def _read_secret_file(file_name: str) -> str | None:
     """The saved secret, stripped, or None when there is no file, it can't be read or it's blank."""
     try:
-        text = _secret_path(file_name).read_text(encoding="utf-8").strip()
+        text = vault.read_text(_secret_path(file_name)).strip()
     except (OSError, UnicodeDecodeError):
         return None
     return text or None
@@ -113,19 +113,10 @@ def _write_secret_file(file_name: str, value: str) -> None:
 
 
 def _write_in(folder: Path, file_name: str, value: str) -> None:
-    """_write_secret_file for any folder (the named feed secrets live in a subfolder)."""
+    """_write_secret_file for any folder (the named feed secrets live in a subfolder): atomic,
+    and encrypted when encryption is on (core/vault.py)."""
     folder.mkdir(parents=True, exist_ok=True)
-    fd, tmp_name = tempfile.mkstemp(dir=folder, prefix=f".{file_name}-", suffix=".tmp")
-    try:
-        with os.fdopen(fd, "w", encoding="utf-8", newline="\n") as handle:
-            handle.write(value)
-        if os.name == "posix":
-            os.chmod(tmp_name, 0o600)
-        os.replace(tmp_name, folder / file_name)
-    except BaseException:
-        with contextlib.suppress(OSError):
-            os.unlink(tmp_name)
-        raise
+    vault.write_text(folder / file_name, value)
 
 
 def _delete_secret_file(file_name: str) -> bool:
@@ -305,7 +296,7 @@ def get_secret(name: str) -> str | None:
     if path is None:
         return None
     try:
-        text = path.read_text(encoding="utf-8").strip()
+        text = vault.read_text(path).strip()
     except (OSError, UnicodeDecodeError):
         return None
     return text or None
@@ -354,5 +345,5 @@ def rename_secret(old: str, new: str) -> bool:
         raise ValueError(_NAME_MESSAGE)
     if not old_path.is_file():
         return False
-    os.replace(old_path, new_path)
+    vault.move(old_path, new_path)
     return True

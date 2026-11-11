@@ -20,9 +20,8 @@ from secrets import token_hex
 
 from pydantic import BaseModel
 
-from wardmind.core import client_updates, import_flow, importing
-from wardmind.core import secrets as vault
-from wardmind.core.config import write_atomic
+from wardmind.core import client_updates, import_flow, importing, vault
+from wardmind.core import secrets as keystore
 from wardmind.core.feeds import catalog, signals, sync
 from wardmind.core.feeds.http import FeedError, check_url
 from wardmind.core.feeds.models import (
@@ -180,12 +179,12 @@ def _secret_for(draft_id: str) -> str:
 
 
 def _write(store: LocalStore, draft: FeedDraft) -> None:
-    write_atomic(_draft_path(store, draft.id), draft.model_dump_json())
+    vault.write_text(_draft_path(store, draft.id), draft.model_dump_json())
 
 
 def _read(path: Path) -> FeedDraft | None:
     try:
-        return FeedDraft.model_validate_json(path.read_text(encoding="utf-8"))
+        return FeedDraft.model_validate_json(vault.read_text(path))
     except (OSError, ValueError):
         return None
 
@@ -193,7 +192,7 @@ def _read(path: Path) -> FeedDraft | None:
 def _remove_orphan_draft_keys(store: LocalStore) -> int:
     """Delete every draft key ("draft-<id>") that has no draft file: a key left by a setup that
     was never saved. Returns how many were removed. Callers hold store.WRITE_LOCK."""
-    folder = vault.secrets_dir() / vault.FEED_SECRETS_DIR
+    folder = keystore.secrets_dir() / keystore.FEED_SECRETS_DIR
     if not folder.is_dir():
         return 0
     removed = 0
@@ -203,7 +202,7 @@ def _remove_orphan_draft_keys(store: LocalStore) -> int:
             continue
         if _draft_path(store, draft_id).exists():
             continue
-        if vault.delete_secret(path.name):
+        if keystore.delete_secret(path.name):
             removed += 1
     return removed
 
@@ -223,7 +222,7 @@ def purge_old_feed_drafts(store: LocalStore, *, now: datetime) -> int:
                 draft = _read(path)
                 if draft is None or moment - draft.created_at > DRAFT_TTL:
                     path.unlink(missing_ok=True)
-                    vault.delete_secret(_secret_for(path.stem))
+                    keystore.delete_secret(_secret_for(path.stem))
                     removed += 1
         removed += _remove_orphan_draft_keys(store)
     return removed
@@ -275,7 +274,7 @@ def start_draft(
             raise ValueError("That connection was removed. Start again from Add a connection.")
     if existing is not None and existing.feed is not None and existing.feed.provider != provider_id:
         raise ValueError("That connection uses another source. Start again from Add a connection.")
-    typed = vault.validate_secret(secret) if secret and secret.strip() else None
+    typed = keystore.validate_secret(secret) if secret and secret.strip() else None
     fetch_secret = typed
     if fetch_secret is None and existing is not None and existing.feed is not None:
         if _destination(existing.feed.settings) != _destination(clean):
@@ -286,7 +285,7 @@ def start_draft(
                     "Wardmind only sends a saved key to the address it was saved for."
                 )
         else:
-            fetch_secret = vault.get_secret(sync.secret_name(existing.id))
+            fetch_secret = keystore.get_secret(sync.secret_name(existing.id))
     if fetch_secret is None and _needs_secret(info, clean):
         field = _secret_field(info)
         raise ValueError(f"Fill in {field.label if field else 'the key'}.")
@@ -316,7 +315,7 @@ def start_draft(
     # before its draft file exists.
     with WRITE_LOCK:
         if typed is not None:
-            vault.save_secret(_secret_for(draft_id), typed)
+            keystore.save_secret(_secret_for(draft_id), typed)
         _write(store, draft)
     return draft
 
@@ -334,7 +333,7 @@ def load_draft(store: LocalStore, draft_id: str, *, now: datetime) -> FeedDraft 
         return None
     if _naive(now) - draft.created_at > DRAFT_TTL:
         path.unlink(missing_ok=True)
-        vault.delete_secret(_secret_for(draft_id))
+        keystore.delete_secret(_secret_for(draft_id))
         return None
     return draft
 
@@ -572,7 +571,7 @@ def commit_draft(
                 raise ValueError("That feed was removed. Start again from Add a connection.")
             config = existing
         if draft.has_secret:
-            vault.rename_secret(_secret_for(draft.id), sync.secret_name(config.id))
+            keystore.rename_secret(_secret_for(draft.id), sync.secret_name(config.id))
 
         feed = FeedSettings(
             provider=draft.provider,
@@ -609,9 +608,9 @@ def cancel_draft(store: LocalStore, draft_id: str) -> None:
     if not isinstance(draft_id, str) or _DRAFT_ID.fullmatch(draft_id) is None:
         return
     _draft_path(store, draft_id).unlink(missing_ok=True)
-    vault.delete_secret(_secret_for(draft_id))
+    keystore.delete_secret(_secret_for(draft_id))
 
 
 def remove_feed_secret(connection_id: str) -> None:
     """Delete a feed's saved secret; called when its connection is removed."""
-    vault.delete_secret(sync.secret_name(connection_id))
+    keystore.delete_secret(sync.secret_name(connection_id))

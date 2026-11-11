@@ -12,7 +12,7 @@ from datetime import date, datetime, timedelta
 
 from pydantic import BaseModel
 
-from wardmind.core import client_updates, import_flow, importing, secrets
+from wardmind.core import client_updates, import_flow, importing, secrets, vault
 from wardmind.core.feeds import signals
 from wardmind.core.feeds.http import FeedError, FeedHttp
 from wardmind.core.feeds.models import FeedRole, FeedSettings, FeedStatus, Schedule
@@ -119,6 +119,8 @@ def sync_feed(
     if table is None:
         try:
             table = fetch_table(config, store)
+        except vault.VaultError:
+            raise  # a locked or damaged book is not a failed sync
         except Exception as exc:
             status = attempt.model_copy(update={"last_error": _last_error(exc, fetching=True)})
             _save_status(store, config, status)
@@ -139,6 +141,8 @@ def sync_feed(
                 provider_name=provider_name,
             )
             status = status.model_copy(update={"source_mtime": mtime})
+        except vault.VaultError:
+            raise  # a locked or damaged book is not a failed sync
         except Exception as exc:
             status = attempt.model_copy(update={"last_error": _last_error(exc, fetching=False)})
         _save_status(store, current, status)

@@ -1,6 +1,7 @@
 # Privacy lock, multiple books and shared books: design
 
-Status: being built in phases (see E). Phase 0 (the session check) is done. It was drafted from
+Status: being built in phases (see E). Phase 0 (the session check) and phase 1 (encryption at
+rest, 1a and 1b) are done. It was drafted from
 a read-only review of the code on 2026-11-11. While the user was away they asked for the
 recommended answers to be used; the answers taken are at the end.
 
@@ -36,6 +37,9 @@ recommended answers to be used; the answers taken are at the end.
 | OneDrive or backup copies | Readable | Unreadable | Unreadable |
 | Malware running as you | Open | Open | Open while unlocked |
 
+- **Windows protection and Lock now:** the lock flag lives in each process. With Windows
+  protection only, the MCP server unlocks itself through Windows even while the app shows its
+  unlock page. Only a password keeps Claude out while Wardmind is locked.
 - **What no app can stop:** malware running as you, or an admin who installs a keylogger. The
   page file, hibernation and crash dumps can also hold decrypted data. Recommend Windows Device
   Encryption or BitLocker for those.
@@ -277,3 +281,83 @@ The user asked for the recommended answers while they were away. They can change
   and `session.json` for `wardmind open`.
 - `create_app(gate)`: without the cookie every path but `/enter` and `/static/` gets 403. The
   launchers always pass a gate; tests build the app without one.
+
+### Phase 1 plan (reviewed 2026-11-11)
+
+Changes from sections A, B and E above, after a review of the code:
+
+- **Encryption is opt-in.** Settings > Data & privacy > "Encrypt your data on this computer".
+  Turning it on shows the recovery key first and asks the user to confirm they saved it, then
+  encrypts the files in place. Plain stays the default, and in plain mode the vault passes files
+  through unchanged. The "protected" columns of the threat table apply once encryption is on.
+- **A random book key now.** `keys.json` holds a master key in slots (DPAPI, recovery; password
+  in 1b) and one "default" book key wrapped by the master key. File key = HKDF(book key,
+  b"wardmind file v1\x00" + logical path), where the logical path is root-tagged and relative:
+  `data/journal.json`, `secrets/hubspot-token`, `secrets/feeds/feed-3`. Phase 2 then moves
+  folders without re-encrypting.
+- **Primitives:** `cryptography` 50.0.2 (pin `>=44`): AESGCM, HKDF-SHA256, Argon2id (parameters
+  stored in the slot; about 0.1 s at 64 MiB, t=3, p=4 here, so 1b may raise memory).
+- **Reads sniff the header.** A file starting with `WMD1` is decrypted, anything else is plain.
+  Writes re-check `keys.json` (cached by mtime and size), so the MCP process never writes
+  plaintext over an encrypted book. `os.replace` retries briefly on `PermissionError`.
+- **Errors:** `VaultError` (not an `OSError` or `ValueError`), with `Locked` and `Damaged`.
+  Empty-on-error loaders let it through untouched. Places that delete or set aside unreadable
+  files (`history.forget`, the import and feed draft purges, `journal._set_aside_if_unreadable`)
+  must re-raise it, and every `except Exception` adds `except VaultError: raise` first. The web
+  app answers `VaultError` with a plain 503 page until `/unlock` exists.
+- **Migration walks an explicit list:** the data folder recursively, `hubspot-token`,
+  `openrouter-key` and `feeds/*`, never the whole secrets folder (it holds the venv, config,
+  session.json and keys.json). State goes PLAIN -> ENCRYPTING -> ON (and ON -> DECRYPTING ->
+  PLAIN), with `keys.json.bak`. Each file is replaced atomically and keeps its mtime. The
+  scheduler stops and `WRITE_LOCK` is held throughout.
+- **`secrets.rename_secret`** goes through `vault.move` (decrypt, re-encrypt under the new path).
+- **Tests:** the DPAPI wrap and unwrap are two module functions that tests replace; one real
+  DPAPI test runs on Windows only. Argon2 costs are parameters (tiny in tests). Without DPAPI
+  (POSIX), turning encryption on needs a password. `feeds/setup.py` imports `secrets as vault`;
+  rename that alias first.
+- **Lock gate (1b):** registered inside the session check, so a request without the cookie still
+  gets 403. `/unlock` needs the session cookie. While locked, GET pages redirect to
+  `/unlock?next=` (`HX-Redirect` for htmx), and other requests get 423. The unlock page renders
+  without the store-backed context. The scheduler starts only when unlocked and stops on lock.
+  The idle timer skips `/static/`.
+
+### Phase 1a as built
+
+- `core/vault.py`: `read_text`, `read_bytes`, `write_text`, `write_bytes`, `move`, `state`,
+  `enable` (returns the recovery code), `disable`, `resume`, `unlock`, `lock`, `is_unlocked`,
+  `managed_files`, `logical_path`; `VaultError`, `Locked`, `Damaged`.
+- `keys.json` (plus `keys.json.bak`) in the per-user folder: state, epoch, a DPAPI slot and a
+  recovery slot (HKDF of the 125-bit code with a random salt), and the default book key wrapped
+  by the master key. The code itself is never stored.
+- Every data module (store, journal, contacts, client updates, mailbox, history, logos, research,
+  summaries, import and feed drafts) and every secret go through the vault. `tests/test_vault_guard.py`
+  fails on any direct file access outside its allow-list.
+- The feed and mailbox syncs re-raise `VaultError`, so a locked book isn't reported as a failed
+  sync. The web app answers `VaultError` with a plain 503 page.
+- Not reachable from the UI yet: phase 1b adds the Settings switch, the password, `/unlock` and
+  the lock gate.
+
+### Phase 1b as built
+
+- `core/vault.py`: a password slot (Argon2id, 128 MiB, 3 passes, 4 lanes; at least 10
+  characters), `set_password` (replaces the Windows slot), `remove_password` (puts it back),
+  `replace_recovery_code`, `ensure_unlocked`, `forget_key`. `lock()` marks the process locked
+  by the user, so Windows protection doesn't unlock it again by itself.
+- The unlock ticket: with a password slot, unlocking writes `unlock-ticket.json`, the master key
+  wrapped by DPAPI, valid 12 hours. The MCP server and the CLI open the book from it; a session
+  opened that way ends as soon as the ticket is gone. `lock()` deletes it.
+- Settings > Data & privacy > Encryption: turn on (Windows or a password, then the recovery key
+  page, which needs a tick before anything is encrypted; the pending key lives in memory for 10
+  minutes under a random token), change or remove the password, make a new recovery key, turn
+  off, and the auto-lock time (5, 15, 30, 60 minutes or never; 15 by default).
+- `web/lock.py` and the lock gate: registered inside the session check, so a request without
+  the cookie still gets 403 first. A locked book sends GET pages to `/unlock?next=...` (htmx gets
+  `HX-Redirect`) and answers other methods with 423. `/unlock`, `/enter` and `/static/` stay
+  open. The idle clock is touched at the start and end of each request; a background thread
+  checks every 30 seconds. A `Locked` raised mid-request (the idle lock raced it) also goes to
+  the unlock page.
+- `/unlock`: Windows button, password, or recovery key; typed values never come back in the
+  page. Five free wrong tries, then waits of 2, 4, 8 ... up to 60 seconds (429).
+- "Lock now" in the header whenever encryption is on. `sync_due_feeds` does nothing while
+  locked. The MCP tools answer "Wardmind is locked. Open the app and unlock it." for `Locked`
+  and a plain message for `Damaged`.

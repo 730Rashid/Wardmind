@@ -1,6 +1,146 @@
 {% extends "settings/layout.html" %}
 {% block settings %}
 <div class="privacy">
+  <section class="privacy-section" aria-labelledby="encryption-title">
+    <h2 class="section-title" id="encryption-title">Encryption</h2>
+    <p class="prose">Encrypt your Wardmind data on this computer, so a copy of the files (a backup, OneDrive, a stolen laptop) can't be read without your key.</p>
+
+    {% if encryption.busy %}
+    <p class="privacy-status" role="status">Finishing a change to encryption.</p>
+    {% elif encryption.on %}
+    <p class="privacy-status">{% if encryption.windows %}On. Windows unlocks it when you sign in.{% else %}On. It needs your password after it locks.{% endif %}</p>
+    {% else %}
+    <p class="privacy-status">Off.</p>
+    {% endif %}
+
+    {% if encryption.off %}
+    <form class="settings-form encryption-start" method="post" action="/settings/privacy/encryption/start">
+      {% if encryption.errors.method %}
+      <p class="field-error" role="alert" id="encryption-method-error">{{ encryption.errors.method }}</p>
+      {% endif %}
+      <fieldset{% if encryption.errors.method %} aria-describedby="encryption-method-error"{% endif %}>
+        <legend>How Wardmind unlocks</legend>
+        <div class="choices">
+          {% if encryption.dpapi %}
+          <div class="choice-option">
+            <label class="choice"><input type="radio" name="method" value="windows" aria-describedby="method-windows-help"{% if encryption.method == "windows" %} checked{% endif %}> Unlock with my Windows sign-in</label>
+            <p class="field-help choice-help" id="method-windows-help">Nothing to type. Wardmind opens when you sign in to Windows on this computer.</p>
+          </div>
+          {% endif %}
+          <div class="choice-option">
+            <label class="choice"><input type="radio" name="method" value="password" aria-describedby="method-password-help"{% if encryption.method == "password" %} checked{% endif %}> Use a password</label>
+            <p class="field-help choice-help" id="method-password-help">Asked for each time Wardmind locks.</p>
+          </div>
+        </div>
+      </fieldset>
+
+      <div class="field encryption-password-field">
+        <label for="field-enc-password">Password</label>
+        <input type="password" name="password" id="field-enc-password" autocomplete="new-password" spellcheck="false" aria-describedby="field-enc-password-help{% if encryption.errors.password %} field-enc-password-error{% endif %}"{% if encryption.errors.password %} aria-invalid="true"{% endif %}>
+        {% if encryption.errors.password %}
+        <p class="field-error" role="alert" id="field-enc-password-error">{{ encryption.errors.password }}</p>
+        {% endif %}
+        <p class="field-help" id="field-enc-password-help">At least 10 characters. A short phrase works well. If you forget it, only your recovery key can open your data.</p>
+      </div>
+      <div class="field encryption-password-field">
+        <label for="field-enc-confirm">Type the password again</label>
+        <input type="password" name="confirm" id="field-enc-confirm" autocomplete="new-password" spellcheck="false"{% if encryption.errors.confirm %} aria-invalid="true" aria-describedby="field-enc-confirm-error"{% endif %}>
+        {% if encryption.errors.confirm %}
+        <p class="field-error" role="alert" id="field-enc-confirm-error">{{ encryption.errors.confirm }}</p>
+        {% endif %}
+      </div>
+
+      <button type="submit" class="button-primary">Continue</button>
+    </form>
+    {% endif %}
+
+    {% if encryption.on %}
+    <section class="privacy-key" aria-labelledby="encryption-password-title">
+      <h3 class="privacy-subtitle" id="encryption-password-title">Password</h3>
+      <form class="settings-form" method="post" action="/settings/privacy/encryption/password">
+        <div class="field">
+          <label for="field-enc-password">New password</label>
+          <input type="password" name="password" id="field-enc-password" autocomplete="new-password" spellcheck="false" aria-describedby="field-enc-password-help{% if encryption.errors.password %} field-enc-password-error{% endif %}"{% if encryption.errors.password %} aria-invalid="true"{% endif %}>
+          {% if encryption.errors.password %}
+          <p class="field-error" role="alert" id="field-enc-password-error">{{ encryption.errors.password }}</p>
+          {% endif %}
+          <p class="field-help" id="field-enc-password-help">At least 10 characters. A short phrase works well. If you forget it, only your recovery key can open your data.</p>
+        </div>
+        <div class="field">
+          <label for="field-enc-confirm">Type it again</label>
+          <input type="password" name="confirm" id="field-enc-confirm" autocomplete="new-password" spellcheck="false"{% if encryption.errors.confirm %} aria-invalid="true" aria-describedby="field-enc-confirm-error"{% endif %}>
+          {% if encryption.errors.confirm %}
+          <p class="field-error" role="alert" id="field-enc-confirm-error">{{ encryption.errors.confirm }}</p>
+          {% endif %}
+        </div>
+        <button type="submit" class="button">{% if encryption.has_password %}Change password{% else %}Set a password{% endif %}</button>
+      </form>
+    </section>
+
+    {% if encryption.has_password and encryption.dpapi %}
+    <section class="privacy-key" aria-labelledby="encryption-remove-title">
+      <h3 class="privacy-subtitle" id="encryption-remove-title">Windows sign-in</h3>
+      <p class="field-help">Remove the password and let Windows unlock Wardmind again. Anyone signed in to this Windows account can then open it.</p>
+      <form class="settings-form" method="post" action="/settings/privacy/encryption/password/remove">
+        <div class="field-check">
+          <label class="choice"><input type="checkbox" name="confirm_remove" value="1"{% if encryption.errors.remove %} aria-invalid="true"{% endif %}> I understand. Windows will unlock Wardmind instead of my password.</label>
+          {% if encryption.errors.remove %}
+          <p class="field-error" role="alert" id="confirm-remove-error">{{ encryption.errors.remove }}</p>
+          {% endif %}
+        </div>
+        <button type="submit" class="button">Remove password</button>
+      </form>
+    </section>
+    {% endif %}
+
+    <section class="privacy-key" aria-labelledby="encryption-recovery-title">
+      <h3 class="privacy-subtitle" id="encryption-recovery-title">Recovery key</h3>
+      <p class="field-help">If you forget your password, or Windows can't unlock Wardmind on a new computer, this key is the way back in. A new key replaces the old one.</p>
+      <form class="settings-form" method="post" action="/settings/privacy/encryption/recovery">
+        <div class="field-check">
+          <label class="choice"><input type="checkbox" name="confirm_recovery" value="1"{% if encryption.errors.recovery %} aria-invalid="true"{% endif %}> The old recovery key will stop working.</label>
+          {% if encryption.errors.recovery %}
+          <p class="field-error" role="alert" id="confirm-recovery-error">{{ encryption.errors.recovery }}</p>
+          {% endif %}
+        </div>
+        <button type="submit" class="button">Make a new recovery key</button>
+      </form>
+    </section>
+
+    <section class="privacy-key" aria-labelledby="encryption-locking-title">
+      <h3 class="privacy-subtitle" id="encryption-locking-title">Locking</h3>
+      <form class="inline-form" method="post" action="/settings/privacy/auto-lock">
+        <div class="field">
+          <label for="field-auto-lock">Lock after</label>
+          <select name="minutes" id="field-auto-lock"{% if encryption.errors.auto_lock %} aria-invalid="true" aria-describedby="field-auto-lock-error"{% endif %}>
+            {% for minutes, label in encryption.auto_lock_choices %}
+            <option value="{{ minutes }}"{% if minutes == encryption.auto_lock %} selected{% endif %}>{{ label }}</option>
+            {% endfor %}
+          </select>
+          {% if encryption.errors.auto_lock %}
+          <p class="field-error" role="alert" id="field-auto-lock-error">{{ encryption.errors.auto_lock }}</p>
+          {% endif %}
+        </div>
+        <button type="submit" class="button">Save</button>
+      </form>
+    </section>
+
+    <section class="privacy-key" aria-labelledby="encryption-off-title">
+      <h3 class="privacy-subtitle" id="encryption-off-title">Turn off encryption</h3>
+      <p class="field-help">Wardmind decrypts every file, then deletes the keys.</p>
+      <form class="settings-form" method="post" action="/settings/privacy/encryption/off">
+        <div class="field-check">
+          <label class="choice"><input type="checkbox" name="confirm_off" value="1"{% if encryption.errors.off %} aria-invalid="true"{% endif %}> Your files will be stored without encryption again.</label>
+          {% if encryption.errors.off %}
+          <p class="field-error" role="alert" id="confirm-off-error">{{ encryption.errors.off }}</p>
+          {% endif %}
+        </div>
+        <button type="submit" class="button">Turn off encryption</button>
+      </form>
+    </section>
+    {% endif %}
+  </section>
+
   <section class="privacy-section" aria-labelledby="web-research-title">
     <h2 class="section-title" id="web-research-title">Web research</h2>
     <p class="privacy-status">{% if web_on %}Web research is on.{% else %}Web research is off.{% endif %}</p>

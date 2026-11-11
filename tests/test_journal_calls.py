@@ -49,13 +49,13 @@ def journal(store: LocalStore) -> Journal:
 def writes(monkeypatch: pytest.MonkeyPatch) -> list[Path]:
     """Every path the journal writes to, in order (the write still happens)."""
     seen: list[Path] = []
-    real = journal_module.write_atomic
+    real = journal_module.vault.write_text
 
     def spy(path: Path, text: str) -> None:
         seen.append(path)
         real(path, text)
 
-    monkeypatch.setattr(journal_module, "write_atomic", spy)
+    monkeypatch.setattr(journal_module.vault, "write_text", spy)
     return seen
 
 

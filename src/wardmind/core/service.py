@@ -26,6 +26,7 @@ from wardmind.core import (
     research,
     secrets,
     summaries,
+    vault,
 )
 from wardmind.core.briefs import AccountDetail, account_detail, suggest_action
 from wardmind.core.config import ScoringConfig, load_scoring_config
@@ -717,8 +718,11 @@ def sync_due_feeds() -> int:
     """Sync every enabled feed that feed_sync.is_due says is due, one after another; return how
     many were synced. Never raises for one feed's problem (it lands in that feed's status).
     Runs housekeeping, and records the day's score snapshot (remember_book), at most once an
-    hour. Also syncs the mailbox when it is due (see _sync_mailbox_if_due)."""
+    hour. Also syncs the mailbox when it is due (see _sync_mailbox_if_due). While the book is
+    locked (core/vault.py) it does nothing and returns 0."""
     global _last_housekeeping
+    if not vault.ensure_unlocked():
+        return 0
     store = get_store()
     now = _utc_now()
     if _last_housekeeping is None or now - _last_housekeeping >= _HOUSEKEEPING_EVERY:
@@ -825,12 +829,15 @@ def delete_all_local_data() -> None:
     computer except settings.yaml and scoring.yaml (preferences) and the program itself.
     Deletes every connection, snapshot, hand-added account, edit, reading, link, hidden entry,
     notice, contact and client update (store.clear_all); unfinished imports and feed setups;
-    saved web research and AI summaries; the HubSpot token, the OpenRouter key and every feed key.
+    saved web research and AI summaries; the HubSpot token, the OpenRouter key and every feed key;
+    and the encryption keys first (core/vault.py), so anything left behind can't be read.
     Environment variables are not touched (the page tells the CSM to remove those). Turns web
     research and AI summaries off and forgets shared connectors. Holds store.WRITE_LOCK so a
     running sync can't write anything back. Never raises for a file that is already gone."""
     store = get_store()
     with WRITE_LOCK:
+        # The keys go first: if anything below fails, what is left can't be read.
+        vault.destroy_keys()
         store.clear_all()
         import_flow.clear_drafts(store)
         secrets.delete_hubspot_token()

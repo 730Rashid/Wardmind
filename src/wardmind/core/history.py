@@ -34,7 +34,8 @@ from pathlib import Path
 
 from pydantic import BaseModel, Field
 
-from wardmind.core.config import ScoringConfig, write_atomic
+from wardmind.core import vault
+from wardmind.core.config import ScoringConfig
 from wardmind.core.models import Account, Health, Motion, ScoredAccount, Signal, SignalKind
 from wardmind.core.scoring import _whole, latest_signals, score_book
 from wardmind.core.store import HISTORY_DIR, WRITE_LOCK, LocalStore
@@ -313,7 +314,7 @@ class HistoryStore:
 
     def load(self, day: date) -> BookSnapshot | None:
         try:
-            text = self._file(day).read_text(encoding="utf-8")
+            text = vault.read_text(self._file(day))
             snapshot = BookSnapshot.model_validate_json(text)
         except (OSError, ValueError):  # a pydantic ValidationError is a ValueError
             return None
@@ -352,7 +353,7 @@ class HistoryStore:
             existing = self.load(snapshot.day)
             if existing is not None and snapshot.taken_at - existing.taken_at < REWRITE_AFTER:
                 return False
-            write_atomic(self._file(snapshot.day), snapshot.model_dump_json() + "\n")
+            vault.write_text(self._file(snapshot.day), snapshot.model_dump_json() + "\n")
             cutoff = snapshot.day - timedelta(days=KEEP_DAYS)
             for day in self.days():
                 if day < cutoff:
@@ -382,7 +383,7 @@ class HistoryStore:
                 if dropped:
                     removed += dropped
                     trimmed = snapshot.model_copy(update={"accounts": kept})
-                    write_atomic(self._file(day), trimmed.model_dump_json() + "\n")
+                    vault.write_text(self._file(day), trimmed.model_dump_json() + "\n")
         return removed
 
     def clear(self) -> None:

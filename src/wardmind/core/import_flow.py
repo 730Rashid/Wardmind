@@ -19,8 +19,7 @@ from pathlib import Path, PureWindowsPath
 
 from pydantic import BaseModel
 
-from wardmind.core import importing
-from wardmind.core.config import write_atomic
+from wardmind.core import importing, vault
 from wardmind.core.importing import IMPORT_FIELDS, DateOrder, FieldType, ImportIssue, Table
 from wardmind.core.store import (
     WRITE_LOCK,
@@ -129,7 +128,7 @@ def _checked_path(store: LocalStore, draft_id: str) -> Path | None:
 
 def _read(path: Path) -> Draft | None:
     try:
-        return Draft.model_validate_json(path.read_text(encoding="utf-8"))
+        return Draft.model_validate_json(vault.read_text(path))
     except (OSError, ValueError):
         return None
 
@@ -138,7 +137,7 @@ def _write(store: LocalStore, draft: Draft) -> None:
     path = _checked_path(store, draft.id)
     if path is None:  # a draft is only ever built with a valid id
         raise ValueError("That draft id isn't valid.")
-    write_atomic(path, draft.model_dump_json())
+    vault.write_text(path, draft.model_dump_json())
 
 
 def _fresh_id(store: LocalStore) -> str:

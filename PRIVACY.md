@@ -198,6 +198,8 @@ worked out from its sample readings.
 | Data feeds' latest data | `%LOCALAPPDATA%\wardmind\data\sheets\feed-<n>.json` |
 | Feed setups you started but didn't finish, with any key you typed for them | `%LOCALAPPDATA%\wardmind\data\feed-drafts`, deleted after 24 hours or by **Clear local cache** |
 | OpenRouter API key | `%LOCALAPPDATA%\wardmind\openrouter-key`, or the `WARDMIND_OPENROUTER_KEY` environment variable. Only its last 4 characters are ever shown. |
+| Encryption keys, when encryption is on (each one locked by Windows, your password or your recovery key; never the key itself in plain form) | `%LOCALAPPDATA%\wardmind\keys.json` and `keys.json.bak` |
+| While a password-protected Wardmind is unlocked: a key Windows protects, so Claude can read your book (deleted when Wardmind locks, unusable after 12 hours) | `%LOCALAPPDATA%\wardmind\unlock-ticket.json` |
 
 On macOS and Linux, `%LOCALAPPDATA%\wardmind` is `~/.local/state/wardmind` (or
 `$XDG_STATE_HOME/wardmind`).
@@ -212,6 +214,34 @@ user profile, which other users of the computer can't read.
 Some links work like passwords: a Google Sheet shared as "Anyone with the link", a signed
 export link, or your client update form's link. They are saved as connection settings in the
 same folder, not with the keys, so treat that folder as private.
+
+## Encryption (optional)
+
+**Settings > Data & privacy > Encryption** encrypts everything in the table above that is yours:
+the data folder, the feed keys, the HubSpot token and the OpenRouter key. Settings files
+(appearance, scoring) stay plain. Once it is on, a copy of the files (a backup, OneDrive, a
+stolen laptop's disk) can't be read without your key.
+
+- **How it unlocks.** Choose your Windows sign-in (nothing to type; anyone signed in to your
+  Windows account can open it) or a password (asked for each time Wardmind locks). The password
+  is stretched with Argon2id and never stored.
+- **Recovery key.** Turning encryption on shows a 25-character recovery key once. It is the only
+  way back in if you forget your password or Windows can't unlock it any more (a new computer, a
+  reinstalled Windows). Wardmind doesn't keep a copy. You can make a new one in Settings; the old
+  one then stops working.
+- **Locking.** With a password, Wardmind locks after 15 idle minutes (change it in Settings, or
+  choose never) and when you press **Lock now**. A locked Wardmind forgets the key, shows only
+  the unlock page, and stops its background syncs. After 5 wrong tries, each further try waits
+  longer, up to a minute.
+- **Claude Desktop.** With a password, Claude can read your book only while the app is
+  unlocked; otherwise it is told Wardmind is locked. With Windows sign-in, Claude can read it
+  whenever you are signed in to Windows.
+- **How it's encrypted.** AES-256-GCM, a separate key for each file, so a file changed or swapped
+  on disk is refused rather than read. Turning encryption off decrypts every file and deletes the
+  keys.
+- **What it can't do.** It doesn't protect against software running as you while Wardmind is
+  unlocked, and Windows may write parts of memory to disk (the page file, hibernation). Windows
+  Device Encryption or BitLocker covers those.
 
 ## The dashboard's own safety
 

@@ -108,3 +108,13 @@ def fresh_job_runner(monkeypatch: pytest.MonkeyPatch) -> Iterator[bulk.JobRunner
     monkeypatch.setattr(service, "_runner", runner)
     yield runner
     runner.wait(timeout=30)
+
+
+@pytest.fixture(autouse=True)
+def _vault_key_forgotten() -> Iterator[None]:
+    """No test inherits another test's unlocked vault key (core/vault.py keeps it per process)."""
+    from wardmind.core import vault
+
+    vault.forget_key()
+    yield
+    vault.forget_key()

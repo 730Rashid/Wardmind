@@ -890,13 +890,13 @@ def test_forget_rewrites_only_the_files_that_changed(store, history_store, monke
     put(store, snap(TODAY - timedelta(days=1), accounts=("a", "b")))
     put(store, snap(TODAY, accounts=("a",)))
     written: list[Path] = []
-    real_write = history_module.write_atomic
+    real_write = history_module.vault.write_text
 
     def recording(path: Path, text: str) -> None:
         written.append(path)
         real_write(path, text)
 
-    monkeypatch.setattr(history_module, "write_atomic", recording)
+    monkeypatch.setattr(history_module.vault, "write_text", recording)
 
     assert history_store.forget(lambda account_id: account_id == "b") == 1
     assert written == [path_of(store, TODAY - timedelta(days=1))]
@@ -909,13 +909,13 @@ def test_forget_that_removes_nothing_writes_nothing_and_an_empty_store_gives_zer
 
     put(store, snap(TODAY))
     written: list[Path] = []
-    real_write = history_module.write_atomic
+    real_write = history_module.vault.write_text
 
     def recording(path: Path, text: str) -> None:
         written.append(path)
         real_write(path, text)
 
-    monkeypatch.setattr(history_module, "write_atomic", recording)
+    monkeypatch.setattr(history_module.vault, "write_text", recording)
 
     assert history_store.forget(lambda account_id: False) == 0
     assert written == []

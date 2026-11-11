@@ -34,7 +34,7 @@ from enum import StrEnum
 
 from pydantic import BaseModel, Field
 
-from wardmind.core.config import write_atomic
+from wardmind.core import vault
 from wardmind.core.models import Signal, SignalKind
 from wardmind.core.store import CONTACTS_FILE, WRITE_LOCK, LocalStore
 
@@ -163,7 +163,7 @@ def _naive(moment: datetime) -> datetime:
 def _load(store: LocalStore) -> ContactsData:
     """The saved contacts; empty when the file is missing or unreadable."""
     try:
-        text = (store.root / CONTACTS_FILE).read_text(encoding="utf-8")
+        text = vault.read_text(store.root / CONTACTS_FILE)
         return ContactsData.model_validate_json(text)
     except (OSError, ValueError):  # ValidationError and JSON errors are ValueErrors
         return ContactsData()
@@ -171,7 +171,7 @@ def _load(store: LocalStore) -> ContactsData:
 
 def _save(store: LocalStore, data: ContactsData) -> None:
     data.by_account = {account: found for account, found in data.by_account.items() if found}
-    write_atomic(store.root / CONTACTS_FILE, data.model_dump_json(indent=2) + "\n")
+    vault.write_text(store.root / CONTACTS_FILE, data.model_dump_json(indent=2) + "\n")
 
 
 def _index_of(contacts: list[Contact], contact_id: str) -> int:

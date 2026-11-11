@@ -38,7 +38,7 @@ from urllib.parse import urlsplit
 import httpx
 from pydantic import BaseModel
 
-from wardmind.core.config import write_atomic
+from wardmind.core import vault
 from wardmind.core.models import Account
 from wardmind.core.research import Article, SiteResearch, Topic, account_file_name
 
@@ -590,7 +590,7 @@ class SummaryStore:
     def get(self, account_id: str) -> Summary | None:
         """The saved summary, or None if there isn't one or it can't be read."""
         try:
-            saved = Summary.model_validate_json(self._path(account_id).read_text(encoding="utf-8"))
+            saved = Summary.model_validate_json(vault.read_text(self._path(account_id)))
         except (OSError, ValueError):  # a bad JSON or a bad shape is a ValueError too
             return None
         return saved if saved.account_id == account_id else None
@@ -603,7 +603,7 @@ class SummaryStore:
         return saved
 
     def put(self, summary: Summary) -> None:
-        write_atomic(self._path(summary.account_id), summary.model_dump_json(indent=2) + "\n")
+        vault.write_text(self._path(summary.account_id), summary.model_dump_json(indent=2) + "\n")
 
     def clear(self) -> int:
         """Delete every saved summary; return how many were removed. A missing folder is 0."""

@@ -50,6 +50,7 @@ from wardmind.core import (
     secrets,
     service,
     summaries,
+    vault,
 )
 from wardmind.core import forecast as renewal_forecast
 from wardmind.core.client_updates import ClientUpdate, UpdateKind, UpdateStatus
@@ -107,6 +108,7 @@ from wardmind.web import (
     feed_pages,
     formatting,
     journal_pages,
+    lock,
     renewal_pages,
     session,
     today_pages,
@@ -471,6 +473,8 @@ def _render(
         "problems": problems,
         "pending_updates": _pending_count(),
         "due_follow_ups": _due_count(),
+        # Locked books show "Lock now" in the header (see web/lock.py and base.html).
+        "can_lock": vault.state() is not vault.State.PLAIN,
         # Account id -> LogoInfo, for partials/logo.html (a monogram stands in for the rest).
         "logos": service.all_logos(),
         **context,
@@ -1984,6 +1988,8 @@ def _render_privacy(
     key_error: str = "",
     key_result: str = "",
     key_result_ok: bool = True,
+    encryption_errors: Mapping[str, str] | None = None,
+    encryption_method: str = "",
     status_code: int = 200,
 ) -> HTMLResponse:
     """The Data & privacy page: web research, AI summaries and their key, and the local cache.
@@ -2010,6 +2016,7 @@ def _render_privacy(
         key_error=key_error,
         key_result=key_result,
         key_result_ok=key_result_ok,
+        encryption=_encryption_view(encryption_errors, encryption_method),
         status_code=status_code,
     )
 
@@ -2521,11 +2528,13 @@ async def _journal_action(
 
 @asynccontextmanager
 async def _lifespan(_app: FastAPI) -> AsyncIterator[None]:
-    """Start the feed scheduler with the app and stop it when the app shuts down."""
+    """Start the feed scheduler and the idle-lock watch with the app; stop both at shutdown."""
     service.start_feed_scheduler()
+    _app.state.idle_watch.start()
     try:
         yield
     finally:
+        _app.state.idle_watch.stop()
         service.stop_feed_scheduler()
 
 
@@ -2578,6 +2587,195 @@ def _logo_redirect(account_id: str, code: str) -> RedirectResponse:
     )
 
 
+# --- Encryption settings (Settings > Data & privacy; the routes sit in create_app) -------------
+# A recovery key is shown once and held in memory under a random token until it is turned on or
+# ten minutes pass. The password typed for a new password slot is held the same way. Nothing here
+# is written to disk, and no key or password is ever sent back in a page, a notice or a URL.
+
+_PENDING_KEY_MINUTES = 10
+_PENDING_KEY_LIMIT = 4  # pending recovery keys at once; the oldest is dropped first
+_ENCRYPTION_METHODS = ("windows", "password")
+_ENCRYPTION_ERRORS = ("method", "password", "confirm", "remove", "recovery", "off", "auto_lock")
+_METHOD_ERROR = "Choose how Wardmind unlocks: your Windows sign-in or a password."
+_WINDOWS_UNAVAILABLE = "Windows can't unlock Wardmind on this computer. Choose a password."
+_MISMATCH = "The two passwords don't match. Type the same password in both boxes."
+_SAVED_FIRST = "Tick the box to say you've saved your recovery key."
+_CONFIRM_REMOVE = "Tick the box to confirm you want to remove the password."
+_CONFIRM_RECOVERY = "Tick the box to confirm the old recovery key will stop working."
+_CONFIRM_OFF = "Tick the box to confirm you want to turn encryption off."
+_AUTO_LOCK_ERROR = "Pick 5, 15, 30 or 60 minutes, or never."
+_AUTO_LOCK_CHOICE_LABELS = (
+    (5, "5 minutes"),
+    (15, "15 minutes"),
+    (30, "30 minutes"),
+    (60, "60 minutes"),
+    (0, "Never"),
+)
+# The notice codes the Data & privacy page accepts in ?notice=. Each maps to fixed words.
+_ENCRYPTION_NOTICES = {
+    "encryption-on": (
+        "Encryption is on. Your recovery key is the way back in if you forget your password."
+    ),
+    "encryption-off": "Encryption is off. Your files are stored without it again.",
+    "encryption-locked": "Wardmind is locked. Unlock it first, then try again.",
+    "encryption-not-on": "Encryption is off, so there's nothing to change. Turn it on first.",
+    "encryption-expired": (
+        "That recovery key page has expired, so nothing was turned on. Start again."
+    ),
+    "encryption-failed": (
+        "Wardmind couldn't change encryption. Try again. If it keeps failing, check that "
+        "Wardmind can write to its data folder."
+    ),
+    "password-set": "Password saved. Wardmind asks for it again after it locks.",
+    "password-removed": "Password removed. Windows unlocks Wardmind when you sign in.",
+    "auto-lock-saved": "Lock time saved.",
+}
+_R = TypeVar("_R")
+
+
+@dataclass(frozen=True)
+class _PendingKey:
+    """A recovery key that is shown but not yet turned on, with the password it goes with."""
+
+    code: str
+    password: str | None
+    created: float  # time.monotonic()
+
+
+def _pending_add(pending: dict[str, _PendingKey], code: str, password: str | None) -> str:
+    """Keep a recovery key under a new random token and return the token. Expired entries are
+    dropped first, then the oldest while the limit is reached."""
+    now = time.monotonic()
+    for token, entry in list(pending.items()):
+        if now - entry.created > _PENDING_KEY_MINUTES * 60:
+            del pending[token]
+    while len(pending) >= _PENDING_KEY_LIMIT:
+        oldest = min(pending, key=lambda token: pending[token].created)
+        del pending[oldest]
+    token = os.urandom(24).hex()
+    pending[token] = _PendingKey(code=code, password=password, created=now)
+    return token
+
+
+def _pending_peek(pending: dict[str, _PendingKey], token: str) -> _PendingKey | None:
+    """The recovery key for this token, unless there is none or it has expired (then it's
+    removed). The entry stays in place until the caller takes it."""
+    entry = pending.get(token)
+    if entry is not None and time.monotonic() - entry.created > _PENDING_KEY_MINUTES * 60:
+        pending.pop(token, None)
+        return None
+    return entry
+
+
+def _encryption_redirect(notice: str) -> RedirectResponse:
+    """Back to Data & privacy, with one fixed notice code in the query."""
+    return RedirectResponse(f"/settings/privacy?{urlencode({'notice': notice})}", status_code=303)
+
+
+def _encryption_view(errors: Mapping[str, str] | None = None, method: str = "") -> dict[str, Any]:
+    """What the Encryption section on Data & privacy shows. A password typed into a form is never
+    passed in, so it can't be shown back."""
+    state = vault.state()
+    dpapi = vault.dpapi_available()
+    if method not in _ENCRYPTION_METHODS or (method == "windows" and not dpapi):
+        method = "windows" if dpapi else "password"
+    shown = dict.fromkeys(_ENCRYPTION_ERRORS, "")
+    shown.update(errors or {})
+    return {
+        "off": state is vault.State.PLAIN,
+        "on": state is vault.State.ON,
+        "busy": state in (vault.State.ENCRYPTING, vault.State.DECRYPTING),
+        "has_password": vault.has_password(),
+        "windows": vault.has_windows_unlock(),
+        "dpapi": dpapi,
+        "method": method,
+        "auto_lock": load_settings().auto_lock_minutes,
+        "auto_lock_choices": _AUTO_LOCK_CHOICE_LABELS,
+        "errors": shown,
+    }
+
+
+def _new_password_errors(fields: Mapping[str, str]) -> dict[str, str]:
+    """The new password checked by its own rules (vault.check_password), then against the
+    confirmation. The messages never contain the password."""
+    password = fields.get("password", "")
+    try:
+        vault.check_password(password)
+    except ValueError as error:
+        return {"password": str(error)}
+    if fields.get("confirm", "") != password:
+        return {"confirm": _MISMATCH}
+    return {}
+
+
+def _start_errors(method: str, fields: Mapping[str, str]) -> dict[str, str]:
+    """Why the unlock choice can't be used, by field. Only the password fields are read."""
+    if method not in _ENCRYPTION_METHODS:
+        return {"method": _METHOD_ERROR}
+    if method == "windows":
+        return {} if vault.dpapi_available() else {"method": _WINDOWS_UNAVAILABLE}
+    return _new_password_errors(fields)
+
+
+def _recovery_key_page(
+    request: Request,
+    code: str,
+    *,
+    mode: str,
+    token: str = "",
+    error: str = "",
+    status_code: int = 200,
+) -> HTMLResponse:
+    """The page that shows a recovery key, once. "start" ticks a box and then turns encryption
+    on; "new" says the old key no longer works and has no turn-on form."""
+    return _render(
+        request,
+        "settings/recovery_key.html",
+        page="Your recovery key",
+        active="settings",
+        status_code=status_code,
+        mode=mode,
+        groups=code.split("-"),
+        token=token,
+        error=error,
+    )
+
+
+def _change_encryption(
+    change: Callable[[], _R], done: str, *, need_on: bool = True
+) -> tuple[str, _R | None]:
+    """Run one change to the keys under the store's write lock. The first value is the notice
+    code: `done` when it worked (empty when the caller shows its own page), else a fixed code for
+    why not. Exception text is never shown or logged."""
+    from wardmind.core.store import WRITE_LOCK
+
+    try:
+        if need_on and vault.state() is not vault.State.ON:
+            return "encryption-not-on", None
+        with WRITE_LOCK:
+            result = change()
+    except vault.Locked:
+        return "encryption-locked", None
+    except (vault.VaultError, ValueError, OSError):
+        return "encryption-failed", None
+    return done, result
+
+
+def _turn_on_encryption(entry: _PendingKey) -> str:
+    """Encrypt every managed file with the recovery key the person was shown (and its password,
+    if one was chosen). Returns the notice code. The connectors are reset either way."""
+    from wardmind.core.store import WRITE_LOCK
+
+    try:
+        with WRITE_LOCK:
+            vault.enable(code=entry.code, password=entry.password)
+    except (vault.VaultError, ValueError, OSError):
+        return "encryption-failed"
+    finally:
+        service.reset_connectors()
+    return "encryption-on"
+
+
 def create_app(gate: session.SessionGate | None = None) -> FastAPI:
     """Build the web app: no API docs, a host allow-list, and security headers on every response.
 
@@ -2586,6 +2784,74 @@ def create_app(gate: session.SessionGate | None = None) -> FastAPI:
     it (tests) every page is open to whoever reaches 127.0.0.1."""
     app = FastAPI(docs_url=None, redoc_url=None, openapi_url=None, lifespan=_lifespan)
     app.add_middleware(TrustedHostMiddleware, allowed_hosts=["127.0.0.1", "localhost"])
+
+    # --- Locking: the lock gate (see core/vault.py and web/lock.py) ----------------------------
+    # Registered before the session check below, which therefore runs first: a request without
+    # the cookie still gets 403 and learns nothing about the lock. A locked book answers GET pages
+    # with a redirect to /unlock (htmx gets HX-Redirect) and any other method with 423. The paths
+    # in lock.is_lock_open_path skip the gate.
+    app.state.idle = lock.IdleTimer()
+    app.state.throttle = lock.UnlockThrottle()
+
+    def lock_if_idle() -> None:
+        """The background check (see _lifespan): locks an unlocked, encrypted book that has been
+        idle past the setting, even when no request comes in."""
+        idle = app.state.idle
+        if lock.should_lock(
+            idle.now(),
+            idle.last,
+            load_settings().auto_lock_minutes,
+            unlocked=vault.is_unlocked(),
+            encrypted=vault.state() is not vault.State.PLAIN,
+        ):
+            vault.lock()
+            service.reset_connectors()
+
+    app.state.idle_watch = lock.IdleWatch(lock_if_idle)
+
+    def locked_answer(request: Request) -> Response | None:
+        """None when the request may go on; otherwise the answer for a locked book."""
+        if vault.state() is vault.State.PLAIN:
+            return None
+        if vault.is_unlocked() and app.state.idle.expired(
+            minutes=load_settings().auto_lock_minutes
+        ):
+            vault.lock()
+            service.reset_connectors()
+        if vault.ensure_unlocked():
+            return None
+        if request.method.upper() not in ("GET", "HEAD"):
+            return PlainTextResponse(lock.LOCKED_WRITE_MESSAGE, status_code=423)
+        target = request.url.path + (f"?{request.url.query}" if request.url.query else "")
+        location = f"{lock.UNLOCK_PATH}?{urlencode({'next': session.safe_next(target)})}"
+        if request.headers.get("HX-Request") == "true":
+            return Response(status_code=200, headers={"HX-Redirect": location})
+        return RedirectResponse(location, status_code=303)
+
+    @app.middleware("http")
+    async def lock_gate(
+        request: Request, call_next: Callable[[Request], Awaitable[Response]]
+    ) -> Response:
+        if lock.is_lock_open_path(request.url.path):
+            return await call_next(request)
+        try:
+            refused = locked_answer(request)
+        except vault.Damaged as error:
+            return PlainTextResponse(
+                f"Wardmind can't open your data: {error.message}", status_code=503
+            )
+        if refused is not None:
+            return refused
+        # The idle clock is touched when a request starts and when it ends, so a page still
+        # loading (or a migration still running) is never locked under its own feet. Static
+        # files don't count as use.
+        touching = not request.url.path.startswith("/static/")
+        if touching:
+            app.state.idle.touch()
+        response = await call_next(request)
+        if touching:
+            app.state.idle.touch()
+        return response
 
     if gate is not None:
 
@@ -2645,6 +2911,18 @@ def create_app(gate: session.SessionGate | None = None) -> FastAPI:
         return response
 
     app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
+
+    @app.exception_handler(vault.VaultError)
+    async def vault_error(request: Request, exc: vault.VaultError) -> Response:
+        # A locked or damaged book is never shown as an empty one (see core/vault.py). A page
+        # that met the lock partway through (the idle lock ran meanwhile) goes to the unlock page.
+        if isinstance(exc, vault.Locked) and request.method.upper() in ("GET", "HEAD"):
+            target = request.url.path + (f"?{request.url.query}" if request.url.query else "")
+            location = f"{lock.UNLOCK_PATH}?{urlencode({'next': session.safe_next(target)})}"
+            if request.headers.get("HX-Request") == "true":
+                return Response(status_code=200, headers={"HX-Redirect": location})
+            return RedirectResponse(location, status_code=303)
+        return PlainTextResponse(f"Wardmind can't open your data: {exc.message}", status_code=503)
 
     @app.exception_handler(StarletteHTTPException)
     async def http_error(request: Request, exc: StarletteHTTPException) -> Response:
@@ -2920,6 +3198,234 @@ def create_app(gate: session.SessionGate | None = None) -> FastAPI:
             plain_text=formatting.onboarding_plain_text(brief),
         )
 
+    # --- Encryption: Settings > Data & privacy (see core/vault.py) ----------------------------
+    # Routes under /settings/privacy/encryption and /settings/privacy/auto-lock go here.
+    # The pending recovery keys live on app.state (memory only, see _pending_add). They are read
+    # and taken on the event loop, so no two requests can take the same key.
+    app.state.encryption_pending = {}
+
+    @app.post("/settings/privacy/encryption/start")
+    async def encryption_start(request: Request) -> Response:
+        """Check the unlock choice (and a new password), then show a recovery key once. Nothing is
+        encrypted yet: that happens when the recovery key page's box is ticked and its button
+        pressed. When encryption is already on, this goes back to the page."""
+        fields = await _posted_fields(request)
+        method = fields.get("method", "")
+        if await run_in_threadpool(vault.state) is not vault.State.PLAIN:
+            return RedirectResponse("/settings/privacy", status_code=303)
+        errors = _start_errors(method, fields)
+        if errors:
+            return await run_in_threadpool(
+                _render_privacy,
+                request,
+                encryption_errors=errors,
+                encryption_method=method,
+                status_code=422,
+            )
+        code = vault.new_recovery_code()
+        password = fields.get("password", "") if method == "password" else None
+        token = _pending_add(app.state.encryption_pending, code, password)
+        return await run_in_threadpool(_recovery_key_page, request, code, mode="start", token=token)
+
+    @app.post("/settings/privacy/encryption/on")
+    async def encryption_on(request: Request) -> Response:
+        """Turn encryption on with the recovery key the person was shown: every managed file is
+        encrypted in place. The pending key is taken once, whatever the outcome."""
+        fields = await _posted_fields(request)
+        token = fields.get("pending", "")
+        pending = app.state.encryption_pending
+        entry = _pending_peek(pending, token)
+        if entry is None:
+            return _encryption_redirect("encryption-expired")
+        if not fields.get("saved"):
+            return await run_in_threadpool(
+                _recovery_key_page,
+                request,
+                entry.code,
+                mode="start",
+                token=token,
+                error=_SAVED_FIRST,
+                status_code=422,
+            )
+        pending.pop(token, None)
+        notice = await run_in_threadpool(_turn_on_encryption, entry)
+        return _encryption_redirect(notice)
+
+    @app.post("/settings/privacy/encryption/off")
+    async def encryption_off(request: Request) -> Response:
+        """Turn encryption off: every file goes back to plain, then the keys are deleted. Needs
+        the tick box; a locked book gets a notice and nothing changes."""
+        fields = await _posted_fields(request)
+        if not fields.get("confirm_off"):
+            return await run_in_threadpool(
+                _render_privacy,
+                request,
+                encryption_errors={"off": _CONFIRM_OFF},
+                status_code=422,
+            )
+        notice, _ = await run_in_threadpool(
+            _change_encryption, vault.disable, "encryption-off", need_on=False
+        )
+        return _encryption_redirect(notice)
+
+    @app.post("/settings/privacy/encryption/password")
+    async def encryption_password(request: Request) -> Response:
+        """Set or change the password. Windows protection is replaced, so the password (or the
+        recovery key) is needed after every lock. Refused fields re-render the page (422)."""
+        fields = await _posted_fields(request)
+        errors = _new_password_errors(fields)
+        if errors:
+            return await run_in_threadpool(
+                _render_privacy, request, encryption_errors=errors, status_code=422
+            )
+        password = fields.get("password", "")
+        notice, _ = await run_in_threadpool(
+            _change_encryption, lambda: vault.set_password(password), "password-set"
+        )
+        return _encryption_redirect(notice)
+
+    @app.post("/settings/privacy/encryption/password/remove")
+    async def encryption_remove_password(request: Request) -> Response:
+        """Remove the password: Windows unlocks Wardmind again, with nothing typed."""
+        fields = await _posted_fields(request)
+        if not fields.get("confirm_remove"):
+            return await run_in_threadpool(
+                _render_privacy,
+                request,
+                encryption_errors={"remove": _CONFIRM_REMOVE},
+                status_code=422,
+            )
+        notice, _ = await run_in_threadpool(
+            _change_encryption, vault.remove_password, "password-removed"
+        )
+        return _encryption_redirect(notice)
+
+    @app.post("/settings/privacy/encryption/recovery")
+    async def encryption_new_recovery(request: Request) -> Response:
+        """Make a new recovery key. The old one stops working at once. The new key is shown on
+        its own page, once; nothing is stored for it."""
+        fields = await _posted_fields(request)
+        if not fields.get("confirm_recovery"):
+            return await run_in_threadpool(
+                _render_privacy,
+                request,
+                encryption_errors={"recovery": _CONFIRM_RECOVERY},
+                status_code=422,
+            )
+        notice, code = await run_in_threadpool(_change_encryption, vault.replace_recovery_code, "")
+        if notice:
+            return _encryption_redirect(notice)
+        return await run_in_threadpool(_recovery_key_page, request, code or "", mode="new")
+
+    @app.post("/settings/privacy/auto-lock")
+    async def encryption_auto_lock(request: Request) -> Response:
+        """Save the idle time before Wardmind locks. Only the choices in AUTO_LOCK_CHOICES are
+        kept; anything else re-renders the section (422) and nothing is saved."""
+        from wardmind.core.settings import AUTO_LOCK_CHOICES
+
+        fields = await _posted_fields(request)
+        raw = fields.get("minutes", "")
+        if not (raw.isascii() and raw.isdigit()) or int(raw) not in AUTO_LOCK_CHOICES:
+            return await run_in_threadpool(
+                _render_privacy,
+                request,
+                encryption_errors={"auto_lock": _AUTO_LOCK_ERROR},
+                status_code=422,
+            )
+        minutes = int(raw)
+        await run_in_threadpool(
+            save_settings,
+            load_settings().model_copy(update={"auto_lock_minutes": minutes}),
+        )
+        return _encryption_redirect("auto-lock-saved")
+
+    # --- Locking: /unlock and /lock (see core/vault.py and web/lock.py) -----------------------
+    # The unlock page does not extend the layout: the layout reads the book, which is locked here.
+    # A wrong try re-shows it with the message by the field used; the typed value never comes back.
+    def render_unlock(
+        request: Request,
+        *,
+        next_path: str,
+        errors: Mapping[str, str] | None = None,
+        alert: str = "",
+        status_code: int = 200,
+    ) -> HTMLResponse:
+        return templates.TemplateResponse(
+            request,
+            "unlock.html",
+            {
+                "settings": load_settings(),
+                "next": next_path,
+                "has_windows": vault.has_windows_unlock(),
+                "has_password": vault.has_password(),
+                "errors": dict(errors or {}),
+                "alert": alert,
+            },
+            status_code=status_code,
+        )
+
+    @app.get(lock.UNLOCK_PATH)
+    def unlock_form(request: Request, next: str = "") -> Response:
+        """The unlock page. A plain book, or one that unlocks itself through Windows, goes on to
+        `next` (sanitised by session.safe_next) instead."""
+        target = session.safe_next(next)
+        if vault.state() is vault.State.PLAIN or vault.ensure_unlocked():
+            return RedirectResponse(target, status_code=303)
+        return render_unlock(request, next_path=target)
+
+    @app.post(lock.UNLOCK_PATH)
+    async def unlock_submit(request: Request) -> Response:
+        """Unlock with Windows (windows=1), the recovery key (recovery) or the password (password).
+        Too many wrong tries wait (lock.UnlockThrottle); a wrong try re-shows the page with the
+        message. Same-origin and session checks apply, as to every write."""
+        fields = await _posted_fields(request)
+        target = session.safe_next(fields.get("next"))
+        throttle = app.state.throttle
+        wait = throttle.seconds_left()
+        if wait:
+            return render_unlock(
+                request, next_path=target, alert=lock.too_many_tries(wait), status_code=429
+            )
+        if fields.get("windows") == "1":
+            slot = "windows"
+        elif "recovery" in fields:
+            slot = "recovery"
+        else:
+            slot = "password"
+        if slot != "windows" and not fields.get(slot, "").strip():
+            blank = "Type your recovery key." if slot == "recovery" else "Type your password."
+            return render_unlock(request, next_path=target, errors={slot: blank}, status_code=422)
+
+        def attempt() -> None:
+            if slot == "password":
+                vault.unlock(password=fields["password"])
+            elif slot == "recovery":
+                vault.unlock(recovery=fields["recovery"])
+            else:
+                vault.unlock()
+
+        try:
+            await run_in_threadpool(attempt)
+        except vault.Locked as error:
+            throttle.failed()
+            return render_unlock(
+                request, next_path=target, errors={slot: error.message}, status_code=422
+            )
+        throttle.succeeded()
+        service.reset_connectors()
+        app.state.idle.touch()
+        return RedirectResponse(target, status_code=303)
+
+    @app.post("/lock")
+    def lock_now() -> RedirectResponse:
+        """Lock the book now: the key is forgotten here, and nothing reads the book until it is
+        unlocked again. With encryption off there is nothing to lock: back to My book."""
+        if vault.state() is vault.State.PLAIN:
+            return RedirectResponse("/", status_code=303)
+        vault.lock()
+        service.reset_connectors()
+        return RedirectResponse(lock.UNLOCK_PATH, status_code=303)
+
     # --- Renewals: the honest forecast (see core/forecast.py) ---------------------------------
 
     @app.get("/renewals")
@@ -3124,9 +3630,12 @@ def create_app(gate: session.SessionGate | None = None) -> FastAPI:
         ai: str = "",
         key: str = "",
         deleted_all: str = "",
+        encryption_notice: str = Query("", alias="notice"),
     ) -> HTMLResponse:
         if deleted_all == "1":
             notice = _deleted_all_notice()
+        elif encryption_notice in _ENCRYPTION_NOTICES:
+            notice = _ENCRYPTION_NOTICES[encryption_notice]
         elif cleared == "1":
             notice = _cache_notice(lookups, drafts)
         elif ai in ("on", "off"):

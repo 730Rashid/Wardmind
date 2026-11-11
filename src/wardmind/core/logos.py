@@ -25,9 +25,7 @@ from __future__ import annotations
 import contextlib
 import hashlib
 import json
-import os
 import re
-import tempfile
 import time
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -39,8 +37,7 @@ from urllib.parse import urljoin, urlsplit
 
 from pydantic import BaseModel
 
-from wardmind.core import research
-from wardmind.core.config import write_atomic
+from wardmind.core import research, vault
 from wardmind.core.research import SiteClient, SiteUnreachable, website_host
 from wardmind.core.store import LOGOS_DIR, WRITE_LOCK, LocalStore
 
@@ -276,7 +273,7 @@ def _load_index(store: LocalStore) -> dict[str, LogoInfo]:
     """The index, or {} when it is missing or unreadable. An entry that doesn't validate is left
     out; the rest still count."""
     try:
-        raw = json.loads((_folder(store) / INDEX_FILE).read_text(encoding="utf-8"))
+        raw = json.loads(vault.read_text(_folder(store) / INDEX_FILE))
     except (OSError, ValueError):
         return {}
     if not isinstance(raw, dict):
@@ -296,31 +293,19 @@ def _save_index(store: LocalStore, index: dict[str, LogoInfo]) -> None:
     payload = {
         account_id: info.model_dump(mode="json") for account_id, info in sorted(index.items())
     }
-    write_atomic(
+    vault.write_text(
         _folder(store) / INDEX_FILE, json.dumps(payload, indent=2, ensure_ascii=False) + "\n"
     )
 
 
 def _write_bytes(path: Path, data: bytes) -> None:
-    """Replace `path` with `data` so a crash mid-write never leaves a half-written image. The
-    same steps as config.write_atomic, which writes text only."""
-    path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
-    fd, tmp_name = tempfile.mkstemp(dir=path.parent, prefix=f".{path.name}-", suffix=".tmp")
-    tmp = Path(tmp_name)
-    try:
-        with os.fdopen(fd, "wb") as handle:
-            handle.write(data)
-        if os.name == "posix":
-            os.chmod(tmp, 0o600)
-        os.replace(tmp, path)
-    except BaseException:
-        tmp.unlink(missing_ok=True)
-        raise
+    """Replace `path` with `data` atomically, encrypted when encryption is on (core/vault.py)."""
+    vault.write_bytes(path, data)
 
 
 def _read_file(folder: Path, info: LogoInfo) -> bytes | None:
     try:
-        return (folder / _file_name(info.account_id, info.content_type)).read_bytes()
+        return vault.read_bytes(folder / _file_name(info.account_id, info.content_type))
     except OSError:
         return None
 

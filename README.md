@@ -228,6 +228,9 @@ All weights, thresholds and windows live in [`config/scoring.yaml`](config/scori
 - Only the person who started Wardmind can open it. The browser signs in with a link that
   `wardmind ui` (or the desktop window) opens for you, and `wardmind open` opens it again. Other
   Windows accounts on the same computer get "403".
+- Optional encryption at rest (Settings > Data & privacy): your data and keys are encrypted
+  with AES-256-GCM, unlocked by your Windows sign-in or a password, with a one-time recovery
+  key. With a password, Wardmind locks after 15 idle minutes or when you press **Lock now**.
 - Nothing is loaded from a CDN. htmx and the Atkinson Hyperlegible Next font are vendored; see
   [`VENDORED.md`](src/wardmind/web/static/VENDORED.md).
 - A strict Content-Security-Policy blocks inline scripts and third-party requests.

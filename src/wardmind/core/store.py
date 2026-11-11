@@ -39,7 +39,7 @@ from typing import Any, ParamSpec, TypeVar
 
 from pydantic import BaseModel, Field, TypeAdapter
 
-from wardmind.core.config import write_atomic
+from wardmind.core import vault
 from wardmind.core.feeds.models import FeedSettings
 from wardmind.core.models import Account, Signal
 from wardmind.core.secrets import delete_all_feed_secrets, secrets_dir
@@ -235,7 +235,7 @@ def _now() -> datetime:
 def _load(path: Path, adapter: TypeAdapter[Any], empty: Callable[[], Any]) -> Any:
     """The validated content of path, or empty() when it is missing, unreadable or wrong-shaped."""
     try:
-        raw = json.loads(path.read_text(encoding="utf-8"))
+        raw = json.loads(vault.read_text(path))
         return adapter.validate_python(raw)
     except (OSError, ValueError, TypeError):  # ValidationError and JSONDecodeError are ValueErrors
         return empty()
@@ -243,7 +243,7 @@ def _load(path: Path, adapter: TypeAdapter[Any], empty: Callable[[], Any]) -> An
 
 def _save(path: Path, adapter: TypeAdapter[Any], value: Any) -> None:
     payload = adapter.dump_python(value, mode="json")
-    write_atomic(path, json.dumps(payload, indent=2, ensure_ascii=False) + "\n")
+    vault.write_text(path, json.dumps(payload, indent=2, ensure_ascii=False) + "\n")
 
 
 def _as_date(value: Any) -> Any:

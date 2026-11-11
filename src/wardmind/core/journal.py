@@ -42,7 +42,7 @@ from typing import TypeVar
 
 from pydantic import BaseModel, Field
 
-from wardmind.core.config import write_atomic
+from wardmind.core import vault
 from wardmind.core.models import Account, Health, Motion, ScoredAccount, SignalKind
 from wardmind.core.store import DEMO_JOURNAL_FILE, JOURNAL_FILE, WRITE_LOCK, LocalStore
 
@@ -1244,7 +1244,7 @@ def _naive(moment: datetime) -> datetime:
 def _load(path: Path) -> JournalData:
     """The saved journal; empty when the file is missing or unreadable."""
     try:
-        return JournalData.model_validate_json(path.read_text(encoding="utf-8"))
+        return JournalData.model_validate_json(vault.read_text(path))
     except (OSError, ValueError):  # ValidationError and JSON errors are ValueErrors
         return JournalData()
 
@@ -1257,7 +1257,7 @@ def _set_aside_if_unreadable(path: Path) -> None:
     if not path.exists():
         return
     try:
-        JournalData.model_validate_json(path.read_text(encoding="utf-8"))
+        JournalData.model_validate_json(vault.read_text(path))
         return
     except (OSError, ValueError):
         pass
@@ -1273,7 +1273,7 @@ def _save(path: Path, data: JournalData) -> None:
     data.by_account = {
         account_id: found for account_id, found in data.by_account.items() if not found.empty
     }
-    write_atomic(path, data.model_dump_json(indent=2) + "\n")
+    vault.write_text(path, data.model_dump_json(indent=2) + "\n")
 
 
 def _position(entries: Sequence[_Entry], entry_id: str, message: str) -> int:

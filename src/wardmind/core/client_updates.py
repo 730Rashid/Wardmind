@@ -44,8 +44,7 @@ from pathlib import Path
 
 from pydantic import BaseModel, Field
 
-from wardmind.core import contacts, importing
-from wardmind.core.config import write_atomic
+from wardmind.core import contacts, importing, vault
 from wardmind.core.contacts import (
     MAX_EMAIL,
     MAX_NAME,
@@ -242,13 +241,13 @@ def _path(store: LocalStore) -> Path:
 def load(store: LocalStore) -> ClientUpdatesData:
     """The saved data (empty when there is none)."""
     try:
-        return ClientUpdatesData.model_validate_json(_path(store).read_text(encoding="utf-8"))
+        return ClientUpdatesData.model_validate_json(vault.read_text(_path(store)))
     except (OSError, ValueError):  # ValidationError and JSON errors are ValueErrors
         return ClientUpdatesData()
 
 
 def _save(store: LocalStore, data: ClientUpdatesData) -> None:
-    write_atomic(_path(store), data.model_dump_json(indent=2) + "\n")
+    vault.write_text(_path(store), data.model_dump_json(indent=2) + "\n")
 
 
 def _has_control(text: str) -> bool:

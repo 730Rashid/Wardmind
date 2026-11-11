@@ -15,7 +15,7 @@ from typing import Any
 from mcp.server.mcpserver import MCPServer
 from mcp.server.mcpserver.exceptions import ToolError
 
-from wardmind.core import briefs, contacts, history, journal, research, service
+from wardmind.core import briefs, contacts, history, journal, research, service, vault
 from wardmind.core.connectors.errors import ConnectorError
 from wardmind.core.models import Motion, ScoredAccount
 
@@ -60,11 +60,17 @@ class _BadRequest(ToolError, ValueError):
 
 @contextmanager
 def _connector_errors() -> Iterator[None]:
-    """A book that can't load (no token, HubSpot down) reaches the client as its plain message."""
+    """A book that can't load (no token, HubSpot down) reaches the client as its plain message.
+    A locked or unreadable encrypted book (core/vault.py) reaches it as a plain sentence too: the
+    client learns that the book is locked, never what is in it."""
     try:
         yield
     except ConnectorError as error:
         raise _BadRequest(error.message) from None
+    except vault.Locked:
+        raise ToolError("Wardmind is locked. Open the app and unlock it.") from None
+    except vault.Damaged as error:
+        raise ToolError(f"Wardmind can't read its data: {error.message}") from None
 
 
 @mcp.tool()
@@ -106,11 +112,16 @@ def get_account(account_id: str) -> dict[str, Any]:
     """
     item = _find(account_id)
     data = item.model_dump(mode="json")
-    data["contacts"] = [_contact_row(contact) for contact in service.account_contacts(account_id)]
-    data["pending_client_updates"] = sum(
-        1 for review in service.pending_client_updates() if review.update.account_id == account_id
-    )
-    data["journal"] = _journal_summary(item.health, service.account_journal(account_id))
+    with _connector_errors():
+        data["contacts"] = [
+            _contact_row(contact) for contact in service.account_contacts(account_id)
+        ]
+        data["pending_client_updates"] = sum(
+            1
+            for review in service.pending_client_updates()
+            if review.update.account_id == account_id
+        )
+        data["journal"] = _journal_summary(item.health, service.account_journal(account_id))
     data["note"] = _DATA_NOTE
     return data
 
@@ -145,10 +156,11 @@ def weekly_brief(top_n: int = 10) -> dict[str, Any]:
     )
     data = brief.model_dump(mode="json")
     data["top"] = [_row(rank, item) for rank, item in enumerate(brief.top, start=1)]
-    changes = service.week_changes(book, today)
+    with _connector_errors():
+        changes = service.week_changes(book, today)
+        started = None if changes is not None else service.history_started()
     data["since_last_week"] = None if changes is None else _changes(changes)
     if changes is None:
-        started = service.history_started()
         data["history_note"] = (
             "Wardmind keeps score history from the day it is first used; there is none from a "
             "week ago yet."
@@ -238,7 +250,8 @@ def research_account(account_id: str, refresh: bool = False) -> dict[str, Any]:
         ) from None
     data = result.model_dump(mode="json")
     untrusted = {field: data.pop(field) for field in _WEBSITE_FIELDS}
-    saved = service.saved_summary(account_id)
+    with _connector_errors():
+        saved = service.saved_summary(account_id)
     untrusted["summary"] = None if saved is None else saved.model_dump(mode="json")
     data["note"] = _RESEARCH_NOTE
     data["untrusted_website_content"] = untrusted

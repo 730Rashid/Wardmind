@@ -30,6 +30,11 @@
         </ul>
       </nav>
       <p class="source-note">{{ source_note }}</p>
+      {% if can_lock %}
+      <form class="lock-now-form" method="post" action="/lock">
+        <button type="submit" class="button lock-now-button">Lock now</button>
+      </form>
+      {% endif %}
     </div>
   </header>
   {% if problems %}
