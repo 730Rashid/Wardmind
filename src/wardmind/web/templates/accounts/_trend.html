@@ -1,18 +1,65 @@
-{# Risk over the last 90 days, as an inline SVG sparkline in a 300 by 60 box with risk 100 at the top. The
-   two faint bands are the watch and at-risk zones; the dot is the latest reading, in its health's colour.
-   The caption under it says the numbers, so the chart is never the only way to read the trend. #}
+{# Risk over the last 90 days in a 640 by 200 box, risk 100 at the top of the plot. Faint bands mark
+   the watch and at-risk zones, and the line takes each zone's colour as it crosses into it. Under the
+   plot, one mark per day with a call, meeting, email, note or renewal outcome; then the dates.
+   app.js reads data-trend to show each day's reading on hover or with the arrow keys. The caption
+   says the numbers, so the chart is never the only way to read the trend. #}
+{% macro trend_mark(kind, x, y) -%}
+{% if kind == "outcome" %}<path class="trend-mark trend-mark--outcome" d="M{{ x }},{{ y - 5.5 }} l5.5,5.5 -5.5,5.5 -5.5,-5.5z"/>
+{%- elif kind == "talk" %}<circle class="trend-mark trend-mark--talk" cx="{{ x }}" cy="{{ y }}" r="4.5"/>
+{%- elif kind == "email" %}<circle class="trend-mark trend-mark--email" cx="{{ x }}" cy="{{ y }}" r="3.5"/>
+{%- else %}<rect class="trend-mark trend-mark--note" x="{{ x - 3.5 }}" y="{{ y - 3.5 }}" width="7" height="7" rx="1.5"/>{% endif %}
+{%- endmacro %}
 {% if trend.shown %}
-<div class="trend">
-  <h3 class="trend-title" id="trend-heading">Risk over the last 90 days</h3>
-  <svg class="trend-chart" viewBox="0 0 300 60" role="img" aria-label="{{ trend.label }}" focusable="false">
-    {% for zone in trend.zones %}
-    <rect class="trend-zone {{ zone.css }}" x="0" y="{{ zone.y }}" width="300" height="{{ zone.height }}"/>
-    {% endfor %}
-    {% if trend.points %}
-    <polyline class="trend-line" points="{{ trend.points }}"/>
+<figure class="trend" data-trend="{{ trend.data }}">
+  <div class="trend-head">
+    <h3 class="trend-title" id="trend-heading">Risk over the last 90 days</h3>
+    {% if trend.kinds %}
+    <ul class="trend-key" aria-label="Marks under the chart">
+      {% for kind, name in trend.kinds %}
+      <li><svg class="trend-key-mark" viewBox="-7 -7 14 14" width="14" height="14" aria-hidden="true" focusable="false">{{ trend_mark(kind, 0, 0) }}</svg>{{ name }}</li>
+      {% endfor %}
+    </ul>
     {% endif %}
-    <circle class="trend-dot trend-dot--{{ trend.dot_health }}" cx="{{ trend.dot_x }}" cy="{{ trend.dot_y }}" r="3.5"/>
-  </svg>
-  <p class="trend-caption">{{ trend.caption }}</p>
-</div>
+  </div>
+  <div class="trend-frame">
+    <svg class="trend-chart" viewBox="0 0 {{ trend_width }} {{ trend_height }}" role="img" aria-label="{{ trend.label }}" focusable="false">
+      <defs>
+        <linearGradient id="trend-stroke" gradientUnits="userSpaceOnUse" x1="0" y1="{{ plot.top }}" x2="0" y2="{{ plot.bottom }}">
+          {% for stop in trend.stops %}<stop offset="{{ stop.offset }}" class="trend-stop--{{ stop.tone }}"/>{% endfor %}
+        </linearGradient>
+        <linearGradient id="trend-fill" gradientUnits="userSpaceOnUse" x1="0" y1="{{ plot.top }}" x2="0" y2="{{ plot.bottom }}">
+          {% for stop in trend.stops %}<stop offset="{{ stop.offset }}" class="trend-fill-stop trend-stop--{{ stop.tone }}"/>{% endfor %}
+        </linearGradient>
+      </defs>
+      {% for zone in trend.zones %}
+      <rect class="trend-zone {{ zone.css }}" x="{{ plot.left }}" y="{{ zone.y }}" width="{{ plot.right - plot.left }}" height="{{ zone.height }}"/>
+      {% endfor %}
+      {% for grid in trend.gridlines %}
+      {% if not loop.first %}<line class="trend-grid" x1="{{ plot.left }}" y1="{{ grid.y }}" x2="{{ plot.right }}" y2="{{ grid.y }}"/>{% endif %}
+      <text class="trend-zone-name" x="{{ plot.left + 8 }}" y="{{ grid.label_y }}">{{ grid.label }}</text>
+      {% endfor %}
+      <line class="trend-floor" x1="{{ plot.left }}" y1="{{ plot.bottom }}" x2="{{ plot.right }}" y2="{{ plot.bottom }}"/>
+      {% if trend.area %}
+      <polygon class="trend-area" points="{{ trend.area }}" fill="url(#trend-fill)"/>
+      {% endif %}
+      {% if trend.points %}
+      <polyline class="trend-line" points="{{ trend.points }}" stroke="url(#trend-stroke)"/>
+      {% endif %}
+      <g class="trend-marks">
+        {% for mark in trend.markers %}{{ trend_mark(mark.kind, mark.x, marker_y) }}{% endfor %}
+      </g>
+      {% for tick in trend.ticks %}
+      <text class="trend-tick" x="{{ tick.x }}" y="{{ tick_y }}" text-anchor="{{ tick.anchor }}">{{ tick.text }}</text>
+      {% endfor %}
+      <g class="trend-focus" aria-hidden="true">
+        <line class="trend-rule" x1="0" y1="{{ plot.top }}" x2="0" y2="{{ marker_y }}"/>
+        <circle class="trend-ring" cx="0" cy="0" r="6"/>
+      </g>
+      <circle class="trend-dot trend-dot--{{ trend.dot_health }}" cx="{{ trend.dot_x }}" cy="{{ trend.dot_y }}" r="5"/>
+    </svg>
+  </div>
+  <figcaption class="trend-caption">{{ trend.caption }}</figcaption>
+  <p class="visually-hidden" id="trend-keys">Focus the chart and use the left and right arrow keys to read each day.</p>
+  <p class="visually-hidden" aria-live="polite" data-trend-say></p>
+</figure>
 {% endif %}

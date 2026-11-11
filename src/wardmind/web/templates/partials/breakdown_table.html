@@ -18,7 +18,7 @@
             <th scope="row" class="cell-signal">{{ row.label }}</th>
             <td class="cell-reading">{{ row.value_text }}{% if age is not none and age.age_days is not none %}{% if age.stale %}<span class="reading-age reading-age--stale">Out of date: read {{ age.age_days }} days ago</span>{% elif age.age_days == 0 %}<span class="reading-age">Read today</span>{% elif age.age_days == 1 %}<span class="reading-age">Read yesterday</span>{% else %}<span class="reading-age">Read {{ age.age_days }} days ago</span>{% endif %}{% endif %}</td>
             <td class="cell-points num">
-              <svg class="pbar" width="{{ track }}" height="8" role="img" aria-label="{{ row.contribution | number }} of {{ row.max_points | number }} points"><rect class="pbar-track" width="{{ track }}" height="8"/><rect class="pbar-fill" width="{{ fill }}" height="8"/></svg>
+              <svg class="pbar" width="{{ track }}" height="8" role="img" aria-label="{{ row.contribution | number }} of {{ row.max_points | number }} points"><rect class="pbar-track" width="{{ track }}" height="8" rx="4"/><rect class="pbar-fill" width="{{ fill }}" height="8" rx="4"/></svg>
               <span class="points-text">{{ row.contribution | number }} of {{ row.max_points | number }}</span>
             </td>
           </tr>

@@ -132,7 +132,7 @@ def _bounded(low: int, high: int, message: str) -> Any:
 
 
 class Settings(BaseModel):
-    theme: Theme = Theme.SYSTEM
+    theme: Theme = Theme.LIGHT  # light unless the CSM picks Dark or Match my computer
     accent: Accent = Accent.PLUM
     density: Density = Density.COMFORTABLE
     landing: Landing = Landing.BOOK

@@ -23,21 +23,23 @@
   {% else %}
   <section class="account-section renewal-section" aria-labelledby="calls-heading">
     <h2 class="section-title" id="calls-heading">Your calls</h2>
+    <div class="stack" data-stack>
     {% if screen.segments %}
     <svg class="renewal-bar" viewBox="0 0 100 24" preserveAspectRatio="none" width="100%" height="24" role="img" aria-label="{{ screen.bar_label }}">
       {% for seg in screen.segments %}
-      <rect x="{{ seg.x }}" width="{{ seg.width }}" height="24" class="renewal-seg renewal-seg--{{ seg.slot }}"/>
+      <rect x="{{ seg.x }}" width="{{ seg.width }}" height="24" class="renewal-seg renewal-seg--{{ seg.slot }}" data-key="{{ seg.slot }}" data-tip-title="{{ seg.title }}" data-tip-text="{{ seg.text }}"/>
       {% endfor %}
     </svg>
     {% endif %}
     <ul class="renewal-totals">
       {% for total in screen.totals %}
-      <li class="renewal-total">
+      <li class="renewal-total" data-key="{{ total.slot }}">
         <span class="renewal-name"><span class="renewal-key renewal-key--{{ total.slot }}" aria-hidden="true"></span>{{ total.label }}</span>
         <span class="renewal-figure">{{ total.count_text }}, {{ total.arr | money_short }} ARR</span>
       </li>
       {% endfor %}
     </ul>
+    </div>
     <p class="renewal-line">{{ screen.disagree_line }}{% if screen.filter_href %} <a href="{{ screen.filter_href }}">{{ screen.filter_text }}</a>{% endif %}</p>
   </section>
 

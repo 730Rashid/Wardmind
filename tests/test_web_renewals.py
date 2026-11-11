@@ -252,7 +252,8 @@ def test_the_arr_bar_is_placed_by_the_server_with_no_style_attribute(client: Tes
     response = client.get("/renewals")
     assert '<svg class="renewal-bar"' in response.text
     segments = re.findall(
-        r'<rect x="([\d.]+)" width="([\d.]+)" height="24" class="renewal-seg renewal-seg--(\w+)"/>',
+        r'<rect x="([\d.]+)" width="([\d.]+)" height="24" '
+        r'class="renewal-seg renewal-seg--(\w+)"[^>]*/>',
         response.text,
     )
     assert [slot for _, _, slot in segments] == ["none"]  # both accounts are not called yet
@@ -267,7 +268,8 @@ def test_the_bar_is_split_by_call_and_runs_edge_to_edge(client: TestClient) -> N
     _post(client, _call_path(commit), {"kind": "commit", "back": "renewals"})
     response = client.get("/renewals")
     segments = re.findall(
-        r'<rect x="([\d.]+)" width="([\d.]+)" height="24" class="renewal-seg renewal-seg--(\w+)"/>',
+        r'<rect x="([\d.]+)" width="([\d.]+)" height="24" '
+        r'class="renewal-seg renewal-seg--(\w+)"[^>]*/>',
         response.text,
     )
     assert [slot for _, _, slot in segments] == ["commit", "none"]

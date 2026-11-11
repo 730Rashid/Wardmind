@@ -95,7 +95,7 @@ def test_book_bar_has_a_rect_per_band_at_the_helper_geometry(
     markup = client.get("/brief").text
     svg = _block(markup, r'(<svg class="book-bar".*?</svg>)')
     rects = re.findall(
-        r'<rect x="([^"]+)" width="([^"]+)" height="24" class="seg seg--(\w+)"/>', svg
+        r'<rect x="([^"]+)" width="([^"]+)" height="24" class="seg seg--(\w+)"[^>]*/>', svg
     )
     expected = formatting.book_bar_segments(brief.arr_by_health, brief.total_arr)
     assert len(rects) == len(expected) == 3
@@ -113,7 +113,7 @@ def test_book_bar_label_names_every_non_zero_band(client: TestClient) -> None:
 def test_legend_has_three_columns_in_bar_order(client: TestClient) -> None:
     markup = client.get("/brief").text
     legend = _block(markup, r'<ul class="legend">(.*?)</ul>')
-    items = re.findall(r'<li class="legend-item">(.*?)</li>', legend, re.S)
+    items = re.findall(r'<li class="legend-item" data-key="\w+">(.*?)</li>', legend, re.S)
     assert [_plain(item) for item in items] == [
         "At risk $1.2M across 10 accounts",
         "Watch $1.2M across 12 accounts",
@@ -141,7 +141,7 @@ def test_a_band_with_no_arr_still_shows_in_the_legend(
     markup = response.text
 
     legend = _block(markup, r'<ul class="legend">(.*?)</ul>')
-    items = re.findall(r'<li class="legend-item">(.*?)</li>', legend, re.S)
+    items = re.findall(r'<li class="legend-item" data-key="\w+">(.*?)</li>', legend, re.S)
     assert [_plain(item) for item in items] == [
         "At risk $0 across 0 accounts",
         "Watch $0 across 0 accounts",

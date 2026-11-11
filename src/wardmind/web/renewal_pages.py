@@ -8,7 +8,7 @@ the journal, save the call and redirect with one of the fixed notice codes below
 from __future__ import annotations
 
 from collections.abc import Callable, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import date
 from urllib.parse import quote, urlencode
 
@@ -66,6 +66,8 @@ class BarSegment:
     slot: str
     x: float  # percent of the bar, 0 to 100
     width: float  # percent of the bar
+    title: str = ""  # the hover tip's heading: "Commit"
+    text: str = ""  # the hover tip's line: "$1.2M ARR, 40% of renewing ARR, 3 renewals"
 
 
 @dataclass(frozen=True)
@@ -166,7 +168,9 @@ def renewals_page(
         empty=empty,
         empty_text=empty_text,
         totals=totals,
-        segments=_segments([(total.slot, total.arr) for total in totals]),
+        segments=_tipped(
+            _segments([(total.slot, total.arr) for total in totals]), totals, money_short
+        ),
         bar_label=bar_label,
         disagree_line=_disagree_line(disagreements),
         filter_href=filter_href,
@@ -244,6 +248,24 @@ def _bar_label(totals: Sequence[CallTotal], money_short: Callable[[float], str])
     if not parts:
         return "ARR by call: no ARR in the window"
     return "ARR by call: " + ", ".join(parts)
+
+
+def _tipped(
+    segments: Sequence[BarSegment],
+    totals: Sequence[CallTotal],
+    money_short: Callable[[float], str],
+) -> list[BarSegment]:
+    """The segments with their hover tips, from the call totals they were made from."""
+    by_slot = {total.slot: total for total in totals}
+    tipped: list[BarSegment] = []
+    for segment in segments:
+        total = by_slot[segment.slot]
+        text = (
+            f"{money_short(total.arr)} ARR, {round(segment.width)}% of renewing ARR, "
+            f"{total.count_text}"
+        )
+        tipped.append(replace(segment, title=total.label, text=text))
+    return tipped
 
 
 def _segments(arrs: Sequence[tuple[str, float]]) -> list[BarSegment]:

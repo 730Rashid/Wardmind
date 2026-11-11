@@ -35,9 +35,9 @@ def test_round_trip_keeps_every_choice(tmp_path: Path) -> None:
     assert positions == sorted(positions), "fields are written in schema order"
 
 
-def test_defaults_are_system_plum_comfortable_book() -> None:
+def test_defaults_are_light_plum_comfortable_book() -> None:
     assert Settings() == Settings(
-        theme=Theme.SYSTEM, accent=Accent.PLUM, density=Density.COMFORTABLE, landing=Landing.BOOK
+        theme=Theme.LIGHT, accent=Accent.PLUM, density=Density.COMFORTABLE, landing=Landing.BOOK
     )
 
 

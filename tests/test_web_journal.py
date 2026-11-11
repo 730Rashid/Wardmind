@@ -10,6 +10,7 @@ network). Demo data is used only where the demo's own history is the point.
 from __future__ import annotations
 
 import html
+import json
 import re
 from datetime import UTC, date, datetime, timedelta
 from typing import Any
@@ -622,9 +623,9 @@ def test_the_trend_in_demo_mode_is_drawn_from_the_demo_history(client: TestClien
     response = client.get("/accounts/acc-001")
     assert response.status_code == 200
     _clean(response)
-    assert 'class="trend-chart" viewBox="0 0 300 60" role="img"' in response.text
+    assert 'class="trend-chart" viewBox="0 0 640 200" role="img"' in response.text
     assert 'aria-label="Risk over the last 90 days.' in response.text
-    caption = re.search(r'<p class="trend-caption">([^<]*)</p>', _text(response))
+    caption = re.search(r'<figcaption class="trend-caption">([^<]*)</figcaption>', _text(response))
     assert caption is not None
     assert caption.group(1).startswith("Risk ")
     assert " now" in caption.group(1)
@@ -707,6 +708,59 @@ def test_a_sparkline_stays_inside_its_box_and_marks_the_bands() -> None:
         f"Risk 100 now, 38 a week ago, 0 on {(TODAY - timedelta(days=90)).day} "
         f"{journal_pages._MONTHS[(TODAY - timedelta(days=90)).month - 1]}."
     )
+
+
+def _entry(kind: journal.TouchKind, day: date, text: str, subject: str = "") -> journal.Note:
+    return journal.Note(
+        id="n-0000000" + str(len(text) % 10),
+        kind=kind,
+        text=text,
+        subject=subject,
+        happened_on=day,
+        created_at=datetime(2026, 1, 1),
+    )
+
+
+def test_the_trend_marks_days_with_activity_and_lists_them_for_the_tip() -> None:
+    thresholds = load_scoring_config().thresholds
+    week_ago = TODAY - timedelta(days=7)
+    points = [
+        history.TrendPoint(day=week_ago, risk=30, health=Health.HEALTHY, rank=4),
+        history.TrendPoint(day=TODAY, risk=72, health=Health.AT_RISK, rank=1),
+    ]
+    account_journal = journal.AccountJournal(
+        notes=[
+            _entry(journal.TouchKind.CALL, TODAY - timedelta(days=3), "Talked", "Usage review"),
+            _entry(journal.TouchKind.NOTE, TODAY - timedelta(days=3), "Champion may leave"),
+            _entry(journal.TouchKind.EMAIL, TODAY - timedelta(days=200), "Too old to show"),
+        ]
+    )
+    chart = journal_pages.sparkline(points, thresholds, TODAY, account_journal)
+    # One mark per day, named by its strongest kind; the 200-day-old email is outside the window.
+    assert [(mark.kind) for mark in chart.markers] == ["talk"]
+    assert chart.kinds == [("talk", "Call or meeting")]
+    rows = json.loads(chart.data)
+    assert [row["day"] for row in rows][-1] == "Today"
+    middle = rows[1]
+    assert middle["events"] == ["Call: Usage review", "Note: Champion may leave"]
+    assert "risk" not in middle  # no score was kept that day
+    assert rows[-1]["risk"] == 72 and rows[-1]["change"] == 42 and rows[-1]["tone"] == "at_risk"
+    assert rows[0]["change"] is None
+    # The line's colour changes at each threshold, at-risk at the top.
+    tones = [stop.tone for stop in chart.stops]
+    assert tones == ["at_risk", "at_risk", "watch", "watch", "healthy", "healthy"]
+    assert chart.area.split()[0].endswith(f",{journal_pages.PLOT_BOTTOM}")
+
+
+def test_a_busy_day_names_three_entries_then_a_count() -> None:
+    thresholds = load_scoring_config().thresholds
+    point = history.TrendPoint(day=TODAY, risk=12, health=Health.HEALTHY, rank=9)
+    account_journal = journal.AccountJournal(
+        notes=[_entry(journal.TouchKind.EMAIL, TODAY, f"Email {n}") for n in range(5)]
+    )
+    rows = json.loads(journal_pages.sparkline([point], thresholds, TODAY, account_journal).data)
+    assert rows[0]["events"][-1] == "and 2 more"
+    assert len(rows[0]["events"]) == 4
 
 
 def test_a_single_point_gives_the_first_day_message() -> None:

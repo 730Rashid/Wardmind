@@ -449,6 +449,16 @@ _env.globals["risk_sentence"] = formatting.risk_sentence
 _env.globals["bar_geometry"] = formatting.bar_geometry
 _env.globals["book_bar_segments"] = formatting.book_bar_segments
 _env.globals["count_bar_width"] = formatting.count_bar_width
+_env.globals["trend_width"] = journal_pages.TREND_WIDTH
+_env.globals["trend_height"] = journal_pages.TREND_HEIGHT
+_env.globals["plot"] = {
+    "top": journal_pages.PLOT_TOP,
+    "bottom": journal_pages.PLOT_BOTTOM,
+    "left": journal_pages.PLOT_LEFT,
+    "right": journal_pages.PLOT_RIGHT,
+}
+_env.globals["marker_y"] = journal_pages.MARKER_Y
+_env.globals["tick_y"] = journal_pages.TICK_Y
 _env.globals["plan_dots"] = formatting.plan_dots
 _env.globals["plan_summary"] = formatting.plan_summary
 _env.globals["scoring_output"] = scoring_output
@@ -2289,7 +2299,10 @@ def _render_account(
         note_text=note_text,
     )
     trend = journal_pages.sparkline(
-        service.account_trend(detail.scored, detail.rank, today), config.thresholds, today
+        service.account_trend(detail.scored, detail.rank, today),
+        config.thresholds,
+        today,
+        account_journal,
     )
     return _render(
         request,

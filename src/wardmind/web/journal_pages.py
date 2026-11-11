@@ -9,6 +9,7 @@ the redirects after an action carry fixed codes from this module (NOTICES and RE
 
 from __future__ import annotations
 
+import json
 import math
 import re
 from collections.abc import Mapping, Sequence
@@ -27,6 +28,7 @@ from wardmind.core.journal import (
     OutcomeKind,
     Snooze,
     TodayView,
+    TouchKind,
 )
 from wardmind.core.models import Health, ScoredAccount
 from wardmind.core.settings import DateStyle
@@ -40,8 +42,8 @@ ACTIVITY_SHOWN = 20  # the Activity box lists the newest this many, then offers 
 ENTRY_PREVIEW = 200  # an entry's text is cut to this in a list; the rest sits in a disclosure
 _SHOWN_PEOPLE = 2  # client addresses named on an email before "and N more"
 _FILTER_LABELS = {"call": "Calls", "meeting": "Meetings", "email": "Emails", "other": "Other"}
-TREND_WIDTH = 300  # the sparkline's viewBox, in user units
-TREND_HEIGHT = 60
+TREND_WIDTH = 640  # the trend chart's viewBox, in user units
+TREND_HEIGHT = 200
 _INSET = 4  # keeps the line and its dot inside the box
 _MONTHS = ("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
 _WEEKDAYS = ("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun")
@@ -767,6 +769,32 @@ class Band:
 
 
 @dataclass(frozen=True)
+class Stop:
+    offset: float  # 0 to 1 down the plot
+    tone: str  # "at_risk", "watch" or "healthy": the stop's colour class
+
+
+@dataclass(frozen=True)
+class Gridline:
+    y: float
+    label: str  # "At risk", "Watch" or "Healthy", set just under the line
+    label_y: float
+
+
+@dataclass(frozen=True)
+class Tick:
+    x: float
+    text: str  # "10 Aug", or "Today"
+    anchor: str  # the text-anchor: "start", "middle" or "end"
+
+
+@dataclass(frozen=True)
+class Marker:
+    x: float
+    kind: str  # "outcome", "talk" (a call or meeting), "email" or "note": its class and shape
+
+
+@dataclass(frozen=True)
 class Sparkline:
     shown: bool
     points: str  # the polyline's "x,y" pairs, oldest first; "" with a single point
@@ -776,14 +804,39 @@ class Sparkline:
     zones: list[Band]  # the watch and at-risk zones, faint behind the line
     caption: str  # the sentence under the chart, or the first-day message
     label: str  # the chart's accessible name
+    area: str = ""  # the polygon under the line: the line's points closed along the bottom
+    stops: list[Stop] = field(default_factory=list)  # the line's colour, by zone, top to bottom
+    gridlines: list[Gridline] = field(default_factory=list)
+    ticks: list[Tick] = field(default_factory=list)
+    markers: list[Marker] = field(default_factory=list)  # one per day with activity
+    kinds: list[tuple[str, str]] = field(default_factory=list)  # (kind, name) for the key
+    data: str = "[]"  # JSON for app.js: one entry per day with a reading or activity
+
+
+_MARKER_ORDER = ("outcome", "talk", "email", "note")  # the strongest kind names a day's marker
+MARKER_KEYS = {
+    "outcome": "Renewal outcome",
+    "talk": "Call or meeting",
+    "email": "Email",
+    "note": "Note",
+}
+_DAY_EVENTS = 3  # a day's tooltip names this many entries, then "and N more"
+_EVENT_TEXT = 60  # an entry's subject or text is cut to this in the tooltip
 
 
 def sparkline(
-    points: Sequence[history.TrendPoint], thresholds: Thresholds, today: date
+    points: Sequence[history.TrendPoint],
+    thresholds: Thresholds,
+    today: date,
+    account_journal: AccountJournal | None = None,
 ) -> Sparkline:
     """The account's risk over the last TREND_DAYS days as SVG geometry in a TREND_WIDTH by
-    TREND_HEIGHT box, with risk 100 at the top. Days sit on the 90-day window, so a young history
-    is at the right and fills in to the left."""
+    TREND_HEIGHT box, with risk 100 at the top of the plot. Days sit on the 90-day window, so a
+    young history is at the right and fills in to the left. Under the plot, a row of marks shows
+    the days with calls, meetings, emails, notes or a renewal outcome from `account_journal`.
+
+    `data` carries, per day, what app.js shows when the pointer or the arrow keys land on it: the
+    day, the risk and health that day, the change from the reading before, and what happened."""
     if not points:
         return Sparkline(
             shown=False,
@@ -799,35 +852,184 @@ def sparkline(
     at_risk_y = _y(thresholds.at_risk)
     watch_y = _y(thresholds.watch)
     zones = [
-        Band(y=_INSET, height=round(at_risk_y - _INSET, 1), css="trend-zone--at-risk"),
+        Band(y=PLOT_TOP, height=round(at_risk_y - PLOT_TOP, 1), css="trend-zone--at-risk"),
         Band(y=at_risk_y, height=round(watch_y - at_risk_y, 1), css="trend-zone--watch"),
+    ]
+    span = PLOT_BOTTOM - PLOT_TOP
+    at_risk_at = round((at_risk_y - PLOT_TOP) / span, 4)
+    watch_at = round((watch_y - PLOT_TOP) / span, 4)
+    # A point exactly on a threshold has that threshold's health, so the colour changes at the line.
+    stops = [
+        Stop(0, "at_risk"),
+        Stop(at_risk_at, "at_risk"),
+        Stop(at_risk_at, "watch"),
+        Stop(watch_at, "watch"),
+        Stop(watch_at, "healthy"),
+        Stop(1, "healthy"),
+    ]
+    gridlines = [
+        Gridline(
+            y=PLOT_TOP,
+            label=f"At risk {whole(thresholds.at_risk)}+",
+            label_y=PLOT_TOP + _LABEL_DROP,
+        ),
+        Gridline(
+            y=at_risk_y,
+            label=f"Watch {whole(thresholds.watch)}+",
+            label_y=at_risk_y + _LABEL_DROP,
+        ),
+        Gridline(y=watch_y, label="Healthy", label_y=watch_y + _LABEL_DROP),
+    ]
+    pairs = [(_x(point.day, today), _y(point.risk)) for point in points]
+    line = " ".join(f"{x},{y}" for x, y in pairs) if len(points) > 1 else ""
+    area = (
+        f"{pairs[0][0]},{PLOT_BOTTOM} {line} {pairs[-1][0]},{PLOT_BOTTOM}"
+        if len(points) > 1
+        else ""
+    )
+    events = _events_by_day(account_journal, today) if account_journal is not None else {}
+    markers = [
+        Marker(x=_x(day, today), kind=kinds[0]) for day, (kinds, _) in sorted(events.items())
+    ]
+    shown_kinds = [
+        (kind, MARKER_KEYS[kind]) for kind in _MARKER_ORDER if any(m.kind == kind for m in markers)
     ]
     caption = _caption(points, today)
     return Sparkline(
         shown=True,
-        points=(
-            " ".join(f"{_x(point.day, today)},{_y(point.risk)}" for point in points)
-            if len(points) > 1
-            else ""
-        ),
-        dot_x=_x(latest.day, today),
-        dot_y=_y(latest.risk),
+        points=line,
+        dot_x=pairs[-1][0],
+        dot_y=pairs[-1][1],
         dot_health=latest.health.value,
         zones=zones,
         caption=caption,
         label=f"Risk over the last {history.TREND_DAYS} days. {caption}",
+        area=area,
+        stops=stops,
+        gridlines=gridlines,
+        ticks=_ticks(today),
+        markers=markers,
+        kinds=shown_kinds,
+        data=_trend_data(points, events, today),
     )
 
 
+PLOT_TOP = _INSET
+PLOT_BOTTOM = 150  # the plot's floor; the activity marks and the dates sit under it
+PLOT_LEFT = _INSET
+PLOT_RIGHT = TREND_WIDTH - _INSET
+MARKER_Y = 168
+TICK_Y = 194
+_LABEL_DROP = 15  # a zone's name sits this far under the top of its zone
+_TICK_DAYS = (90, 60, 30, 0)
+
+
 def _y(risk: float) -> float:
-    span = TREND_HEIGHT - 2 * _INSET
-    return round(_INSET + (100 - min(max(risk, 0.0), 100.0)) / 100 * span, 1)
+    span = PLOT_BOTTOM - PLOT_TOP
+    return round(PLOT_TOP + (100 - min(max(risk, 0.0), 100.0)) / 100 * span, 1)
 
 
 def _x(day: date, today: date) -> float:
-    span = TREND_WIDTH - 2 * _INSET
+    span = PLOT_RIGHT - PLOT_LEFT
     days_ago = min(max((today - day).days, 0), history.TREND_DAYS)
-    return round(_INSET + (1 - days_ago / history.TREND_DAYS) * span, 1)
+    return round(PLOT_LEFT + (1 - days_ago / history.TREND_DAYS) * span, 1)
+
+
+def _tick_text(day: date) -> str:
+    """'10 Aug', 'Aug 10' or '08-10', by the date style."""
+    style = formatting.date_style()
+    if style is DateStyle.ISO:
+        return day.isoformat()[5:]
+    month = _MONTHS[day.month - 1]
+    return f"{month} {day.day}" if style is DateStyle.MONTH_DAY else f"{day.day} {month}"
+
+
+def _ticks(today: date) -> list[Tick]:
+    ticks: list[Tick] = []
+    for days in _TICK_DAYS:
+        if days > history.TREND_DAYS:
+            continue
+        day = today - timedelta(days=days)
+        anchor = "start" if days == history.TREND_DAYS else "end" if days == 0 else "middle"
+        ticks.append(
+            Tick(x=_x(day, today), text="Today" if days == 0 else _tick_text(day), anchor=anchor)
+        )
+    return ticks
+
+
+def _note_kind(note: Note) -> str:
+    if note.kind in (TouchKind.CALL, TouchKind.MEETING):
+        return "talk"
+    if note.kind is TouchKind.NOTE:
+        return "note"
+    return "email"  # an email, or any other touch with the customer
+
+
+def _note_event(note: Note) -> str:
+    """'Call: Quarterly review', 'Email received: Renewal terms', 'Note: Champion is leaving'."""
+    if note.kind is TouchKind.EMAIL and note.direction is not None:
+        what = f"Email {note.direction.label.lower()}"
+    else:
+        what = note.kind.label
+    detail = note.subject or note.text
+    detail = cut_text(detail, _EVENT_TEXT) if detail else ""
+    return f"{what}: {detail}" if detail else what
+
+
+def _events_by_day(
+    account_journal: AccountJournal, today: date
+) -> dict[date, tuple[list[str], list[str]]]:
+    """Each day in the window with activity: its marker kinds (strongest first) and what happened
+    that day, outcomes first and then entries in the order they were added."""
+    since = today - timedelta(days=history.TREND_DAYS)
+    kinds: dict[date, set[str]] = {}
+    texts: dict[date, list[str]] = {}
+    for outcome in account_journal.outcomes:
+        if since <= outcome.decided_on <= today:
+            kinds.setdefault(outcome.decided_on, set()).add("outcome")
+            texts.setdefault(outcome.decided_on, []).append(f"Outcome: {outcome.kind.label}")
+    for note in account_journal.notes:
+        if since <= note.happened_on <= today:
+            kinds.setdefault(note.happened_on, set()).add(_note_kind(note))
+            texts.setdefault(note.happened_on, []).append(_note_event(note))
+    days: dict[date, tuple[list[str], list[str]]] = {}
+    for day, found in kinds.items():
+        ordered = [kind for kind in _MARKER_ORDER if kind in found]
+        lines = texts[day]
+        if len(lines) > _DAY_EVENTS:
+            extra = len(lines) - _DAY_EVENTS
+            lines = [*lines[:_DAY_EVENTS], f"and {extra} more"]
+        days[day] = (ordered, lines)
+    return days
+
+
+def _trend_data(
+    points: Sequence[history.TrendPoint],
+    events: Mapping[date, tuple[list[str], list[str]]],
+    today: date,
+) -> str:
+    by_day = {point.day: point for point in points}
+    rows: list[dict[str, object]] = []
+    previous: history.TrendPoint | None = None
+    for day in sorted(set(by_day) | set(events)):
+        point = by_day.get(day)
+        row: dict[str, object] = {
+            "x": _x(day, today),
+            "day": "Today" if day == today else short_day(day, today),
+            "events": events[day][1] if day in events else [],
+        }
+        if point is not None:
+            row.update(
+                y=_y(point.risk),
+                risk=whole(point.risk),
+                health=point.health.label,
+                tone=point.health.value,
+                change=whole(point.risk) - whole(previous.risk) if previous is not None else None,
+                rank=point.rank,
+            )
+            previous = point
+        rows.append(row)
+    return json.dumps(rows, separators=(",", ":"), ensure_ascii=False)
 
 
 def _caption(points: Sequence[history.TrendPoint], today: date) -> str:

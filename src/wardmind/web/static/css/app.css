@@ -3817,6 +3817,24 @@ a.button-primary {
     transition: none !important;
   }
 
+  /* The trend's line and fill start hidden for their draw-in, which print never runs. */
+  .trend-line {
+    stroke-dasharray: none !important;
+    stroke-dashoffset: 0 !important;
+  }
+
+  .trend-area {
+    opacity: 1;
+  }
+
+  .trend-chart,
+  .book-bar,
+  .renewal-bar,
+  .bar {
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
+
   .book-bar,
   .health,
   .count-bar,
@@ -4889,12 +4907,23 @@ a.button-primary {
   margin: 0;
 }
 
-/* The risk trend: a faint watch and at-risk band behind the line, and the latest reading as a dot. */
+/* The risk trend. Faint watch and at-risk bands sit behind a line that takes each zone's colour as
+   it crosses into it, over a soft fill in the same colours. Under the plot, one mark per day with
+   activity, then the dates. Hover, or focus the chart and use the arrow keys: a rule and a ring
+   show the day, and a tip gives its reading. The line draws in once when the page opens. */
 .trend {
   display: flex;
   flex-direction: column;
-  gap: var(--space-2);
-  margin-block-start: var(--space-4);
+  gap: var(--space-3);
+  margin: var(--space-4) 0 0;
+}
+
+.trend-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-2) var(--space-4);
 }
 
 .trend-title {
@@ -4904,16 +4933,56 @@ a.button-primary {
   font-weight: 600;
 }
 
-.trend-chart {
-  display: block;
-  inline-size: 100%;
-  max-inline-size: 30rem;
-  block-size: auto;
+.trend-key {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-4);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: var(--t-sm);
+  line-height: var(--lh-sm);
+  color: var(--ink-muted);
+}
+
+.trend-key li {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.trend-key-mark {
+  flex: none;
   overflow: visible;
 }
 
+.trend-frame {
+  position: relative;
+  max-inline-size: 44rem;
+}
+
+.trend-chart {
+  display: block;
+  inline-size: 100%;
+  block-size: auto;
+  overflow: visible;
+  border-radius: var(--radius-control);
+  touch-action: pan-y;
+}
+
+.trend-chart:focus-visible {
+  outline: var(--focus-width) solid var(--accent);
+  outline-offset: 6px;
+}
+
+.trend-chart text {
+  font-family: var(--font-ui);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
 .trend-zone {
-  opacity: 0.5;
+  opacity: 0.45;
 }
 
 .trend-zone--at-risk {
@@ -4924,17 +4993,78 @@ a.button-primary {
   fill: var(--tag-orange-bg);
 }
 
+.trend-grid {
+  stroke: var(--line-strong);
+  stroke-width: 1;
+  stroke-dasharray: 3 4;
+  vector-effect: non-scaling-stroke;
+}
+
+.trend-floor {
+  stroke: var(--line-strong);
+  stroke-width: 1;
+  vector-effect: non-scaling-stroke;
+}
+
+.trend-zone-name {
+  fill: var(--ink-muted);
+  font-weight: 600;
+}
+
+.trend-tick {
+  fill: var(--ink-muted);
+}
+
+.trend-stop--at_risk {
+  stop-color: var(--risk);
+}
+
+.trend-stop--watch {
+  stop-color: var(--watch);
+}
+
+.trend-stop--healthy {
+  stop-color: var(--healthy);
+}
+
+.trend-fill-stop {
+  stop-opacity: 0.16;
+}
+
 .trend-line {
   fill: none;
-  stroke: var(--ink-muted);
-  stroke-width: 1.5;
+  stroke-width: 2.5;
   stroke-linejoin: round;
   stroke-linecap: round;
 }
 
+.trend-mark {
+  stroke-width: 1.5;
+}
+
+.trend-mark--outcome {
+  fill: var(--ink);
+  stroke: var(--surface);
+}
+
+.trend-mark--talk {
+  fill: var(--accent);
+  stroke: var(--surface);
+}
+
+.trend-mark--email {
+  fill: var(--surface);
+  stroke: var(--accent);
+}
+
+.trend-mark--note {
+  fill: var(--control);
+  stroke: var(--surface);
+}
+
 .trend-dot {
   stroke: var(--surface);
-  stroke-width: 1.5;
+  stroke-width: 2;
 }
 
 .trend-dot--at_risk {
@@ -4949,12 +5079,213 @@ a.button-primary {
   fill: var(--healthy);
 }
 
+.trend-focus {
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 120ms ease-out;
+}
+
+.trend-focus.is-shown {
+  opacity: 1;
+}
+
+.trend-rule {
+  stroke: var(--ink-muted);
+  stroke-width: 1;
+  vector-effect: non-scaling-stroke;
+}
+
+.trend-ring {
+  fill: var(--surface);
+  stroke-width: 3;
+}
+
+.trend-ring.is-hidden {
+  display: none;
+}
+
+.trend-ring--at_risk {
+  stroke: var(--risk);
+}
+
+.trend-ring--watch {
+  stroke: var(--watch);
+}
+
+.trend-ring--healthy {
+  stroke: var(--healthy);
+}
+
 .trend-caption {
   margin: 0;
   font-size: var(--t-sm);
   line-height: var(--lh-sm);
   color: var(--ink-muted);
 }
+
+/* app.js sets the line's dash to its own length and adds .is-drawing; without JavaScript, or with
+   reduced motion, the line is simply there. */
+@media (prefers-reduced-motion: no-preference) {
+  .trend-line.is-drawing {
+    animation: trend-draw 900ms cubic-bezier(0.3, 0.7, 0.2, 1) 100ms forwards;
+  }
+
+  .trend-area.is-drawing {
+    opacity: 0;
+    animation: trend-fade 500ms ease-out 650ms forwards;
+  }
+}
+
+@keyframes trend-draw {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+@keyframes trend-fade {
+  to {
+    opacity: 1;
+  }
+}
+
+/* On a narrow screen the chart is drawn smaller, so its words are set larger in the chart's units
+   to stay readable. */
+@media (max-width: 40rem) {
+  .trend-chart text {
+    font-size: 19px;
+  }
+}
+
+/* The tip that app.js places over a chart is a reading slip: a hairline box whose left rule takes
+   the colour of what is being read (that day's health, or the band's), the day or band in bold,
+   the risk set large where there is one, then a line per figure. */
+.chart-tip {
+  --tip-rule: var(--line-strong);
+  position: absolute;
+  z-index: 5;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  inline-size: max-content;
+  max-inline-size: 18rem;
+  padding: var(--space-2) var(--space-3) var(--space-2) calc(var(--space-3) + 2px);
+  border: 1px solid var(--line-strong);
+  border-inline-start: 4px solid var(--tip-rule);
+  border-radius: 4px;
+  background: var(--surface);
+  box-shadow: 0 1px 2px rgb(20 20 30 / 0.08);
+  color: var(--ink);
+  font-size: var(--t-sm);
+  line-height: var(--lh-sm);
+  font-variant-numeric: tabular-nums;
+  pointer-events: none;
+  transform: translateY(calc(-100% - 12px));
+}
+
+.chart-tip[hidden] {
+  display: none;
+}
+
+.chart-tip--beside {
+  transform: none;
+}
+
+.chart-tip--at_risk {
+  --tip-rule: var(--risk);
+}
+
+.chart-tip--watch {
+  --tip-rule: var(--watch);
+}
+
+.chart-tip--healthy,
+.chart-tip--commit {
+  --tip-rule: var(--healthy);
+}
+
+.chart-tip--likely {
+  --tip-rule: var(--accent-blue);
+}
+
+.chart-tip-title {
+  font-weight: 600;
+}
+
+.chart-tip-reading {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  margin-block: 2px;
+}
+
+.chart-tip-figure {
+  font-size: var(--t-xl);
+  line-height: 1;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+.chart-tip-word {
+  font-weight: 600;
+}
+
+.chart-tip-word--at_risk {
+  color: var(--risk);
+}
+
+.chart-tip-word--watch {
+  color: var(--watch);
+}
+
+.chart-tip-word--healthy {
+  color: var(--healthy);
+}
+
+.chart-tip-line {
+  color: var(--ink-muted);
+}
+
+.chart-tip-line--event {
+  color: var(--ink);
+}
+
+.chart-tip-line:not(.chart-tip-line--event) + .chart-tip-line--event {
+  margin-block-start: var(--space-1);
+  padding-block-start: var(--space-1);
+  border-block-start: 1px solid var(--line);
+}
+
+/* Stacked bars (the brief's ARR by health, the renewals page's ARR by call): rounded ends, a thin
+   gap between bands, and on hover the other bands and their legend entries fade back. */
+.stack {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.book-bar,
+.renewal-bar {
+  border-radius: var(--radius-tag);
+  overflow: hidden;
+}
+
+.seg,
+.renewal-seg {
+  stroke: var(--surface);
+  stroke-width: 2;
+  vector-effect: non-scaling-stroke;
+  transition: opacity 120ms ease-out;
+}
+
+.stack [data-key] {
+  transition: opacity 120ms ease-out;
+}
+
+.stack.is-picking [data-key]:not(.is-picked) {
+  opacity: 0.3;
+}
+
 
 /* "Since last week" and "Follow-ups due this week": a list of rows, each a tag and a sentence. */
 .since-panel {

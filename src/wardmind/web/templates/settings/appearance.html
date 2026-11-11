@@ -8,7 +8,7 @@
   <fieldset{% if errors.theme %} aria-describedby="theme-error"{% endif %}>
     <legend>Theme</legend>
     <div class="choices">
-      {% for value, label in [("system", "Match my computer"), ("light", "Light"), ("dark", "Dark")] %}
+      {% for value, label in [("light", "Light"), ("dark", "Dark"), ("system", "Match my computer")] %}
       <label class="choice"><input type="radio" name="theme" value="{{ value }}"{% if current.theme.value == value %} checked{% endif %}> {{ label }}</label>
       {% endfor %}
     </div>

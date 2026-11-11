@@ -62,8 +62,8 @@
           <span class="cell-label" aria-hidden="true">Priority</span>
           <span class="priority-value">{{ item.priority | whole }}</span>
           <svg class="bar" viewBox="0 0 100 6" width="56" height="6" role="img" aria-label="Priority {{ item.priority | whole }} of 100">
-            <rect class="bar-track" width="100" height="6"/>
-            <rect class="bar-fill" width="{{ item.priority }}" height="6"/>
+            <rect class="bar-track" width="100" height="6" rx="3"/>
+            <rect class="bar-fill" width="{{ item.priority }}" height="6" rx="3"/>
           </svg>
         </td>
         <td role="cell" class="cell-motion"><span class="pill pill--{{ item.motion.value }}"><svg class="icon" aria-hidden="true" focusable="false"><use href="/static/icons.svg#motion-{{ item.motion.value }}"/></svg>{{ item.motion.label }}</span></td>
@@ -108,8 +108,8 @@
           <span class="card-priority">
             <span>Priority <strong>{{ item.priority | whole }}</strong></span>
             <svg class="bar" viewBox="0 0 100 6" width="56" height="6" aria-hidden="true" focusable="false">
-              <rect class="bar-track" width="100" height="6"/>
-              <rect class="bar-fill" width="{{ item.priority }}" height="6"/>
+              <rect class="bar-track" width="100" height="6" rx="3"/>
+              <rect class="bar-fill" width="{{ item.priority }}" height="6" rx="3"/>
             </svg>
           </span>
           <span><strong>{{ item.account.arr | money }}</strong> ARR</span>

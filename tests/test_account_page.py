@@ -134,8 +134,8 @@ def test_breakdown_rows_follow_the_breakdown_with_bar_geometry(
 
     bars = re.findall(
         r'<svg class="pbar" width="(\d+)" height="8" role="img" aria-label="([^"]+)">'
-        r'<rect class="pbar-track" width="(\d+)" height="8"/>'
-        r'<rect class="pbar-fill" width="(\d+)" height="8"/></svg>',
+        r'<rect class="pbar-track" width="(\d+)" height="8" rx="4"/>'
+        r'<rect class="pbar-fill" width="(\d+)" height="8" rx="4"/></svg>',
         table,
     )
     longest = max(row.max_points for row in detail.breakdown)

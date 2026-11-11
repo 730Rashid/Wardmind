@@ -34,7 +34,7 @@ STATIC = WEB_DIR / "static"
 TEMPLATES = WEB_DIR / "templates"
 ORIGIN = {"origin": "http://127.0.0.1"}
 CHOICES = {"theme": "dark", "accent": "petrol", "density": "compact", "landing": "brief"}
-DEFAULT_CHECKED = {"theme": "system", "accent": "plum", "density": "comfortable", "landing": "book"}
+DEFAULT_CHECKED = {"theme": "light", "accent": "plum", "density": "comfortable", "landing": "book"}
 
 
 class _Tags(HTMLParser):
