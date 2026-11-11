@@ -89,7 +89,8 @@ Requires Python 3.11+ and [uv](https://docs.astral.sh/uv/).
 . .\scripts\dev.ps1        # keeps the virtualenv outside OneDrive
 uv sync
 uv run wardmind score      # ranked top 10 in the terminal
-uv run wardmind ui         # dashboard at http://127.0.0.1:8000
+uv run wardmind ui         # dashboard at http://127.0.0.1:8000, opened in your browser
+uv run wardmind open       # open the running dashboard in another browser window
 ```
 
 ### Use it from Claude Code
@@ -224,6 +225,9 @@ All weights, thresholds and windows live in [`config/scoring.yaml`](config/scori
 ## Privacy and security
 
 - The web UI binds to `127.0.0.1` only and answers only to `127.0.0.1` and `localhost`.
+- Only the person who started Wardmind can open it. The browser signs in with a link that
+  `wardmind ui` (or the desktop window) opens for you, and `wardmind open` opens it again. Other
+  Windows accounts on the same computer get "403".
 - Nothing is loaded from a CDN. htmx and the Atkinson Hyperlegible Next font are vendored; see
   [`VENDORED.md`](src/wardmind/web/static/VENDORED.md).
 - A strict Content-Security-Policy blocks inline scripts and third-party requests.

@@ -110,6 +110,7 @@ def ui(
     import uvicorn
 
     from wardmind.core.settings import load_settings
+    from wardmind.web import session
     from wardmind.web.app import HOST, create_app
 
     try:
@@ -119,10 +120,35 @@ def ui(
         typer.echo(f"Port {port} is in use. Try: wardmind ui --port {port + 1}", err=True)
         raise typer.Exit(code=1) from None
 
-    url = f"http://{HOST}:{port}{load_settings().landing.path}"
+    # Only the person who started Wardmind can open it: the browser signs in with this run's
+    # entry link (see web/session.py), which `wardmind open` can find again later.
+    gate = session.SessionGate.new()
+    base = f"http://{HOST}:{port}"
+    url = gate.entry_url(base, load_settings().landing.path)
+    session.publish(gate, base)
     if not no_browser:
         timer = threading.Timer(1.0, webbrowser.open, args=(url,))
         timer.daemon = True
         timer.start()
-    typer.echo(f"Wardmind is running at {url}  (Ctrl+C to stop)")
-    uvicorn.run(create_app(), host=HOST, port=port, log_level="warning")
+    typer.echo(f"Wardmind is running at {base}  (Ctrl+C to stop)")
+    typer.echo("To open it in another browser window, run: wardmind open")
+    try:
+        uvicorn.run(create_app(gate), host=HOST, port=port, log_level="warning")
+    finally:
+        session.withdraw()
+
+
+@app.command("open")
+def open_() -> None:
+    """Open the running dashboard in your browser (signed in)."""
+    import webbrowser
+
+    from wardmind.core.settings import load_settings
+    from wardmind.web import session
+
+    link = session.open_link(next_path=load_settings().landing.path)
+    if link is None:
+        typer.echo("Wardmind isn't running. Start it with: wardmind ui", err=True)
+        raise typer.Exit(code=1)
+    webbrowser.open(link)
+    typer.echo("Opened Wardmind in your browser.")

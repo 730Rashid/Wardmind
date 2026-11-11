@@ -244,7 +244,12 @@ def test_ui_binds_loopback_on_the_requested_port(server: dict[str, Any], timers:
     assert server["log_level"] == "warning"
     assert server["app"].docs_url is None
     assert timers == []
-    assert f"Wardmind is running at http://127.0.0.1:{port}/  (Ctrl+C to stop)" in result.output
+    assert f"Wardmind is running at http://127.0.0.1:{port}  (Ctrl+C to stop)" in result.output
+    assert "wardmind open" in result.output
+    # The app it serves is gated: without the sign-in cookie every page is refused.
+    gated = TestClient(server["app"], base_url="http://127.0.0.1")
+    assert gated.get("/").status_code == 403
+    assert gated.get("/static/css/app.css").status_code == 200
 
 
 def test_ui_opens_the_browser_one_second_later(
@@ -259,7 +264,14 @@ def test_ui_opens_the_browser_one_second_later(
     assert timer.interval == 1.0
     assert timer.started
     timer.function(*timer.args)
-    assert opened == [f"http://127.0.0.1:{port}/"]
+    (link,) = opened
+    assert link.startswith(f"http://127.0.0.1:{port}/enter?t=")
+    assert link.endswith("&next=%2F")
+    # The link signs the browser in and lands on the page it names.
+    gated = TestClient(server["app"], base_url="http://127.0.0.1")
+    landed = gated.get(link.split(str(port), 1)[1])
+    assert landed.status_code == 200
+    assert str(landed.url).endswith("/")
     assert server["host"] == "127.0.0.1"
 
 

@@ -108,6 +108,7 @@ from wardmind.web import (
     formatting,
     journal_pages,
     renewal_pages,
+    session,
     today_pages,
 )
 from wardmind.web import runway as runway_geometry
@@ -2577,10 +2578,40 @@ def _logo_redirect(account_id: str, code: str) -> RedirectResponse:
     )
 
 
-def create_app() -> FastAPI:
-    """Build the web app: no API docs, a host allow-list, and security headers on every response."""
+def create_app(gate: session.SessionGate | None = None) -> FastAPI:
+    """Build the web app: no API docs, a host allow-list, and security headers on every response.
+
+    `gate` is the session gate (web/session.py). The launchers (`wardmind ui` and the desktop
+    window) always pass one, so only the person who started Wardmind can open its pages; without
+    it (tests) every page is open to whoever reaches 127.0.0.1."""
     app = FastAPI(docs_url=None, redoc_url=None, openapi_url=None, lifespan=_lifespan)
     app.add_middleware(TrustedHostMiddleware, allowed_hosts=["127.0.0.1", "localhost"])
+
+    if gate is not None:
+
+        @app.middleware("http")
+        async def session_check(
+            request: Request, call_next: Callable[[Request], Awaitable[Response]]
+        ) -> Response:
+            if session.is_open_path(request.url.path):
+                return await call_next(request)
+            if not gate.accepts_cookie(request.cookies.get(session.SESSION_COOKIE)):
+                return PlainTextResponse(session.LOCKED_OUT_MESSAGE, status_code=403)
+            return await call_next(request)
+
+        @app.get(session.ENTER_PATH)
+        async def enter(t: str = "", next: str = "/") -> Response:  # noqa: A002
+            if not gate.accepts_entry(t):
+                return PlainTextResponse(session.BAD_ENTRY_MESSAGE, status_code=403)
+            response = RedirectResponse(session.safe_next(next), status_code=303)
+            response.set_cookie(
+                session.SESSION_COOKIE,
+                gate.session_token,
+                httponly=True,
+                samesite="strict",
+                path="/",
+            )
+            return response
 
     @app.middleware("http")
     async def same_origin_writes(

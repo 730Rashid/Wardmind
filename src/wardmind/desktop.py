@@ -93,12 +93,15 @@ class WebAppThread:
     def __init__(self, port: int) -> None:
         import uvicorn
 
+        from wardmind.web import session
         from wardmind.web.app import HOST, create_app
 
         self.port = port
         self.url = f"http://{HOST}:{port}"
+        # Only this window (and `wardmind open`) can sign in: see web/session.py.
+        self.gate = session.SessionGate.new()
         config = uvicorn.Config(
-            create_app(), host=HOST, port=port, log_level="warning", log_config=None
+            create_app(self.gate), host=HOST, port=port, log_level="warning", log_config=None
         )
         # uvicorn installs signal handlers only on the main thread, so none are taken here.
         self.server = uvicorn.Server(config)
@@ -171,15 +174,20 @@ def run() -> int:
         return 0
 
     from wardmind.core.settings import load_settings
+    from wardmind.web import session
 
     web = WebAppThread(free_port())
     try:
         web.start()
-        open_window(web.url + load_settings().landing.path, on_closed=web.request_stop)
+        session.publish(web.gate, web.url)
+        open_window(
+            web.gate.entry_url(web.url, load_settings().landing.path), on_closed=web.request_stop
+        )
     except DesktopError as error:
         show_message(error.message)
         return 1
     finally:
+        session.withdraw()
         web.stop()
     return 0
 

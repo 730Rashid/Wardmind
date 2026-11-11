@@ -190,6 +190,7 @@ worked out from its sample readings.
 | Notes, activity (calls, meetings, logged emails), pins, account teams, follow-ups, snoozes, renewal outcomes and forecast calls | `%LOCALAPPDATA%\wardmind\data\journal.json` (demo data: `demo-journal.json`) |
 | Mailbox settings: provider, server, username, your other addresses, last check | `%LOCALAPPDATA%\wardmind\data\mailbox.json` |
 | Mailbox app password | `%LOCALAPPDATA%\wardmind\feeds\mailbox-password` |
+| The sign-in link for the running dashboard (deleted when it stops) | `%LOCALAPPDATA%\wardmind\session.json` |
 | Logos | `%LOCALAPPDATA%\wardmind\data\logos` |
 | Score history, one snapshot a day for two years | `%LOCALAPPDATA%\wardmind\data\history` |
 | Client update agreements, codes, your form link and updates waiting for review | `%LOCALAPPDATA%\wardmind\data\client_updates.json` |
@@ -217,6 +218,13 @@ same folder, not with the keys, so treat that folder as private.
 - It listens on `127.0.0.1` only, so other computers on your network can't reach it. It
   answers only to `127.0.0.1` and `localhost`, which stops websites from reaching it by
   pointing their own names at your computer.
+- Only you can open it. `127.0.0.1` is shared by every Windows account signed in to the same
+  computer, so Wardmind signs your browser in with a random link each time it starts: the
+  desktop window and `wardmind ui` open it for you, and `wardmind open` opens it again. The link
+  sets a cookie that no script can read and that is never sent from another website. Without
+  it, every page answers "403". The link for the current run is kept in your per-user Wardmind
+  folder (`%LOCALAPPDATA%\wardmind\session.json`), which other accounts can't read, and is
+  deleted when Wardmind stops.
 - Changes can only come from Wardmind's own pages. A form posted from another website is
   refused.
 - Other websites can't load its pages, images or scripts, or put it in a frame, so they can't

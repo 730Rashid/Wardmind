@@ -113,7 +113,9 @@ def test_the_window_shows_the_dashboard_and_closing_it_stops_the_web_app(
     seen: dict[str, object] = {}
 
     def look(url: str) -> None:
-        response = httpx.get(url, timeout=10)
+        # The window opens the sign-in link, which sets the session cookie and redirects.
+        with httpx.Client(follow_redirects=True, timeout=10) as browser:
+            response = browser.get(url)
         seen["status"] = response.status_code
         seen["body"] = response.text
 
@@ -134,6 +136,7 @@ def test_the_window_shows_the_dashboard_and_closing_it_stops_the_web_app(
     window = module.calls["window"]
     assert window["title"] == "Wardmind"
     assert str(window["url"]).startswith(f"http://{HOST}:")
+    assert "/enter?t=" in str(window["url"])
     assert seen["status"] == 200
     assert "Wardmind" in str(seen["body"])
     assert module.settings["ALLOW_DOWNLOADS"] is True

@@ -1,8 +1,8 @@
 # Privacy lock, multiple books and shared books: design
 
-Status: proposed design, not built yet. It is planned after bundle B. It was drafted from a
-read-only review of the code on 2026-11-11. The decisions at the end need the user's answers
-before anyone writes contracts.
+Status: being built in phases (see E). Phase 0 (the session check) is done. It was drafted from
+a read-only review of the code on 2026-11-11. While the user was away they asked for the
+recommended answers to be used; the answers taken are at the end.
 
 ## What the current code means for the design
 
@@ -254,3 +254,26 @@ through ctypes.
 7. **Hidden accounts and pins:** personal (recommended) or shared?
 8. **Dependency:** may `cryptography` become a direct dependency?
 9. **Auto-lock time:** 15 minutes by default?
+
+### Answers taken (2026-11-11)
+
+The user asked for the recommended answers while they were away. They can change any of them.
+
+1. A printed recovery key.
+2. One password for all books.
+3. Claude Desktop reads a password-protected book only while Wardmind is unlocked.
+4. Any folder the user picks: OneDrive, SharePoint, Google Drive or a network share. OneDrive is
+   suggested first, as the user already uses it.
+5. Teammates see each other's notes. A note can be marked "Only me", and such a note is never
+   shared.
+6. Each person pulls HubSpot with their own access.
+7. Hidden accounts and pins are personal.
+8. `cryptography` becomes a direct dependency (already installed; no new download).
+9. Auto-lock after 15 idle minutes.
+
+### Phase 0 as built
+
+- `web/session.py`: `SessionGate` (entry and session tokens, 32 random bytes each), `safe_next`,
+  and `session.json` for `wardmind open`.
+- `create_app(gate)`: without the cookie every path but `/enter` and `/static/` gets 403. The
+  launchers always pass a gate; tests build the app without one.
