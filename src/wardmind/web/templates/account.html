@@ -73,6 +73,8 @@
 
     {% include "accounts/_next_step.html" %}
 
+    {% if forecast is not none %}{% include "accounts/_golive.html" %}{% endif %}
+
     {% include "accounts/_follow_ups.html" %}
 
     {% include "accounts/_notes.html" %}
@@ -81,9 +83,11 @@
 
     <section class="account-section score" aria-labelledby="score-heading">
       <h2 class="section-title" id="score-heading">Why it's ranked {{ detail.rank }} of {{ detail.book_size }}</h2>
+      {% include "accounts/_confidence.html" %}
       {% set longest = detail.breakdown | map(attribute="max_points") | max %}
-      {{ breakdown_table(detail.breakdown, longest, "How each signal adds to the risk score") }}
+      {{ breakdown_table(detail.breakdown, longest, "How each signal adds to the risk score", ages=reading_ages) }}
       <p class="risk-sentence">{{ risk_sentence(detail.scored.risk, detail.scored.priority, health, thresholds) }}</p>
+      {% if path is not none %}{% include "accounts/_path_down.html" %}{% endif %}
       {% include "accounts/_trend.html" %}
     </section>
 
@@ -127,6 +131,7 @@
       <dt>Data source</dt>
       <dd>{{ connector_label }}</dd>
     </dl>
+    {% if seats is not none %}{% include "accounts/_shelfware.html" %}{% endif %}
     {% include "accounts/_outcome.html" %}
     {% include "accounts/_updates_box.html" %}
   </aside>

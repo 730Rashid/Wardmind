@@ -1,4 +1,7 @@
-{% macro breakdown_table(rows, longest, caption) -%}
+{# `ages` is optional: a dict of SignalKind to ReadingAge (insights.score_confidence). A row with a
+   reading then shows how old it is under the reading, and says so plainly when it is out of date.
+   Without `ages` the table renders as it always has. #}
+{% macro breakdown_table(rows, longest, caption, ages=None) -%}
 <table class="breakdown">
         <caption class="visually-hidden">{{ caption }}</caption>
         <thead>
@@ -10,10 +13,10 @@
         </thead>
         <tbody>
           {% for row in rows %}
-          {% set track, fill = bar_geometry(row, longest) %}
+          {% set track, fill = bar_geometry(row, longest) %}{% set age = ages.get(row.kind) if ages else none %}
           <tr{% if row.contribution == 0 %} class="breakdown-row--muted"{% endif %}>
             <th scope="row" class="cell-signal">{{ row.label }}</th>
-            <td class="cell-reading">{{ row.value_text }}</td>
+            <td class="cell-reading">{{ row.value_text }}{% if age is not none and age.age_days is not none %}{% if age.stale %}<span class="reading-age reading-age--stale">Out of date: read {{ age.age_days }} days ago</span>{% elif age.age_days == 0 %}<span class="reading-age">Read today</span>{% elif age.age_days == 1 %}<span class="reading-age">Read yesterday</span>{% else %}<span class="reading-age">Read {{ age.age_days }} days ago</span>{% endif %}{% endif %}</td>
             <td class="cell-points num">
               <svg class="pbar" width="{{ track }}" height="8" role="img" aria-label="{{ row.contribution | number }} of {{ row.max_points | number }} points"><rect class="pbar-track" width="{{ track }}" height="8"/><rect class="pbar-fill" width="{{ fill }}" height="8"/></svg>
               <span class="points-text">{{ row.contribution | number }} of {{ row.max_points | number }}</span>

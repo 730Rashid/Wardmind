@@ -1,0 +1,15 @@
+{# Unused seats on the renewals coming up, for the weekly brief: a lead sentence, one boxed row per
+   account (name, share and value of the unused seats, renewal date), a count of the rest, and the
+   flat-price assumption. The caller shows this only when there is at least one account. #}
+<p class="shelfware-lead">{{ shelfware_sentence }}</p>
+<ul class="shelfware-list">
+  {% for row in shelfware.rows %}
+  <li class="shelfware-row">
+    <p class="shelfware-head"><a class="account-link" href="/accounts/{{ row.account_id | idpath }}">{{ row.name }}</a></p>
+    <p class="shelfware-figures">{{ row.shelfware.unused_percent }}% of seats unused, about {{ row.shelfware.unused_arr | money }}</p>
+    <p class="shelfware-renews">Renews {{ renewals[row.account_id] | day_label(today_day) }}</p>
+  </li>
+  {% endfor %}
+</ul>
+{% if shelfware_more %}<p class="shelfware-more">and {{ shelfware_more }} more.</p>{% endif %}
+<p class="section-note">Assumes a flat price per seat.</p>

@@ -1,0 +1,36 @@
+{# What would it take: the smallest change that moves the account down one health band
+   (insights.path_down). Shown only for an account that is at risk or on watch. #}
+{% macro join_and(items) -%}
+{%- if items | length > 1 %}{{ items[:-1] | join(', ') }} and {{ items[-1] }}{% else %}{{ items | join('') }}{% endif -%}
+{%- endmacro %}
+{% macro fix_row(fix) -%}
+<li class="journal-item path-fix"><span class="path-goal">{{ fix.goal_text }}.</span> <span class="path-now">Now: {{ fix.now_text }}.</span></li>
+{%- endmacro %}
+<div class="path-down">
+  <h3 class="path-title" id="path-heading">What would it take</h3>
+  {% if path.together %}
+  {# The summary names every fix; the list below says it better, with where each one stands. #}
+  <p class="path-summary">No single fix is enough. These {{ path.together | length }} together would drop it to {{ path.target.label }}:</p>
+  {% else %}
+  <p class="path-summary">{{ path.summary }}</p>
+  {% endif %}
+  {% if path.single | length > 1 %}
+  <p class="path-label">Other ways to get there:</p>
+  <ul class="journal-list path-list">
+    {% for fix in path.single[1:] %}
+    {{ fix_row(fix) }}
+    {% endfor %}
+  </ul>
+  {% endif %}
+  {% if path.together %}
+  <ul class="journal-list path-list">
+    {% for fix in path.together %}
+    {{ fix_row(fix) }}
+    {% endfor %}
+  </ul>
+  {% endif %}
+  {% if path.single and path.not_enough %}
+  <p class="path-muted">Not enough on its own: {{ join_and(path.not_enough) }}.</p>
+  {% endif %}
+  <p class="path-note">This is the score's arithmetic. Fixing the cause is what keeps it there.</p>
+</div>

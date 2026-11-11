@@ -1,3 +1,8 @@
+{# A blind spot: Healthy only because its readings are missing or old. The word carries it; the
+   explanation is for screen readers and sits in the tag's text. #}
+{% macro blind_tag() -%}
+<span class="chip">Blind spot<span class="visually-hidden"> — healthy may only mean data is missing or out of date</span></span>
+{%- endmacro %}
 <div id="results">
   {% if rows and view == "list" %}
   <div class="table-card">
@@ -20,9 +25,12 @@
       <tr role="row">
         <th scope="row" role="rowheader" class="cell-rank num">{{ rank }}</th>
         <td role="cell" class="cell-health">
-          <span class="health health--{{ item.health.value }}">
-            <svg class="icon" aria-hidden="true" focusable="false"><use href="/static/icons.svg#health-{{ item.health.value | replace('_', '-') }}"/></svg>
-            {{ item.health.label }}
+          <span class="health-status">
+            <span class="health health--{{ item.health.value }}">
+              <svg class="icon" aria-hidden="true" focusable="false"><use href="/static/icons.svg#health-{{ item.health.value | replace('_', '-') }}"/></svg>
+              {{ item.health.label }}
+            </span>
+            {% if item.account.id in blind_spots %}{{ blind_tag() }}{% endif %}
           </span>
         </td>
         <td role="cell" class="cell-priority num">
@@ -68,9 +76,12 @@
       <article class="account-card" aria-labelledby="{{ card_id }}">
         <div class="card-top">
           <span class="rank-tile"><span class="visually-hidden">Rank </span>{{ rank }}</span>
-          <span class="health health--{{ item.health.value }}">
-            <svg class="icon" aria-hidden="true" focusable="false"><use href="/static/icons.svg#health-{{ item.health.value | replace('_', '-') }}"/></svg>
-            {{ item.health.label }}
+          <span class="health-status">
+            <span class="health health--{{ item.health.value }}">
+              <svg class="icon" aria-hidden="true" focusable="false"><use href="/static/icons.svg#health-{{ item.health.value | replace('_', '-') }}"/></svg>
+              {{ item.health.label }}
+            </span>
+            {% if item.account.id in blind_spots %}{{ blind_tag() }}{% endif %}
           </span>
         </div>
         <h3 class="card-title" id="{{ card_id }}"><a class="account-link" href="/accounts/{{ item.account.id | idpath }}">{{ item.account.name }}</a></h3>

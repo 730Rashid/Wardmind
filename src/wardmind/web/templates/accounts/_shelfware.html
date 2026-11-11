@@ -1,0 +1,10 @@
+{# Unused seats: the part of the contract paying for seats no one uses, at a flat price per seat
+   (insights.shelfware). Shown in the aside only when enough seats are unused. #}
+{% if seats is not none %}
+<section class="shelfware" aria-labelledby="shelfware-heading">
+  <h2 class="section-title" id="shelfware-heading">Unused seats</h2>
+  <p class="shelfware-lead">About {{ seats.unused_arr | money }} of this contract pays for seats no one uses ({{ seats.unused_percent }}% of seats).</p>
+  <p>{{ seats.advice }}</p>
+  <p class="shelfware-note">Assumes a flat price per seat.</p>
+</section>
+{% endif %}

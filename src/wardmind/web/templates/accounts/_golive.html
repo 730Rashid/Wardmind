@@ -1,0 +1,14 @@
+{# Go-live forecast: when onboarding ends if the remaining milestones go at the pace so far
+   (insights.golive_forecast). Shown only for an account in onboarding that has a forecast. #}
+{% if forecast is not none %}
+{% set icon = {'on_track': 'status-done', 'late': 'status-overdue'}.get(forecast.status.value, 'status-upcoming') %}
+<section class="account-section golive" aria-labelledby="golive-heading">
+  <h2 class="section-title" id="golive-heading">Go-live forecast</h2>
+  <p class="golive-status"><span class="pill golive-tag golive-tag--{{ forecast.status.value }}"><svg class="icon" aria-hidden="true" focusable="false"><use href="/static/icons.svg#{{ icon }}"/></svg>{{ forecast.status.label }}</span></p>
+  <p class="golive-sentence">{{ forecast.sentence }}</p>
+  {% if forecast.projected_date is not none %}
+  <p class="golive-projected">Projected finish: {{ forecast.projected_date | day_label(today_day) }}</p>
+  {% endif %}
+  <p class="golive-caption">Assumes the remaining milestones take as long, on average, as the ones done so far. Milestones vary in size.</p>
+</section>
+{% endif %}

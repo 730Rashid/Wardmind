@@ -1553,6 +1553,7 @@ a.button {
     grid-template-areas:
       "account account"
       "health day"
+      "forecast forecast"
       "plan action";
     column-gap: var(--space-3);
     row-gap: var(--space-2);
@@ -1580,6 +1581,10 @@ a.button {
 
   .onboarding-table .cell-plan {
     grid-area: plan;
+  }
+
+  .onboarding-table .cell-forecast {
+    grid-area: forecast;
   }
 
   .onboarding-table .cell-action {
@@ -3784,6 +3789,10 @@ a.button-primary {
     margin-block-start: 0;
   }
 
+  .print-only {
+    display: revert;
+  }
+
   /* The top bar, skip link, print buttons and anything marked no-print stay off the page. */
   .top-bar,
   .skip-link,
@@ -5155,5 +5164,266 @@ a.button-primary {
   .since-head {
     flex-direction: column;
     align-items: flex-start;
+  }
+}
+
+/* Account insights: how sure the score is, reading ages, what would it take, the go-live
+   forecast and unused seats. */
+/* How sure this score is: one quiet line under the score heading. Blind spots are louder. */
+.confidence {
+  margin: 0;
+  font-size: var(--t-sm);
+  line-height: var(--lh-sm);
+  color: var(--ink-muted);
+}
+
+.confidence--blind {
+  color: var(--ink);
+}
+
+.confidence-level {
+  margin-inline-end: var(--space-1);
+  font-weight: 500;
+  print-color-adjust: exact;
+}
+
+.confidence-level--full {
+  background: var(--tag-slate-bg);
+  color: var(--tag-slate-ink);
+}
+
+.confidence-level--partial {
+  background: var(--tag-blue-bg);
+  color: var(--tag-blue-ink);
+}
+
+.confidence-level--thin {
+  background: var(--tag-orange-bg);
+  color: var(--tag-orange-ink);
+}
+
+.confidence-level--blind {
+  font-weight: 600;
+}
+
+/* Reading ages, under a reading in the breakdown. The stale one is the warning look. */
+.reading-age {
+  display: block;
+  font-size: var(--t-sm);
+  line-height: var(--lh-sm);
+  color: var(--ink-muted);
+}
+
+.reading-age--stale {
+  color: var(--tag-orange-ink);
+  font-weight: 600;
+}
+
+/* What would it take: a sub-part of the score section, after the risk sentence. */
+.path-down {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin-block-start: var(--space-4);
+}
+
+.path-title {
+  margin: 0;
+  font-size: var(--t-body);
+  line-height: var(--lh-body);
+  font-weight: 600;
+}
+
+.path-summary {
+  margin: 0;
+  max-inline-size: 60ch;
+}
+
+.path-label,
+.path-muted,
+.path-note {
+  margin: 0;
+  font-size: var(--t-sm);
+  line-height: var(--lh-sm);
+  color: var(--ink-muted);
+}
+
+.path-list {
+  margin: 0;
+}
+
+/* Each fix is two parts: the goal in ink, then the reading it starts from, muted. */
+.path-fix {
+  gap: var(--space-1);
+}
+
+.path-now {
+  font-size: var(--t-sm);
+  line-height: var(--lh-sm);
+  color: var(--ink-muted);
+}
+
+/* Go-live forecast: a section of its own, after the next step. */
+.golive {
+  gap: var(--space-3);
+}
+
+.golive p {
+  margin: 0;
+}
+
+.golive-status {
+  display: flex;
+}
+
+/* The status tag: green for on track, red for late, slate while there is no pace to judge. */
+.golive-tag {
+  font-weight: 500;
+  print-color-adjust: exact;
+}
+
+.golive-tag--on_track {
+  background: var(--tag-green-bg);
+  color: var(--tag-green-ink);
+}
+
+.golive-tag--late {
+  background: var(--tag-red-bg);
+  color: var(--tag-red-ink);
+}
+
+.golive-tag--no_pace,
+.golive-tag--too_early {
+  background: var(--tag-slate-bg);
+  color: var(--tag-slate-ink);
+}
+
+.golive-caption {
+  font-size: var(--t-sm);
+  line-height: var(--lh-sm);
+  color: var(--ink-muted);
+}
+
+/* Unused seats: in the aside, below the facts, with a rule above it as the renewal outcome has. */
+.shelfware {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding-block-start: var(--space-4);
+  border-block-start: 1px solid var(--line);
+}
+
+.shelfware > .section-title {
+  margin: 0;
+}
+
+.shelfware p {
+  margin: 0;
+}
+
+.shelfware-note {
+  font-size: var(--t-sm);
+  line-height: var(--lh-sm);
+  color: var(--ink-muted);
+}
+
+/* On paper, a block of insight is kept whole rather than split across two pages. */
+@media print {
+  .confidence,
+  .path-down,
+  .golive,
+  .shelfware,
+  .reading-age {
+    break-inside: avoid;
+  }
+}
+
+/* My book: the health badge and the blind-spot tag sit together on a card and in a list row. */
+.health-status {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  max-inline-size: 100%;
+}
+
+/* Shown only on paper, e.g. the unused-seats line in the brief's This week list. */
+.print-only {
+  display: none;
+}
+
+/* Onboarding prep and the weekly brief: the Forecast column, the go-live block on the onboarding
+   brief, and unused seats on upcoming renewals. */
+/* Picker: the Forecast column. The tag and its short text wrap inside the cell when the table is
+   narrow (no minimum width, so 720px to 960px still fits the card), and "Not known" is muted like
+   other helper text. */
+.forecast-unknown {
+  color: var(--ink-muted);
+}
+
+/* Brief: the go-live block. The tag and its sentence share a line, and the projected finish and
+   the caption follow. */
+.golive-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0;
+}
+
+.golive-finish {
+  margin: 0;
+}
+
+/* Weekly brief: unused seats on upcoming renewals. The rows are the same boxed list as "Since last
+   week" and "Follow-ups due this week": a sunken box with a hairline between rows. */
+.shelfware-lead,
+.shelfware-more {
+  margin: 0;
+}
+
+.shelfware-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  background: var(--sunken);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-control);
+}
+
+.shelfware-row {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: var(--space-3) var(--space-4);
+  border-block-start: 1px solid var(--line);
+}
+
+.shelfware-row:first-child {
+  border-block-start: 0;
+}
+
+.shelfware-head,
+.shelfware-figures,
+.shelfware-renews {
+  margin: 0;
+}
+
+.shelfware-renews,
+.shelfware-more {
+  font-size: var(--t-sm);
+  line-height: var(--lh-sm);
+  color: var(--ink-muted);
+}
+
+/* The onboarding brief is one A4 page, so on paper a reading's age shows only when it is out of
+   date. (Its go-live forecast prints as a sentence of the summary; unused seats on the weekly
+   brief print as one line in This week.) */
+@media print {
+  .onboarding-brief .reading-age:not(.reading-age--stale) {
+    display: none;
   }
 }

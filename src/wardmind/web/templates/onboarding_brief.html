@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% from "partials/breakdown_table.html" import breakdown_table %}
+{% from "partials/golive_tag.html" import golive_tag %}
 {% block content %}
 {% set account = brief.account %}
 <div class="onboarding-brief">
@@ -26,7 +27,18 @@
               aria-label="Brief as plain text"></textarea>
   </header>
 
-  <p class="brief-summary">{{ brief.summary }}</p>
+  {# The brief prints on one A4 page, so on paper the forecast is a sentence of the summary and
+     its own block below stays on screen. #}
+  <p class="brief-summary">{{ brief.summary }}{% if forecast is not none %}<span class="print-only"> {{ forecast.sentence }}</span>{% endif %}</p>
+
+  {% if forecast is not none %}
+  <section class="onboarding-section golive-section no-print" aria-labelledby="golive-heading">
+    <h2 class="section-title" id="golive-heading">Go-live forecast</h2>
+    <p class="golive-line">{{ golive_tag(forecast, short=False) }} <span class="golive-sentence">{{ forecast.sentence }}</span></p>
+    {% if forecast.projected_date is not none %}<p class="golive-finish">Projected finish: {{ forecast.projected_date | day_label(today_day) }}</p>{% endif %}
+    <p class="section-note">Assumes the remaining milestones take as long, on average, as the ones done so far.</p>
+  </section>
+  {% endif %}
 
   <section class="onboarding-section" aria-labelledby="plan-heading">
     <h2 class="section-title" id="plan-heading">The plan</h2>
@@ -66,7 +78,7 @@
 
   <section class="onboarding-section" aria-labelledby="signals-heading">
     <h2 class="section-title" id="signals-heading">Signals to watch</h2>
-    {{ breakdown_table(brief.signals, longest, "How each signal adds to the risk score") }}
+    {{ breakdown_table(brief.signals, longest, "How each signal adds to the risk score", ages=reading_ages) }}
   </section>
 
   <section class="onboarding-section next-step" aria-labelledby="next-step-heading">

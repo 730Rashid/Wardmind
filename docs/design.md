@@ -701,3 +701,33 @@ thing and never stands alone, and every state says what it is in words.
 - The brief prints each "since last week" change on one line and at a smaller size. The follow-ups
   due this week are hidden in print (`no-print`). In an emulated print at 673px (A4 less margins) the
   brief measures about 1,820px, against about 2,000px for two A4 pages.
+
+## Score insights
+
+Four read-outs built on the score (`core/insights.py`). Each is plain arithmetic on the account's
+own readings, never a model, and each says what it assumes.
+
+- **What would it take** (account page, under the risk sentence; At risk and Watch only): the
+  smallest change that moves the account down one band, found by re-scoring with the real engine,
+  e.g. "Close 1 of the 3 severity-1 tickets and this drops to Watch." Other single fixes are
+  listed below it; when no single fix is enough, the fewest signals that are enough together, each
+  with "Now: …". It ends with "This is the score's arithmetic. Fixing the cause is what keeps it
+  there."
+- **How sure is this score** (account page, first line of the score section): a tag (Full data,
+  Partial data, Thin data) and "Based on 5 of 7 signals. No reading for NPS. Out of date: Billing."
+  Each reading in the breakdown shows its age; an out-of-date one (older than 30 days, 90 for the
+  champion, 180 for NPS) says so in the warning colour. A Healthy account with thin data is a
+  **blind spot**: the tag says so, and My book has a "Blind spots" filter (shown only when there are
+  any) and a slate "Blind spot" chip beside the health badge.
+- **Go-live forecast** (account page, onboarding prep table and onboarding brief): the finish day at
+  the pace so far, e.g. "At this pace onboarding ends on day 112 of 90, 22 days late." Status tags:
+  On track (green), Late (red), No pace yet and Too early (slate). Caption: it assumes the remaining
+  milestones take as long, on average, as the ones done so far.
+- **Unused seats** (account page aside, not during onboarding; weekly brief for upcoming renewals):
+  "About $31,000 of this contract pays for seats no one uses (38% of seats)." Shown from 20% unused,
+  with the advice to right-size before the customer asks, and "Assumes a flat price per seat."
+
+### Print
+- Both briefs keep their page counts. The weekly brief prints unused seats as one line in This week
+  (the section is screen-only); the onboarding brief prints the forecast as the last sentence of its
+  summary (the block is screen-only) and shows a reading's age only when it is out of date.

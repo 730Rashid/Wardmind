@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "partials/golive_tag.html" import golive_tag %}
 {% block content %}
 <div class="onboarding-page">
   <header class="onboarding-head">
@@ -16,11 +17,12 @@
         <th scope="col">Health</th>
         <th scope="col">Day</th>
         <th scope="col">Plan</th>
+        <th scope="col">Forecast</th>
         <th scope="col"><span class="visually-hidden">Brief</span></th>
       </tr>
     </thead>
     <tbody>
-      {% for item, brief in rows %}
+      {% for item, brief, forecast in rows %}
       <tr>
         <th scope="row" class="cell-account"><a class="account-link" href="/onboarding/{{ item.account.id | idpath }}">{{ item.account.name }}</a></th>
         <td class="cell-health"><span class="health health--{{ item.health.value }}"><svg class="icon" aria-hidden="true" focusable="false"><use href="/static/icons.svg#health-{{ item.health.value | replace('_', '-') }}"/></svg> {{ item.health.label }}</span></td>
@@ -31,6 +33,7 @@
             <span class="plan-words">{{ plan_summary(brief.milestones) }}</span>
           </span>
         </td>
+        <td class="cell-forecast">{% if forecast is none %}<span class="forecast-unknown">Not known</span>{% else %}{{ golive_tag(forecast) }}{% endif %}</td>
         <td class="cell-action"><a href="/onboarding/{{ item.account.id | idpath }}" aria-label="Prepare brief for {{ item.account.name }}">Prepare brief</a></td>
       </tr>
       {% endfor %}
@@ -50,7 +53,7 @@
         <option value="">Choose an account</option>
         {% if rows %}
         <optgroup label="In onboarding">
-          {% for item, _ in rows %}
+          {% for item, _, _ in rows %}
           <option value="{{ item.account.id }}">{{ item.account.name }}</option>
           {% endfor %}
         </optgroup>

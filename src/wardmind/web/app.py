@@ -40,6 +40,7 @@ from wardmind.core import (
     history,
     import_flow,
     importing,
+    insights,
     journal,
     research,
     secrets,
@@ -76,6 +77,8 @@ from wardmind.core.import_flow import Draft
 from wardmind.core.importing import DateOrder
 from wardmind.core.models import Account, Health, Motion, ScoredAccount, SignalKind
 from wardmind.core.onboarding import OnboardingBrief
+from wardmind.core.onboarding import onboarding_brief as build_onboarding_brief
+from wardmind.core.scoring import latest_signals
 from wardmind.core.settings import (
     Accent,
     DataSource,
@@ -276,16 +279,26 @@ def _chosen(values: list[str], kind: type[_E]) -> set[_E]:
     return chosen
 
 
+class _DataFilter(StrEnum):
+    """Values of the Data group on My book. BLIND: an account that is Healthy only because its
+    readings are missing or out of date (insights.ScoreConfidence.blind_spot)."""
+
+    BLIND = "blind"
+
+
 def _filter_groups(
     brief: briefs.WeeklyBrief,
     flags: dict[str, list[research.Topic]],
     motions: set[Motion],
     healths: set[Health],
     topics: set[research.Topic],
+    data: set[_DataFilter],
+    blind_count: int,
 ) -> list[dict[str, Any]]:
     """The filter sidebar: each group's checkboxes, with the tag style, icon and count to show.
-    Counts come from the whole book, so they don't change as filters are ticked. The news group
-    is there only when some account has a topic from its website."""
+    Counts come from the whole book, so they don't change as filters are ticked. The data group
+    is there only when some account is a blind spot, and the news group only when some account has
+    a topic from its website."""
     groups: list[dict[str, Any]] = [
         {
             "name": "motion",
@@ -318,6 +331,23 @@ def _filter_groups(
             ],
         },
     ]
+    if blind_count:
+        groups.append(
+            {
+                "name": "data",
+                "legend": "Data",
+                "options": [
+                    {
+                        "value": _DataFilter.BLIND.value,
+                        "label": "Blind spots",
+                        "tag": "pill",
+                        "icon": None,  # icons.svg has no fitting symbol; the word carries it
+                        "count": blind_count,
+                        "checked": _DataFilter.BLIND in data,
+                    }
+                ],
+            }
+        )
     counts = {topic: sum(topic in found for found in flags.values()) for topic in research.Topic}
     if any(counts.values()):
         groups.append(
@@ -2127,9 +2157,11 @@ def _render_account(
     notices: list[Notice] = []
     # Where each reading in the history came from, for its label: by hand, or from the contacts.
     origins: dict[tuple[str, datetime, float], str] = {}
+    # The account's readings, read once: for the history's origins and the score's confidence.
+    signals = connector.list_signals(account_id)
     if combined is not None:
         notices = service.get_store().notices(account_id)
-        for signal in combined.list_signals(account_id):
+        for signal in signals:
             key = (signal.kind.value, signal.observed_at, signal.value)
             if signal.source == "manual":
                 origins[key] = "Added by you"
@@ -2153,6 +2185,18 @@ def _render_account(
         else None
     )
     config = load_scoring_config()
+
+    latest = latest_signals(signals).get(account_id, {})
+    confidence = insights.score_confidence(detail.scored, latest, today)
+    path = insights.path_down(detail.scored, latest, config, today)
+    forecast = insights.golive_forecast(detail.scored.account, today, config.motion)
+    # Unused seats are expected while onboarding is still rolling out, so they aren't flagged then.
+    seats = (
+        None
+        if detail.scored.motion is Motion.ONBOARDING
+        else insights.shelfware(detail.scored.account, latest, today, config.motion)
+    )
+    reading_ages = {age.kind: age for age in confidence.ages}
     account_journal = service.account_journal(account_id)
     found_undo = journal_pages.find_follow_up({account_id: account_journal}, undo)
     journal_panel = journal_pages.panel(
@@ -2194,6 +2238,11 @@ def _render_account(
         updates_box=box,
         journal=journal_panel,
         trend=trend,
+        confidence=confidence,
+        path=path,
+        forecast=forecast,
+        seats=seats,
+        reading_ages=reading_ages,
     )
 
 
@@ -2388,6 +2437,19 @@ async def _lifespan(_app: FastAPI) -> AsyncIterator[None]:
         service.stop_feed_scheduler()
 
 
+# --- Unused seats in the weekly brief (see core/insights.py: renewal_shelfware) -----------------
+
+_SHELFWARE_ROWS = 5  # accounts the weekly brief lists, largest unused value first; the rest counted
+
+
+def _shelfware_sentence(count: int, total_unused_arr: float) -> str:
+    """The lead of the unused-seats section, e.g. '2 renewing accounts pay for about $337,500 of
+    unused seats.' The total is a whole-dollar figure, as elsewhere in the sentences."""
+    if count == 1:
+        return f"1 renewing account pays for about {money(total_unused_arr)} of unused seats."
+    return f"{count} renewing accounts pay for about {money(total_unused_arr)} of unused seats."
+
+
 def create_app() -> FastAPI:
     """Build the web app: no API docs, a host allow-list, and security headers on every response."""
     app = FastAPI(docs_url=None, redoc_url=None, openapi_url=None, lifespan=_lifespan)
@@ -2455,9 +2517,10 @@ def create_app() -> FastAPI:
         deleted: str = "",
     ) -> Response:
         """My book. Filters come from the query string, each one repeatable (motion=churn&
-        motion=renewal): motion, health and, with web research, topic; view=list shows the
-        table instead of cards. An htmx refresh gets only the results partial, not on a history
-        restore. With Your data and nothing connected, this is the Setup page instead."""
+        motion=renewal): motion, health, data=blind (Healthy only because the data is missing or
+        out of date) and, with web research, topic; view=list shows the table instead of cards.
+        An htmx refresh gets only the results partial, not on a history restore. With Your data
+        and nothing connected, this is the Setup page instead."""
         if _needs_setup():
             return RedirectResponse("/setup", status_code=303)
         partial = request.headers.get("HX-Request") == "true" and (
@@ -2466,12 +2529,17 @@ def create_app() -> FastAPI:
         if not partial:
             service.remember_book()  # today's score snapshot, which "Since last week" compares with
         today = date.today()
-        book = service.get_book()
+        connector = service.get_connector()
+        book = service.get_book(connector)
         brief = briefs.weekly_brief(book, as_of=today)
+
+        confidence = insights.book_confidence(book, service.latest_book_signals(connector), today)
+        blind = {account_id for account_id, found in confidence.items() if found.blind_spot}
         params = request.query_params
         motions = _chosen(params.getlist("motion"), Motion)
         healths = _chosen(params.getlist("health"), Health)
         topics = _chosen(params.getlist("topic"), research.Topic)
+        data = _chosen(params.getlist("data"), _DataFilter)
         view = "list" if params.get("view") == "list" else "cards"
         flags = service.account_flags()
         ranks = {item.account.id: rank for rank, item in enumerate(book, start=1)}
@@ -2481,13 +2549,14 @@ def create_app() -> FastAPI:
             if (not motions or item.motion in motions)
             and (not healths or item.health in healths)
             and (not topics or not topics.isdisjoint(flags.get(item.account.id, [])))
+            and (_DataFilter.BLIND not in data or item.account.id in blind)
         ]
         first, second = summary_sentences(
             brief.counts_by_health[Health.AT_RISK],
             brief.arr_at_risk,
             brief.counts_by_health[Health.WATCH],
         )
-        groups = _filter_groups(brief, flags, motions, healths, topics)
+        groups = _filter_groups(brief, flags, motions, healths, topics, data, len(blind))
         journals = service.get_journal().all()
         chips = {
             item.account.id: journal_pages.book_chips(
@@ -2514,9 +2583,10 @@ def create_app() -> FastAPI:
             summary_first=first,
             summary_second=second,
             filter_groups=groups,
-            filtered=bool(motions or healths or topics),
+            filtered=bool(motions or healths or topics or data),
             view=view,
             rows=rows,
+            blind_spots=blind,
             q=q,
             count_text=result_count_text(len(rows)),
             intro=not partial,
@@ -2535,14 +2605,25 @@ def create_app() -> FastAPI:
     @app.get("/brief")
     def weekly_brief(request: Request) -> HTMLResponse:
         """The weekly brief: where ARR sits, this week's call-outs, what changed since last
-        week, the follow-ups due this week, the motions and the top ten."""
+        week, the follow-ups due this week, unused seats on the renewals coming up, the motions
+        and the top ten."""
+
         today = date.today()
-        book = service.get_book()
+        config = load_scoring_config()
+        connector = service.get_connector()
+        book = service.get_book(connector, config, today)
         brief = briefs.weekly_brief(book, as_of=today, top_n=10)
         week_follow_ups, more_follow_ups = journal_pages.week_follow_ups(
             journal.today_view(book, service.get_journal().all(), today),
             today,
             limit=_WEEK_FOLLOW_UPS,
+        )
+        shelfware = insights.renewal_shelfware(
+            book,
+            service.latest_book_signals(connector),
+            today,
+            config.motion,
+            limit=_SHELFWARE_ROWS,
         )
         first, second = summary_sentences(
             brief.counts_by_health[Health.AT_RISK],
@@ -2580,22 +2661,29 @@ def create_app() -> FastAPI:
             ),
             week_follow_ups=week_follow_ups,
             more_follow_ups=more_follow_ups,
+            shelfware=shelfware,
+            shelfware_sentence=_shelfware_sentence(shelfware.count, shelfware.total_unused_arr),
+            shelfware_more=shelfware.count - len(shelfware.rows),
+            renewals={item.account.id: item.account.renewal_date for item in book},
         )
 
     @app.get("/onboarding")
     def onboarding(request: Request, missing: str = "") -> HTMLResponse:
-        """Onboarding prep: each onboarding account with its day and plan, and a picker for any
-        account. Every row's brief uses the same connector, config and date as the book."""
+        """Onboarding prep: each onboarding account with its day, plan and go-live forecast, and a
+        picker for any account. Every row's brief uses the same connector, config and date as the
+        book."""
+
         connector = service.get_connector()
         config = load_scoring_config()
         as_of = date.today()
         book = service.get_book(connector, config, as_of)
-        rows: list[tuple[ScoredAccount, OnboardingBrief]] = []
+        rows: list[tuple[ScoredAccount, OnboardingBrief, insights.GoLiveForecast | None]] = []
         for item in service.onboarding_accounts(book):
             brief = service.get_onboarding_brief(item.account.id, connector, config, as_of)
             if brief is not None:
-                rows.append((item, brief))
-        behind = sum(formatting.behind_on_plan(brief.milestones) for _, brief in rows)
+                forecast = insights.golive_forecast(item.account, as_of, config.motion)
+                rows.append((item, brief, forecast))
+        behind = sum(formatting.behind_on_plan(brief.milestones) for _, brief, _ in rows)
         return _render(
             request,
             "onboarding.html",
@@ -2620,8 +2708,12 @@ def create_app() -> FastAPI:
     @app.get("/onboarding/{account_id}")
     def onboarding_brief(request: Request, account_id: str) -> HTMLResponse:
         """One account's onboarding call brief: the plan, the agenda, the questions and signals."""
-        brief = service.get_onboarding_brief(account_id)
-        if brief is None:
+
+        connector = service.get_connector()
+        config = load_scoring_config()
+        as_of = date.today()
+        detail = service.get_account_detail(account_id, connector, config, as_of)
+        if detail is None:
             return _render(
                 request,
                 "not_found.html",
@@ -2630,9 +2722,18 @@ def create_app() -> FastAPI:
                 message=f"No account with id {account_id}.",
                 book=True,
             )
+        # The same brief service.get_onboarding_brief builds, from the detail already loaded.
+        brief = build_onboarding_brief(detail, config.motion)
+        # How old each reading is, read the way the account page reads it, so the signals table
+        # is the same table on both pages.
+        latest = latest_signals(connector.list_signals(account_id)).get(account_id, {})
+        reading_ages = {
+            age.kind: age for age in insights.score_confidence(detail.scored, latest, as_of).ages
+        }
         # The signals table scales its bars to the largest weight in the scoring config, as the
         # account page does, so the same signal is drawn the same width on both pages.
-        longest = max(rule.weight for rule in load_scoring_config().signals.values())
+        longest = max(rule.weight for rule in config.signals.values())
+        forecast = insights.golive_forecast(brief.account, as_of, config.motion)
         return _render(
             request,
             "onboarding_brief.html",
@@ -2641,6 +2742,8 @@ def create_app() -> FastAPI:
             book=True,
             brief=brief,
             longest=longest,
+            reading_ages=reading_ages,
+            forecast=forecast,
             plain_text=formatting.onboarding_plain_text(brief),
         )
 

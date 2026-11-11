@@ -1,0 +1,8 @@
+{# How sure this score is: a small tag with the level, then one sentence. A blind spot is a healthy
+   score that rests on thin data, so the line also says that healthy may only mean data is missing. #}
+{% set blind = confidence.blind_spot %}
+{% set icon = {'full': 'check', 'partial': 'status-upcoming', 'thin': 'status-overdue'}[confidence.level.value] %}
+<p class="confidence{% if blind %} confidence--blind{% endif %}">
+  <span class="pill confidence-level confidence-level--{{ confidence.level.value }}{% if blind %} confidence-level--blind{% endif %}"><svg class="icon" aria-hidden="true" focusable="false"><use href="/static/icons.svg#{{ icon }}"/></svg>{{ 'Blind spot' if blind else confidence.level.label }}</span>
+  {{ confidence.sentence }}{% if blind %} Healthy may only mean data is missing.{% endif %}
+</p>

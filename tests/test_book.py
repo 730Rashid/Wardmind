@@ -199,7 +199,7 @@ def test_search_with_no_match_shows_the_empty_copy_and_clear_link(client: TestCl
 
 def test_filters_with_no_match_say_so(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
     renewals = [item for item in service.get_book() if item.motion is Motion.RENEWAL]
-    monkeypatch.setattr(service, "get_book", lambda: renewals)
+    monkeypatch.setattr(service, "get_book", lambda *_args, **_kwargs: renewals)
     text = _text(client.get("/?motion=churn"))
     assert "No accounts match these filters." in text
     assert "Clear search" not in text

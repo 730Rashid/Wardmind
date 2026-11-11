@@ -17,7 +17,7 @@
       <label class="filter-option" for="{{ option_id }}">
         <input class="filter-input" type="checkbox" id="{{ option_id }}" name="{{ group.name }}"
                value="{{ option.value }}"{% if option.checked %} checked{% endif %}>
-        <span class="{{ option.tag }}"><svg class="icon" aria-hidden="true" focusable="false"><use href="/static/icons.svg#{{ option.icon }}"/></svg>{{ option.label }}</span>
+        <span class="{{ option.tag }}">{% if option.icon %}<svg class="icon" aria-hidden="true" focusable="false"><use href="/static/icons.svg#{{ option.icon }}"/></svg>{% endif %}{{ option.label }}</span>
         <span class="filter-count">{{ option.count }}</span>
       </label>
       {% endfor %}

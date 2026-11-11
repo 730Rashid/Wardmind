@@ -1,0 +1,20 @@
+{#
+  The go-live status as a tag. The icon and the word carry the state; the colour only repeats it:
+  on track is the healthy green, late is the at-risk red, and the two states with no forecast yet
+  are neutral slate. With short=True (the picker's column) the tag is followed by how the pace
+  puts the finish against the window: "5 days late", "3 days to spare" or "On time".
+#}
+{% macro golive_tag(forecast, short=True) -%}
+{%- set state = forecast.status.value -%}
+{%- if state == "on_track" -%}
+<span class="health health--healthy golive-tag"><svg class="icon" aria-hidden="true" focusable="false"><use href="/static/icons.svg#health-healthy"/></svg> {{ forecast.status.label }}</span>
+{%- elif state == "late" -%}
+<span class="health health--at_risk golive-tag"><svg class="icon" aria-hidden="true" focusable="false"><use href="/static/icons.svg#health-at-risk"/></svg> {{ forecast.status.label }}</span>
+{%- else -%}
+<span class="tag golive-tag"><svg class="icon" aria-hidden="true" focusable="false"><use href="/static/icons.svg#status-upcoming"/></svg> {{ forecast.status.label }}</span>
+{%- endif -%}
+{%- if short and state == "late" %} <span class="golive-text">{{ forecast.overrun_days }} {{ 'day' if forecast.overrun_days == 1 else 'days' }} late</span>
+{%- elif short and state == "on_track" and forecast.overrun_days == 0 %} <span class="golive-text">On time</span>
+{%- elif short and state == "on_track" %} <span class="golive-text">{{ -forecast.overrun_days }} {{ 'day' if forecast.overrun_days == -1 else 'days' }} to spare</span>
+{%- endif -%}
+{%- endmacro %}

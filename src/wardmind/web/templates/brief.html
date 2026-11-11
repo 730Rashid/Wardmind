@@ -34,14 +34,20 @@
 
   <section class="brief-section" aria-labelledby="week-heading">
     <h2 class="section-title" id="week-heading">This week</h2>
+    {# On paper, unused seats are one call-out here: their own section stays on screen, so the
+       brief still prints on two pages. #}
     {% if brief.notable %}
     <ul class="notable">
       {% for line in brief.notable %}
       <li>{{ line }}</li>
       {% endfor %}
+      {% if shelfware.count %}<li class="print-only">{{ shelfware_sentence[:-1] }}</li>{% endif %}
     </ul>
     {% else %}
-    <p>Nothing unusual this week.</p>
+    <p{% if shelfware.count %} class="no-print"{% endif %}>Nothing unusual this week.</p>
+    {% if shelfware.count %}
+    <ul class="notable print-only"><li>{{ shelfware_sentence[:-1] }}</li></ul>
+    {% endif %}
     {% endif %}
   </section>
 
@@ -68,6 +74,13 @@
     <p>Nothing is due in the next seven days.</p>
     {% endif %}
   </section>
+
+  {% if shelfware.count %}
+  <section class="brief-section shelfware-section no-print" aria-labelledby="shelfware-heading">
+    <h2 class="section-title" id="shelfware-heading">Unused seats on upcoming renewals</h2>
+    {% include "partials/renewal_shelfware.html" %}
+  </section>
+  {% endif %}
 
   <section class="brief-section" aria-labelledby="motion-heading">
     <h2 class="section-title" id="motion-heading">Accounts by motion</h2>

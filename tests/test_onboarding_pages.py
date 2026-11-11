@@ -285,6 +285,8 @@ def test_brief_page_shows_the_call_brief(client: TestClient) -> None:
     ]
 
     summary = _block(markup, r'<p class="brief-summary">(.*?)</p>')
+    # On paper the go-live forecast is one more sentence of the summary, in a print-only span.
+    summary = re.sub(r'<span class="print-only">.*?</span>', "", summary, flags=re.S)
     assert _plain(summary) == brief.summary
 
     plan = _block(markup, r'<ol class="plan">(.*?)</ol>')

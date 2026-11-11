@@ -41,7 +41,7 @@ from wardmind.core.feeds import setup as feed_setup
 from wardmind.core.feeds import sync as feed_sync
 from wardmind.core.feeds.models import FeedRole
 from wardmind.core.feeds.providers import get_provider
-from wardmind.core.models import Account, Motion, ScoredAccount, Signal
+from wardmind.core.models import Account, Motion, ScoredAccount, Signal, SignalKind
 from wardmind.core.onboarding import OnboardingBrief, onboarding_brief
 from wardmind.core.scoring import latest_signals, score_book
 from wardmind.core.settings import DataSource, Settings, load_settings, save_settings
@@ -214,6 +214,12 @@ def get_book(
         item.model_copy(update={"suggested_action": suggest_action(item.motion, item.reasons)})
         for item in scored
     ]
+
+
+def latest_book_signals(connector: Connector | None = None) -> dict[str, dict[SignalKind, Signal]]:
+    """Every account's latest reading per kind, from the same connector get_book() uses."""
+    connector = connector if connector is not None else get_connector()
+    return latest_signals(connector.list_signals())
 
 
 def filter_book(
