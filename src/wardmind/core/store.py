@@ -95,6 +95,10 @@ CLIENT_UPDATES_FILE = "client_updates.json"
 JOURNAL_FILE = "journal.json"
 DEMO_JOURNAL_FILE = "demo-journal.json"
 HISTORY_DIR = "history"
+# Owned by core/mailbox.py (the mailbox connection settings; its password is a named secret)
+# and core/logos.py (one image file per account in this folder).
+MAILBOX_FILE = "mailbox.json"
+LOGOS_DIR = "logos"
 # One lock for every read-modify-write of the data folder in this process. The feed scheduler
 # runs on its own thread, so without it a sync that loaded a file before the CSM's change and
 # saved after it would undo that change (an opt-out, a rejected update, a removed connection).
@@ -115,6 +119,7 @@ _ALL_FILES = (
     CLIENT_UPDATES_FILE,
     JOURNAL_FILE,
     DEMO_JOURNAL_FILE,
+    MAILBOX_FILE,
 )
 
 _SAFE_ID = re.compile(r"[A-Za-z0-9_-]+")  # connection ids, used in file names
@@ -563,6 +568,7 @@ class LocalStore:
         shutil.rmtree(self._root / _SHEETS_DIR, ignore_errors=True)
         shutil.rmtree(self._root / FEED_DRAFTS_DIR, ignore_errors=True)
         shutil.rmtree(self._root / HISTORY_DIR, ignore_errors=True)
+        shutil.rmtree(self._root / LOGOS_DIR, ignore_errors=True)
         # Unreadable journal files that journal.py set aside rather than overwrite.
         for name in (JOURNAL_FILE, DEMO_JOURNAL_FILE):
             stem, suffix = name.rsplit(".", 1)

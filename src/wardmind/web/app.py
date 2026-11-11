@@ -42,6 +42,8 @@ from wardmind.core import (
     importing,
     insights,
     journal,
+    logos,
+    mailbox,
     research,
     secrets,
     service,
@@ -97,7 +99,8 @@ from wardmind.core.store import (
     Notice,
     connection_for,
 )
-from wardmind.web import contact_pages, feed_pages, formatting, journal_pages
+from wardmind.web import contact_pages, feed_pages, formatting, journal_pages, today_pages
+from wardmind.web import runway as runway_geometry
 from wardmind.web.scoring_form import (
     FIELD_NAMES,
     UNIT_HINTS,
@@ -420,6 +423,8 @@ _env.globals["plan_dots"] = formatting.plan_dots
 _env.globals["plan_summary"] = formatting.plan_summary
 _env.globals["scoring_output"] = scoring_output
 _env.globals["slider_max"] = slider_max
+_env.globals["monogram"] = logos.monogram
+_env.globals["runway"] = runway_geometry.runway
 templates = Jinja2Templates(env=_env)
 
 
@@ -455,6 +460,8 @@ def _render(
         "problems": problems,
         "pending_updates": _pending_count(),
         "due_follow_ups": _due_count(),
+        # Account id -> LogoInfo, for partials/logo.html (a monogram stands in for the rest).
+        "logos": service.all_logos(),
         **context,
     }
     return templates.TemplateResponse(request, template, values, status_code=status_code)
@@ -2135,12 +2142,15 @@ def _render_account(
     why: str = "",
     undo: str = "",
     status_code: int = 200,
+    activity: str = "",
+    show_all: bool = False,
 ) -> HTMLResponse:
     """One account's page. Without `research_panel`, the website section shows what is already
     saved, which is a file read and never a network call. `refusal` is a contact or client update
     form that was refused: its page comes back with the form's values and messages (422).
     `journal_refusal` is the same for a journal form. `why` is a refusal sent back from Today, and
-    `undo` the id of a follow-up that was just marked done (its Undo button is offered)."""
+    `undo` the id of a follow-up that was just marked done (its Undo button is offered).
+    `activity` is the Activity filter and `show_all` the "Show all" choice from the query."""
     connector = service.get_connector()
     detail = service.get_account_detail(account_id, connector)
     if detail is None:
@@ -2209,6 +2219,8 @@ def _render_account(
         refusal=journal_refusal,
         why=why,
         undo_id=found_undo[1].id if found_undo is not None else "",
+        activity=activity,
+        show_all=show_all,
     )
     trend = journal_pages.sparkline(
         service.account_trend(detail.scored, detail.rank, today), config.thresholds, today
@@ -2260,7 +2272,11 @@ _NO_OUTCOME = "That outcome isn't in this account."
 _PICK_DAY = "Pick a date, such as 2026-11-16."
 _PICK_DAYS = "Pick 3, 7, 14 or 30 days."
 _PICK_SNOOZE = "Pick a date after today."
-_PICK_KIND = "Pick Note, Call, Meeting or Email."
+_PICK_KIND = "Pick Note, Call, Meeting, Email or Other."
+_PICK_ACTIVITY = "Pick Call, Meeting, Email or Other."
+_PICK_DIRECTION = "Pick Sent or Received for an email."
+_PICK_ROLE = "Pick a role for them."
+_NO_MEMBER = "That person isn't on this account's team."
 _PICK_OUTCOME = "Pick Renewed, Expanded, Contracted or Churned."
 _PICK_RENEWAL = "Pick the renewal date it answers."
 _PICK_DECIDED = "Pick the date they decided."
@@ -2339,6 +2355,56 @@ def _note_kind(text: str) -> journal.TouchKind:
         return journal.TouchKind(text)
     except ValueError:
         raise ValueError(_PICK_KIND) from None
+
+
+def _activity_kind(text: str) -> journal.TouchKind:
+    """An activity's kind: a call, meeting, email or other touch (a plain note is not one)."""
+    try:
+        kind = journal.TouchKind(text)
+    except ValueError:
+        raise ValueError(_PICK_ACTIVITY) from None
+    if kind is journal.TouchKind.NOTE:
+        raise ValueError(_PICK_ACTIVITY)
+    return kind
+
+
+def _direction(fields: Mapping[str, str], kind: journal.TouchKind) -> journal.Direction | None:
+    """Sent or received for an email, which must say; None for every other kind (ignored)."""
+    if kind is not journal.TouchKind.EMAIL:
+        return None
+    try:
+        return journal.Direction(fields.get("direction", ""))
+    except ValueError:
+        raise ValueError(_PICK_DIRECTION) from None
+
+
+def _team_role(text: str) -> journal.TeamRole:
+    try:
+        return journal.TeamRole(text)
+    except ValueError:
+        raise ValueError(_PICK_ROLE) from None
+
+
+def _entry_section(kind: journal.TouchKind | None) -> str:
+    """Where an entry is listed on the account page: 'activity' for a call, meeting, email or
+    other touch, else 'notes' (a plain note, or an entry that isn't there any more)."""
+    return "activity" if kind not in (None, journal.TouchKind.NOTE) else "notes"
+
+
+def _entry_kind(account_id: str, entry_id: str) -> journal.TouchKind | None:
+    """The kind of one entry in the account's journal, or None when there is no such entry."""
+    for entry in service.account_journal(account_id).notes:
+        if entry.id == entry_id:
+            return entry.kind
+    return None
+
+
+def _kind_of(text: str) -> journal.TouchKind | None:
+    """The kind a form posted, or None when it isn't one (the form's own refusal says why)."""
+    try:
+        return journal.TouchKind(text)
+    except ValueError:
+        return None
 
 
 def _follow_up_text(fields: Mapping[str, str], scored: ScoredAccount) -> str:
@@ -2424,6 +2490,9 @@ async def _journal_action(
         return await run_in_threadpool(
             _missing, request, "Not found", str(error), back_href=href, back_label=label
         )
+    if back == "today":
+        # Today keeps the find box's text, so the list stays narrowed after Done or Snooze.
+        query = {**query, "q": today_pages.clean_query(fields.get("q", ""))}
     return RedirectResponse(_journal_redirect(back, account_id, anchor, **query), status_code=303)
 
 
@@ -2450,6 +2519,42 @@ def _shelfware_sentence(count: int, total_unused_arr: float) -> str:
     return f"{count} renewing accounts pay for about {money(total_unused_arr)} of unused seats."
 
 
+# --- Logos (see core/logos.py; the routes are in create_app, after the account research route) --
+
+# What the account page says after a logo action. The redirect carries only the code.
+_LOGO_NOTICES = {
+    "logo-saved": "Logo saved.",
+    "logo-removed": "Logo removed. The account shows its monogram again.",
+    "logo-no-file": "Choose an image file first.",
+    "logo-too-big": "That image is larger than 200 KB. Try a smaller one.",
+    "logo-refused": (
+        "That isn't a PNG, JPEG, GIF, WebP or ICO image of at least 16 pixels. "
+        "SVG files can't be used."
+    ),
+    "logo-found": "Found a logo on their website and saved it.",
+    "logo-not-found": "No logo was found on their website.",
+    "logo-research-off": (
+        "Web research is off. Turn it on in Settings > Data & privacy to look for a logo."
+    ),
+    "logo-no-website": "Add the account's website first, then look for a logo.",
+    "logo-uploaded-kept": (
+        "You uploaded this logo, so it was kept. Remove it first to look for one on their website."
+    ),
+}
+# The lookup's refusals that have their own codes; any other failure is "logo-not-found".
+_LOGO_LOOKUP_CODES = {
+    service.LOGO_NO_WEBSITE_MESSAGE: "logo-no-website",
+    service.LOGO_UPLOADED_MESSAGE: "logo-uploaded-kept",
+}
+
+
+def _logo_redirect(account_id: str, code: str) -> RedirectResponse:
+    """Back to the account page, with one logo code in the query (never a message)."""
+    return RedirectResponse(
+        f"/accounts/{_quoted_id(account_id)}?{urlencode({'logo': code})}", status_code=303
+    )
+
+
 def create_app() -> FastAPI:
     """Build the web app: no API docs, a host allow-list, and security headers on every response."""
     app = FastAPI(docs_url=None, redoc_url=None, openapi_url=None, lifespan=_lifespan)
@@ -2471,7 +2576,12 @@ def create_app() -> FastAPI:
         request: Request, call_next: Callable[[Request], Awaitable[Response]]
     ) -> Response:
         response = await call_next(request)
-        response.headers.update(SECURITY_HEADERS)
+        for name, value in SECURITY_HEADERS.items():
+            # A route may send a stricter policy of its own (a logo image sends
+            # default-src 'none'); every other response gets the app's.
+            response.headers.setdefault(name, value)
+        if request.url.path.startswith("/logos/") and "cache-control" in response.headers:
+            return response  # a logo is cached privately for an hour (see the /logos route)
         if request.url.path.startswith("/static/"):
             # Revalidate every time (a cheap 304 locally) so an upgrade never runs stale JS or CSS.
             response.headers["Cache-Control"] = "no-cache"
@@ -3108,19 +3218,33 @@ def create_app() -> FastAPI:
         day: str = "",
         undo: str = "",
         why: str = "",
+        logo: str = "",
+        activity: str = "",
+        activity_all: str = "",
     ) -> HTMLResponse:
         """One account's call prep: summary, next step, score breakdown and signal history. With
         Your data showing, it also has the edit link, where each figure came from, the notices,
         the readings added by hand, the contacts and the client updates box. The website section
-        shows only what is already saved. The journal parts (follow-ups, notes, the trend and the
-        renewal outcome) are on it too; `journal`, `day`, `undo` and `why` are its fixed codes."""
+        shows only what is already saved. The journal parts (follow-ups, the activity history, the
+        notes, the team, the trend and the renewal outcome) are on it too; `journal`, `day`, `undo`
+        and `why` are its fixed codes. `activity` picks the Activity filter (a kind, else all) and
+        `activity_all=1` lists every entry of it."""
         status = (
             _account_status(added, edited, reading, unlinked)
             or _CONTACT_NOTICES.get(contact, "")
             or _UPDATES_NOTICES.get(updates, "")
             or journal_pages.notice_text(journal_code, day, date.today())
+            or _LOGO_NOTICES.get(logo, "")
         )
-        return _render_account(request, account_id, status=status, why=why, undo=undo)
+        return _render_account(
+            request,
+            account_id,
+            status=status,
+            why=why,
+            undo=undo,
+            activity=activity,
+            show_all=activity_all == "1",
+        )
 
     @app.post("/accounts/{account_id}/research")
     async def look_up_website(request: Request, account_id: str) -> Response:
@@ -3164,6 +3288,80 @@ def create_app() -> FastAPI:
             )
         return RedirectResponse(f"/accounts/{_quoted_id(account_id)}#research", status_code=303)
 
+    # Logos. The image is public to this app only (GET below); the three actions are Your data
+    # only, like the other edits (_editable_account: a demo account gets its refusal page), and
+    # each ends with a redirect to the account page carrying one code from _LOGO_NOTICES.
+
+    @app.get("/logos/{account_id}")
+    def logo_image(account_id: str) -> Response:
+        """The account's saved logo, with the type its bytes were checked as. No logo is a plain
+        404 (the page then draws the monogram)."""
+        saved = logos.read_logo(service.get_store(), account_id)
+        if saved is None:
+            return PlainTextResponse("No logo.", status_code=404)
+        data, kind = saved
+        return Response(
+            content=data,
+            media_type=kind.value,
+            headers={
+                "X-Content-Type-Options": "nosniff",
+                "Content-Security-Policy": "default-src 'none'",
+                "Cache-Control": "private, max-age=3600",
+            },
+        )
+
+    @app.post("/accounts/{account_id}/logo")
+    async def upload_logo_route(request: Request, account_id: str) -> Response:
+        """Save the image posted as "logo" as this account's logo, replacing any logo it had.
+        Read at most one byte past the limit, so a larger file is refused without being kept."""
+        found = await run_in_threadpool(_editable_account, request, account_id)
+        if isinstance(found, HTMLResponse):
+            return found
+        form = await request.form()
+        upload = form.get("logo")
+        if not (isinstance(upload, UploadFile) and upload.filename):
+            return _logo_redirect(account_id, "logo-no-file")
+        data = await upload.read(logos.MAX_LOGO_BYTES + 1)
+        if len(data) > logos.MAX_LOGO_BYTES:
+            return _logo_redirect(account_id, "logo-too-big")
+        try:
+            await run_in_threadpool(service.upload_logo, account_id, data)
+        except logos.LogoError:
+            return _logo_redirect(account_id, "logo-refused")
+        return _logo_redirect(account_id, "logo-saved")
+
+    @app.post("/accounts/{account_id}/logo/remove")
+    async def remove_logo_route(request: Request, account_id: str) -> Response:
+        """Remove the logo, uploaded or found: the account shows its monogram again."""
+        found = await run_in_threadpool(_editable_account, request, account_id)
+        if isinstance(found, HTMLResponse):
+            return found
+        await run_in_threadpool(service.remove_logo, account_id)
+        return _logo_redirect(account_id, "logo-removed")
+
+    @app.post("/accounts/{account_id}/logo/find")
+    async def find_logo_route(request: Request, account_id: str) -> Response:
+        """Look for the logo on the account's own website, when web research is on. An uploaded
+        logo is kept; the lookup's outcome comes back as a code."""
+        found = await run_in_threadpool(_editable_account, request, account_id)
+        if isinstance(found, HTMLResponse):
+            return found
+        try:
+            await run_in_threadpool(service.find_logo, account_id)
+        except LookupError:
+            return await run_in_threadpool(
+                _missing, request, "Account not found", f"No account with id {account_id}."
+            )
+        except research.ResearchOff:
+            code = "logo-research-off"
+        except logos.LogoError as problem:
+            code = _LOGO_LOOKUP_CODES.get(problem.message, "logo-not-found")
+        except research.ResearchError:  # a blocked or unreachable website
+            code = "logo-not-found"
+        else:
+            code = "logo-found"
+        return _logo_redirect(account_id, code)
+
     # The journal. Each form posts here and returns to the account page or to Today (see
     # _journal_action). Demo data has its own journal, so these work with either data source.
 
@@ -3173,21 +3371,24 @@ def create_app() -> FastAPI:
         journal_code: str = Query("", alias="journal"),
         day: str = "",
         undo: str = "",
+        q: str = "",
     ) -> HTMLResponse:
-        """Today: what needs the CSM now. Follow-ups due, accounts that need attention, renewals
-        awaiting their outcome, the next week's follow-ups and the snoozed accounts. Each action
+        """Today: what needs the CSM now. Follow-ups due, email threads waiting on replies, accounts
+        that need attention, renewals awaiting their outcome, the next week's follow-ups and the
+        snoozed accounts. `q` narrows every section to accounts whose name contains it. Each action
         on the page returns here with a fixed status line; `undo` offers Undo for a follow-up just
         marked done."""
         today_day = date.today()
-        page = journal_pages.today_page(service.today_view(today_day), today_day)
-        found = journal_pages.find_follow_up(service.get_journal().all(), undo)
+        book = service.get_book(as_of=today_day)
+        journals = service.get_journal().all()
+        found = journal_pages.find_follow_up(journals, undo)
         return _render(
             request,
             "today.html",
             page="Today",
             active="today",
             book=True,
-            today_page=page,
+            screen=today_pages.screen(book, journals, today_day, q),
             notice=journal_pages.notice_text(journal_code, day, today_day),
             undo_account=found[0] if found is not None else "",
             undo_id=found[1].id if found is not None else "",
@@ -3195,53 +3396,144 @@ def create_app() -> FastAPI:
 
     @app.post("/accounts/{account_id}/notes")
     async def add_note_route(request: Request, account_id: str) -> Response:
-        """Add a note, or a call, meeting or email, dated today unless a date is given. A note
-        needs its text; a refused one comes back with 422 and what was typed."""
+        """Add a plain note (kind note, the Notes box), or, for backwards compatibility, a call,
+        meeting, email or other touch (the Activity history). Dated today unless a date is given.
+        A note needs its text; a refused one comes back with 422 and what was typed. The redirect
+        goes to the box the entry landed in."""
 
         def act(scored: ScoredAccount, fields: Mapping[str, str], today: date) -> dict[str, str]:
+            kind = _note_kind(fields.get("kind", ""))
             service.get_journal().add_note(
                 account_id,
-                _note_kind(fields.get("kind", "")),
+                kind,
                 fields.get("text", ""),
                 _day_field(fields, "happened_on", today, _PICK_DAY),
                 now=datetime.now(UTC),
                 today=today,
             )
-            return {"journal": "note-added"}
+            return {"journal": "note-added" if kind is journal.TouchKind.NOTE else "activity-added"}
 
-        return await _journal_action(request, account_id, form="note", anchor="notes", act=act)
+        # A refused note comes back on the Notes form; a refused call, meeting, email or other
+        # comes back on the Activity form, with its kind checked and its message beside the kind.
+        fields = await _posted_fields(request)
+        is_note = fields.get("kind", "") == journal.TouchKind.NOTE.value
+        return await _journal_action(
+            request,
+            account_id,
+            form="note" if is_note else "activity",
+            anchor="notes" if is_note else "activity",
+            act=act,
+        )
 
     @app.post("/accounts/{account_id}/notes/{note_id}/edit")
     async def edit_note_route(request: Request, account_id: str, note_id: str) -> Response:
-        """Change a note's kind, date or text. Its edit form stays open when a save is refused."""
+        """Change an entry's kind, date or text; a plain note can become an activity, and back.
+        Its edit form stays open when a save is refused. The redirect goes to the box the entry is
+        in after the save."""
 
         def act(scored: ScoredAccount, fields: Mapping[str, str], today: date) -> dict[str, str]:
+            kind = _note_kind(fields.get("kind", ""))
             service.get_journal().update_note(
                 account_id,
                 note_id,
-                _note_kind(fields.get("kind", "")),
+                kind,
                 fields.get("text", ""),
                 _day_field(fields, "happened_on", today, _PICK_DAY),
                 now=datetime.now(UTC),
                 today=today,
             )
-            return {"journal": "note-saved"}
+            return {"journal": "note-saved" if kind is journal.TouchKind.NOTE else "activity-saved"}
 
+        fields = await _posted_fields(request)
+        section = _entry_section(_kind_of(fields.get("kind", "")))
         return await _journal_action(
-            request, account_id, form="note-edit", anchor="notes", act=act, item_id=note_id
+            request, account_id, form="note-edit", anchor=section, act=act, item_id=note_id
         )
 
     @app.post("/accounts/{account_id}/notes/{note_id}/remove")
     async def remove_note_route(request: Request, account_id: str, note_id: str) -> Response:
-        """Delete a note from the account's journal."""
+        """Delete a plain note or an activity from the account's journal."""
 
         def act(scored: ScoredAccount, fields: Mapping[str, str], today: date) -> dict[str, str]:
+            kind = _entry_kind(account_id, note_id)
             if not service.get_journal().remove_note(account_id, note_id):
                 raise LookupError(_NO_NOTE)
-            return {"journal": "note-removed"}
+            removed = "activity-removed" if _entry_section(kind) == "activity" else "note-removed"
+            return {"journal": removed}
+
+        section = _entry_section(_entry_kind(account_id, note_id))
+        return await _journal_action(
+            request, account_id, form="", anchor=section, act=act, shows_refusal=False
+        )
+
+    @app.post("/accounts/{account_id}/activity")
+    async def add_activity_route(request: Request, account_id: str) -> Response:
+        """Log a call, meeting, email or other touch with the customer, dated today unless a date is
+        given. A subject and who did it are optional; an email also says whether it was sent or
+        received. Text may be left blank when there is a subject."""
+
+        def act(scored: ScoredAccount, fields: Mapping[str, str], today: date) -> dict[str, str]:
+            kind = _activity_kind(fields.get("kind", ""))
+            service.get_journal().add_activity(
+                account_id,
+                kind,
+                fields.get("text", ""),
+                _day_field(fields, "happened_on", today, _PICK_DAY),
+                subject=fields.get("subject", ""),
+                by=fields.get("by", ""),
+                direction=_direction(fields, kind),
+                now=datetime.now(UTC),
+                today=today,
+            )
+            return {"journal": "activity-added"}
 
         return await _journal_action(
-            request, account_id, form="", anchor="notes", act=act, shows_refusal=False
+            request, account_id, form="activity", anchor="activity", act=act
+        )
+
+    @app.post("/accounts/{account_id}/entries/{note_id}/pin")
+    async def pin_entry_route(request: Request, account_id: str, note_id: str) -> Response:
+        """Pin an entry (any kind) to the pinned strip, or unpin it (pinned=0). Up to five pinned
+        entries per account; a sixth is refused beside its entry."""
+
+        def act(scored: ScoredAccount, fields: Mapping[str, str], today: date) -> dict[str, str]:
+            pinned = fields.get("pinned") == "1"
+            service.get_journal().set_pinned(account_id, note_id, pinned)
+            return {"journal": "pinned" if pinned else "unpinned"}
+
+        section = _entry_section(_entry_kind(account_id, note_id))
+        return await _journal_action(
+            request, account_id, form="pin", anchor=section, act=act, item_id=note_id
+        )
+
+    @app.post("/accounts/{account_id}/team")
+    async def add_team_route(request: Request, account_id: str) -> Response:
+        """Add someone to the account team: their name, an optional email (how the mailbox knows
+        an email came from them) and their role."""
+
+        def act(scored: ScoredAccount, fields: Mapping[str, str], today: date) -> dict[str, str]:
+            service.get_journal().add_team_member(
+                account_id,
+                fields.get("name", ""),
+                fields.get("email", ""),
+                _team_role(fields.get("role", "")),
+                now=datetime.now(UTC),
+            )
+            return {"journal": "team-added"}
+
+        return await _journal_action(request, account_id, form="team", anchor="team", act=act)
+
+    @app.post("/accounts/{account_id}/team/{member_id}/remove")
+    async def remove_team_route(request: Request, account_id: str, member_id: str) -> Response:
+        """Take someone off the account team. The entries they logged stay as they are."""
+
+        def act(scored: ScoredAccount, fields: Mapping[str, str], today: date) -> dict[str, str]:
+            if not service.get_journal().remove_team_member(account_id, member_id):
+                raise LookupError(_NO_MEMBER)
+            return {"journal": "team-removed"}
+
+        return await _journal_action(
+            request, account_id, form="", anchor="team", act=act, shows_refusal=False
         )
 
     @app.post("/accounts/{account_id}/follow-ups")
@@ -4374,6 +4666,185 @@ def create_app() -> FastAPI:
         return RedirectResponse(
             f"/settings/connections?{urlencode({'synced': config.id})}", status_code=303
         )
+
+    # --- Settings > Mailbox
+    # The CSM's own mailbox, read-only, logged to Your data (core/mailbox.py). The password is
+    # never echoed: not in a page, a redirect, a notice or a log. The helpers and notice codes
+    # stay in this block, so the change sits in one place.
+
+    _MAILBOX_NOTICES = {
+        "connected": "Mailbox connected.",
+        "synced": "Mailbox checked. The counts are below.",
+        "sync-failed": "The check didn't finish. The reason is below.",
+        "paused": "Automatic logging is paused.",
+        "resumed": "Automatic logging is on again.",
+        "disconnected": (
+            "Mailbox disconnected. Emails already logged stay in each account's history."
+        ),
+        "not-connected": "Connect a mailbox first.",
+    }
+    _MAILBOX_PROVIDER_ERROR = "Choose your mail provider."
+    _MAILBOX_TOGGLE_ERROR = "Choose pause or resume, then try again."
+    _MAILBOX_SAVE_FAILED = (
+        "Wardmind couldn't save the mailbox. Check that your user profile folder is writable, "
+        "then try again."
+    )
+
+    def _mailbox_checked(last_sync_at: datetime | None) -> str:
+        """'Last checked 4 minutes ago.', from the same relative time a feed's Synced line uses."""
+        if last_sync_at is None:
+            return "Not checked yet."
+        now = datetime.now(UTC).replace(tzinfo=None)
+        return feed_pages.synced_text(last_sync_at, now).replace("Synced", "Last checked", 1) + "."
+
+    def _mailbox_counts(counts: mailbox.SyncCounts) -> str:
+        """'12 emails logged from 340 read.', then how many were already logged, if any."""
+        emails = "email" if counts.logged == 1 else "emails"
+        text = f"{counts.logged} {emails} logged from {counts.read} read."
+        if counts.already:
+            text += f" {counts.already} {'was' if counts.already == 1 else 'were'} already logged."
+        return text
+
+    def _mailbox_page(
+        request: Request,
+        *,
+        notice: str = "",
+        form: dict[str, str] | None = None,
+        errors: dict[str, str] | None = None,
+        toggle_error: str = "",
+        status_code: int = 200,
+    ) -> HTMLResponse:
+        """The Settings > Mailbox page. Connected: the status, Sync now, pause or resume, and
+        disconnect. Not connected: the explanation and the connect form. `form` is what the form
+        shows again (never the password); `errors` maps a field name to its message, and "form"
+        is for the whole form."""
+        if form is None:
+            form = {
+                "provider": mailbox.Provider.GMAIL.value,
+                "host": "",
+                "username": "",
+                "aliases": "",
+            }
+        saved = service.mailbox_settings()
+        checked = _mailbox_checked(saved.last_sync_at) if saved is not None else ""
+        counts = ""
+        if saved is not None and saved.last_counts is not None:
+            counts = _mailbox_counts(saved.last_counts)
+        return _render(
+            request,
+            "settings/mailbox.html",
+            page="Mailbox",
+            active="settings",
+            section="mailbox",
+            status_code=status_code,
+            notice=notice,
+            demo=load_settings().source is DataSource.DEMO,
+            saved=saved,
+            password_missing=saved is not None and secrets.get_secret(mailbox.SECRET_NAME) is None,
+            sync_minutes=mailbox.SYNC_MINUTES,
+            checked_text=checked,
+            counts_text=counts,
+            providers=[(provider.value, provider.label) for provider in mailbox.Provider],
+            form=form,
+            errors=errors or {},
+            toggle_error=toggle_error,
+        )
+
+    @app.get("/settings/mailbox")
+    def mailbox_page(request: Request, notice: str = "") -> HTMLResponse:
+        """The page. ?notice= is one code from _MAILBOX_NOTICES; any other value shows nothing."""
+        return _mailbox_page(request, notice=_MAILBOX_NOTICES.get(notice, ""))
+
+    @app.post("/settings/mailbox/connect")
+    async def mailbox_connect(request: Request) -> Response:
+        """Connect the mailbox: check the login, save the password as a secret and the settings,
+        then sync once. A bad field or a refused login re-renders the form (422) with the message,
+        what was typed except the password, and nothing saved."""
+        fields = await _posted_fields(request)
+        form = {name: fields.get(name, "") for name in ("provider", "host", "username", "aliases")}
+        password = fields.get("password", "")
+        errors: dict[str, str] = {}
+        chosen: mailbox.Provider | None
+        try:
+            chosen = mailbox.Provider(form["provider"])
+        except ValueError:
+            chosen = None
+            errors["provider"] = _MAILBOX_PROVIDER_ERROR
+        checks: dict[str, tuple[Callable[[str], object], str]] = {
+            "username": (mailbox.clean_username, form["username"]),
+            "aliases": (mailbox.clean_aliases, form["aliases"]),
+            "password": (secrets.validate_secret, password),
+        }
+        if chosen is mailbox.Provider.OTHER:  # the host is only typed for Another provider
+            checks["host"] = (mailbox.clean_host, form["host"])
+        for field, (clean, value) in checks.items():
+            try:
+                clean(value)
+            except ValueError as error:
+                errors[field] = str(error)
+        if chosen is None or errors:
+            return await run_in_threadpool(
+                _mailbox_page, request, form=form, errors=errors, status_code=422
+            )
+        try:
+            await run_in_threadpool(
+                service.connect_mailbox,
+                chosen,
+                form["host"],
+                form["username"],
+                form["aliases"],
+                password,
+            )
+        except ValueError as error:  # checked above; this is a safety net
+            errors["form"] = str(error)
+        except mailbox.MailboxError as error:  # the login or the server; never the password
+            errors["form"] = error.message
+        except OSError:
+            return await run_in_threadpool(
+                _mailbox_page,
+                request,
+                form=form,
+                errors={"form": _MAILBOX_SAVE_FAILED},
+                status_code=500,
+            )
+        else:
+            return RedirectResponse("/settings/mailbox?notice=connected", status_code=303)
+        return await run_in_threadpool(
+            _mailbox_page, request, form=form, errors=errors, status_code=422
+        )
+
+    @app.post("/settings/mailbox/sync")
+    def mailbox_sync() -> RedirectResponse:
+        """Check the mailbox now. A failed check is saved on the settings, and the page shows why;
+        with no mailbox connected, the page says so."""
+        try:
+            service.sync_mailbox_now()
+        except mailbox.MailboxError:
+            if service.mailbox_settings() is None:
+                return RedirectResponse("/settings/mailbox?notice=not-connected", status_code=303)
+            return RedirectResponse("/settings/mailbox?notice=sync-failed", status_code=303)
+        return RedirectResponse("/settings/mailbox?notice=synced", status_code=303)
+
+    @app.post("/settings/mailbox/enabled")
+    async def mailbox_enabled(request: Request) -> Response:
+        """Pause (on=0) or resume (on=1) the automatic check. Any other value is refused (422)."""
+        choice = (await _posted_fields(request)).get("on", "")
+        if choice not in ("0", "1"):
+            return await run_in_threadpool(
+                _mailbox_page, request, toggle_error=_MAILBOX_TOGGLE_ERROR, status_code=422
+            )
+        try:
+            await run_in_threadpool(service.set_mailbox_enabled, choice == "1")
+        except mailbox.MailboxError:
+            return RedirectResponse("/settings/mailbox?notice=not-connected", status_code=303)
+        notice = "resumed" if choice == "1" else "paused"
+        return RedirectResponse(f"/settings/mailbox?notice={notice}", status_code=303)
+
+    @app.post("/settings/mailbox/disconnect")
+    def mailbox_disconnect() -> RedirectResponse:
+        """Remove the saved settings and the password. The activity already logged stays."""
+        service.disconnect_mailbox()
+        return RedirectResponse("/settings/mailbox?notice=disconnected", status_code=303)
 
     @app.get("/connections/add")
     def add_connection_catalog(request: Request, q: str = "") -> Response:

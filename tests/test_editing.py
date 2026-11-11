@@ -880,3 +880,38 @@ def test_linking_moves_the_members_contacts_and_consent_to_the_primary(store):
     assert contacts.contacts_for(store, "hs-1") == []
     assert sorted(c.name for c in contacts.contacts_for(store, "sp1-acme")) == ["Dana", "Sam"]
     assert set(client_updates.load(store).consents) == {"sp1-acme"}
+
+
+# --- Logos follow the account ---------------------------------------------------------------------
+
+
+def _logo_png() -> bytes:
+    from test_logos import png
+
+    return png()
+
+
+def test_deleting_an_account_removes_its_logo(store):
+    from wardmind.core import logos
+
+    created = create_account(store, dict(NEW_ACCOUNT), today=TODAY)
+    logos.save_logo(store, created.id, _logo_png(), logos.LogoSource.UPLOAD, now=NOW_LOGO)
+
+    delete_account(store, created.id)
+
+    assert logos.get_info(store, created.id) is None
+
+
+def test_linking_moves_a_members_logo_to_the_primary(store):
+    from wardmind.core import logos
+
+    _, _, combined = linked_book(store)
+    logos.save_logo(store, "hs-1", _logo_png(), logos.LogoSource.UPLOAD, now=NOW_LOGO)
+
+    link_accounts(store, combined, ["hs-1", "sp1-acme"], primary="sp1-acme")
+
+    assert logos.get_info(store, "hs-1") is None
+    assert logos.get_info(store, "sp1-acme") is not None
+
+
+NOW_LOGO = datetime(2026, 11, 11, 9, 0, tzinfo=UTC)

@@ -16,7 +16,7 @@ from collections.abc import Mapping
 from datetime import UTC, date, datetime
 from typing import Any
 
-from wardmind.core import client_updates, contacts, history, importing, journal
+from wardmind.core import client_updates, contacts, history, importing, journal, logos
 from wardmind.core.connectors.combined import CombinedConnector, Provenance, _key
 from wardmind.core.matching import normalize_domain
 from wardmind.core.models import Account, Milestones, Signal, SignalKind
@@ -199,6 +199,7 @@ def delete_account(store: LocalStore, account_id: str) -> None:
     contacts.forget(store, lambda candidate: candidate == account_id)
     client_updates.forget(store, lambda candidate: candidate == account_id)
     journal.Journal(store).forget(lambda candidate: candidate == account_id)
+    logos.forget(store, lambda candidate: candidate == account_id)
     history.HistoryStore(store).forget(lambda candidate: candidate == account_id)
 
 
@@ -352,6 +353,7 @@ def link_accounts(
             contacts.move_contacts(store, member, primary)
             client_updates.move_account(store, member, primary)
             journal.Journal(store).move_account(member, primary)
+            logos.move_logo(store, member, primary)
     # The merged account keeps the primary's score history; the members' own histories would
     # otherwise read as accounts that left the book.
     others = {member for member in members if member != primary}

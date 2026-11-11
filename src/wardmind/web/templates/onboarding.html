@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% from "partials/golive_tag.html" import golive_tag %}
+{% from "partials/logo.html" import account_logo %}
 {% block content %}
 <div class="onboarding-page">
   <header class="onboarding-head">
@@ -8,38 +9,43 @@
   </header>
 
   {% if rows %}
-  <div class="table-card">
-  <table class="onboarding-table">
-    <caption class="visually-hidden">Accounts in onboarding, by priority</caption>
-    <thead>
-      <tr>
-        <th scope="col">Account</th>
-        <th scope="col">Health</th>
-        <th scope="col">Day</th>
-        <th scope="col">Plan</th>
-        <th scope="col">Forecast</th>
-        <th scope="col"><span class="visually-hidden">Brief</span></th>
-      </tr>
-    </thead>
-    <tbody>
-      {% for item, brief, forecast in rows %}
-      <tr>
-        <th scope="row" class="cell-account"><a class="account-link" href="/onboarding/{{ item.account.id | idpath }}">{{ item.account.name }}</a></th>
-        <td class="cell-health"><span class="health health--{{ item.health.value }}"><svg class="icon" aria-hidden="true" focusable="false"><use href="/static/icons.svg#health-{{ item.health.value | replace('_', '-') }}"/></svg> {{ item.health.label }}</span></td>
-        <td class="cell-day">{% if brief.day is none %}Start date not known{% else %}Day {{ brief.day }} of {{ brief.window_days }}{% endif %}</td>
-        <td class="cell-plan">
-          <span class="plan-cell">
-            <span class="plan-dots">{% for state in plan_dots(brief.milestones) %}<span class="plan-dot plan-dot--{{ state }}" aria-hidden="true"></span>{% endfor %}</span>
-            <span class="plan-words">{{ plan_summary(brief.milestones) }}</span>
-          </span>
-        </td>
-        <td class="cell-forecast">{% if forecast is none %}<span class="forecast-unknown">Not known</span>{% else %}{{ golive_tag(forecast) }}{% endif %}</td>
-        <td class="cell-action"><a href="/onboarding/{{ item.account.id | idpath }}" aria-label="Prepare brief for {{ item.account.name }}">Prepare brief</a></td>
-      </tr>
-      {% endfor %}
-    </tbody>
-  </table>
-  </div>
+  <h2 class="visually-hidden">Accounts in onboarding, by priority</h2>
+  <ul class="prep-list">
+    {% for item, brief, forecast in rows %}
+    {% set projected = forecast.projected_day if forecast is not none else none %}
+    {# The runway's words: the same text is the chart's label, so a screen reader gets it once from
+       the image and the page shows it under the bar. #}
+    {% set words %}{% if brief.day is none %}Start date not known.{% else %}Day {{ brief.day }} of {{ brief.window_days }}.{% endif %}{% if projected is not none %} Projected finish: day {{ projected }}.{% endif %}{% endset %}
+    <li class="prep-card">
+      <div class="prep-head">
+        {% if logos is defined %}{{ account_logo(item.account.id, item.account.name, logos) }}{% endif %}
+        <h3 class="prep-name"><a class="account-link" href="/onboarding/{{ item.account.id | idpath }}">{{ item.account.name }}</a></h3>
+        <span class="health health--{{ item.health.value }}"><svg class="icon" aria-hidden="true" focusable="false"><use href="/static/icons.svg#health-{{ item.health.value | replace('_', '-') }}"/></svg> {{ item.health.label }}</span>
+      </div>
+
+      <div class="prep-runway">
+        {% if runway is defined %}
+        {% set rw = runway(brief.day, brief.window_days, projected) %}
+        <svg class="runway" viewBox="0 0 100 24" preserveAspectRatio="none" width="100%" height="24" role="img" aria-label="{{ words | trim }}">
+          <rect class="runway-track" x="0" y="8" width="100" height="8"/>
+          <rect class="runway-elapsed" x="0" y="8" width="{{ rw.elapsed_pct }}" height="8"/>
+          {% if rw.overrun_pct %}<rect class="runway-overrun" x="{{ rw.window_end_pct }}" y="8" width="{{ rw.overrun_pct }}" height="8"/>{% endif %}
+          <rect class="runway-window" x="{{ rw.window_end_pct }}" y="3" width="0.6" height="18"/>
+          {% if rw.projected_pct is not none %}<rect class="runway-projected" x="{{ rw.projected_pct }}" y="0" width="0.6" height="24"/>{% endif %}
+        </svg>
+        {% endif %}
+        <p class="runway-words">{{ words | trim }}</p>
+      </div>
+
+      <div class="prep-meta">
+        <p class="prep-plan"><span class="plan-dots">{% for state in plan_dots(brief.milestones) %}<span class="plan-dot plan-dot--{{ state }}" aria-hidden="true"></span>{% endfor %}</span> <span class="plan-words">{{ plan_summary(brief.milestones) }}</span></p>
+        <p class="prep-forecast">{% if forecast is none %}<span class="forecast-unknown">Not known</span>{% else %}{{ golive_tag(forecast) }}{% endif %}</p>
+      </div>
+
+      <p class="prep-action no-print"><a href="/onboarding/{{ item.account.id | idpath }}" aria-label="Prepare brief for {{ item.account.name }}">Prepare brief</a></p>
+    </li>
+    {% endfor %}
+  </ul>
   {% endif %}
 
   <section class="onboarding-section" aria-labelledby="another-heading">

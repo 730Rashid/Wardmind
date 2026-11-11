@@ -14,6 +14,8 @@ Only these, and only when you set them up:
 | Web research, **off by default** | The customer's own website, and nowhere else | An ordinary visit to that website, when you press **Look up their website** on its account page or **Look up all websites**. Nothing about the account is sent. |
 | AI summaries, **off by default**, with your own OpenRouter key | `openrouter.ai`, and the company running the model you chose | Only the text web research read from the customer's public website. Nothing from your book. |
 | Data feeds you add (**Settings > Connections > Add a connection**) | Only the address or product you set up: your own file or SQLite database (nothing leaves), a link or API you typed, Google Sheets, Stripe, Chargebee, Zendesk, Freshdesk, PostHog or Airtable | Read requests with the key you gave that feed, on the schedule you chose. Nothing from your book is sent, and nothing is ever written to the source. |
+| Your mailbox, **off until you connect it** (**Settings > Mailbox**) | Only your own mail provider's IMAP server (Gmail, Outlook, iCloud, Yahoo, Fastmail or the server you typed), over TLS | Your username and app password, to read Inbox and Sent. Wardmind never sends, moves, deletes or marks mail as read, and nothing from your book is sent. |
+| Logos, with web research on | The customer's own website | An ordinary visit to its home page and the icon files it names, when you press **Find on website** or during **Look up all websites**. Nothing about the account is sent. |
 | Claude, if you add the MCP server | Anthropic, as part of your Claude conversation | Whatever the tools return when Claude calls them: account names, ARR, owners, signals, briefs, and from your journal the last-contact dates, follow-ups, snoozes and outcomes (never the text of your notes). This is covered by your own Claude account's terms. |
 
 Spreadsheets you import and accounts you add by hand never leave your computer.
@@ -147,6 +149,22 @@ renewal outcomes. It is your own record of your customers, so:
 - Removing a note, follow-up or outcome deletes it. Removing a connection or deleting a
   hand-added account deletes its accounts' journal.
 
+**Emails from your mailbox** (your data only), once you connect it in **Settings > Mailbox**:
+
+- Every 15 minutes Wardmind reads the newest mail in Inbox and Sent, read-only. The first check
+  goes back 30 days.
+- Only emails to or from one of an account's contacts, or an address at its website's domain,
+  are kept. Each one is kept as its subject, date, the addresses involved and a short excerpt
+  (quoted replies cut off) in that account's Activity history. Everything else is read and
+  forgotten. Free mail domains such as gmail.com never match a whole account.
+- The app password is saved like a feed key and only ever shown as dots. **Disconnect** deletes
+  it; emails already logged stay until you remove them.
+
+**Logos** are images you upload, or that **Find on website** fetched from the customer's own
+site. They are kept until you remove them, or until **Delete all local data**; clearing the cache
+or turning web research off doesn't remove them. Removing a connection or deleting an account
+removes its logo.
+
 **Score history** (your data only): one snapshot a day of every account's name, rank, risk,
 health, ARR and signal values, kept for two years in `%LOCALAPPDATA%\wardmind\data\history`,
 one file per day. These are the same facts My book shows, kept so Wardmind can say what changed
@@ -166,7 +184,10 @@ worked out from its sample readings.
 | Web research results | `%LOCALAPPDATA%\wardmind\data\research`, until **Clear local cache** or turning web research off |
 | AI summaries | `%LOCALAPPDATA%\wardmind\data\summaries` |
 | Contacts | `%LOCALAPPDATA%\wardmind\data\contacts.json` |
-| Notes, touches, follow-ups, snoozes and renewal outcomes | `%LOCALAPPDATA%\wardmind\data\journal.json` (demo data: `demo-journal.json`) |
+| Notes, activity (calls, meetings, logged emails), pins, account teams, follow-ups, snoozes and renewal outcomes | `%LOCALAPPDATA%\wardmind\data\journal.json` (demo data: `demo-journal.json`) |
+| Mailbox settings: provider, server, username, your other addresses, last check | `%LOCALAPPDATA%\wardmind\data\mailbox.json` |
+| Mailbox app password | `%LOCALAPPDATA%\wardmind\feeds\mailbox-password` |
+| Logos | `%LOCALAPPDATA%\wardmind\data\logos` |
 | Score history, one snapshot a day for two years | `%LOCALAPPDATA%\wardmind\data\history` |
 | Client update agreements, codes, your form link and updates waiting for review | `%LOCALAPPDATA%\wardmind\data\client_updates.json` |
 | Data feed keys | `%LOCALAPPDATA%\wardmind\feeds`, one file per feed. Only the last 4 characters are ever shown. |
@@ -197,7 +218,8 @@ same folder, not with the keys, so treat that folder as private.
   refused.
 - Other websites can't load its pages, images or scripts, or put it in a frame, so they can't
   read your book or tell that Wardmind is running.
-- Pages aren't kept in your browser's cache.
+- Pages aren't kept in your browser's cache. Logos are the one exception: the browser may keep
+  them for an hour, so lists don't fetch each one again.
 - The desktop app (Wardmind.exe) runs the same dashboard on `127.0.0.1`, on a port chosen
   fresh each time it starts, with all of the protections above. Its window's browser runs in
   private mode, so it keeps no cookies, cache or website storage after you close it. Links to

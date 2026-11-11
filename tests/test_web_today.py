@@ -178,7 +178,7 @@ def test_demo_accounts_at_risk_with_no_journal_need_attention(client: TestClient
     attention = _section(_text(response), "today-attention")
     assert "At risk" in attention
     assert "Add follow-up" in attention and "Snooze 7 days" in attention
-    assert "Log a call" in attention and "#notes" in attention
+    assert "Log a call" in attention and "#activity" in attention
 
 
 def test_the_add_follow_up_on_today_posts_the_suggested_step_for_a_week(

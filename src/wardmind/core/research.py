@@ -221,6 +221,13 @@ def _check_address(host: str, port: int, resolve: Resolver) -> str:
     return addresses[0]
 
 
+def check_public_host(host: str, port: int, resolve: Resolver = socket.getaddrinfo) -> str:
+    """The address to connect to for host:port when every address it resolves to is public, for
+    connections other than web pages (the mailbox). Raises BlockedWebsite for a private or local
+    address, SiteUnreachable when it doesn't resolve; callers word their own message."""
+    return _check_address(host, port, resolve)
+
+
 class _GuardedBackend(httpcore.SyncBackend):
     """Resolves the host itself and connects to the checked address. TLS still verifies the
     certificate against the host name, because httpcore passes it to start_tls separately."""

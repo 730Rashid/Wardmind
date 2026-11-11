@@ -1,0 +1,68 @@
+{# Macros shared by the Activity history and the Notes box (_activity.html, _notes.html). Only
+   macros live here, so importing this file prints nothing. An entry is any row of the journal: a
+   plain note, or an activity (call, meeting, email, other); its view comes from journal_pages. #}
+
+{#- The kind choices as radio buttons. `with_note` adds Note, for an edit that can move an entry
+   to the Notes box. -#}
+{% macro kind_choices(name, current, error, error_id, with_note) -%}
+{%- set choices = [("note", "Note"), ("call", "Call"), ("meeting", "Meeting"), ("email", "Email"), ("other", "Other")] if with_note else [("call", "Call"), ("meeting", "Meeting"), ("email", "Email"), ("other", "Other")] -%}
+<fieldset class="journal-kinds"{% if error %} aria-describedby="{{ error_id }}"{% endif %}>
+  <legend>Kind</legend>
+  {% for value, label in choices %}
+  <label class="choice"><input type="radio" name="{{ name }}" value="{{ value }}"{% if current == value %} checked{% endif %}> {{ label }}</label>
+  {% endfor %}
+  {% if error %}<p class="field-error" id="{{ error_id }}">{{ error }}</p>{% endif %}
+</fieldset>
+{%- endmacro %}
+
+{#- Pin or Unpin, posted to the entry's own route with the page. The words say which; the entry's
+   kind and day are read out after them for a screen reader. -#}
+{% macro pin_form(entry, account_id) -%}
+<form class="inline-form" method="post" action="/accounts/{{ account_id | idpath }}/entries/{{ entry.id | idpath }}/pin">
+  <input type="hidden" name="back" value="account">
+  <input type="hidden" name="pinned" value="{{ '0' if entry.pinned else '1' }}">
+  <button type="submit" class="button button--small">{{ 'Unpin' if entry.pinned else 'Pin' }}<span class="visually-hidden"> the {{ entry.kind_label | lower }} on {{ entry.day }}</span></button>
+</form>
+{%- endmacro %}
+
+{#- The text of an entry: all of it when short; otherwise its start, with the rest one click away. -#}
+{% macro entry_text(entry) -%}
+{% if entry.long %}
+<details class="entry-text">
+  <summary><span class="entry-preview">{{ entry.preview }}</span> <span class="entry-toggle entry-toggle--more">Show the whole text</span><span class="entry-toggle entry-toggle--less">Show less</span></summary>
+  <p class="note-text">{{ entry.text }}</p>
+</details>
+{% else %}
+<p class="note-text">{{ entry.text }}</p>
+{% endif %}
+{%- endmacro %}
+
+{#- The Edit or Remove disclosure of an entry: its kind, date and text, and a Remove button. A refused
+   save opens it with the messages. Both forms post to the entry's own routes. -#}
+{% macro entry_edit(entry, account_id) -%}
+<details class="note-disclosure"{% if entry.edit_open %} open{% endif %}>
+  <summary class="button button--small">Edit or remove<span class="visually-hidden"> the {{ entry.kind_label | lower }} on {{ entry.day }}</span></summary>
+  <form class="journal-form" method="post" action="/accounts/{{ account_id | idpath }}/notes/{{ entry.id | idpath }}/edit">
+    <input type="hidden" name="back" value="account">
+    {% if entry.edit.errors.form %}<p class="field-error" role="alert">{{ entry.edit.errors.form }}</p>{% endif %}
+    {{ kind_choices('kind', entry.edit.values.get('kind', entry.kind), entry.edit.errors.kind, 'entry-' ~ entry.id ~ '-kind-error', true) }}
+    <div class="field">
+      <label for="entry-{{ entry.id }}-day">Date</label>
+      <input type="date" id="entry-{{ entry.id }}-day" name="happened_on" value="{{ entry.edit.values.get('happened_on', '') }}"{% if entry.edit.errors.happened_on %} aria-invalid="true" aria-describedby="entry-{{ entry.id }}-day-error"{% endif %}>
+      {% if entry.edit.errors.happened_on %}<p class="field-error" id="entry-{{ entry.id }}-day-error">{{ entry.edit.errors.happened_on }}</p>{% endif %}
+    </div>
+    <div class="field">
+      <label for="entry-{{ entry.id }}-text">Note</label>
+      <textarea id="entry-{{ entry.id }}-text" name="text" rows="4" maxlength="4000"{% if entry.edit.errors.text %} aria-invalid="true" aria-describedby="entry-{{ entry.id }}-text-error"{% endif %}>{{ entry.edit.values.get('text', '') }}</textarea>
+      {% if entry.edit.errors.text %}<p class="field-error" id="entry-{{ entry.id }}-text-error">{{ entry.edit.errors.text }}</p>{% endif %}
+    </div>
+    <div class="form-actions">
+      <button type="submit" class="button-primary">Save</button>
+    </div>
+  </form>
+  <form class="inline-form" method="post" action="/accounts/{{ account_id | idpath }}/notes/{{ entry.id | idpath }}/remove">
+    <input type="hidden" name="back" value="account">
+    <button type="submit" class="button button--small">Remove<span class="visually-hidden"> the {{ entry.kind_label | lower }} on {{ entry.day }}</span></button>
+  </form>
+</details>
+{%- endmacro %}

@@ -66,9 +66,9 @@ def _block(markup: str, pattern: str) -> str:
 
 
 def _rows(markup: str) -> list[str]:
-    """The body rows of the picker's table, as HTML."""
-    body = _block(markup, r'<table class="onboarding-table">.*?<tbody>(.*?)</tbody>')
-    return re.findall(r"<tr>(.*?)</tr>", body, re.S)
+    """The picker's account cards, as HTML, in order."""
+    body = _block(markup, r'<ul class="prep-list">(.*?)</ul>')
+    return re.findall(r'<li class="prep-card">(.*?)</li>', body, re.S)
 
 
 def _book_onboarding() -> list[ScoredAccount]:
@@ -412,12 +412,12 @@ def test_the_plan_status_symbols_are_in_the_sprite() -> None:
     [
         (0, 0, "No accounts are in onboarding right now."),
         (0, 3, "No accounts are in onboarding right now."),
-        (1, 0, "1 account is in onboarding. None are behind on their plan."),
-        (1, 1, "1 account is in onboarding. 1 is behind on its plan."),
-        (2, 0, "2 accounts are in onboarding. None are behind on their plan."),
-        (2, 2, "2 accounts are in onboarding. 2 are behind on their plan."),
-        (8, 1, "8 accounts are in onboarding. 1 is behind on its plan."),
-        (8, 3, "8 accounts are in onboarding. 3 are behind on their plan."),
+        (1, 0, "1 account is in onboarding. None have an overdue milestone."),
+        (1, 1, "1 account is in onboarding. 1 has an overdue milestone."),
+        (2, 0, "2 accounts are in onboarding. None have an overdue milestone."),
+        (2, 2, "2 accounts are in onboarding. 2 have an overdue milestone."),
+        (8, 1, "8 accounts are in onboarding. 1 has an overdue milestone."),
+        (8, 3, "8 accounts are in onboarding. 3 have an overdue milestone."),
     ],
 )
 def test_onboarding_summary(in_onboarding: int, behind: int, expected: str) -> None:

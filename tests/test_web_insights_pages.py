@@ -81,9 +81,9 @@ def _block(markup: str, pattern: str) -> str:
 
 
 def _rows(markup: str) -> list[str]:
-    """The body rows of the picker's table, as HTML."""
-    body = _block(markup, r'<table class="onboarding-table">.*?<tbody>(.*?)</tbody>')
-    return re.findall(r"<tr>(.*?)</tr>", body, re.S)
+    """The picker's account cards, as HTML, in order."""
+    body = _block(markup, r'<ul class="prep-list">(.*?)</ul>')
+    return re.findall(r'<li class="prep-card">(.*?)</li>', body, re.S)
 
 
 def _client(monkeypatch: pytest.MonkeyPatch, connector: DemoConnector) -> TestClient:
@@ -162,10 +162,12 @@ def client(monkeypatch: pytest.MonkeyPatch, connector: DemoConnector) -> TestCli
 # The picker: the Forecast column
 
 
-def test_the_picker_has_a_forecast_column_after_plan(client: TestClient) -> None:
-    head = _block(client.get("/onboarding").text, r"<thead>(.*?)</thead>")
-    labels = [_plain(label) for label in re.findall(r'<th scope="col">(.*?)</th>', head, re.S)]
-    assert labels == ["Account", "Health", "Day", "Plan", "Forecast", "Brief"]
+def test_each_card_puts_the_forecast_after_the_plan(client: TestClient) -> None:
+    card = _rows(_text(client.get("/onboarding")))[0]
+    fields = ["prep-name", 'class="health', "prep-runway", "prep-plan", "prep-forecast"]
+    fields.append("prep-action")
+    positions = [card.index(field) for field in fields]
+    assert positions == sorted(positions)
 
 
 def test_each_row_shows_its_forecast_status_and_words(
@@ -177,7 +179,7 @@ def test_each_row_shows_its_forecast_status_and_words(
     statuses = {forecast.status for _, forecast in forecasts if forecast is not None}
     assert {GoLiveStatus.ON_TRACK, GoLiveStatus.LATE} <= statuses  # both tag kinds in the demo
     for row, (_, forecast) in zip(rows, forecasts, strict=True):
-        cell = _block(row, r'<td class="cell-forecast">(.*?)</td>')
+        cell = _block(row, r'<p class="prep-forecast">(.*?)</p>')
         assert _plain(cell) == _expected_cell(forecast)
         assert forecast is not None
         assert ICON_FOR_STATUS[forecast.status] in cell
@@ -241,7 +243,7 @@ def test_each_status_gets_its_tag_and_short_text(
     rows = _rows(_text(_client(monkeypatch, connector).get("/onboarding")))
     assert len(rows) == 8
     for row in rows:
-        cell = _block(row, r'<td class="cell-forecast">(.*?)</td>')
+        cell = _block(row, r'<p class="prep-forecast">(.*?)</p>')
         assert _plain(cell) == expected
         assert tag in cell
         assert ICON_FOR_STATUS[forecast.status] in cell
@@ -259,7 +261,7 @@ def test_an_account_with_no_forecast_shows_not_known_and_the_rest_are_unchanged(
 
     monkeypatch.setattr(insights, "golive_forecast", unknown_for_one)
     rows = _rows(_text(_client(monkeypatch, connector).get("/onboarding")))
-    cells = [_plain(_block(row, r'<td class="cell-forecast">(.*?)</td>')) for row in rows]
+    cells = [_plain(_block(row, r'<p class="prep-forecast">(.*?)</p>')) for row in rows]
     assert cells[0] == "Not known"
     assert cells[1:] == [_expected_cell(forecast) for _, forecast in forecasts[1:]]
     markup = _text(_client(monkeypatch, connector).get("/onboarding"))

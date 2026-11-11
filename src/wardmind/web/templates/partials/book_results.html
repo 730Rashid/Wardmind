@@ -1,3 +1,4 @@
+{% from "partials/logo.html" import account_logo %}
 {# A blind spot: Healthy only because its readings are missing or old. The word carries it; the
    explanation is for screen readers and sits in the tag's text. #}
 {% macro blind_tag() -%}
@@ -10,10 +11,9 @@
     <caption class="visually-hidden">Accounts ranked by priority</caption>
     <thead>
       <tr role="row">
-        <th scope="col" role="columnheader" class="num">#</th>
+        <th scope="col" role="columnheader">Account</th>
         <th scope="col" role="columnheader">Health</th>
         <th scope="col" role="columnheader" class="num">Priority</th>
-        <th scope="col" role="columnheader">Account</th>
         <th scope="col" role="columnheader">Motion</th>
         <th scope="col" role="columnheader" class="num">ARR</th>
         <th scope="col" role="columnheader">Why it's on your list</th>
@@ -23,7 +23,26 @@
       {% for rank, item in rows %}
       {% set others = item.reasons | length - 1 %}
       <tr role="row">
-        <th scope="row" role="rowheader" class="cell-rank num">{{ rank }}</th>
+        <th scope="row" role="rowheader" class="cell-account">
+          <div class="account-cell">
+            {{ account_logo(item.account.id, item.account.name, logos, "md") }}
+            <div class="account-cell-text">
+              <p class="account-name-line">
+                <a class="account-link" href="/accounts/{{ item.account.id | idpath }}">{{ item.account.name }}</a>
+                <span class="rank-tile"><span class="visually-hidden">Rank </span>{{ rank }}</span>
+              </p>
+              {% if flags.get(item.account.id) %}
+              <ul class="tags" aria-label="Topics from their website">
+                {% for topic in flags.get(item.account.id) %}
+                <li class="tag">{{ topic.label }}</li>
+                {% endfor %}
+              </ul>
+              {% endif %}
+              <span class="owner">{{ item.account.owner }}</span>
+              {% include "partials/journal_chips.html" %}
+            </div>
+          </div>
+        </th>
         <td role="cell" class="cell-health">
           <span class="health-status">
             <span class="health health--{{ item.health.value }}">
@@ -40,18 +59,6 @@
             <rect class="bar-track" width="100" height="6"/>
             <rect class="bar-fill" width="{{ item.priority }}" height="6"/>
           </svg>
-        </td>
-        <td role="cell" class="cell-account">
-          <a class="account-link" href="/accounts/{{ item.account.id | idpath }}">{{ item.account.name }}</a>
-          {% if flags.get(item.account.id) %}
-          <ul class="tags" aria-label="Topics from their website">
-            {% for topic in flags.get(item.account.id) %}
-            <li class="tag">{{ topic.label }}</li>
-            {% endfor %}
-          </ul>
-          {% endif %}
-          <span class="owner">{{ item.account.owner }}</span>
-          {% include "partials/journal_chips.html" %}
         </td>
         <td role="cell" class="cell-motion"><span class="pill pill--{{ item.motion.value }}"><svg class="icon" aria-hidden="true" focusable="false"><use href="/static/icons.svg#motion-{{ item.motion.value }}"/></svg>{{ item.motion.label }}</span></td>
         <td role="cell" class="cell-arr num">{{ item.account.arr | money }}</td>
@@ -75,7 +82,10 @@
     <li>
       <article class="account-card" aria-labelledby="{{ card_id }}">
         <div class="card-top">
-          <span class="rank-tile"><span class="visually-hidden">Rank </span>{{ rank }}</span>
+          <div class="card-id">
+            {{ account_logo(item.account.id, item.account.name, logos, "md") }}
+            <span class="rank-tile"><span class="visually-hidden">Rank </span>{{ rank }}</span>
+          </div>
           <span class="health-status">
             <span class="health health--{{ item.health.value }}">
               <svg class="icon" aria-hidden="true" focusable="false"><use href="/static/icons.svg#health-{{ item.health.value | replace('_', '-') }}"/></svg>

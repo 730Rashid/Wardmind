@@ -1,0 +1,14 @@
+{# An account's logo, or its monogram when it has none (core/logos.py). `logos` is the dict from
+   service.all_logos() (account id -> LogoInfo), passed in by the route; `monogram` is a template
+   global. The logo is decorative: the account's name always sits next to it, so alt is empty and
+   the monogram is hidden from screen readers. Sizes: "sm" (24px, lists), "md" (36px, rows and
+   cards), "lg" (48px, the account page). #}
+{% macro account_logo(account_id, name, logos, size="md") -%}
+{%- set px = {"sm": 24, "md": 36, "lg": 48}[size] -%}
+{%- if account_id in logos -%}
+<img class="logo logo--{{ size }}" src="/logos/{{ account_id | idpath }}" alt="" width="{{ px }}" height="{{ px }}" loading="lazy" decoding="async">
+{%- else -%}
+{%- set mono = monogram(name) -%}
+<span class="logo logo--{{ size }} logo--mono logo--{{ mono.tone }}" aria-hidden="true">{{ mono.initials }}</span>
+{%- endif -%}
+{%- endmacro %}

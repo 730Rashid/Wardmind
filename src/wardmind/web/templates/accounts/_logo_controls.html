@@ -1,0 +1,33 @@
+{# The account's logo beside its name, at the large size: the logo, or the monogram when it has none.
+   Your data also gets a Logo disclosure with three actions: upload an image, look for one on the
+   account's own website, or remove the logo. Demo data shows the logo alone. No script is needed. #}
+{% from "partials/logo.html" import account_logo %}
+{{ account_logo(account.id, account.name, logos, "lg") }}
+{% if prov %}
+<details class="logo-disclosure no-print">
+  <summary class="button button--small">Logo</summary>
+  <div class="logo-panel">
+    <form class="logo-form" method="post" action="/accounts/{{ account.id | idpath }}/logo" enctype="multipart/form-data">
+      <div class="field">
+        <label for="logo-file">Logo image</label>
+        <input type="file" id="logo-file" name="logo" accept="image/png,image/jpeg,image/gif,image/webp,image/x-icon" aria-describedby="logo-file-help">
+        <p class="field-help" id="logo-file-help">PNG, JPEG, GIF, WebP or ICO, up to 200 KB</p>
+      </div>
+      <div class="form-actions">
+        <button type="submit" class="button-primary">Upload logo</button>
+      </div>
+    </form>
+    <div class="logo-actions">
+      <form class="inline-form" method="post" action="/accounts/{{ account.id | idpath }}/logo/find">
+        <button type="submit" class="button button--small">Find on website</button>
+      </form>
+      {% if account.id in logos %}
+      <form class="inline-form" method="post" action="/accounts/{{ account.id | idpath }}/logo/remove">
+        <button type="submit" class="button button--small">Remove logo</button>
+      </form>
+      {% endif %}
+    </div>
+    <p class="field-help">Finding a logo looks at the account's own website, when web research is on.</p>
+  </div>
+</details>
+{% endif %}

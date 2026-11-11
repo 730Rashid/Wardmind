@@ -1,0 +1,58 @@
+{# The account team, in the aside: who on your side works this account, with an email each when known.
+   Anyone can be added with a role; removing someone keeps the entries they logged. Emails between the
+   team and the client's contacts are logged automatically once a mailbox is connected. #}
+<section class="account-team" id="team" aria-labelledby="team-heading">
+  <h2 class="section-title" id="team-heading">Account team</h2>
+
+  {% if journal.team %}
+  <ul class="team-list">
+    {% for member in journal.team %}
+    <li class="team-member">
+      <p class="team-name">{{ member.name }}</p>
+      <p class="team-role">{{ member.role }}</p>
+      {% if member.email %}<p class="team-email"><a href="mailto:{{ member.email }}">{{ member.email }}</a></p>{% endif %}
+      <form class="inline-form" method="post" action="/accounts/{{ account.id | idpath }}/team/{{ member.id | idpath }}/remove">
+        <input type="hidden" name="back" value="account">
+        <button type="submit" class="button button--small">Remove<span class="visually-hidden"> {{ member.name }} from the team</span></button>
+      </form>
+    </li>
+    {% endfor %}
+  </ul>
+  {% else %}
+  <p class="field-help">No one added yet.</p>
+  {% endif %}
+
+  {% set form = journal.team_form %}
+  <details class="team-add"{% if journal.team_open %} open{% endif %}>
+    <summary class="button button--small">Add someone<span class="visually-hidden"> to the account team</span></summary>
+    <form class="journal-form team-form" method="post" action="/accounts/{{ account.id | idpath }}/team">
+      <input type="hidden" name="back" value="account">
+      {% if form.errors.form %}<p class="field-error" role="alert">{{ form.errors.form }}</p>{% endif %}
+      <div class="field">
+        <label for="team-name-input">Name</label>
+        <input type="text" id="team-name-input" name="name" value="{{ form.values.get('name', '') }}" maxlength="100" autocomplete="off"{% if form.errors.name %} aria-invalid="true" aria-describedby="team-name-error"{% endif %}>
+        {% if form.errors.name %}<p class="field-error" id="team-name-error">{{ form.errors.name }}</p>{% endif %}
+      </div>
+      <div class="field">
+        <label for="team-email-input">Email <span class="field-help">(optional)</span></label>
+        <input type="text" id="team-email-input" name="email" value="{{ form.values.get('email', '') }}" inputmode="email" autocomplete="off" spellcheck="false" aria-describedby="team-email-help{% if form.errors.email %} team-email-error{% endif %}"{% if form.errors.email %} aria-invalid="true"{% endif %}>
+        <p class="field-help" id="team-email-help">Lets the mailbox tell which emails are theirs.</p>
+        {% if form.errors.email %}<p class="field-error" id="team-email-error">{{ form.errors.email }}</p>{% endif %}
+      </div>
+      <div class="field">
+        <label for="team-role">Role</label>
+        <select id="team-role" name="role"{% if form.errors.role %} aria-invalid="true" aria-describedby="team-role-error"{% endif %}>
+          {% for value, label in journal.team_roles %}
+          <option value="{{ value }}"{% if form.values.get('role', 'csm') == value %} selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+        {% if form.errors.role %}<p class="field-error" id="team-role-error">{{ form.errors.role }}</p>{% endif %}
+      </div>
+      <div class="form-actions">
+        <button type="submit" class="button-primary">Add to team</button>
+      </div>
+    </form>
+  </details>
+
+  <p class="field-help">Emails between the team and this client's contacts are logged automatically when a mailbox is connected. <a href="/settings/mailbox">Mailbox settings</a></p>
+</section>

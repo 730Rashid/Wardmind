@@ -20,6 +20,8 @@ from wardmind.core import (
     history,
     import_flow,
     journal,
+    logos,
+    mailbox,
     research,
     secrets,
     summaries,
@@ -185,6 +187,7 @@ def remove_connection(connection_id: str) -> None:
         client_updates.forget(store, owned)
         journal.Journal(store).forget(owned)
         history.HistoryStore(store).forget(owned)
+        logos.forget(store, owned)
         if config is not None and config.kind is ConnectionKind.FEED:
             feed_setup.remove_feed_secret(connection_id)
     reset_connectors()
@@ -571,7 +574,9 @@ def account_flags() -> dict[str, list[research.Topic]]:
 
 
 def _bulk_research(account: Account, refresh: bool) -> tuple[research.SiteResearch, bool]:
-    return _research_one(account, refresh, datetime.now(UTC))
+    found = _research_one(account, refresh, datetime.now(UTC))
+    _find_logo_quietly(account)  # after the lookup, so a failed lookup never reaches the logo
+    return found
 
 
 def _bulk_summary(account: Account, found: research.SiteResearch) -> tuple[summaries.Summary, bool]:
@@ -711,7 +716,7 @@ def sync_due_feeds() -> int:
     """Sync every enabled feed that feed_sync.is_due says is due, one after another; return how
     many were synced. Never raises for one feed's problem (it lands in that feed's status).
     Runs housekeeping, and records the day's score snapshot (remember_book), at most once an
-    hour."""
+    hour. Also syncs the mailbox when it is due (see _sync_mailbox_if_due)."""
     global _last_housekeeping
     store = get_store()
     now = _utc_now()
@@ -735,6 +740,7 @@ def sync_due_feeds() -> int:
             _record_failure(store, config.id, now)
             continue
         synced += 1
+    _sync_mailbox_if_due(now)
     if synced:
         reset_connectors()
     return synced
@@ -835,6 +841,103 @@ def delete_all_local_data() -> None:
             load_settings().model_copy(update={"web_research": False, "ai_summaries": False})
         )
         reset_connectors()
+
+
+# --- Logos (see core/logos.py for the three sources and the file rules) -----------------------
+
+LOGO_NO_WEBSITE_MESSAGE = "Add the account's website first."
+LOGO_UPLOADED_MESSAGE = "You uploaded this logo. Remove it first to look for one on their website."
+_LOGO_LOOKUP_DEMO = "Logos can only be looked up for your own accounts."
+
+
+def logo_info(account_id: str) -> logos.LogoInfo | None:
+    """The account's saved logo (its info), or None: the monogram shows instead."""
+    return logos.get_info(get_store(), account_id)
+
+
+def all_logos() -> dict[str, logos.LogoInfo]:
+    """Every saved logo by account id, for the list pages (one read)."""
+    return logos.all_info(get_store())
+
+
+def upload_logo(account_id: str, data: bytes) -> logos.LogoInfo:
+    """Save the CSM's own image for this account, replacing any logo it had. LogoError (the
+    checker's message) for an image that can't be used. The web page checks the account is
+    in Your data first."""
+    return logos.save_logo(get_store(), account_id, data, logos.LogoSource.UPLOAD, now=_utc_now())
+
+
+def remove_logo(account_id: str) -> bool:
+    """Remove the account's logo, uploaded or found. True if one was removed."""
+    return logos.remove_logo(get_store(), account_id)
+
+
+def find_logo(account_id: str) -> logos.LogoInfo:
+    """Look for the account's logo on its own website and save it (the CSM asked). Raises
+    research.ResearchOff when web research is off, LookupError for an unknown id,
+    LogoError(LOGO_NO_WEBSITE_MESSAGE) without a website, LogoError(LOGO_UPLOADED_MESSAGE) when
+    the CSM uploaded the logo (an uploaded logo is never replaced here), LogoError for demo
+    accounts (nothing is looked up for them), and LogoError("Couldn't find a logo ...") when none
+    works. Research errors (blocked or unreachable website) propagate. Uses one client from
+    _site_client_factory(), closed afterwards, like research_account()."""
+    settings = load_settings()
+    if not settings.web_research:
+        raise research.ResearchOff(_RESEARCH_OFF)
+    account = _book_account(account_id)
+    if account is None:
+        raise LookupError(f"No account with id {account_id}.")
+    if settings.source is DataSource.DEMO:
+        raise logos.LogoError(_LOGO_LOOKUP_DEMO)
+    store = get_store()
+    current = logos.get_info(store, account_id)
+    if current is not None and current.source is logos.LogoSource.UPLOAD:
+        raise logos.LogoError(LOGO_UPLOADED_MESSAGE)
+    try:
+        website = research.website_host(account.domain)
+    except research.NoWebsite:
+        raise logos.LogoError(LOGO_NO_WEBSITE_MESSAGE) from None
+    client = _site_client_factory()
+    try:
+        data, _, url = logos.find_on_website(client, website)
+    finally:
+        client.close()
+    with WRITE_LOCK:  # an upload made while the site was being read is kept, not replaced
+        latest = logos.get_info(store, account_id)
+        if latest is not None and latest.source is logos.LogoSource.UPLOAD:
+            raise logos.LogoError(LOGO_UPLOADED_MESSAGE)
+        return logos.save_logo(
+            store, account_id, data, logos.LogoSource.WEBSITE, now=_utc_now(), origin_url=url
+        )
+
+
+def _find_logo_quietly(account: Account) -> None:
+    """The bulk job's logo step: an account with no logo yet gets one looked for on its website,
+    with its own client (so its own request budget). Never raises: a failure, a demo account or a
+    site with no logo just leaves the account with its monogram, and its lookup stands."""
+    if load_settings().source is DataSource.DEMO:
+        return
+    store = get_store()
+    if logos.get_info(store, account.id) is not None:
+        return
+    try:
+        website = research.website_host(account.domain)
+        client = _site_client_factory()
+        try:
+            data, _, url = logos.find_on_website(client, website)
+        finally:
+            client.close()
+        with WRITE_LOCK:  # saved only if no logo arrived meanwhile (an upload is never replaced)
+            if logos.get_info(store, account.id) is None:
+                logos.save_logo(
+                    store,
+                    account.id,
+                    data,
+                    logos.LogoSource.WEBSITE,
+                    now=_utc_now(),
+                    origin_url=url,
+                )
+    except Exception as exc:
+        _log.info("No logo was found for an account (%s).", type(exc).__name__)
 
 
 # --- The journal and score history (see core/journal.py, core/history.py) -------------------
@@ -975,3 +1078,126 @@ def record_outcome(
     return get_journal().record_outcome(
         account_id, values, scored, latest, now=_utc_now(), today=day
     )
+
+
+# --- The mailbox (see core/mailbox.py: the CSM's own IMAP mailbox, logged to Your data) --------
+
+_MAILBOX_NOT_CONNECTED = "Connect a mailbox first."
+_MAILBOX_NO_PASSWORD = "The mailbox password is missing. Connect it again."
+
+
+def _your_data_accounts() -> list[Account]:
+    """The Your data book's accounts, whatever the page shows: the mailbox always matches Your
+    data (demo data is never matched or written), so this ignores the demo setting. Built the
+    same way as feed_book_accounts."""
+    store = get_store()
+    _add_legacy_hubspot(store)
+    members = [(config, _member(config, store)) for config in store.connections() if config.enabled]
+    return CombinedConnector(members, store, today=date.today()).list_accounts()
+
+
+def mailbox_settings() -> mailbox.MailboxSettings | None:
+    """The connected mailbox's saved settings (no password), or None when none is connected."""
+    return mailbox.load_settings(get_store())
+
+
+def connect_mailbox(
+    provider: mailbox.Provider, host: str, username: str, aliases: str, password: str
+) -> mailbox.MailboxSettings:
+    """Connect the CSM's mailbox. The host comes from mailbox.PROVIDER_HOSTS unless the provider
+    is OTHER (then host is cleaned). Raises ValueError with the clean_* / validate_secret message
+    for a bad field, and mailbox.MailboxError when the login check fails: nothing is saved then.
+    On success the password is saved as the mailbox secret, the settings are saved (enabled),
+    and one sync runs; its failure is only recorded in the settings. Returns the saved settings."""
+    store = get_store()
+    chosen = mailbox.Provider(provider)
+    server = (
+        mailbox.clean_host(host)
+        if chosen is mailbox.Provider.OTHER
+        else mailbox.PROVIDER_HOSTS[chosen]
+    )
+    address = mailbox.clean_username(username)
+    others = mailbox.clean_aliases(aliases)
+    secret = secrets.validate_secret(password)
+    candidate = mailbox.MailboxSettings(
+        provider=chosen,
+        host=server,
+        username=address,
+        own_addresses=[address, *(other for other in others if other != address)],
+        enabled=True,
+        connected_at=_utc_now(),
+    )
+    mailbox.check_login(candidate, secret)
+    secrets.save_secret(mailbox.SECRET_NAME, secret)
+    mailbox.save_settings(store, candidate)
+    try:
+        sync_mailbox_now()
+    except mailbox.MailboxError:
+        pass  # the failure is recorded in the settings (last_error); the page shows it
+    return mailbox.load_settings(store) or candidate
+
+
+def disconnect_mailbox() -> None:
+    """Remove the mailbox settings and its password. The activity already logged stays."""
+    mailbox.disconnect(get_store())
+
+
+def set_mailbox_enabled(on: bool) -> None:
+    """Pause or resume the scheduled sync. Raises mailbox.MailboxError when none is connected."""
+    store = get_store()
+    with WRITE_LOCK:
+        current = mailbox.load_settings(store)
+        if current is None:
+            raise mailbox.MailboxError(_MAILBOX_NOT_CONNECTED)
+        mailbox.save_settings(store, current.model_copy(update={"enabled": on}))
+
+
+def sync_mailbox_now() -> mailbox.SyncResult:
+    """Sync the mailbox now (Sync now, or a connect, or the scheduler). Matches Your data's
+    accounts and their contacts and logs into the Your data journal. Raises
+    mailbox.MailboxError when none is connected, the password is missing, or the sync fails (the
+    failure is saved in the settings too)."""
+    store = get_store()
+    settings = mailbox.load_settings(store)
+    if settings is None:
+        raise mailbox.MailboxError(_MAILBOX_NOT_CONNECTED)
+    password = secrets.get_secret(mailbox.SECRET_NAME)
+    if password is None:
+        raise mailbox.MailboxError(_MAILBOX_NO_PASSWORD)
+    accounts = _your_data_accounts()
+    account_contacts = {
+        account.id: contacts.contacts_for(store, account.id) for account in accounts
+    }
+    return mailbox.sync(
+        store,
+        settings,
+        password,
+        accounts,
+        account_contacts,
+        journal.Journal(store, demo=False),
+        now=_utc_now(),
+    )
+
+
+def mailbox_due(now: datetime) -> bool:
+    """Whether the scheduler should sync the mailbox now: it is connected with its password, it
+    is enabled, and it has never synced or its last attempt is SYNC_MINUTES old or more."""
+    store = get_store()
+    settings = mailbox.load_settings(store)
+    if settings is None or not settings.enabled:
+        return False
+    if secrets.get_secret(mailbox.SECRET_NAME) is None:
+        return False
+    if settings.last_sync_at is None:
+        return True
+    return now - settings.last_sync_at >= timedelta(minutes=mailbox.SYNC_MINUTES)
+
+
+def _sync_mailbox_if_due(now: datetime) -> None:
+    """The scheduler's mailbox step (called from sync_due_feeds). Never raises: a failed sync is
+    recorded in the settings, and anything else is logged by its exception type only."""
+    try:
+        if mailbox_due(now):
+            sync_mailbox_now()
+    except Exception as exc:
+        _log.warning("The mailbox wasn't synced (%s).", type(exc).__name__)

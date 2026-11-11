@@ -731,3 +731,61 @@ own readings, never a model, and each says what it assumes.
 - Both briefs keep their page counts. The weekly brief prints unused seats as one line in This week
   (the section is screen-only); the onboarding brief prints the forecast as the last sentence of its
   summary (the block is screen-only) and shows a reading's age only when it is out of date.
+
+## Activity history, mailbox, logos and the readable redesigns (November 2026)
+
+The account page now keeps a record of contact the way a CRM does, emails log themselves when a
+mailbox is connected, and each client has a logo. Today, the weekly brief and onboarding prep were
+rebuilt so each client is one easy-to-find row or card.
+
+### Account page
+- **Header:** the client's logo (or a monogram tile) beside the name. On Your data a "Logo"
+  disclosure uploads one, finds it on the client's website (web research must be on), or removes it.
+- **Pinned** (above the history, when anything is pinned): up to five entries, notes or activity.
+  The sixth is refused beside the entry: "You can pin up to 5. Unpin one first."
+- **Activity history:** calls, meetings, emails and other contact, newest first. Logging one is a
+  compact form: the kind as radio buttons, then date, subject and who on one row (wide screens),
+  the direction for an email (Sent or Received, required for an email), and details. Filter chips
+  with counts (All, Calls, Meetings, Emails, Other) are links (`?activity=call#activity`); the
+  newest 20 show, then "Show all N". An email from the mailbox carries its sender line and a source
+  badge. Threads waiting on a reply show as chips above the form: "Waiting on them" or "Waiting on
+  you".
+- **Notes:** plain notes only, in their own box below. An entry's box follows its kind, so editing
+  a call into a note moves it.
+- **Account team** (aside): who on your side works the account (CSM, account manager, renewal
+  manager, implementation manager, other), with an email. Emails between them and the client's
+  contacts are logged when the mailbox is connected. Removing someone keeps what they logged.
+
+### Settings > Mailbox (`/settings/mailbox`)
+- Connect with an app password, never the usual one: provider (Gmail, Outlook, iCloud, Yahoo,
+  Fastmail or another IMAP server), address, other addresses, app password. A refused login comes
+  back as one alert above the fields; the password is never echoed.
+- Connected: whether automatic logging is on, the last check ("Last checked 4 minutes ago."), what
+  the last sync did ("12 emails logged from 340 read. 3 were already logged."), Sync now,
+  Pause/Resume, and Disconnect (deletes the app password; logged emails stay).
+- Read-only by design: Wardmind never sends, moves, deletes or marks mail as read. It checks every
+  15 minutes, the first time going back 30 days.
+
+### Logos
+- Every page can show `account_logo(id, name, logos, size)` (`partials/logo.html`). With no logo it
+  is a monogram tile, its colour picked from the name so it stays the same between visits.
+- My book leads each row and card with the logo; the rank is a quiet "#1" beside the name.
+
+### Today
+- A section index (a rail on wide screens, chips on narrow ones) with each section's count.
+- "Find an account" narrows every section to matching names; the text stays through Done, Snooze
+  and the other actions. The contact line is hidden while a find is active (it counts the whole
+  book).
+- New section **Waiting on replies** (after Due): up to ten threads, waiting on you first, then
+  oldest first, each with Open (to the account's Activity history).
+- Each row: logo, name, status pill, the text, one primary button (Done, Add follow-up, Open) and a
+  "More" disclosure for the rest. Buttons carry the account name for screen readers.
+
+### Weekly brief and onboarding prep
+- The brief's top ten are cards (logo, name, health, motion, ARR, reason, next step) under a "Jump
+  to" index of their names, A to Z. The side column holds where the ARR sits, this week and since
+  last week. Print order and the two-page limit are unchanged.
+- Onboarding prep is a grid of cards. Each has a runway bar: the elapsed days (accent), the end of
+  the window (a tick), the projected finish (an ink mark) and any overrun past the window (risk
+  colour). The words under it say the same: "Day 29 of 90. Projected finish: day 87." The headline
+  counts accounts with an overdue milestone, which is not the same as a Late forecast.

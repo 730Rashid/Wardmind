@@ -34,6 +34,11 @@ from wardmind.web import formatting
 FORM = "form"  # the error key for a message about the whole form, not one field
 FOLLOW_UP_ID = re.compile(r"f-[0-9a-f]{8}")  # what journal.py makes for a follow-up id
 DEMO_NOTE = "You're on demo data. Notes and follow-ups here are kept apart from your own data."
+ALL = "all"  # the Activity filter that lists every kind
+ACTIVITY_SHOWN = 20  # the Activity box lists the newest this many, then offers "Show all"
+ENTRY_PREVIEW = 200  # an entry's text is cut to this in a list; the rest sits in a disclosure
+_SHOWN_PEOPLE = 2  # client addresses named on an email before "and N more"
+_FILTER_LABELS = {"call": "Calls", "meeting": "Meetings", "email": "Emails", "other": "Other"}
 TREND_WIDTH = 300  # the sparkline's viewBox, in user units
 TREND_HEIGHT = 60
 _INSET = 4  # keeps the line and its dot inside the box
@@ -52,6 +57,13 @@ NOTICES = {
     "woke": "Snooze ended.",
     "outcome-recorded": "Outcome recorded.",
     "outcome-removed": "Outcome removed.",
+    "activity-added": "Activity logged.",
+    "activity-saved": "Activity saved.",
+    "activity-removed": "Activity removed.",
+    "pinned": "Pinned.",
+    "unpinned": "Unpinned.",
+    "team-added": "Added to the account team.",
+    "team-removed": "Removed from the account team.",
 }
 # The message for a refusal that came from a Today form, which has no room for the values typed.
 REFUSALS = {
@@ -181,8 +193,9 @@ def _join(parts: Sequence[str]) -> str:
 @dataclass(frozen=True)
 class JournalRefusal:
     """A journal form on the account page that was refused: which form (note, note-edit,
-    follow-up, move, snooze, outcome), the note or follow-up it was for (edit and move only), the
-    values as typed and the messages by field, with FORM for a message about the whole form."""
+    activity, pin, team, follow-up, move, snooze, outcome), the entry, follow-up or team member it
+    was for (note-edit, pin and move only), the values as typed and the messages by field, with FORM
+    for a message about the whole form."""
 
     form: str
     item_id: str = ""
@@ -220,6 +233,9 @@ def typed_values(form: str, fields: Mapping[str, str]) -> dict[str, str]:
 _FORM_FIELDS: dict[str, tuple[str, ...]] = {
     "note": ("kind", "happened_on", "text"),
     "note-edit": ("kind", "happened_on", "text"),
+    "activity": ("kind", "happened_on", "subject", "by", "direction", "text"),
+    "pin": ("pinned",),
+    "team": ("name", "email", "role"),
     "follow-up": ("text", "due", "days"),
     "move": ("due", "days"),
     "snooze": ("days", "until"),
@@ -234,6 +250,20 @@ _NOTE_FIELDS = (
 _FIELD_WORDS: dict[str, tuple[tuple[tuple[str, ...], str], ...]] = {
     "note": _NOTE_FIELDS,
     "note-edit": _NOTE_FIELDS,
+    "activity": (
+        (("in the future", "Pick a date"), "happened_on"),
+        (("Pick Call",), "kind"),
+        (("Pick Sent",), "direction"),
+        (("subject",), "subject"),
+        (("name",), "by"),
+        (("Type the note", "under 4,000", "control characters", "formatting characters"), "text"),
+    ),
+    # Email is checked first: "Type an email address like name@company.com." names both.
+    "team": (
+        (("email", "that email"), "email"),
+        (("Pick a role",), "role"),
+        (("name",), "name"),
+    ),
     "follow-up": (
         (("Pick",), "due"),
         (("Say what", "Keep it under", "line break", "characters"), "text"),
@@ -331,14 +361,68 @@ class DoneRow:
 
 @dataclass(frozen=True)
 class NoteRow:
+    """A plain note in the Notes box."""
+
     id: str
     kind: str  # TouchKind value, for the kind's class
     kind_label: str
     day: str  # "8 November", with the year when it isn't this year
     text: str
+    preview: str  # the text cut to ENTRY_PREVIEW characters, one line
+    long: bool  # the text is longer than the preview, so the rest sits in a disclosure
     edited: bool
     edit: FormState  # the edit form's values; it opens when a save was refused
     edit_open: bool
+    pinned: bool
+    pin_error: str  # a refused pin's message, or ""
+
+
+@dataclass(frozen=True)
+class ActivityRow:
+    """An activity (a call, meeting, email or other touch) in the Activity box, or in the pinned
+    strip, which shows only the pin and the summary and never an edit form."""
+
+    id: str
+    kind: str  # TouchKind value, for the kind's class
+    kind_label: str  # "Call", "Email"...
+    day: str  # "8 November", with the year when it isn't this year
+    subject: str  # "" when there is none
+    by: str  # who did it; "" means you
+    direction: str  # "sent", "received", or "" (emails only)
+    direction_line: str  # "Sent to priya@acme.com", "Received from ...", "Sent"; "" for non-emails
+    from_mailbox: bool  # logged by the mailbox sync
+    text: str  # the whole text, as typed or as the email's start
+    preview: str  # the text cut to ENTRY_PREVIEW characters, one line
+    long: bool  # the text is longer than the preview, so the rest sits in a disclosure
+    edited: bool
+    pinned: bool
+    edit: FormState  # the edit form's values; it opens when a save was refused
+    edit_open: bool
+    pin_error: str  # a refused pin's message, or ""
+
+
+@dataclass(frozen=True)
+class ActivityFilter:
+    value: str  # ALL, or a TouchKind value: call, meeting, email, other
+    label: str  # "All", "Calls", "Meetings", "Emails", "Other"
+    count: int  # the entries of this kind (all of them, not only the ones listed)
+    current: bool
+
+
+@dataclass(frozen=True)
+class ReplyChip:
+    """An email thread waiting on someone: "Waiting on them: Renewal plan, 6 days"."""
+
+    text: str
+    waiting_on_them: bool  # True: we sent last; False: they did and we haven't answered
+
+
+@dataclass(frozen=True)
+class TeamRow:
+    id: str
+    name: str
+    role: str  # the role's label, e.g. "Account manager"
+    email: str  # "" when none
 
 
 @dataclass(frozen=True)
@@ -359,7 +443,23 @@ class JournalPanel:
     snooze_choices: tuple[int, ...]
     follow_ups: list[FollowUpRow]  # open, by due date
     done: list[DoneRow]  # recently done, newest first; each offers Undo
-    notes: list[NoteRow]  # newest first
+    notes: list[NoteRow]  # the plain notes (kind NOTE), newest first
+    activity: list[ActivityRow]  # the Activity box's rows: the filter's, newest first, cut to 20
+    activity_filter: str  # the chosen filter: ALL, or a kind's value
+    activity_filters: list[ActivityFilter]  # All, then each kind with its count
+    activity_limit: int  # how many entries the list shows before "Show all" (ACTIVITY_SHOWN)
+    activity_total: int  # every activity entry, whatever the filter
+    activity_more: int  # entries of the filter that aren't listed (0 when all are)
+    activity_all: bool  # every entry of the filter is listed
+    activity_collapse: bool  # every entry is listed and there are more than ACTIVITY_SHOWN
+    activity_form: FormState
+    replies: list[ReplyChip]  # threads waiting on someone, at the top of the Activity box
+    pinned: list[ActivityRow]  # pinned entries of any kind, for the pinned strip
+    team: list[TeamRow]  # in the order added
+    team_form: FormState
+    team_open: bool  # the "Add someone" disclosure opens when a team form was refused
+    team_roles: list[tuple[str, str]]  # (TeamRole value, label) for the role menu
+    team_names: list[str]  # the team's names, offered as "Who" on an activity
     outcomes: list[OutcomeRow]  # in the order recorded
     add_follow_up: FormState
     snooze_form: FormState
@@ -383,10 +483,23 @@ def panel(
     refusal: JournalRefusal | None,
     why: str,
     undo_id: str,
+    activity: str = ALL,
+    show_all: bool = False,
 ) -> JournalPanel:
-    """The account page's journal. A refusal's values and messages come back on their own form."""
+    """The account page's journal. A refusal's values and messages come back on their own form.
+    `activity` is the Activity filter a link asked for (anything unknown is ALL); `show_all` lists
+    every entry of that filter rather than the newest ACTIVITY_SHOWN."""
     account = scored.account
     open_items = journal.open_follow_ups(account_journal)
+    chosen = activity_choice(activity)
+    entries = journal.activity_newest_first(account_journal)
+    matching = [entry for entry in entries if chosen == ALL or entry.kind.value == chosen]
+    listed = matching if show_all else matching[:ACTIVITY_SHOWN]
+    activity_rows = [_activity_row(entry, refusal, today) for entry in listed]
+    team_state = refused(refusal, "team")
+    team_form = _or_defaults(
+        team_state, {"name": "", "email": "", "role": journal.TeamRole.CSM.value}
+    )
     snooze = journal.active_snooze(account_journal, scored.health, today)
     awaiting = journal.awaiting_outcome(account, account_journal, today)
     passed = (today - account.renewal_date).days
@@ -430,8 +543,48 @@ def panel(
             for item in journal.recently_done(account_journal, now)
         ],
         notes=[
-            _note_row(note, refusal, today) for note in journal.notes_newest_first(account_journal)
+            _note_row(note, refusal, today)
+            for note in journal.plain_notes_newest_first(account_journal)
         ],
+        activity=activity_rows,
+        activity_filter=chosen,
+        activity_filters=_activity_filters(entries, chosen),
+        activity_limit=ACTIVITY_SHOWN,
+        activity_total=len(entries),
+        activity_more=len(matching) - len(listed),
+        activity_all=show_all,
+        activity_collapse=show_all and len(matching) > ACTIVITY_SHOWN,
+        activity_form=_or_defaults(
+            refused(refusal, "activity"),
+            {
+                "kind": journal.TouchKind.CALL.value,
+                "happened_on": today.isoformat(),
+                "subject": "",
+                "by": "",
+                "direction": "",
+                "text": "",
+            },
+        ),
+        replies=[
+            _reply_chip(status) for status in journal.awaiting_replies(account_journal, today)
+        ],
+        pinned=[
+            _activity_row(entry, refusal, today)
+            for entry in journal.pinned_entries(account_journal)
+        ],
+        team=[
+            TeamRow(
+                id=member.id,
+                name=member.name,
+                role=member.role.label,
+                email=member.email or "",
+            )
+            for member in account_journal.team
+        ],
+        team_form=team_form,
+        team_open=bool(team_state.values),
+        team_roles=[(role.value, role.label) for role in journal.TeamRole],
+        team_names=[member.name for member in account_journal.team],
         outcomes=[
             OutcomeRow(id=outcome.id, line=outcome_line(outcome), note=outcome.note)
             for outcome in account_journal.outcomes
@@ -466,15 +619,99 @@ def _note_row(note: Note, refusal: JournalRefusal | None, today: date) -> NoteRo
             "text": note.text,
         },
     )
+    preview, long = entry_preview(note.text)
     return NoteRow(
         id=note.id,
         kind=note.kind.value,
         kind_label=note.kind.label,
         day=formatting.day_label(note.happened_on, today),
         text=note.text,
+        preview=preview,
+        long=long,
         edited=note.edited_at is not None,
         edit=edit,
         edit_open=bool(edit_refused.values),
+        pinned=note.pinned,
+        pin_error=refused(refusal, "pin", note.id).errors.get(FORM, ""),
+    )
+
+
+def _activity_row(note: Note, refusal: JournalRefusal | None, today: date) -> ActivityRow:
+    edit_refused = refused(refusal, "note-edit", note.id)
+    edit = _or_defaults(
+        edit_refused,
+        {
+            "kind": note.kind.value,
+            "happened_on": note.happened_on.isoformat(),
+            "text": note.text,
+        },
+    )
+    preview, long = entry_preview(note.text)
+    return ActivityRow(
+        id=note.id,
+        kind=note.kind.value,
+        kind_label=note.kind.label,
+        day=formatting.day_label(note.happened_on, today),
+        subject=note.subject,
+        by=note.by,
+        direction=note.direction.value if note.direction is not None else "",
+        direction_line=_direction_line(note),
+        from_mailbox=note.source is journal.NoteSource.MAILBOX,
+        text=note.text,
+        preview=preview,
+        long=long,
+        edited=note.edited_at is not None,
+        pinned=note.pinned,
+        edit=edit,
+        edit_open=bool(edit_refused.values),
+        pin_error=refused(refusal, "pin", note.id).errors.get(FORM, ""),
+    )
+
+
+def activity_choice(text: str) -> str:
+    """The Activity filter a link asked for: a kind's value, or ALL for anything else (a plain
+    note's value included, since notes have their own box)."""
+    return text if text == ALL or text in _FILTER_LABELS else ALL
+
+
+def entry_preview(text: str) -> tuple[str, bool]:
+    """The start of an entry's text for a list, on one line, and whether there is more to show."""
+    flat = " ".join(text.split())
+    return cut_text(text, ENTRY_PREVIEW), len(flat) > ENTRY_PREVIEW
+
+
+def _activity_filters(entries: Sequence[Note], chosen: str) -> list[ActivityFilter]:
+    """All, then each activity kind with how many entries it has."""
+    filters = [ActivityFilter(value=ALL, label="All", count=len(entries), current=chosen == ALL)]
+    for value, label in _FILTER_LABELS.items():
+        count = sum(1 for entry in entries if entry.kind.value == value)
+        filters.append(
+            ActivityFilter(value=value, label=label, count=count, current=chosen == value)
+        )
+    return filters
+
+
+def _direction_line(note: Note) -> str:
+    """'Sent to priya@acme.com and sam@acme.com', 'Received from priya@acme.com and 2 more', or
+    'Sent' when no client address was logged. "" for anything but an email."""
+    if note.direction is None:
+        return ""
+    sent = note.direction is journal.Direction.SENT
+    verb = "Sent" if sent else "Received"
+    if not note.people:
+        return verb
+    shown = note.people[:_SHOWN_PEOPLE]
+    rest = len(note.people) - len(shown)
+    names = [*shown, f"{rest} more"] if rest else list(shown)
+    return f"{verb} {'to' if sent else 'from'} {_join(names)}"
+
+
+def _reply_chip(status: journal.ThreadStatus) -> ReplyChip:
+    subject = cut_text(status.subject, 60) or "No subject"
+    who = "Waiting on them" if status.waiting_on_them else "Waiting on you"
+    return ReplyChip(
+        text=f"{who}: {subject}, {status.days} days",
+        waiting_on_them=status.waiting_on_them,
     )
 
 

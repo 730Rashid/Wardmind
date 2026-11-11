@@ -1,0 +1,130 @@
+{% extends "settings/layout.html" %}
+{% block settings %}
+<div class="mailbox">
+  {% if demo %}
+  <p class="field-help">You're looking at demo data. Emails are only logged to accounts in your own data.</p>
+  {% endif %}
+
+  <section class="mailbox-section" aria-labelledby="mailbox-title">
+    <h2 class="section-title" id="mailbox-title">Mailbox</h2>
+    <p class="prose">Wardmind can log the emails you send and receive with your clients into each account's Activity history. Only emails to or from a client's contacts or website domain are saved, as a short excerpt. Wardmind never sends, moves, deletes or marks mail as read.</p>
+  </section>
+
+  {% if saved %}
+  <section class="mailbox-section" aria-labelledby="mailbox-status-title">
+    <h2 class="section-title" id="mailbox-status-title">Status</h2>
+
+    {% if password_missing %}
+    <p class="alert" role="alert">The mailbox password is missing. Disconnect, then connect it again.</p>
+    {% endif %}
+    {% if saved.last_error %}
+    <p class="alert" role="alert">{{ saved.last_error }}</p>
+    {% endif %}
+
+    <p class="privacy-status">{% if saved.enabled %}Automatic logging is on.{% else %}Automatic logging is paused.{% endif %}</p>
+
+    <dl class="privacy-list mailbox-facts">
+      <dt>Provider</dt>
+      <dd>{{ saved.provider.label }}</dd>
+      <dt>Address</dt>
+      <dd>{{ saved.username }}</dd>
+      {% if saved.own_addresses | length > 1 %}
+      <dt>Other addresses</dt>
+      <dd>{{ saved.own_addresses[1:] | join(", ") }}</dd>
+      {% endif %}
+      <dt>Checks</dt>
+      <dd>{% if saved.enabled %}Every {{ sync_minutes }} minutes, and when you press Sync now.{% else %}Only when you press Sync now.{% endif %}</dd>
+    </dl>
+
+    <p class="mailbox-checked">{{ checked_text }}</p>
+    {% if counts_text %}
+    <p>{{ counts_text }}</p>
+    {% endif %}
+
+    <div class="mailbox-actions">
+      <form class="inline-form" method="post" action="/settings/mailbox/sync">
+        <button type="submit" class="button">Sync now</button>
+      </form>
+      <form class="inline-form" method="post" action="/settings/mailbox/enabled">
+        <input type="hidden" name="on" value="{% if saved.enabled %}0{% else %}1{% endif %}">
+        <button type="submit" class="button"{% if toggle_error %} aria-describedby="mailbox-toggle-error"{% endif %}>{% if saved.enabled %}Pause automatic logging{% else %}Resume automatic logging{% endif %}</button>
+      </form>
+    </div>
+    {% if toggle_error %}
+    <p class="field-error" role="alert" id="mailbox-toggle-error">{{ toggle_error }}</p>
+    {% endif %}
+
+    <form class="mailbox-disconnect" method="post" action="/settings/mailbox/disconnect">
+      <button type="submit" class="button" aria-describedby="mailbox-disconnect-help">Disconnect mailbox</button>
+      <p class="field-help" id="mailbox-disconnect-help">Deletes the saved app password and stops logging. Emails already logged stay in each account's history.</p>
+    </form>
+  </section>
+
+  {% else %}
+  <section class="mailbox-section" aria-labelledby="mailbox-connect-title">
+    <h2 class="section-title" id="mailbox-connect-title">Connect your mailbox</h2>
+    <p class="prose">Wardmind signs in with an app password, not your usual one. Get one from your mail provider:</p>
+    <ul class="mailbox-providers">
+      <li>Gmail, Outlook, iCloud, Yahoo or Fastmail: create one in your account's security settings.</li>
+      <li>Another provider: create one for IMAP access, if it offers it.</li>
+    </ul>
+
+    <form class="settings-form mailbox-form" method="post" action="/settings/mailbox/connect">
+      {% if errors.form %}
+      <p class="field-error" role="alert" id="mailbox-connect-error">{{ errors.form }}</p>
+      {% endif %}
+
+      <div class="field">
+        <label for="field-mailbox-provider">Provider</label>
+        <select name="provider" id="field-mailbox-provider"{% if errors.provider %} aria-invalid="true" aria-describedby="field-mailbox-provider-error"{% endif %}>
+          {% for value, label in providers %}
+          <option value="{{ value }}"{% if form.provider == value %} selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+        {% if errors.provider %}
+        <p class="field-error" role="alert" id="field-mailbox-provider-error">{{ errors.provider }}</p>
+        {% endif %}
+      </div>
+
+      <div class="field">
+        <label for="field-mailbox-host">Server</label>
+        <input type="text" name="host" id="field-mailbox-host" value="{{ form.host }}" autocomplete="off" spellcheck="false" inputmode="url"{% if errors.host %} aria-invalid="true" aria-describedby="field-mailbox-host-error field-mailbox-host-help"{% else %} aria-describedby="field-mailbox-host-help"{% endif %}>
+        {% if errors.host %}
+        <p class="field-error" role="alert" id="field-mailbox-host-error">{{ errors.host }}</p>
+        {% endif %}
+        <p class="field-help" id="field-mailbox-host-help">Only for Another provider: the server's name, like imap.example.com. The other providers ignore this.</p>
+      </div>
+
+      <div class="field">
+        <label for="field-mailbox-username">Email address</label>
+        <input type="text" name="username" id="field-mailbox-username" value="{{ form.username }}" autocomplete="username" inputmode="email" spellcheck="false"{% if errors.username %} aria-invalid="true" aria-describedby="field-mailbox-username-error field-mailbox-username-help"{% else %} aria-describedby="field-mailbox-username-help"{% endif %}>
+        {% if errors.username %}
+        <p class="field-error" role="alert" id="field-mailbox-username-error">{{ errors.username }}</p>
+        {% endif %}
+        <p class="field-help" id="field-mailbox-username-help">The address you sign in to your mailbox with.</p>
+      </div>
+
+      <div class="field">
+        <label for="field-mailbox-aliases">Your other addresses</label>
+        <textarea name="aliases" id="field-mailbox-aliases" rows="3" spellcheck="false"{% if errors.aliases %} aria-invalid="true" aria-describedby="field-mailbox-aliases-error field-mailbox-aliases-help"{% else %} aria-describedby="field-mailbox-aliases-help"{% endif %}>{{ form.aliases }}</textarea>
+        {% if errors.aliases %}
+        <p class="field-error" role="alert" id="field-mailbox-aliases-error">{{ errors.aliases }}</p>
+        {% endif %}
+        <p class="field-help" id="field-mailbox-aliases-help">Optional. Emails from these count as sent by you. One per line, or separated by commas.</p>
+      </div>
+
+      <div class="field">
+        <label for="field-mailbox-password">App password</label>
+        <input type="password" name="password" id="field-mailbox-password" autocomplete="new-password" spellcheck="false"{% if errors.password %} aria-invalid="true" aria-describedby="field-mailbox-password-error field-mailbox-password-help"{% else %} aria-describedby="field-mailbox-password-help"{% endif %}>
+        {% if errors.password %}
+        <p class="field-error" role="alert" id="field-mailbox-password-error">{{ errors.password }}</p>
+        {% endif %}
+        <p class="field-help" id="field-mailbox-password-help">It's stored in your user profile, never in this folder, and it's never shown again.</p>
+      </div>
+
+      <button type="submit" class="button-primary">Connect mailbox</button>
+    </form>
+  </section>
+  {% endif %}
+</div>
+{% endblock %}

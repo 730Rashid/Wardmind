@@ -172,7 +172,7 @@ def count_bar_width(count: int, largest: int) -> float:
 
 
 def onboarding_summary(in_onboarding: int, behind: int) -> str:
-    """The picker's sentence, e.g. '8 accounts are in onboarding. 3 are behind on their plan.'
+    """The picker's sentence, e.g. '8 accounts are in onboarding. 3 have an overdue milestone.'
 
     With no accounts in onboarding it is one sentence. `behind` counts accounts with an overdue
     milestone.
@@ -184,11 +184,11 @@ def onboarding_summary(in_onboarding: int, behind: int) -> str:
     else:
         first = f"{in_onboarding} accounts are in onboarding."
     if behind == 0:
-        second = "None are behind on their plan."
+        second = "None have an overdue milestone."
     elif behind == 1:
-        second = "1 is behind on its plan."
+        second = "1 has an overdue milestone."
     else:
-        second = f"{behind} are behind on their plan."
+        second = f"{behind} have an overdue milestone."
     return f"{first} {second}"
 
 

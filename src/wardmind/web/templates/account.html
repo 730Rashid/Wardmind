@@ -30,6 +30,7 @@
 
     <header class="account-head">
       <div class="account-title">
+        {% include "accounts/_logo_controls.html" %}
         <h1 class="account-name">{{ account.name }}</h1>
         {% if 'name' in edits %}{{ edited_marker() }}{% endif %}
         {% if prov %}
@@ -76,6 +77,8 @@
     {% if forecast is not none %}{% include "accounts/_golive.html" %}{% endif %}
 
     {% include "accounts/_follow_ups.html" %}
+
+    {% include "accounts/_activity.html" %}
 
     {% include "accounts/_notes.html" %}
 
@@ -131,6 +134,7 @@
       <dt>Data source</dt>
       <dd>{{ connector_label }}</dd>
     </dl>
+    {% include "accounts/_team.html" %}
     {% if seats is not none %}{% include "accounts/_shelfware.html" %}{% endif %}
     {% include "accounts/_outcome.html" %}
     {% include "accounts/_updates_box.html" %}

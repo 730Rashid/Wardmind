@@ -1,0 +1,130 @@
+{# The pinned strip and the Activity history: every call, meeting, email and other touch with the
+   customer, newest first, with a form to log one, a filter by kind and the threads still waiting on
+   a reply. Pinned entries of any kind sit in the strip above both boxes (the Notes box follows this
+   file). The shared macros are in _entry.html. #}
+{% from "accounts/_entry.html" import kind_choices, pin_form, entry_text, entry_edit %}
+{% from "partials/edited.html" import edited_marker %}
+{% set form = journal.activity_form %}
+{% set base = '/accounts/' ~ (account.id | idpath) %}
+
+{% if journal.pinned %}
+<section class="account-section pinned-section" id="pinned" aria-labelledby="pinned-heading">
+  <h2 class="section-title" id="pinned-heading">Pinned</h2>
+  <ul class="pinned-list">
+    {% for entry in journal.pinned %}
+    <li class="pinned-item">
+      <p class="pinned-meta">
+        <span class="note-kind note-kind--{{ entry.kind }}">{{ entry.kind_label }}</span>
+        <span class="note-day">{{ entry.day }}</span>
+        {% if entry.by %}<span>By {{ entry.by }}</span>{% endif %}
+      </p>
+      <p class="pinned-text">{% if entry.subject %}{{ entry.subject }}{% else %}{{ entry.preview }}{% endif %}</p>
+      <div class="entry-actions">{{ pin_form(entry, account.id) }}</div>
+    </li>
+    {% endfor %}
+  </ul>
+</section>
+{% endif %}
+
+<section class="account-section journal-section" id="activity" aria-labelledby="activity-heading">
+  <h2 class="section-title" id="activity-heading">Activity history</h2>
+  <p class="field-help">Calls, meetings, emails and other contact with this client, newest first. Emails from a connected mailbox are logged here too.</p>
+  {% if journal.demo %}
+  <p class="field-help">You're on demo data. Notes and follow-ups here are kept apart from your own data.</p>
+  {% endif %}
+
+  {% if journal.replies %}
+  <ul class="reply-list" aria-label="Threads waiting for a reply">
+    {% for chip in journal.replies %}
+    <li class="pill reply-chip reply-chip--{{ 'them' if chip.waiting_on_them else 'you' }}"><svg class="icon" aria-hidden="true" focusable="false"><use href="/static/icons.svg#{{ 'status-upcoming' if chip.waiting_on_them else 'status-next' }}"/></svg>{{ chip.text }}</li>
+    {% endfor %}
+  </ul>
+  {% endif %}
+
+  <h3 class="journal-subhead" id="activity-add-heading">Log an activity</h3>
+  <form class="journal-form activity-form" method="post" action="{{ base }}/activity" aria-labelledby="activity-add-heading">
+    <input type="hidden" name="back" value="account">
+    {% if form.errors.form %}<p class="field-error" role="alert">{{ form.errors.form }}</p>{% endif %}
+    {{ kind_choices('kind', form.values.get('kind', 'call'), form.errors.kind, 'activity-kind-error', false) }}
+    <div class="activity-form-row">
+      <div class="field activity-field-day">
+        <label for="activity-day">Date</label>
+        <input type="date" id="activity-day" name="happened_on" value="{{ form.values.get('happened_on', '') }}"{% if form.errors.happened_on %} aria-invalid="true" aria-describedby="activity-day-error"{% endif %}>
+        {% if form.errors.happened_on %}<p class="field-error" id="activity-day-error">{{ form.errors.happened_on }}</p>{% endif %}
+      </div>
+      <div class="field">
+        <label for="activity-subject">Subject</label>
+        <p class="field-help" id="activity-subject-help">Optional. What it was about.</p>
+        <input type="text" id="activity-subject" name="subject" value="{{ form.values.get('subject', '') }}" maxlength="300" autocomplete="off" aria-describedby="activity-subject-help{% if form.errors.subject %} activity-subject-error{% endif %}"{% if form.errors.subject %} aria-invalid="true"{% endif %}>
+        {% if form.errors.subject %}<p class="field-error" id="activity-subject-error">{{ form.errors.subject }}</p>{% endif %}
+      </div>
+      <div class="field">
+        <label for="activity-by">Who</label>
+        <p class="field-help" id="activity-by-help">Leave empty for you.</p>
+        <input type="text" id="activity-by" name="by" value="{{ form.values.get('by', '') }}" maxlength="100" autocomplete="off" aria-describedby="activity-by-help{% if form.errors.by %} activity-by-error{% endif %}"{% if journal.team_names %} list="activity-team"{% endif %}{% if form.errors.by %} aria-invalid="true"{% endif %}>
+        {% if journal.team_names %}
+        <datalist id="activity-team">
+          {% for name in journal.team_names %}<option value="{{ name }}"></option>{% endfor %}
+        </datalist>
+        {% endif %}
+        {% if form.errors.by %}<p class="field-error" id="activity-by-error">{{ form.errors.by }}</p>{% endif %}
+      </div>
+    </div>
+    <fieldset class="journal-kinds" aria-describedby="activity-direction-help{% if form.errors.direction %} activity-direction-error{% endif %}">
+      <legend>Direction <span class="field-help" id="activity-direction-help">Emails only</span></legend>
+      <label class="choice"><input type="radio" name="direction" value="sent"{% if form.values.get('direction') == 'sent' %} checked{% endif %}> Sent</label>
+      <label class="choice"><input type="radio" name="direction" value="received"{% if form.values.get('direction') == 'received' %} checked{% endif %}> Received</label>
+      {% if form.errors.direction %}<p class="field-error" id="activity-direction-error">{{ form.errors.direction }}</p>{% endif %}
+    </fieldset>
+    <div class="field">
+      <label for="activity-text">Details</label>
+      <p class="field-help" id="activity-text-help">Optional when there is a subject.</p>
+      <textarea id="activity-text" name="text" rows="3" maxlength="4000" aria-describedby="activity-text-help{% if form.errors.text %} activity-text-error{% endif %}"{% if form.errors.text %} aria-invalid="true"{% endif %}>{{ form.values.get('text', '') }}</textarea>
+      {% if form.errors.text %}<p class="field-error" id="activity-text-error">{{ form.errors.text }}</p>{% endif %}
+    </div>
+    <div class="form-actions">
+      <button type="submit" class="button-primary">Log activity</button>
+    </div>
+  </form>
+
+  <nav class="activity-filter" aria-label="Show activity of one kind">
+    <ul class="filter-list">
+      {% for option in journal.activity_filters %}
+      <li><a class="filter-chip{% if option.current %} is-current{% endif %}" href="{{ base }}?activity={{ option.value }}#activity"{% if option.current %} aria-current="true"{% endif %}>{{ option.label }} <span class="filter-count">{{ option.count }}</span></a></li>
+      {% endfor %}
+    </ul>
+  </nav>
+
+  {% if journal.activity %}
+  <div class="journal-list activity-list">
+    {% for entry in journal.activity %}
+    <article class="note activity-item{% if entry.pinned %} activity-item--pinned{% endif %}" id="activity-{{ entry.id }}">
+      <p class="note-meta">
+        <span class="note-kind note-kind--{{ entry.kind }}">{{ entry.kind_label }}</span>
+        <span class="note-day">{{ entry.day }}</span>
+        {% if entry.from_mailbox %}<span class="entry-source">Logged from mailbox</span>{% endif %}
+        {% if entry.pinned %}<span class="entry-pinned"><svg class="icon" aria-hidden="true" focusable="false"><use href="/static/icons.svg#star"/></svg>Pinned</span>{% endif %}
+        {% if entry.edited %}{{ edited_marker() }}{% endif %}
+      </p>
+      {% if entry.subject %}<p class="entry-subject">{{ entry.subject }}</p>{% endif %}
+      {% if entry.direction_line or entry.by %}
+      <p class="entry-who">{% if entry.direction_line %}{{ entry.direction_line }}{% endif %}{% if entry.direction_line and entry.by %}. {% endif %}{% if entry.by %}By {{ entry.by }}{% endif %}</p>
+      {% endif %}
+      {{ entry_text(entry) }}
+      {% if entry.pin_error %}<p class="field-error" role="alert">{{ entry.pin_error }}</p>{% endif %}
+      <div class="entry-actions no-print">
+        {{ pin_form(entry, account.id) }}
+        {{ entry_edit(entry, account.id) }}
+      </div>
+    </article>
+    {% endfor %}
+  </div>
+  {% if journal.activity_more %}
+  <p class="activity-more"><a href="{{ base }}?activity={{ journal.activity_filter }}&amp;activity_all=1#activity">Show all {{ journal.activity | length + journal.activity_more }}</a></p>
+  {% elif journal.activity_collapse %}
+  <p class="activity-more"><a href="{{ base }}?activity={{ journal.activity_filter }}#activity">Show the newest {{ journal.activity_limit }}</a></p>
+  {% endif %}
+  {% else %}
+  <p>{% if journal.activity_total %}Nothing of this kind yet.{% else %}No activity yet. Log a call, meeting or email above.{% endif %}</p>
+  {% endif %}
+</section>

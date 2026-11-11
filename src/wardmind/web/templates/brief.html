@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "partials/logo.html" import account_logo %}
 {% block content %}
 <div class="brief">
   <header class="brief-head">
@@ -14,119 +15,139 @@
     <span class="summary-line summary-line--muted">{{ summary_second }}</span>
   </p>
 
-  <section class="brief-section" aria-labelledby="bar-heading">
-    <h2 class="section-title" id="bar-heading">Where your ARR sits</h2>
-    <svg class="book-bar" viewBox="0 0 100 24" preserveAspectRatio="none" width="100%" height="24" role="img" aria-label="{{ bar_label }}">
-      {% for health, start, width in book_bar_segments(brief.arr_by_health, brief.total_arr) %}
-      <rect x="{{ start }}" width="{{ width }}" height="24" class="seg seg--{{ health.value }}"/>
-      {% endfor %}
-    </svg>
-    <ul class="legend">
-      {% for health in health_order %}
-      {% set count = brief.counts_by_health[health] %}
-      <li class="legend-item">
-        <span class="health health--{{ health.value }}"><svg class="icon" aria-hidden="true" focusable="false"><use href="/static/icons.svg#health-{{ health.value | replace('_', '-') }}"/></svg> {{ health.label }}</span>
-        <span class="legend-figure">{{ brief.arr_by_health[health] | money_short }} across {{ count }} {{ 'account' if count == 1 else 'accounts' }}</span>
-      </li>
-      {% endfor %}
-    </ul>
-  </section>
+  {# Screen: the top accounts are the main column and the rest the side column, from 1100px; below
+     that they stack, with the accounts first. Paper keeps the order of the one-column brief (the
+     side sections, then the top accounts): partials and print rules in _pending_briefs.css. #}
+  <div class="brief-body">
+    <div class="brief-main">
+      <section class="brief-section top-section" aria-labelledby="top-heading">
+        <h2 class="section-title" id="top-heading">Top 10 to contact</h2>
+        {% if brief.top %}
+        <nav class="top-find no-print" aria-label="Jump to an account in the top 10">
+          <span class="top-find-label">Jump to</span>
+          <ul class="top-find-list">
+            {% for item in brief.top | sort(attribute="account.name", case_sensitive=False) %}
+            <li><a href="#contact-{{ item.account.id | idpath }}">{{ item.account.name }}</a></li>
+            {% endfor %}
+          </ul>
+        </nav>
+        {% endif %}
+        <ol class="top-list">
+          {% for item in brief.top %}
+          <li>
+            <p class="top-line" id="contact-{{ item.account.id | idpath }}">
+              {% if logos is defined %}{{ account_logo(item.account.id, item.account.name, logos) }}{% endif %}
+              <a class="account-link" href="/accounts/{{ item.account.id | idpath }}">{{ item.account.name }}</a>
+              <span class="health health--{{ item.health.value }}"><svg class="icon" aria-hidden="true" focusable="false"><use href="/static/icons.svg#health-{{ item.health.value | replace('_', '-') }}"/></svg> {{ item.health.label }}</span>
+              <span class="top-motion">{{ motion_labels[item.motion] }}</span>
+              <span class="num">{{ item.account.arr | money }}</span>
+            </p>
+            <p class="top-reason">{{ item.top_reason }}</p>
+            <p class="top-next"><span class="top-next-label">Next step:</span> {{ item.suggested_action }}</p>
+          </li>
+          {% endfor %}
+        </ol>
+      </section>
+    </div>
 
-  <section class="brief-section" aria-labelledby="week-heading">
-    <h2 class="section-title" id="week-heading">This week</h2>
-    {# On paper, unused seats are one call-out here: their own section stays on screen, so the
-       brief still prints on two pages. #}
-    {% if brief.notable %}
-    <ul class="notable">
-      {% for line in brief.notable %}
-      <li>{{ line }}</li>
-      {% endfor %}
-      {% if shelfware.count %}<li class="print-only">{{ shelfware_sentence[:-1] }}</li>{% endif %}
-    </ul>
-    {% else %}
-    <p{% if shelfware.count %} class="no-print"{% endif %}>Nothing unusual this week.</p>
-    {% if shelfware.count %}
-    <ul class="notable print-only"><li>{{ shelfware_sentence[:-1] }}</li></ul>
-    {% endif %}
-    {% endif %}
-  </section>
+    <div class="brief-side">
+      <section class="brief-section" aria-labelledby="bar-heading">
+        <h2 class="section-title" id="bar-heading">Where your ARR sits</h2>
+        <svg class="book-bar" viewBox="0 0 100 24" preserveAspectRatio="none" width="100%" height="24" role="img" aria-label="{{ bar_label }}">
+          {% for health, start, width in book_bar_segments(brief.arr_by_health, brief.total_arr) %}
+          <rect x="{{ start }}" width="{{ width }}" height="24" class="seg seg--{{ health.value }}"/>
+          {% endfor %}
+        </svg>
+        <ul class="legend">
+          {% for health in health_order %}
+          {% set count = brief.counts_by_health[health] %}
+          <li class="legend-item">
+            <span class="health health--{{ health.value }}"><svg class="icon" aria-hidden="true" focusable="false"><use href="/static/icons.svg#health-{{ health.value | replace('_', '-') }}"/></svg> {{ health.label }}</span>
+            <span class="legend-figure">{{ brief.arr_by_health[health] | money_short }} across {{ count }} {{ 'account' if count == 1 else 'accounts' }}</span>
+          </li>
+          {% endfor %}
+        </ul>
+      </section>
 
-  <section class="brief-section since-section" aria-labelledby="since-heading">
-    <h2 class="section-title" id="since-heading">Since last week</h2>
-    {% include "partials/since_rows.html" %}
-    {% if since.more %}<p class="since-more">and {{ since.more }} more</p>{% endif %}
-  </section>
+      <section class="brief-section" aria-labelledby="week-heading">
+        <h2 class="section-title" id="week-heading">This week</h2>
+        {# On paper, unused seats are one call-out here: their own section stays on screen, so the
+           brief still prints on two pages. #}
+        {% if brief.notable %}
+        <ul class="notable">
+          {% for line in brief.notable %}
+          <li>{{ line }}</li>
+          {% endfor %}
+          {% if shelfware.count %}<li class="print-only">{{ shelfware_sentence[:-1] }}</li>{% endif %}
+        </ul>
+        {% else %}
+        <p{% if shelfware.count %} class="no-print"{% endif %}>Nothing unusual this week.</p>
+        {% if shelfware.count %}
+        <ul class="notable print-only"><li>{{ shelfware_sentence[:-1] }}</li></ul>
+        {% endif %}
+        {% endif %}
+      </section>
 
-  <section class="brief-section due-section no-print" aria-labelledby="due-heading">
-    <h2 class="section-title" id="due-heading">Follow-ups due this week</h2>
-    {% if week_follow_ups %}
-    <ul class="due-list">
-      {% for item in week_follow_ups %}
-      <li class="due-row">
-        <a class="account-link" href="/accounts/{{ item.account_id | idpath }}">{{ item.name }}</a>
-        <span class="due{% if item.late %} due--late{% endif %}">{{ item.due_label }}</span>
-        <span class="due-text">{{ item.text }}</span>
-      </li>
-      {% endfor %}
-    </ul>
-    {% if more_follow_ups %}<p class="since-more">and {{ more_follow_ups }} more</p>{% endif %}
-    {% else %}
-    <p>Nothing is due in the next seven days.</p>
-    {% endif %}
-  </section>
+      <section class="brief-section since-section" aria-labelledby="since-heading">
+        <h2 class="section-title" id="since-heading">Since last week</h2>
+        {% include "partials/since_rows.html" %}
+        {% if since.more %}<p class="since-more">and {{ since.more }} more</p>{% endif %}
+      </section>
 
-  {% if shelfware.count %}
-  <section class="brief-section shelfware-section no-print" aria-labelledby="shelfware-heading">
-    <h2 class="section-title" id="shelfware-heading">Unused seats on upcoming renewals</h2>
-    {% include "partials/renewal_shelfware.html" %}
-  </section>
-  {% endif %}
+      <section class="brief-section due-section no-print" aria-labelledby="due-heading">
+        <h2 class="section-title" id="due-heading">Follow-ups due this week</h2>
+        {% if week_follow_ups %}
+        <ul class="due-list">
+          {% for item in week_follow_ups %}
+          <li class="due-row">
+            <a class="account-link" href="/accounts/{{ item.account_id | idpath }}">{{ item.name }}</a>
+            <span class="due{% if item.late %} due--late{% endif %}">{{ item.due_label }}</span>
+            <span class="due-text">{{ item.text }}</span>
+          </li>
+          {% endfor %}
+        </ul>
+        {% if more_follow_ups %}<p class="since-more">and {{ more_follow_ups }} more</p>{% endif %}
+        {% else %}
+        <p>Nothing is due in the next seven days.</p>
+        {% endif %}
+      </section>
 
-  <section class="brief-section" aria-labelledby="motion-heading">
-    <h2 class="section-title" id="motion-heading">Accounts by motion</h2>
-    <table class="motions">
-      <caption class="visually-hidden">Accounts in each motion</caption>
-      <thead>
-        <tr>
-          <th scope="col">Motion</th>
-          <th scope="col" class="num">Accounts</th>
-          <th scope="col"><span class="visually-hidden">Relative size</span></th>
-        </tr>
-      </thead>
-      <tbody>
-        {% for label, count, width in motion_rows %}
-        <tr>
-          <th scope="row">{{ label }}</th>
-          <td class="num">{{ count }}</td>
-          <td>
-            <svg class="count-bar" viewBox="0 0 100 8" preserveAspectRatio="none" width="160" height="8" aria-hidden="true" focusable="false">
-              <rect class="count-track" width="100" height="8"/>
-              <rect class="count-fill" width="{{ width }}" height="8"/>
-            </svg>
-          </td>
-        </tr>
-        {% endfor %}
-      </tbody>
-    </table>
-  </section>
+      {% if shelfware.count %}
+      <section class="brief-section shelfware-section no-print" aria-labelledby="shelfware-heading">
+        <h2 class="section-title" id="shelfware-heading">Unused seats on upcoming renewals</h2>
+        {% include "partials/renewal_shelfware.html" %}
+      </section>
+      {% endif %}
 
-  <section class="brief-section" aria-labelledby="top-heading">
-    <h2 class="section-title" id="top-heading">Top 10 to contact</h2>
-    <ol class="top-list">
-      {% for item in brief.top %}
-      <li>
-        <p class="top-line">
-          <a class="account-link" href="/accounts/{{ item.account.id | idpath }}">{{ item.account.name }}</a>
-          <span class="health health--{{ item.health.value }}"><svg class="icon" aria-hidden="true" focusable="false"><use href="/static/icons.svg#health-{{ item.health.value | replace('_', '-') }}"/></svg> {{ item.health.label }}</span>
-          <span class="top-motion">{{ motion_labels[item.motion] }}</span>
-          <span class="num">{{ item.account.arr | money }}</span>
-        </p>
-        <p class="top-reason">{{ item.top_reason }}</p>
-        <p class="top-next"><span class="top-next-label">Next step:</span> {{ item.suggested_action }}</p>
-      </li>
-      {% endfor %}
-    </ol>
-  </section>
+      <section class="brief-section" aria-labelledby="motion-heading">
+        <h2 class="section-title" id="motion-heading">Accounts by motion</h2>
+        <table class="motions">
+          <caption class="visually-hidden">Accounts in each motion</caption>
+          <thead>
+            <tr>
+              <th scope="col">Motion</th>
+              <th scope="col" class="num">Accounts</th>
+              <th scope="col"><span class="visually-hidden">Relative size</span></th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for label, count, width in motion_rows %}
+            <tr>
+              <th scope="row">{{ label }}</th>
+              <td class="num">{{ count }}</td>
+              <td>
+                <svg class="count-bar" viewBox="0 0 100 8" preserveAspectRatio="none" width="160" height="8" aria-hidden="true" focusable="false">
+                  <rect class="count-track" width="100" height="8"/>
+                  <rect class="count-fill" width="{{ width }}" height="8"/>
+                </svg>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </section>
+    </div>
+  </div>
 
   <footer class="brief-foot">
     <p>Made by Wardmind on {{ today_day | long_date }} from {{ source }}.</p>

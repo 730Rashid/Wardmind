@@ -31,6 +31,7 @@ them. Bodies marked NotImplementedError are to be written.
 from __future__ import annotations
 
 import contextlib
+import re
 import secrets
 import unicodedata
 from collections.abc import Callable, Sequence
@@ -49,6 +50,14 @@ MAX_NOTE = 4000  # characters in one note
 MAX_FOLLOW_UP = 200  # characters in a follow-up's text (one line)
 MAX_OUTCOME_NOTE = 1000
 MAX_NOTES_PER_ACCOUNT = 1000
+MAX_SUBJECT = 300  # characters in an activity's subject (one line)
+MAX_PEOPLE = 20  # client-side email addresses kept on one logged email
+MAX_TEAM = 12  # team members per account
+MAX_TEAM_NAME = 100
+MAX_PINNED = 5  # pinned entries per account (activity and notes together)
+REPLY_WAIT_DAYS = 5  # a sent email with no reply after this many days is "awaiting their reply"
+ANSWER_WAIT_DAYS = 2  # a received email not answered after this many days is "awaiting yours"
+QUIET_THREAD_DAYS = 60  # a thread whose latest email is older than this has gone quiet
 MAX_OPEN_FOLLOW_UPS = 20  # open follow-ups per account
 MAX_SNOOZE_DAYS = 90
 SNOOZE_CHOICES = (3, 7, 14, 30)  # the snooze buttons, in days
@@ -65,14 +74,24 @@ HEALTH_ORDER: dict[Health, int] = {Health.AT_RISK: 0, Health.WATCH: 1, Health.HE
 
 
 class TouchKind(StrEnum):
+    """NOTE is a plain note (the Notes box). Every other kind is an activity with the customer
+    (the Activity history box) and counts as contact."""
+
     NOTE = "note"  # a plain note: not a contact with the customer
     CALL = "call"
     MEETING = "meeting"
     EMAIL = "email"
+    OTHER = "other"  # any other touch: a message on LinkedIn or Slack, a site visit, a demo
 
     @property
     def label(self) -> str:
-        return {"note": "Note", "call": "Call", "meeting": "Meeting", "email": "Email"}[self.value]
+        return {
+            "note": "Note",
+            "call": "Call",
+            "meeting": "Meeting",
+            "email": "Email",
+            "other": "Other",
+        }[self.value]
 
     @property
     def is_contact(self) -> bool:
@@ -80,13 +99,40 @@ class TouchKind(StrEnum):
         return self is not TouchKind.NOTE
 
 
+class NoteSource(StrEnum):
+    MANUAL = "manual"  # typed on the account page (or Today)
+    MAILBOX = "mailbox"  # logged by the mailbox sync (core/mailbox.py)
+
+
+class Direction(StrEnum):
+    """For an email: SENT by us (you or a team member) or RECEIVED from the client."""
+
+    SENT = "sent"
+    RECEIVED = "received"
+
+    @property
+    def label(self) -> str:
+        return {"sent": "Sent", "received": "Received"}[self.value]
+
+
 class Note(BaseModel):
+    """One entry: a plain note (kind NOTE) or an activity (any other kind). Every field after
+    `edited_at` was added with the Activity history; older files load with the defaults."""
+
     id: str  # "n-" + 8 hex, unique within the account
     kind: TouchKind = TouchKind.NOTE
     text: str  # 1..MAX_NOTE characters; line breaks allowed, no other control/format characters
     happened_on: date  # the day of the call, meeting or email (or of the note); never after today
     created_at: datetime
     edited_at: datetime | None = None
+    pinned: bool = False  # pinned entries are listed first, in their own group
+    subject: str = ""  # 0..MAX_SUBJECT characters, one line (an email's subject, a call's topic)
+    by: str = ""  # who did it: a team member's or contact's name; "" means you
+    direction: Direction | None = None  # emails only; None for every other kind
+    source: NoteSource = NoteSource.MANUAL
+    message_id: str | None = None  # MAILBOX only: the email's Message-ID, so it's logged once
+    people: list[str] = Field(default_factory=list)  # MAILBOX only: client-side addresses
+    thread: str = ""  # MAILBOX only: thread_key(subject), to group replies into one thread
 
 
 class FollowUpStatus(StrEnum):
@@ -152,15 +198,77 @@ class Outcome(BaseModel):
     recorded_at: datetime
 
 
+class TeamRole(StrEnum):
+    """Who on your side works the account."""
+
+    CSM = "csm"
+    ACCOUNT_MANAGER = "account_manager"
+    RENEWAL_MANAGER = "renewal_manager"
+    IMPLEMENTATION_MANAGER = "implementation_manager"
+    OTHER = "other"
+
+    @property
+    def label(self) -> str:
+        return {
+            "csm": "Customer success manager",
+            "account_manager": "Account manager",
+            "renewal_manager": "Renewal manager",
+            "implementation_manager": "Implementation manager",
+            "other": "Other",
+        }[self.value]
+
+    @property
+    def short(self) -> str:
+        """For tags: "CSM", "AM", "Renewals", "Implementation", "Team"."""
+        return {
+            "csm": "CSM",
+            "account_manager": "AM",
+            "renewal_manager": "Renewals",
+            "implementation_manager": "Implementation",
+            "other": "Team",
+        }[self.value]
+
+
+class TeamMember(BaseModel):
+    id: str  # "t-" + 8 hex, unique within the account
+    name: str  # 1..MAX_TEAM_NAME characters, one line
+    email: str | None = None  # lower-cased; how the mailbox sync knows an email came from them
+    role: TeamRole
+    created_at: datetime
+
+
+class LoggedEmail(BaseModel):
+    """What the mailbox sync hands to Journal.log_email for one matched email."""
+
+    message_id: str  # the Message-ID header, stripped of < >; never empty
+    subject: str  # as sent (decoded); may be empty
+    sent_on: date  # the Date header as a local calendar day
+    direction: Direction
+    by: str  # the sender's name (a team member, a contact or the display name), "" for you
+    people: list[str]  # the client-side addresses, lower-cased
+    snippet: str  # the start of the plain-text body; may be empty
+
+
+class ThreadStatus(BaseModel):
+    """An email thread that is waiting on someone (see awaiting_replies)."""
+
+    thread: str  # thread_key of the subject
+    subject: str  # the latest email's subject as written
+    last_on: date  # the latest email's day
+    waiting_on_them: bool  # True: we sent last; False: they sent last and we haven't answered
+    days: int  # today - last_on
+
+
 class AccountJournal(BaseModel):
     notes: list[Note] = Field(default_factory=list)  # in the order added
     follow_ups: list[FollowUp] = Field(default_factory=list)  # in the order added
     snooze: Snooze | None = None
     outcomes: list[Outcome] = Field(default_factory=list)  # in the order recorded
+    team: list[TeamMember] = Field(default_factory=list)  # in the order added
 
     @property
     def empty(self) -> bool:
-        return not (self.notes or self.follow_ups or self.snooze or self.outcomes)
+        return not (self.notes or self.follow_ups or self.snooze or self.outcomes or self.team)
 
 
 class JournalData(BaseModel):
@@ -259,6 +367,120 @@ def last_touch(journal: AccountJournal) -> Note | None:
 def notes_newest_first(journal: AccountJournal) -> list[Note]:
     """Notes by happened_on descending, then created_at descending."""
     return sorted(journal.notes, key=lambda note: (note.happened_on, note.created_at), reverse=True)
+
+
+def activity_newest_first(journal: AccountJournal) -> list[Note]:
+    """Every entry whose kind is not NOTE, newest first: happened_on desc, then created_at desc,
+    then id. Pinned ones are included here too (the page shows them in their own group)."""
+    return _by_recency([note for note in journal.notes if note.kind is not TouchKind.NOTE])
+
+
+def plain_notes_newest_first(journal: AccountJournal) -> list[Note]:
+    """Every NOTE entry, newest first, ordered as activity_newest_first."""
+    return _by_recency([note for note in journal.notes if note.kind is TouchKind.NOTE])
+
+
+def pinned_entries(journal: AccountJournal) -> list[Note]:
+    """Pinned entries of any kind, newest first, ordered as activity_newest_first."""
+    return _by_recency([note for note in journal.notes if note.pinned])
+
+
+def thread_key(subject: str) -> str:
+    """The subject without reply and forward prefixes, case-folded and with runs of whitespace
+    made one space: "RE: Fwd:  Renewal plan" -> "renewal plan". Prefixes are removed repeatedly,
+    in any case, with or without a space after the colon: re, fw, fwd, aw, sv, wg (common in
+    other languages), and "re[2]:" style counters. An empty or prefix-only subject gives ""."""
+    text = " ".join(subject.split())
+    prefix = _THREAD_PREFIX.match(text)
+    while prefix is not None:
+        text = text[prefix.end() :]
+        prefix = _THREAD_PREFIX.match(text)
+    return text.casefold()
+
+
+def awaiting_replies(journal: AccountJournal, today: date) -> list[ThreadStatus]:
+    """Email threads waiting on someone, from MAILBOX emails with a non-empty thread. For each
+    thread take its latest email (happened_on, then created_at). Waiting on them when it was SENT
+    and today - happened_on >= REPLY_WAIT_DAYS; waiting on you when it was RECEIVED and
+    today - happened_on >= ANSWER_WAIT_DAYS. Threads whose latest email is older than
+    QUIET_THREAD_DAYS are left out (they've gone quiet). Waiting on you first, then oldest first,
+    then by thread."""
+    latest: dict[str, Note] = {}
+    for note in journal.notes:
+        if note.source is not NoteSource.MAILBOX or not note.thread or note.direction is None:
+            continue
+        current = latest.get(note.thread)
+        newer = (note.happened_on, note.created_at)
+        if current is None or newer > (current.happened_on, current.created_at):
+            latest[note.thread] = note
+    found: list[ThreadStatus] = []
+    for thread, note in latest.items():
+        days = (today - note.happened_on).days
+        if days > QUIET_THREAD_DAYS:
+            continue
+        waiting_on_them = note.direction is Direction.SENT
+        if days < (REPLY_WAIT_DAYS if waiting_on_them else ANSWER_WAIT_DAYS):
+            continue
+        found.append(
+            ThreadStatus(
+                thread=thread,
+                subject=note.subject,
+                last_on=note.happened_on,
+                waiting_on_them=waiting_on_them,
+                days=days,
+            )
+        )
+    found.sort(key=lambda status: (status.waiting_on_them, status.last_on, status.thread))
+    return found
+
+
+def clean_subject(text: str) -> str:
+    """One line, stripped. "" is allowed. ValueError("Keep the subject under 300 characters."),
+    "A subject can't contain a line break." and the same control/format messages as notes
+    ("A subject can't contain ...")."""
+    cleaned = text.strip()
+    if not cleaned:
+        return ""
+    if len(cleaned) > MAX_SUBJECT:
+        raise ValueError(f"Keep the subject under {MAX_SUBJECT} characters.")
+    if any(char in cleaned for char in _LINE_BREAKS):
+        raise ValueError("A subject can't contain a line break.")
+    _check_characters(cleaned, "subject", allowed="\t")
+    return cleaned
+
+
+def clean_team_name(text: str) -> str:
+    """One line, stripped. ValueError("Type their name."), "Keep the name under 100
+    characters.", "A name can't contain a line break." and the control/format messages
+    ("A name can't contain ...")."""
+    cleaned = text.strip()
+    if not cleaned:
+        raise ValueError("Type their name.")
+    if len(cleaned) > MAX_TEAM_NAME:
+        raise ValueError(f"Keep the name under {MAX_TEAM_NAME} characters.")
+    if any(char in cleaned for char in _LINE_BREAKS):
+        raise ValueError("A name can't contain a line break.")
+    _check_characters(cleaned, "name", allowed="\t")
+    return cleaned
+
+
+def clean_team_email(text: str) -> str | None:
+    """None for blank. Otherwise stripped and lower-cased; ValueError("Type an email address like
+    name@company.com.") unless it has exactly one @, a non-empty local part, a dot in the domain
+    (not first or last), no whitespace or control characters, and at most 254 characters."""
+    cleaned = text.strip().lower()
+    if not cleaned:
+        return None
+    if cleaned.count("@") != 1:
+        raise ValueError(_BAD_EMAIL)
+    local, domain = cleaned.split("@")
+    if not local or "." not in domain or domain.startswith(".") or domain.endswith("."):
+        raise ValueError(_BAD_EMAIL)
+    if len(cleaned) > _MAX_EMAIL or any(
+        char.isspace() or unicodedata.category(char) == "Cc" for char in cleaned
+    ):
+        raise ValueError(_BAD_EMAIL)
+    return cleaned
 
 
 def open_follow_ups(journal: AccountJournal) -> list[FollowUp]:
@@ -475,13 +697,17 @@ class Journal:
             journal = data.by_account.get(account_id, AccountJournal())
             index = _position(journal.notes, note_id, _NO_NOTE)
             current = journal.notes[index]
-            updated = Note(
-                id=current.id,
-                kind=kind,
-                text=cleaned,
-                happened_on=day,
-                created_at=current.created_at,
-                edited_at=_naive(now),
+            # Only an email has a direction, so it is cleared when the kind changes away from
+            # EMAIL. Everything else about the entry (pinned, subject, by, source, message_id,
+            # people, thread, created_at) stays as it was.
+            updated = current.model_copy(
+                update={
+                    "kind": kind,
+                    "text": cleaned,
+                    "happened_on": day,
+                    "edited_at": _naive(now),
+                    "direction": current.direction if kind is TouchKind.EMAIL else None,
+                }
             )
             journal.notes[index] = updated
             data.by_account[account_id] = journal
@@ -500,6 +726,150 @@ class Journal:
             return True
 
     # Follow-ups
+    def add_activity(
+        self,
+        account_id: str,
+        kind: TouchKind,
+        text: str,
+        happened_on: date,
+        *,
+        subject: str = "",
+        by: str = "",
+        direction: Direction | None = None,
+        now: datetime,
+        today: date,
+    ) -> Note:
+        """A hand-logged entry with a subject and who did it (source MANUAL). `kind` NOTE is
+        allowed. `direction` is kept only for EMAIL (None otherwise). The text may be blank when a
+        subject is given, in which case the text becomes the subject. Same limits and messages as
+        add_note; the subject is checked with clean_subject; `by` is "" or checked like
+        clean_team_name (its messages say "name")."""
+        cleaned_subject = clean_subject(subject)
+        cleaned_by = clean_team_name(by) if by.strip() else ""
+        cleaned = clean_note_text(text if text.strip() else cleaned_subject)
+        day = check_happened_on(happened_on, today)
+        with WRITE_LOCK:
+            data = _load(self._path)
+            journal = data.by_account.get(account_id, AccountJournal())
+            if len(journal.notes) >= MAX_NOTES_PER_ACCOUNT:
+                raise ValueError(_TOO_MANY_NOTES)
+            note = Note(
+                id=_new_id("n-", {entry.id for entry in journal.notes}),
+                kind=kind,
+                text=cleaned,
+                happened_on=day,
+                created_at=_naive(now),
+                subject=cleaned_subject,
+                by=cleaned_by,
+                direction=direction if kind is TouchKind.EMAIL else None,
+            )
+            journal.notes.append(note)
+            data.by_account[account_id] = journal
+            _save(self._path, data)
+        return note
+
+    def log_email(self, account_id: str, email: LoggedEmail, *, now: datetime) -> Note | None:
+        """Log one email from the mailbox sync. None (nothing written) when this account already
+        has an entry with the same message_id, or has MAX_NOTES_PER_ACCOUNT entries. Never raises
+        for odd content: the subject is made one line (breaks and tabs become spaces) and cut
+        to MAX_SUBJECT; control and format characters are dropped from subject, snippet and by
+        (the snippet keeps \n and \t); the text is the snippet stripped and cut to MAX_NOTE, else
+        the subject, else "(No subject)". happened_on is email.sent_on (not checked against
+        today: clocks differ). people is cut to MAX_PEOPLE. thread is thread_key(subject). kind
+        EMAIL, source MAILBOX, created_at now."""
+        subject = _subject_line(email.subject)
+        snippet = _snippet_text(email.snippet)
+        with WRITE_LOCK:
+            data = _load(self._path)
+            journal = data.by_account.get(account_id, AccountJournal())
+            if len(journal.notes) >= MAX_NOTES_PER_ACCOUNT:
+                return None
+            if any(entry.message_id == email.message_id for entry in journal.notes):
+                return None
+            note = Note(
+                id=_new_id("n-", {entry.id for entry in journal.notes}),
+                kind=TouchKind.EMAIL,
+                text=snippet or subject or _NO_SUBJECT,
+                happened_on=email.sent_on,
+                created_at=_naive(now),
+                subject=subject,
+                by=_drop_hidden(email.by).strip(),
+                direction=email.direction,
+                source=NoteSource.MAILBOX,
+                message_id=email.message_id,
+                people=email.people[:MAX_PEOPLE],
+                thread=thread_key(subject),
+            )
+            journal.notes.append(note)
+            data.by_account[account_id] = journal
+            _save(self._path, data)
+        return note
+
+    def set_pinned(self, account_id: str, note_id: str, pinned: bool) -> Note:
+        """Pin or unpin an entry. LookupError("That entry isn't there any more.") when missing.
+        Pinning when MAX_PINNED are already pinned raises ValueError("You can pin up to 5. Unpin
+        one first."). Pinning a pinned entry, or unpinning an unpinned one, changes nothing."""
+        with WRITE_LOCK:
+            data = _load(self._path)
+            journal = data.by_account.get(account_id, AccountJournal())
+            index = _position(journal.notes, note_id, _NO_ENTRY)
+            current = journal.notes[index]
+            if current.pinned == pinned:
+                return current
+            if pinned and sum(1 for entry in journal.notes if entry.pinned) >= MAX_PINNED:
+                raise ValueError(_TOO_MANY_PINNED)
+            updated = current.model_copy(update={"pinned": pinned})
+            journal.notes[index] = updated
+            data.by_account[account_id] = journal
+            _save(self._path, data)
+        return updated
+
+    def add_team_member(
+        self,
+        account_id: str,
+        name: str,
+        email: str,
+        role: TeamRole,
+        *,
+        now: datetime,
+    ) -> TeamMember:
+        """ValueError from clean_team_name / clean_team_email; ValueError("This account has 12
+        people on its team, the most it can keep.") at MAX_TEAM; ValueError("Someone on the team
+        already has that email.") for a duplicate email."""
+        cleaned_name = clean_team_name(name)
+        cleaned_email = clean_team_email(email)
+        with WRITE_LOCK:
+            data = _load(self._path)
+            journal = data.by_account.get(account_id, AccountJournal())
+            if len(journal.team) >= MAX_TEAM:
+                raise ValueError(_TOO_MANY_TEAM)
+            if cleaned_email is not None and any(
+                member.email == cleaned_email for member in journal.team
+            ):
+                raise ValueError(_TEAM_EMAIL_TAKEN)
+            member = TeamMember(
+                id=_new_id("t-", {entry.id for entry in journal.team}),
+                name=cleaned_name,
+                email=cleaned_email,
+                role=role,
+                created_at=_naive(now),
+            )
+            journal.team.append(member)
+            data.by_account[account_id] = journal
+            _save(self._path, data)
+        return member
+
+    def remove_team_member(self, account_id: str, member_id: str) -> bool:
+        """True if one was removed."""
+        with WRITE_LOCK:
+            data = _load(self._path)
+            journal = data.by_account.get(account_id)
+            if journal is None or not any(entry.id == member_id for entry in journal.team):
+                return False
+            journal.team = [entry for entry in journal.team if entry.id != member_id]
+            _save(self._path, data)
+            return True
+
     def add_follow_up(
         self, account_id: str, text: str, due: date, *, now: datetime, today: date
     ) -> FollowUp:
@@ -673,9 +1043,11 @@ class Journal:
 
     # Accounts that are linked or removed
     def move_account(self, from_id: str, to_id: str) -> None:
-        """Linking: from_id's notes, follow-ups and outcomes are appended to to_id's (ids that
-        clash get new ones); the later of the two snoozes is kept. from_id is then removed.
-        Nothing happens when from_id has no journal or from_id == to_id."""
+        """Linking: from_id's notes, follow-ups, outcomes and team are appended to to_id's (ids
+        that clash get new ones); the later of the two snoozes is kept. A moved MAILBOX email whose
+        message_id to_id already has is dropped, and a moved team member whose email to_id's team
+        already has is dropped. from_id is then removed. Nothing happens when from_id has no
+        journal or from_id == to_id."""
         if from_id == to_id:
             return
         with WRITE_LOCK:
@@ -684,9 +1056,19 @@ class Journal:
                 return
             moving = data.by_account.pop(from_id)
             target = data.by_account.get(to_id, AccountJournal())
+            notes = _without_repeats(
+                moving.notes,
+                {entry.message_id for entry in target.notes if entry.message_id is not None},
+                lambda entry: entry.message_id,
+            )
+            team = _without_repeats(
+                moving.team,
+                {entry.email for entry in target.team if entry.email is not None},
+                lambda entry: entry.email,
+            )
             target.notes = [
                 *target.notes,
-                *_adopt(moving.notes, {entry.id for entry in target.notes}, "n-"),
+                *_adopt(notes, {entry.id for entry in target.notes}, "n-"),
             ]
             target.follow_ups = [
                 *target.follow_ups,
@@ -695,6 +1077,10 @@ class Journal:
             target.outcomes = [
                 *target.outcomes,
                 *_adopt(moving.outcomes, {entry.id for entry in target.outcomes}, "o-"),
+            ]
+            target.team = [
+                *target.team,
+                *_adopt(team, {entry.id for entry in target.team}, "t-"),
             ]
             target.snooze = _later_snooze(moving.snooze, target.snooze)
             data.by_account[to_id] = target
@@ -734,6 +1120,16 @@ _TOO_MANY_NOTES = (
 _TOO_MANY_OPEN = f"This account has {MAX_OPEN_FOLLOW_UPS} open follow-ups. Finish some first."
 _NO_NOTE = "That note isn't in this account."
 _NO_FOLLOW_UP = "That follow-up isn't in this account."
+_NO_ENTRY = "That entry isn't there any more."
+_TOO_MANY_PINNED = f"You can pin up to {MAX_PINNED}. Unpin one first."
+_TOO_MANY_TEAM = f"This account has {MAX_TEAM} people on its team, the most it can keep."
+_TEAM_EMAIL_TAKEN = "Someone on the team already has that email."
+_BAD_EMAIL = "Type an email address like name@company.com."
+_MAX_EMAIL = 254  # the longest address the team email accepts
+_NO_SUBJECT = "(No subject)"
+# A reply or forward prefix at the start of a subject, in several languages: "Re:", "Fwd:",
+# "re[2]:", "AW:", "SV:", "WG:". The colon is required; a space after it is optional.
+_THREAD_PREFIX = re.compile(r"(?:re|fwd?|aw|sv|wg)(?:\[\d+\])?:\s*", re.IGNORECASE)
 
 
 def _unify_breaks(text: str) -> str:
@@ -818,3 +1214,48 @@ def _later_snooze(moved: Snooze | None, kept: Snooze | None) -> Snooze | None:
     if kept is None:
         return moved
     return moved if moved.until > kept.until else kept
+
+
+def _without_repeats(
+    moved: list[_Entry], taken: set[str], key: Callable[[_Entry], str | None]
+) -> list[_Entry]:
+    """The moved entries whose key is None or not yet in `taken`. Each key kept is added to
+    `taken`, so a repeat among the moved entries is dropped as well."""
+    kept: list[_Entry] = []
+    for entry in moved:
+        value = key(entry)
+        if value is not None:
+            if value in taken:
+                continue
+            taken.add(value)
+        kept.append(entry)
+    return kept
+
+
+def _by_recency(entries: list[Note]) -> list[Note]:
+    """Entries newest first: happened_on, then created_at, then id, all descending."""
+    return sorted(
+        entries, key=lambda note: (note.happened_on, note.created_at, note.id), reverse=True
+    )
+
+
+def _drop_hidden(text: str, *, keep: str = "") -> str:
+    """The text without control and format characters, except those in `keep`."""
+    return "".join(
+        char for char in text if char in keep or unicodedata.category(char) not in ("Cc", "Cf")
+    )
+
+
+def _subject_line(text: str) -> str:
+    """An email's subject made one line: each line break and tab becomes a space, control and format
+    characters are dropped, then it is stripped and cut to MAX_SUBJECT."""
+    spaced = _unify_breaks(text)
+    for char in (*_LINE_BREAKS, "\t"):
+        spaced = spaced.replace(char, " ")
+    return _drop_hidden(spaced).strip()[:MAX_SUBJECT].rstrip()
+
+
+def _snippet_text(text: str) -> str:
+    """An email's snippet with its line breaks and tabs kept, control and format characters
+    dropped, stripped and cut to MAX_NOTE."""
+    return _drop_hidden(_unify_breaks(text), keep="\n\t").strip()[:MAX_NOTE].rstrip()

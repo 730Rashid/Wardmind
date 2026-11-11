@@ -100,13 +100,13 @@ def test_a_call_is_logged_for_today_and_the_page_says_so(client: TestClient, acm
         {"kind": "call", "text": "Spoke about the renewal", "happened_on": "", "back": "account"},
     )
     assert response.status_code == 303
-    assert response.headers["location"] == f"/accounts/{acme}?journal=note-added#notes"
+    assert response.headers["location"] == f"/accounts/{acme}?journal=activity-added#activity"
     (note,) = _journal(acme).notes
     assert note.kind is journal.TouchKind.CALL
     assert note.happened_on == TODAY
     assert note.text == "Spoke about the renewal"
     page = _text(client.get(response.headers["location"]))
-    assert "Note added." in page
+    assert "Activity logged." in page
     assert "Spoke about the renewal" in page
     assert "Contacted today" in page
 
@@ -178,12 +178,12 @@ def test_a_note_can_be_edited_and_the_page_says_so(client: TestClient, acme: str
         {"kind": "email", "happened_on": TODAY.isoformat(), "text": "Sent the summary"},
     )
     assert response.status_code == 303
-    assert response.headers["location"] == f"/accounts/{acme}?journal=note-saved#notes"
+    assert response.headers["location"] == f"/accounts/{acme}?journal=activity-saved#activity"
     (changed,) = _journal(acme).notes
     assert changed.kind is journal.TouchKind.EMAIL
     assert changed.text == "Sent the summary"
     assert changed.edited_at is not None
-    assert "Note saved." in _text(client.get(response.headers["location"]))
+    assert "Activity saved." in _text(client.get(response.headers["location"]))
 
 
 def test_a_refused_note_edit_opens_its_disclosure_with_the_message(
@@ -544,7 +544,7 @@ def test_an_unknown_account_is_a_404_for_every_journal_form(
 def test_a_bad_kind_of_note_is_refused_with_the_choices(client: TestClient, acme: str) -> None:
     response = _post(client, _path(acme, "notes"), {"kind": "letter", "text": "Hello"})
     assert response.status_code == 422
-    assert "Pick Note, Call, Meeting or Email." in _text(response)
+    assert "Pick Note, Call, Meeting, Email or Other." in _text(response)
 
 
 # --- The account page -------------------------------------------------------------------------

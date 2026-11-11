@@ -5427,3 +5427,1321 @@ a.button-primary {
     display: none;
   }
 }
+
+/* Account logos (partials/logo.html). An uploaded or found logo sits on a white tile in both
+   themes, because most logos are drawn for white; a monogram takes its name's tag tone. */
+.logo {
+  display: inline-grid;
+  flex: none;
+  place-items: center;
+  inline-size: 2.25rem;
+  block-size: 2.25rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-control);
+  background: #FFFFFF;
+  object-fit: contain;
+  padding: 2px;
+  font-size: var(--t-sm);
+  font-weight: 700;
+  line-height: 1;
+  print-color-adjust: exact;
+  -webkit-print-color-adjust: exact;
+}
+
+.logo--sm {
+  inline-size: 1.5rem;
+  block-size: 1.5rem;
+  border-radius: var(--radius-tag);
+  padding: 1px;
+  font-size: 0.6875rem;
+}
+
+.logo--lg {
+  inline-size: 3rem;
+  block-size: 3rem;
+  border-radius: 10px;
+  font-size: var(--t-md);
+}
+
+.logo--mono {
+  padding: 0;
+  border-color: transparent;
+}
+
+.logo--violet { background: var(--tag-violet-bg); color: var(--tag-violet-ink); }
+.logo--blue { background: var(--tag-blue-bg); color: var(--tag-blue-ink); }
+.logo--green { background: var(--tag-green-bg); color: var(--tag-green-ink); }
+.logo--pink { background: var(--tag-pink-bg); color: var(--tag-pink-ink); }
+.logo--orange { background: var(--tag-orange-bg); color: var(--tag-orange-ink); }
+.logo--slate { background: var(--tag-slate-bg); color: var(--tag-slate-ink); }
+
+/* Settings > Mailbox: the connect form and the connected status. */
+
+.mailbox {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+}
+
+.mailbox-section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.mailbox-checked {
+  margin: 0;
+  color: var(--ink-muted);
+}
+
+/* The provider list under the connect explanation: short lines, no bullets pushed far in. */
+.mailbox-providers {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin: 0;
+  padding-inline-start: var(--space-5);
+}
+
+/* Sync now and pause or resume sit side by side, wrapping on a narrow screen. */
+.mailbox-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3) var(--space-4);
+}
+
+.mailbox-actions .inline-form {
+  margin: 0;
+}
+
+/* Disconnect is last, with its help text under the button. */
+.mailbox-disconnect {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-2);
+  margin: 0;
+}
+
+.mailbox-disconnect .field-help {
+  margin: 0;
+}
+
+/* The status facts are a definition list; the value column can wrap long addresses. */
+.mailbox-facts dd {
+  overflow-wrap: anywhere;
+}
+
+/* The connect form: one column, the same width as the other settings fields. */
+.mailbox-form {
+  max-inline-size: 36rem;
+}
+
+.mailbox-form select,
+.mailbox-form input:not([type="radio"]):not([type="checkbox"]) {
+  inline-size: 100%;
+  max-inline-size: 28rem;
+  padding-block: var(--space-2);
+  padding-inline: var(--space-3);
+}
+
+.mailbox-form textarea {
+  inline-size: 100%;
+  max-inline-size: 28rem;
+  min-block-size: 4.5rem;
+  padding: var(--space-2) var(--space-3);
+  color: var(--ink);
+  background: var(--surface);
+  border: 1px solid var(--control);
+  border-radius: var(--radius-control);
+  font: inherit;
+  resize: vertical;
+}
+
+/* Today and My book: the section index, the find box, rows with one primary action and a
+   More disclosure, Waiting on replies, and the logo-led My book rows. */
+
+/* --- Today: the page's frame --------------------------------------------------------------- */
+
+.today {
+  gap: var(--space-6);
+}
+
+.today-main {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+  min-inline-size: 0;
+}
+
+.today-head {
+  gap: var(--space-3);
+}
+
+/* The section index: a row of chips under the header. Wide screens make it a rail (below). */
+.today-index-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.today-index a {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-1) var(--space-3);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-control);
+  background: var(--surface);
+  color: var(--ink);
+  font-size: var(--t-sm);
+  line-height: var(--lh-sm);
+  text-decoration: none;
+}
+
+.today-index a:hover {
+  border-color: var(--control);
+  text-decoration: underline;
+  text-underline-offset: 0.2em;
+}
+
+.today-index-count {
+  min-inline-size: 1.5rem;
+  padding-inline: 0.3125rem;
+  border-radius: var(--radius-tag);
+  background: var(--tag-slate-bg);
+  color: var(--tag-slate-ink);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+
+/* The find box: a labelled field and a button, on one row when there is room. */
+.today-find {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--space-2) var(--space-3);
+  margin: 0;
+}
+
+.today-find-field {
+  display: flex;
+  flex: 1 1 16rem;
+  flex-direction: column;
+  gap: var(--space-1);
+  max-inline-size: 28rem;
+}
+
+.today-find-field label {
+  font-size: var(--t-sm);
+  line-height: var(--lh-sm);
+  color: var(--ink-muted);
+}
+
+.today-find-field input {
+  inline-size: 100%;
+  padding-block: 0.5rem;
+  border-color: var(--line-strong);
+  border-radius: 10px;
+}
+
+.today-filter {
+  margin: 0;
+  font-size: var(--t-sm);
+  line-height: var(--lh-sm);
+  color: var(--ink-muted);
+}
+
+/* --- Today: sections and rows --------------------------------------------------------------- */
+
+.today-section {
+  gap: var(--space-4);
+}
+
+.today-section > .section-title {
+  margin: 0;
+}
+
+/* The rows sit in one sunken box, with a hairline between rows, as the journal lists do. */
+.today-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  background: var(--sunken);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-control);
+}
+
+/* Logo, body and actions. The actions column keeps one primary button at the row's end. */
+.today-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: start;
+  gap: var(--space-3) var(--space-4);
+  padding: var(--space-4) var(--space-5);
+  border-block-start: 1px solid var(--line);
+}
+
+.today-list > .today-row:first-child {
+  border-block-start: 0;
+}
+
+.today-row-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-inline-size: 0;
+}
+
+.today-row-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1) var(--space-3);
+}
+
+.today-row .account-link {
+  overflow-wrap: anywhere;
+}
+
+.today-text {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.today-row .field-help {
+  margin: 0;
+}
+
+.today-row .health {
+  font-size: var(--t-sm);
+  line-height: var(--lh-sm);
+}
+
+.today-rank {
+  font-size: var(--t-sm);
+  line-height: var(--lh-sm);
+  color: var(--ink-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+/* A due label is a quiet pill; a late one is heavier, outlined and carries its icon. */
+.today-row .due {
+  padding: 0.125rem 0.5rem;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-tag);
+  background: var(--surface);
+}
+
+.today-row .due--late {
+  border-color: var(--ink);
+}
+
+.today-row .chip {
+  white-space: normal;
+}
+
+.today-row-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: var(--space-2);
+}
+
+.today-row-actions .inline-form {
+  display: inline-flex;
+}
+
+/* More: a quiet text control that opens the row's other actions in place. */
+.today-more {
+  font-size: var(--t-sm);
+  line-height: var(--lh-sm);
+}
+
+.today-more > summary {
+  display: inline-block;
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-control);
+  color: var(--ink-muted);
+  list-style: none;
+  cursor: pointer;
+}
+
+.today-more > summary::-webkit-details-marker {
+  display: none;
+}
+
+.today-more > summary:hover {
+  color: var(--ink);
+  text-decoration: underline;
+  text-underline-offset: 0.2em;
+}
+
+.today-more[open] > summary {
+  color: var(--ink);
+}
+
+.today-more-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: var(--space-2);
+  margin-block-start: var(--space-2);
+}
+
+.today-more-actions .inline-form {
+  display: inline-flex;
+}
+
+/* The count of threads beyond the ten listed sits under its rows. */
+.today-section > .field-help {
+  margin: 0;
+}
+
+/* --- Today: wide screens put the index in a rail beside the sections ------------------------ */
+
+@media (min-width: 1100px) {
+  .today {
+    display: grid;
+    grid-template-columns: minmax(12rem, 15rem) minmax(0, 1fr);
+    align-items: start;
+    gap: var(--space-6);
+  }
+
+  .today-head {
+    grid-column: 1 / -1;
+  }
+
+  .today-index {
+    grid-column: 1;
+    position: sticky;
+    top: var(--space-5);
+  }
+
+  .today-index-list {
+    flex-direction: column;
+    gap: 0;
+    overflow: hidden;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-card);
+  }
+
+  .today-index-list > li + li {
+    border-block-start: 1px solid var(--line);
+  }
+
+  .today-index a {
+    justify-content: space-between;
+    inline-size: 100%;
+    padding: var(--space-3) var(--space-4);
+    border: 0;
+    border-radius: 0;
+  }
+
+  .today-index a:hover {
+    text-decoration: none;
+    background: var(--sunken);
+  }
+
+  .today:has(> .today-index) .today-main {
+    grid-column: 2;
+  }
+
+  .today:not(:has(> .today-index)) .today-main {
+    grid-column: 1 / -1;
+  }
+}
+
+/* A narrow screen puts the actions under the text, so a row never squeezes its words. */
+@media (max-width: 599px) {
+  .today-row {
+    grid-template-columns: auto minmax(0, 1fr);
+    padding: var(--space-4);
+  }
+
+  .today-row-actions {
+    grid-column: 2;
+    align-items: flex-start;
+  }
+
+  .today-more-actions {
+    align-items: flex-start;
+  }
+
+  .today-find-field {
+    flex-basis: 100%;
+    max-inline-size: none;
+  }
+}
+
+@media print {
+  .today-index,
+  .today-find,
+  .today-row-actions {
+    display: none;
+  }
+
+  .today-list {
+    background: none;
+  }
+}
+
+/* --- My book: the logo leads each account; the rank is a quiet number beside its name ------- */
+
+.account-cell {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  min-inline-size: 0;
+  font-weight: 400;
+}
+
+.account-cell-text {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-inline-size: 0;
+}
+
+.account-name-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1) var(--space-2);
+}
+
+.account-cell .owner {
+  margin: 0;
+}
+
+/* The follow-up chip may wrap inside its account cell, so the logo does not push the reason
+   column past the table's width. */
+.book .account-cell .chip {
+  white-space: normal;
+}
+
+/* On wide screens the account column is wide enough for the name, its rank and a follow-up
+   chip on one line each. */
+@media (min-width: 960px) {
+  .book .cell-account {
+    min-inline-size: 13rem;
+  }
+
+  .book .account-cell .chip {
+    white-space: nowrap;
+  }
+}
+
+.book .rank-tile,
+.account-card .rank-tile {
+  display: inline;
+  min-inline-size: 0;
+  block-size: auto;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  color: var(--ink-muted);
+  font-size: var(--t-sm);
+  line-height: var(--lh-sm);
+  font-weight: 400;
+  font-variant-numeric: tabular-nums;
+}
+
+.book .rank-tile::before,
+.account-card .rank-tile::before {
+  content: "#";
+}
+
+.card-top {
+  align-items: center;
+}
+
+.card-id {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-inline-size: 0;
+}
+
+/* The stacked table (below 960px): the account leads, then health and priority, the reason, and
+   motion and ARR. */
+@media (max-width: 959px) {
+  /* The stacked row keeps the card's inner gutter, so the priority bar and the ARR do not sit on
+     the card's border. */
+  .book tbody tr {
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas:
+      "account account"
+      "health prio"
+      "reason reason"
+      "motion arr";
+    padding: var(--cell-pad) var(--space-4);
+  }
+
+  .book tbody .cell-arr {
+    justify-self: end;
+    text-align: end;
+  }
+}
+
+/* The account page: Activity history, Notes, the pinned strip, the account team and the logo
+   controls. Every state also has words, so no colour carries a meaning alone. */
+
+/* Logo and its controls in the header title row: the logo first, the name, Edit account, then the
+   Logo disclosure. Its panel floats below the row, left-aligned, so it never widens the header. */
+.account-title {
+  position: relative;
+}
+
+.logo-disclosure {
+  order: 1;
+}
+
+.logo-disclosure > summary,
+.team-add > summary {
+  display: inline-block;
+  list-style: none;
+  cursor: pointer;
+}
+
+.logo-disclosure > summary::-webkit-details-marker,
+.team-add > summary::-webkit-details-marker {
+  display: none;
+}
+
+.logo-panel {
+  position: absolute;
+  z-index: 5;
+  inset-block-start: 100%;
+  inset-inline-start: 0;
+  inline-size: min(22rem, 100%);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin-block-start: var(--space-2);
+  padding: var(--space-4);
+  background: var(--surface);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-card);
+}
+
+.logo-panel .field {
+  min-inline-size: 0;
+}
+
+.logo-panel input[type="file"] {
+  inline-size: 100%;
+  font: inherit;
+  color: var(--ink);
+}
+
+.logo-panel .form-actions,
+.logo-actions {
+  margin: 0;
+}
+
+.logo-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+}
+
+.logo-actions .inline-form {
+  display: inline-flex;
+  margin: 0;
+}
+
+.logo-panel > .field-help {
+  margin: 0;
+}
+
+/* Pinned strip: above both journal boxes, quieter than them (a sunken card, no accent). */
+.pinned-section {
+  gap: var(--space-3);
+}
+
+.pinned-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.pinned-item {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+  background: var(--sunken);
+  border: 1px solid var(--line);
+  border-inline-start: 3px solid var(--ink-muted);
+  border-radius: var(--radius-control);
+}
+
+.pinned-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1) var(--space-3);
+  margin: 0;
+  font-size: var(--t-sm);
+  line-height: var(--lh-sm);
+  color: var(--ink-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.pinned-text {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.pinned-item .entry-actions {
+  margin: 0;
+}
+
+/* Waiting for replies: one chip per thread, the words say who is waiting. */
+.reply-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.reply-chip--them {
+  background: var(--tag-blue-bg);
+  color: var(--tag-blue-ink);
+}
+
+.reply-chip--you {
+  background: var(--tag-orange-bg);
+  color: var(--tag-orange-ink);
+}
+
+.journal-subhead {
+  margin: var(--space-2) 0 0;
+  font-size: var(--t-md);
+  line-height: var(--lh-md);
+  font-weight: 600;
+}
+
+/* The kind of an activity: calls, meetings and emails are blue (app.css); other touches violet. */
+.note-kind--other {
+  background: var(--tag-violet-bg);
+  color: var(--tag-violet-ink);
+}
+
+/* A legend's help and a refused direction or kind take their own line within the radio group. */
+.journal-kinds > .field-error {
+  flex-basis: 100%;
+}
+
+.journal-kinds legend .field-help {
+  font-weight: 400;
+}
+
+/* The filter by kind: links with the count in each; the current one is inverted and underlined. */
+.filter-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.filter-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-1) var(--space-3);
+  color: var(--ink);
+  background: var(--surface);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-tag);
+  font-size: var(--t-sm);
+  line-height: var(--lh-sm);
+  text-decoration: none;
+}
+
+.filter-chip:hover {
+  border-color: var(--control);
+}
+
+.filter-chip.is-current {
+  color: var(--paper);
+  background: var(--ink);
+  border-color: var(--ink);
+  font-weight: 600;
+  text-decoration: underline;
+}
+
+.filter-count {
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-muted);
+}
+
+.filter-chip.is-current .filter-count {
+  color: inherit;
+}
+
+.activity-more {
+  margin: 0;
+  font-size: var(--t-sm);
+  line-height: var(--lh-sm);
+}
+
+/* An activity's head: the source badge, the pin marker and the edited marker share the meta line. */
+.entry-source,
+.entry-pinned {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.entry-source {
+  padding: 0 var(--space-2);
+  color: var(--ink-muted);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-tag);
+}
+
+.entry-pinned {
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.entry-pinned .icon {
+  width: 0.875rem;
+  height: 0.875rem;
+}
+
+.entry-subject {
+  margin: 0;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.entry-who {
+  margin: 0;
+  font-size: var(--t-sm);
+  line-height: var(--lh-sm);
+  color: var(--ink-muted);
+  overflow-wrap: anywhere;
+}
+
+.note--pinned,
+.activity-item--pinned {
+  border-inline-start: 3px solid var(--ink-muted);
+}
+
+/* Text cut short: the start on one line, and "Show the whole text" or "Show less" beside it. */
+.entry-text > summary {
+  display: block;
+  list-style: none;
+  cursor: pointer;
+  overflow-wrap: anywhere;
+}
+
+.entry-text > summary::-webkit-details-marker {
+  display: none;
+}
+
+.entry-preview {
+  color: var(--ink);
+}
+
+.entry-toggle {
+  color: var(--accent-blue);
+  text-decoration: underline;
+  white-space: nowrap;
+}
+
+.entry-toggle--less,
+.entry-text[open] .entry-toggle--more,
+.entry-text[open] .entry-preview {
+  display: none;
+}
+
+.entry-text[open] .entry-toggle--less {
+  display: inline;
+}
+
+.entry-text[open] > summary {
+  margin-block-end: var(--space-2);
+}
+
+.entry-text .note-text {
+  margin: 0;
+}
+
+/* Pin and Edit or remove share a row; an open edit form takes the whole row. */
+.entry-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: var(--space-2) var(--space-3);
+}
+
+.entry-actions > .inline-form {
+  display: inline-flex;
+  margin: 0;
+}
+
+.entry-actions > .note-disclosure {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+.entry-actions > .note-disclosure[open] {
+  flex-basis: 100%;
+}
+
+.note-disclosure > summary {
+  display: inline-block;
+  list-style: none;
+  cursor: pointer;
+}
+
+.note-disclosure > summary::-webkit-details-marker {
+  display: none;
+}
+
+.note-disclosure[open] > summary {
+  margin-block-end: var(--space-3);
+}
+
+.note-disclosure .journal-form {
+  inline-size: 100%;
+}
+
+/* The account team, in the aside under the facts: a rule above it, like the client updates box. */
+.account-team {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding-block-start: var(--space-4);
+  border-block-start: 1px solid var(--line);
+}
+
+.account-team > .section-title {
+  margin: 0;
+}
+
+.team-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.team-member {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding-block-start: var(--space-3);
+  border-block-start: 1px solid var(--line);
+}
+
+.team-member:first-child {
+  padding-block-start: 0;
+  border-block-start: 0;
+}
+
+.team-member .inline-form {
+  margin-block-start: var(--space-1);
+}
+
+.team-name {
+  margin: 0;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.team-role,
+.team-email {
+  margin: 0;
+  font-size: var(--t-sm);
+  line-height: var(--lh-sm);
+  color: var(--ink-muted);
+  overflow-wrap: anywhere;
+}
+
+.team-add {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+.team-add[open] > summary {
+  margin-block-end: var(--space-3);
+}
+
+.team-form {
+  inline-size: 100%;
+}
+
+.team-form select {
+  inline-size: 100%;
+  max-inline-size: 24rem;
+  padding-block: var(--space-2);
+  padding-inline: var(--space-3);
+}
+
+.account-team > .field-help {
+  margin: 0;
+}
+
+/* Narrow screens: the Logo panel uses the whole width of the header row. */
+@media (max-width: 600px) {
+  .logo-panel {
+    inline-size: 100%;
+  }
+}
+
+/* Weekly brief and onboarding prep. Every rule sits inside @media screen or @media print, so the
+   printed pages keep the layout above: the brief prints on two A4 pages, the onboarding brief on
+   one. */
+
+/* --- Weekly brief -------------------------------------------------------------------------- */
+
+@media screen {
+  /* The accounts come first in the reading order. From 1100px they take the main column and
+     the rest of the brief the side column; below that the two stack. */
+  .brief-body {
+    display: grid;
+    gap: var(--space-6);
+    align-items: start;
+  }
+
+  .brief-main,
+  .brief-side {
+    min-inline-size: 0;
+  }
+
+  .brief-side {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-6);
+  }
+
+  /* Jump-to index: the top ten's names in alphabetical order, each one a link to its card. */
+  .top-find {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: var(--space-2) var(--space-4);
+    font-size: var(--t-sm);
+    line-height: var(--lh-sm);
+  }
+
+  .top-find-label {
+    color: var(--ink-muted);
+  }
+
+  .top-find-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-1) var(--space-4);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .top-find-list a {
+    color: var(--ink);
+    text-decoration: none;
+    border-block-end: 1px solid var(--line-strong);
+  }
+
+  .top-find-list a:hover {
+    color: var(--accent);
+    border-block-end-color: var(--accent);
+  }
+
+  /* Each account is a card. The number sits in the gutter, outside the card, as a quiet rank. */
+  .top-list {
+    margin: 0;
+    padding-inline-start: var(--space-6);
+  }
+
+  .top-list > li {
+    padding: var(--space-4) var(--space-5);
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-card);
+  }
+
+  .top-list > li + li {
+    margin-block-start: var(--space-3);
+  }
+
+  .top-list li::marker {
+    font-weight: 600;
+  }
+
+  /* The jump-to links land on this line, which keeps clear of the top edge of the screen. */
+  .top-line {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-1) var(--space-3);
+    scroll-margin-block-start: var(--space-6);
+  }
+
+  .top-line .account-link {
+    font-size: var(--t-md);
+    line-height: var(--lh-md);
+  }
+
+  .top-line .health {
+    font-size: var(--t-sm);
+    line-height: var(--lh-sm);
+  }
+
+  .top-motion {
+    padding-inline: var(--space-2);
+    border: 1px solid var(--line-strong);
+    border-radius: var(--radius-tag);
+    font-size: var(--t-sm);
+    line-height: var(--lh-sm);
+    color: var(--ink-muted);
+  }
+
+  .top-line .num {
+    margin-inline-start: auto;
+    font-weight: 600;
+  }
+
+  .top-reason {
+    margin-block-start: var(--space-2);
+    font-size: var(--t-body);
+    line-height: var(--lh-body);
+  }
+
+  .top-next {
+    margin-block-start: var(--space-1);
+    font-size: var(--t-sm);
+    line-height: var(--lh-sm);
+  }
+
+  /* The side column's legend is one band per row: the figures read down the column. */
+  .brief-side .legend {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media screen and (min-width: 1100px) {
+  .brief-body {
+    grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr);
+    gap: var(--space-6) var(--space-7);
+  }
+}
+
+/* On paper: the side sections first, then the top accounts, as the one-column brief prints. The
+   order is set here, not in the markup, so the reading order on screen stays accounts first. */
+@media print {
+  .brief-body {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4);
+  }
+
+  .brief-side {
+    order: -1;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4);
+  }
+}
+
+/* --- Onboarding prep ----------------------------------------------------------------------- */
+
+@media screen {
+  /* One card per account, in one column. Two columns from 700px (below). */
+  .prep-list {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--space-4);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .prep-card {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4);
+    min-inline-size: 0;
+    padding: var(--space-5);
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-card);
+  }
+
+  .prep-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-2) var(--space-3);
+  }
+
+  .prep-name {
+    flex: 1 1 10rem;
+    min-inline-size: 0;
+    margin: 0;
+    font-size: var(--t-md);
+    line-height: var(--lh-md);
+    font-weight: 600;
+    overflow-wrap: anywhere;
+  }
+
+  .prep-head .health {
+    font-size: var(--t-sm);
+    line-height: var(--lh-sm);
+  }
+
+  .prep-runway {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+  }
+
+  /* The runway: a track for the window, filled to today. Late finishes run on past the window
+     end in the risk colour, and the finish is a dark mark. Words sit under it. */
+  .runway {
+    display: block;
+    inline-size: 100%;
+    block-size: 24px;
+    overflow: visible;
+  }
+
+  .runway-track {
+    fill: var(--line);
+  }
+
+  .runway-elapsed {
+    fill: var(--accent);
+  }
+
+  .runway-overrun {
+    fill: var(--risk);
+  }
+
+  .runway-window {
+    fill: var(--ink-muted);
+  }
+
+  .runway-projected {
+    fill: var(--ink);
+  }
+
+  .runway-words {
+    margin: 0;
+    font-size: var(--t-sm);
+    line-height: var(--lh-sm);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .prep-meta {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-2) var(--space-4);
+  }
+
+  .prep-plan {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-1) var(--space-3);
+    font-size: var(--t-sm);
+    line-height: var(--lh-sm);
+  }
+
+  .prep-card .plan-dot {
+    inline-size: 10px;
+    block-size: 10px;
+  }
+
+  .prep-forecast {
+    margin: 0;
+  }
+
+  .prep-action {
+    margin: 0;
+  }
+
+  .prep-action a {
+    display: inline-block;
+    padding: var(--space-2) var(--space-4);
+    border: 1px solid var(--control);
+    border-radius: var(--radius-control);
+    color: var(--ink);
+    text-decoration: none;
+  }
+
+  .prep-action a:hover {
+    color: var(--accent);
+    border-color: var(--accent);
+  }
+}
+
+@media screen and (min-width: 700px) {
+  .prep-list {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media print {
+  .prep-list {
+    display: block;
+  }
+
+  .prep-card {
+    margin-block-end: var(--space-3);
+    break-inside: avoid;
+  }
+}
+
+/* Log an activity: on wide screens the date, subject and who share one row, so the history starts
+   higher up the page. The details box takes the form's full width. */
+.activity-form textarea {
+  inline-size: 100%;
+}
+
+@media (min-width: 720px) {
+  .activity-form-row {
+    display: grid;
+    grid-template-columns: minmax(9rem, 11rem) minmax(0, 2fr) minmax(0, 1fr);
+    gap: var(--space-4);
+    align-items: end;
+  }
+
+  .activity-form-row .field {
+    margin: 0;
+  }
+
+  .activity-form-row input {
+    inline-size: 100%;
+    max-inline-size: none;
+  }
+}

@@ -329,7 +329,8 @@ def test_accessibility_hooks_are_present(client: TestClient) -> None:
 
     table = client.get("/?view=list").text
     assert '<caption class="visually-hidden">Accounts ranked by priority</caption>' in table
-    assert len(re.findall(r'<th scope="col"', table)) == 7
+    # The account column now leads (with its logo) and the rank column is gone: six column headers.
+    assert len(re.findall(r'<th scope="col"', table)) == 6
 
 
 def test_search_blur_does_not_trigger_a_refresh(client: TestClient) -> None:
