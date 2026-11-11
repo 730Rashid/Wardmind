@@ -225,7 +225,8 @@ def test_the_accounts_are_the_main_column_and_the_rest_the_side(client: TestClie
     side = markup.index('<div class="brief-side">')
     assert body < main < top < side
     main_block = _block(markup, r'<div class="brief-main">(.*?)</div>')
-    side_block = _block(markup, r'<div class="brief-side">(.*?)</div>')
+    # The side column holds nested blocks (the ARR bar's chart box), so it runs to the footer.
+    side_block = _block(markup, r'<div class="brief-side">(.*?)<footer class="brief-foot">')
     assert 'id="top-heading"' in main_block
     assert 'id="bar-heading"' not in main_block
     assert 'id="bar-heading"' in side_block
