@@ -116,10 +116,10 @@ def test_the_data_folder_is_shown_in_code(client: TestClient) -> None:
     assert f'<code class="data-path">{html.escape(str(service.get_store().root))}</code>' in text
 
 
-def test_data_and_privacy_is_the_settings_nav_item_after_connections(client: TestClient) -> None:
+def test_data_and_privacy_opens_the_security_group(client: TestClient) -> None:
     for path in ("/settings/appearance", "/settings/scoring", "/settings/connections"):
-        links = SETTINGS_LINK.findall(client.get(path).text)
-        assert [href for href, _ in links][-1] == "/settings/privacy", path
+        hrefs = [href for href, _ in SETTINGS_LINK.findall(client.get(path).text)]
+        assert hrefs[-2:] == ["/settings/privacy", "/settings/activity"], path
     privacy = client.get("/settings/privacy").text
     current = [href for href, attrs in SETTINGS_LINK.findall(privacy) if "aria-current" in attrs]
     assert current == ["/settings/privacy"]

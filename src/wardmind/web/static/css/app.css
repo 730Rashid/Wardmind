@@ -3605,10 +3605,24 @@ a.button-primary {
   font-weight: 600;
 }
 
-/* The Settings frame reuses the book's sidebar; the page beside it is wider than before. */
+/* The Settings frame reuses the book's sidebar; the page beside it is wider than before. The
+   sections come in groups, each under a quiet label like the book's filter groups. */
 .settings-sidebar .settings-nav-list {
   flex-direction: column;
   gap: var(--space-1);
+}
+
+.settings-sidebar .settings-nav-list + .settings-nav-heading {
+  margin-block-start: var(--space-4);
+}
+
+.settings-nav-heading {
+  margin: 0 0 var(--space-1);
+  padding-inline: var(--space-3);
+  font-size: var(--t-sm);
+  line-height: var(--lh-sm);
+  font-weight: 400;
+  color: var(--ink-muted);
 }
 
 .settings-main .settings-body {

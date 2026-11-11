@@ -112,6 +112,11 @@ from wardmind.web import (
     lock,
     renewal_pages,
     session,
+    settings_activity,
+    settings_backup,
+    settings_followups,
+    settings_note_templates,
+    settings_overview,
     today_pages,
 )
 from wardmind.web import runway as runway_geometry
@@ -3772,11 +3777,6 @@ def create_app(gate: session.SessionGate | None = None) -> FastAPI:
             sheet=sheet,
         )
 
-    @app.get("/settings")
-    def settings_home() -> RedirectResponse:
-        """Settings opens on Appearance."""
-        return RedirectResponse("/settings/appearance", status_code=303)
-
     @app.get("/settings/appearance")
     def appearance(request: Request, saved: str = "") -> HTMLResponse:
         return _render_appearance(request, load_settings(), saved=saved == "1")
@@ -6171,5 +6171,12 @@ def create_app(gate: session.SessionGate | None = None) -> FastAPI:
             return _updates_demo_page(request, status_code=422)
         client_updates.set_form_link(service.get_store(), "")
         return RedirectResponse("/client-updates/setup?saved=cleared", status_code=303)
+
+    # --- Settings sections that live in their own modules (each has register()) -------------
+    settings_overview.register(app, _render, templates)
+    settings_followups.register(app, _render, templates)
+    settings_note_templates.register(app, _render, templates)
+    settings_backup.register(app, _render, templates)
+    settings_activity.register(app, _render, templates)
 
     return app

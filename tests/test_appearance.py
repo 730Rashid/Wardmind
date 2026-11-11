@@ -122,10 +122,10 @@ def _save(client: TestClient, **changes: str) -> None:
     assert response.status_code == 303, response.text
 
 
-def test_settings_opens_on_appearance(client: TestClient) -> None:
+def test_settings_opens_on_the_overview(client: TestClient) -> None:
     response = client.get("/settings", follow_redirects=False)
     assert response.status_code == 303
-    assert response.headers["location"] == "/settings/appearance"
+    assert response.headers["location"] == "/settings/overview"
 
 
 def test_appearance_shows_the_defaults_checked(client: TestClient) -> None:
@@ -141,12 +141,18 @@ def test_appearance_marks_settings_current_and_lists_the_sub_navigation(client: 
     assert [a["href"] for a in top if a.get("aria-current") == "page"] == ["/settings"]
     links = _settings_links(response.text)
     assert [a["href"] for a in links] == [
+        "/settings/overview",
+        "/settings/profile",
         "/settings/appearance",
+        "/settings/follow-ups",
+        "/settings/note-templates",
         "/settings/scoring",
         "/settings/books",
         "/settings/connections",
         "/settings/mailbox",
+        "/settings/backup",
         "/settings/privacy",
+        "/settings/activity",
     ]
     assert [a["href"] for a in links if a.get("aria-current") == "page"] == ["/settings/appearance"]
 

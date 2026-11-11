@@ -107,12 +107,18 @@ def test_the_page_has_its_title_and_is_in_the_settings_navigation(client: TestCl
     assert "<title>Mailbox - Wardmind</title>" in response.text
     links = SETTINGS_LINK.findall(response.text)
     assert [href for href, _ in links] == [
+        "/settings/overview",
+        "/settings/profile",
         "/settings/appearance",
+        "/settings/follow-ups",
+        "/settings/note-templates",
         "/settings/scoring",
         "/settings/books",
         "/settings/connections",
         "/settings/mailbox",
+        "/settings/backup",
         "/settings/privacy",
+        "/settings/activity",
     ]
     assert [href for href, rest in links if 'aria-current="page"' in rest] == ["/settings/mailbox"]
 
