@@ -91,6 +91,9 @@ def waiting_on_replies(
     journals: Mapping[str, AccountJournal],
     today: date,
     needle: str = "",
+    *,
+    reply_wait_days: int = journal.REPLY_WAIT_DAYS,
+    answer_wait_days: int = journal.ANSWER_WAIT_DAYS,
 ) -> list[WaitingRow]:
     """Every email thread waiting on someone, across the book's accounts (journal entries for
     accounts outside the book are left out, as journal.today_view leaves them out). Waiting on you
@@ -103,7 +106,9 @@ def waiting_on_replies(
         entry = journals.get(account.id)
         if entry is None:
             continue
-        for status in journal.awaiting_replies(entry, today):
+        for status in journal.awaiting_replies(
+            entry, today, reply_wait_days=reply_wait_days, answer_wait_days=answer_wait_days
+        ):
             ago = formatting.ago(status.days)
             row = WaitingRow(
                 account_id=account.id,
@@ -139,14 +144,25 @@ def screen(
     journals: Mapping[str, AccountJournal],
     today: date,
     query: str = "",
+    *,
+    quiet_days: int = journal.QUIET_DAYS,
+    reply_wait_days: int = journal.REPLY_WAIT_DAYS,
+    answer_wait_days: int = journal.ANSWER_WAIT_DAYS,
 ) -> TodayScreen:
     """The Today page for the book and the journals, narrowed to the accounts whose name contains
     `query` (case-insensitive). With no query, nothing is narrowed."""
     text = clean_query(query)
     needle = text.casefold()
-    view = journal.today_view(book, dict(journals), today)
+    view = journal.today_view(book, dict(journals), today, quiet_days=quiet_days)
     page = journal_pages.today_page(narrow(view, needle), today)
-    threads = waiting_on_replies(book, journals, today, needle)
+    threads = waiting_on_replies(
+        book,
+        journals,
+        today,
+        needle,
+        reply_wait_days=reply_wait_days,
+        answer_wait_days=answer_wait_days,
+    )
     return TodayScreen(
         query=text,
         page=page,

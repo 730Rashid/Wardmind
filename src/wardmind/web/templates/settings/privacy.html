@@ -4,6 +4,7 @@
   <section class="privacy-section" aria-labelledby="encryption-title">
     <h2 class="section-title" id="encryption-title">Encryption</h2>
     <p class="prose">Encrypt your Wardmind data on this computer, so a copy of the files (a backup, OneDrive, a stolen laptop) can't be read without your key.</p>
+    <p class="field-help">This covers the files Wardmind saves. Pieces of older, unencrypted copies can stay on the disk until they are written over, so turn on Windows device encryption (BitLocker) as well, if your computer has it.</p>
 
     {% if encryption.busy %}
     <p class="privacy-status" role="status">Finishing a change to encryption.</p>
@@ -95,7 +96,7 @@
 
     <section class="privacy-key" aria-labelledby="encryption-recovery-title">
       <h3 class="privacy-subtitle" id="encryption-recovery-title">Recovery key</h3>
-      <p class="field-help">If you forget your password, or Windows can't unlock Wardmind on a new computer, this key is the way back in. A new key replaces the old one.</p>
+      <p class="field-help">If you forget your password, or Windows can't unlock Wardmind on a new computer, this key is the way back in. A new key replaces the old one in Wardmind's key file. To be sure no older copy of that file opens with an old key, replace all keys below.</p>
       <form class="settings-form" method="post" action="/settings/privacy/encryption/recovery">
         <div class="field-check">
           <label class="choice"><input type="checkbox" name="confirm_recovery" value="1"{% if encryption.errors.recovery %} aria-invalid="true"{% endif %}> The old recovery key will stop working.</label>
@@ -104,6 +105,37 @@
           {% endif %}
         </div>
         <button type="submit" class="button">Make a new recovery key</button>
+      </form>
+    </section>
+
+    <section class="privacy-key" aria-labelledby="encryption-rekey-title">
+      <h3 class="privacy-subtitle" id="encryption-rekey-title">Replace all keys</h3>
+      <p class="field-help" id="rekey-help">Changing the password or the recovery key keeps the key that encrypts your files, so an old copy of Wardmind's key file (in a backup, for example) still opens with the old password or recovery key. Replacing all keys encrypts every file again with new keys and gives you a new recovery key. Do this if you think an old password or recovery key got out.</p>
+      <form class="settings-form" method="post" action="/settings/privacy/encryption/rekey" aria-describedby="rekey-help">
+        {% if encryption.has_password %}
+        <div class="field">
+          <label for="field-rekey-password">Password</label>
+          <input type="password" name="password" id="field-rekey-password" autocomplete="new-password" spellcheck="false" aria-describedby="field-rekey-password-help{% if encryption.errors.rekey_password %} field-rekey-password-error{% endif %}"{% if encryption.errors.rekey_password %} aria-invalid="true"{% endif %}>
+          {% if encryption.errors.rekey_password %}
+          <p class="field-error" role="alert" id="field-rekey-password-error">{{ encryption.errors.rekey_password }}</p>
+          {% endif %}
+          <p class="field-help" id="field-rekey-password-help">Your current password or a new one. The new keys are protected by it.</p>
+        </div>
+        <div class="field">
+          <label for="field-rekey-confirm">Type the password again</label>
+          <input type="password" name="confirm" id="field-rekey-confirm" autocomplete="new-password" spellcheck="false"{% if encryption.errors.rekey_confirm %} aria-invalid="true" aria-describedby="field-rekey-confirm-error"{% endif %}>
+          {% if encryption.errors.rekey_confirm %}
+          <p class="field-error" role="alert" id="field-rekey-confirm-error">{{ encryption.errors.rekey_confirm }}</p>
+          {% endif %}
+        </div>
+        {% endif %}
+        <div class="field-check">
+          <label class="choice"><input type="checkbox" name="confirm_rekey" value="1"{% if encryption.errors.rekey %} aria-invalid="true" aria-describedby="confirm-rekey-error"{% endif %}> My old recovery key will stop working, and I'll save the new one.</label>
+          {% if encryption.errors.rekey %}
+          <p class="field-error" role="alert" id="confirm-rekey-error">{{ encryption.errors.rekey }}</p>
+          {% endif %}
+        </div>
+        <button type="submit" class="button">Replace all keys</button>
       </form>
     </section>
 

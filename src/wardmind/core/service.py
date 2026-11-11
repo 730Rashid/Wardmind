@@ -25,6 +25,7 @@ from wardmind.core import (
     logos,
     mailbox,
     research,
+    rules,
     secrets,
     summaries,
     vault,
@@ -598,10 +599,23 @@ def start_bulk_research(*, summarise: bool, refresh: bool) -> bulk.Job:
         if problem is not None:
             raise problem
     accounts = [item.account for item in get_book()]
+    book_id = books.active_id()
+
+    # The job runs in its own thread: each step is bound to the book it started in.
+    def research_in_book(account: Account, again: bool) -> tuple[research.SiteResearch, bool]:
+        with books.bound(book_id):
+            return _bulk_research(account, again)
+
+    def summary_in_book(
+        account: Account, found: research.SiteResearch
+    ) -> tuple[summaries.Summary, bool]:
+        with books.bound(book_id):
+            return _bulk_summary(account, found)
+
     return _runner.start(
         accounts,
-        _bulk_research,
-        _bulk_summary if summarise else None,
+        research_in_book,
+        summary_in_book if summarise else None,
         refresh=refresh,
     )
 
@@ -716,6 +730,14 @@ def housekeeping(now: datetime | None = None) -> None:
 
 
 def sync_due_feeds() -> int:
+    """_sync_due_feeds bound to the book open when the tick starts (see books.bound): a book
+    opened during the sync never gets this book's data, and this book's feeds never get its
+    keys."""
+    with books.bound(books.active_id()):
+        return _sync_due_feeds()
+
+
+def _sync_due_feeds() -> int:
     """Sync every enabled feed that feed_sync.is_due says is due, one after another; return how
     many were synced. Never raises for one feed's problem (it lands in that feed's status).
     Runs housekeeping, and records the day's score snapshot (remember_book), at most once an
@@ -1006,10 +1028,36 @@ def remember_book(now: datetime | None = None, today: date | None = None) -> boo
         connector = get_connector()
         signals = connector.list_signals()
         book = get_book(connector, as_of=day)
-        return store.save(history.snapshot_of(book, signals, day, moment))
+        written = store.save(history.snapshot_of(book, signals, day, moment))
     except Exception as exc:
         _log.warning("Today's score history wasn't recorded (%s).", type(exc).__name__)
         return False
+    if written:
+        _add_automatic_follow_ups(book, signals, store, day, moment)
+    return written
+
+
+def _add_automatic_follow_ups(
+    book: list[ScoredAccount],
+    signals: list[Signal],
+    store: history.HistoryStore,
+    day: date,
+    moment: datetime,
+) -> None:
+    """Run the automatic follow-up rules (core/rules.py) for Your data, right after the day's
+    snapshot is written. Never raises: a failure is logged by its exception type only."""
+    try:
+        rules.apply_rules(
+            get_journal(),
+            book,
+            load_settings(),
+            day,
+            rules.at_risk_since(book, store, day),
+            signals=signals,
+            now=moment,
+        )
+    except Exception as exc:
+        _log.warning("Automatic follow-ups weren't added (%s).", type(exc).__name__)
 
 
 def _demo_snapshot(day: date, now: datetime) -> history.BookSnapshot:
@@ -1074,7 +1122,8 @@ def today_view(today: date | None = None) -> journal.TodayView:
     """The Today page: follow-ups due, accounts needing attention, renewals awaiting an outcome,
     follow-ups coming up and snoozed accounts (journal.today_view over the book now)."""
     day = today if today is not None else date.today()
-    return journal.today_view(get_book(as_of=day), get_journal().all(), day)
+    quiet_days = load_settings().quiet_days
+    return journal.today_view(get_book(as_of=day), get_journal().all(), day, quiet_days=quiet_days)
 
 
 def record_outcome(
@@ -1172,6 +1221,11 @@ def sync_mailbox_now() -> mailbox.SyncResult:
     accounts and their contacts and logs into the Your data journal. Raises
     mailbox.MailboxError when none is connected, the password is missing, or the sync fails (the
     failure is saved in the settings too)."""
+    with books.bound(books.active_id()):
+        return _sync_mailbox_now()
+
+
+def _sync_mailbox_now() -> mailbox.SyncResult:
     store = get_store()
     settings = mailbox.load_settings(store)
     if settings is None:

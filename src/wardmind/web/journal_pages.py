@@ -15,7 +15,7 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import UTC, date, datetime, timedelta
 
-from wardmind.core import history, journal
+from wardmind.core import history, journal, rules
 from wardmind.core.config import Thresholds
 from wardmind.core.journal import (
     AccountJournal,
@@ -29,6 +29,7 @@ from wardmind.core.journal import (
     TodayView,
 )
 from wardmind.core.models import Health, ScoredAccount
+from wardmind.core.settings import DateStyle
 from wardmind.web import formatting
 
 FORM = "form"  # the error key for a message about the whole form, not one field
@@ -79,8 +80,8 @@ REFUSALS = {
 
 
 def money(value: float) -> str:
-    """Whole dollars with separators: $120,000."""
-    return f"${value:,.0f}"
+    """Whole units with separators, after the chosen currency's symbol: $120,000 or £120,000."""
+    return f"{formatting.currency_symbol()}{value:,.0f}"
 
 
 def whole(value: float) -> int:
@@ -94,9 +95,20 @@ def short_date(day: date) -> str:
 
 
 def short_day(day: date, today: date) -> str:
-    """'Mon 16 Nov', with the year added only when it isn't this year: 'Mon 4 Jan 2027'."""
-    label = f"{_WEEKDAYS[day.weekday()]} {day.day} {_MONTHS[day.month - 1]}"
-    return label if day.year == today.year else f"{label} {day.year}"
+    """'Mon 16 Nov', with the year added only when it isn't this year: 'Mon 4 Jan 2027'.
+    Month-day style gives 'Mon Nov 16' and 'Mon Jan 4, 2027'; ISO gives 'Mon 2027-01-04'."""
+    style = formatting.date_style()
+    weekday = _WEEKDAYS[day.weekday()]
+    if style is DateStyle.ISO:
+        return f"{weekday} {day.isoformat()}"
+    month = _MONTHS[day.month - 1]
+    if style is DateStyle.MONTH_DAY:
+        label = f"{weekday} {month} {day.day}"
+        separator = ", "
+    else:
+        label = f"{weekday} {day.day} {month}"
+        separator = " "
+    return label if day.year == today.year else f"{label}{separator}{day.year}"
 
 
 def parse_day(text: str) -> date | None:
@@ -350,6 +362,7 @@ class FollowUpRow:
     due_label: str
     late: bool
     move: FormState  # the move box: the due date to show, and a refused move's message
+    automatic: bool  # added by a rule (core/rules.py): shows the "Added automatically" tag
 
 
 @dataclass(frozen=True)
@@ -485,10 +498,16 @@ def panel(
     undo_id: str,
     activity: str = ALL,
     show_all: bool = False,
+    follow_up_days: int = journal.FOLLOW_UP_DEFAULT_DAYS,
+    skip_weekends: bool = False,
+    reply_wait_days: int = journal.REPLY_WAIT_DAYS,
+    answer_wait_days: int = journal.ANSWER_WAIT_DAYS,
+    note_text: str = "",
 ) -> JournalPanel:
     """The account page's journal. A refusal's values and messages come back on their own form.
     `activity` is the Activity filter a link asked for (anything unknown is ALL); `show_all` lists
-    every entry of that filter rather than the newest ACTIVITY_SHOWN."""
+    every entry of that filter rather than the newest ACTIVITY_SHOWN. `note_text` fills the Notes
+    box when a note template was chosen (it is not saved until the note is added)."""
     account = scored.account
     open_items = journal.open_follow_ups(account_journal)
     chosen = activity_choice(activity)
@@ -503,7 +522,7 @@ def panel(
     snooze = journal.active_snooze(account_journal, scored.health, today)
     awaiting = journal.awaiting_outcome(account, account_journal, today)
     passed = (today - account.renewal_date).days
-    default_due = (today + timedelta(days=journal.FOLLOW_UP_DEFAULT_DAYS)).isoformat()
+    default_due = rules.due_day(today, follow_up_days, skip_weekends).isoformat()
     outcome_refused = _or_defaults(
         refused(refusal, "outcome"),
         {
@@ -531,6 +550,7 @@ def panel(
                 due_label=due_label(item.due, today),
                 late=item.due < today,
                 move=_or_defaults(refused(refusal, "move", item.id), {"due": item.due.isoformat()}),
+                automatic=item.rule is not None,
             )
             for item in open_items
         ],
@@ -566,7 +586,13 @@ def panel(
             },
         ),
         replies=[
-            _reply_chip(status) for status in journal.awaiting_replies(account_journal, today)
+            _reply_chip(status)
+            for status in journal.awaiting_replies(
+                account_journal,
+                today,
+                reply_wait_days=reply_wait_days,
+                answer_wait_days=answer_wait_days,
+            )
         ],
         pinned=[
             _activity_row(entry, refusal, today)
@@ -596,7 +622,11 @@ def panel(
         snooze_form=refused(refusal, "snooze"),
         note_form=_or_defaults(
             refused(refusal, "note"),
-            {"kind": journal.TouchKind.NOTE.value, "happened_on": today.isoformat(), "text": ""},
+            {
+                "kind": journal.TouchKind.NOTE.value,
+                "happened_on": today.isoformat(),
+                "text": note_text,
+            },
         ),
         outcome_form=outcome_refused,
         outcome_open=awaiting or bool(refused(refusal, "outcome").values),
@@ -935,6 +965,7 @@ class TodayDue:
     text: str
     due_label: str
     late: bool
+    automatic: bool  # added by a rule (core/rules.py): shows the "Added automatically" tag
 
 
 @dataclass(frozen=True)
@@ -1033,6 +1064,7 @@ def _today_due(item: DueItem, today: date) -> TodayDue:
         text=item.follow_up.text,
         due_label=due_label(item.follow_up.due, today),
         late=item.follow_up.due < today,
+        automatic=item.follow_up.rule is not None,
     )
 
 

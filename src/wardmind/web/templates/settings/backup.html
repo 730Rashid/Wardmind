@@ -1,0 +1,90 @@
+{% extends "settings/layout.html" %}
+{% block settings %}
+<div class="backup">
+  <section class="backup-section" aria-labelledby="backup-make-title">
+    <h2 class="section-title" id="backup-make-title">Back up this book</h2>
+    {% if demo %}
+    <p class="field-help">Demo data is showing, so there's no book to back up. Open a book to make a backup.</p>
+    {% else %}
+    <p class="prose">A backup is one file with everything in {{ book_label }}: its accounts, notes, follow-ups and scoring. You choose a password to seal it.</p>
+    <p class="backup-status">{{ last_backup }}</p>
+
+    <form class="settings-form" method="post" action="/settings/backup/make">
+      {% if make_errors.form %}
+      <p class="field-error" role="alert">{{ make_errors.form }}</p>
+      {% endif %}
+      <div class="field">
+        <label for="field-backup-password">Password for this backup</label>
+        <input type="password" name="password" id="field-backup-password" autocomplete="new-password" spellcheck="false" aria-describedby="field-backup-password-help{% if make_errors.password %} field-backup-password-error{% endif %}"{% if make_errors.password %} aria-invalid="true"{% endif %}>
+        {% if make_errors.password %}
+        <p class="field-error" role="alert" id="field-backup-password-error">{{ make_errors.password }}</p>
+        {% endif %}
+        <p class="field-help" id="field-backup-password-help">At least 10 characters. The password can't be recovered: without it, nobody can open this backup.</p>
+      </div>
+      <div class="field">
+        <label for="field-backup-confirm">Type the password again</label>
+        <input type="password" name="confirm" id="field-backup-confirm" autocomplete="new-password" spellcheck="false"{% if make_errors.confirm %} aria-invalid="true" aria-describedby="field-backup-confirm-error"{% endif %}>
+        {% if make_errors.confirm %}
+        <p class="field-error" role="alert" id="field-backup-confirm-error">{{ make_errors.confirm }}</p>
+        {% endif %}
+      </div>
+      <div class="field-check">
+        <label class="choice"><input type="checkbox" name="include_keys" value="1" aria-describedby="backup-keys-help"{% if make_keys %} checked{% endif %}> Include connection keys and tokens</label>
+        <p class="field-help" id="backup-keys-help">Leave this off unless you are moving to a new computer. Anyone with the backup and its password could use them.</p>
+      </div>
+      <button type="submit" class="button-primary">Download backup</button>
+    </form>
+    {% endif %}
+  </section>
+
+  <section class="backup-section" aria-labelledby="backup-restore-title">
+    <h2 class="section-title" id="backup-restore-title">Restore a backup</h2>
+    <p class="prose">A backup opens as a new book with its own name. Your current book doesn't change, and the new one isn't opened until you choose it in the book switcher.</p>
+
+    <form class="settings-form" method="post" action="/settings/backup/restore" enctype="multipart/form-data">
+      {% if restore_errors.form %}
+      <p class="field-error" role="alert">{{ restore_errors.form }}</p>
+      {% endif %}
+      <div class="field">
+        <label for="field-restore-file">Backup file</label>
+        <input type="file" name="file" id="field-restore-file" accept=".wmbackup" aria-describedby="field-restore-file-help{% if restore_errors.file %} field-restore-file-error{% endif %}"{% if restore_errors.file %} aria-invalid="true"{% endif %}>
+        {% if restore_errors.file %}
+        <p class="field-error" role="alert" id="field-restore-file-error">{{ restore_errors.file }}</p>
+        {% endif %}
+        <p class="field-help" id="field-restore-file-help">A file ending in .wmbackup.</p>
+      </div>
+      <div class="field">
+        <label for="field-restore-password">Password for this backup</label>
+        <input type="password" name="password" id="field-restore-password" autocomplete="off" spellcheck="false"{% if restore_errors.password %} aria-invalid="true" aria-describedby="field-restore-password-error"{% endif %}>
+        {% if restore_errors.password %}
+        <p class="field-error" role="alert" id="field-restore-password-error">{{ restore_errors.password }}</p>
+        {% endif %}
+      </div>
+      <div class="field">
+        <label for="field-restore-name">Name for the new book</label>
+        <input type="text" name="name" id="field-restore-name" value="{{ restore_name }}" maxlength="40" autocomplete="off" spellcheck="false" aria-describedby="field-restore-name-help{% if restore_errors.name %} field-restore-name-error{% endif %}"{% if restore_errors.name %} aria-invalid="true"{% endif %}>
+        {% if restore_errors.name %}
+        <p class="field-error" role="alert" id="field-restore-name-error">{{ restore_errors.name }}</p>
+        {% endif %}
+        <p class="field-help" id="field-restore-name-help">Book names aren't encrypted, so use something like Book 2 rather than a client's or employer's name.</p>
+      </div>
+      <button type="submit" class="button-primary">Restore as a new book</button>
+    </form>
+  </section>
+
+  <section class="backup-section" aria-labelledby="backup-export-title">
+    <h2 class="section-title" id="backup-export-title">Export</h2>
+    <p class="prose">Spreadsheet files of what the book shows. They open in Excel, Numbers or Google Sheets, and dates are written as 2026-11-11 so they read the same everywhere.</p>
+    <ul class="backup-export-list">
+      <li>
+        <a class="button" href="/settings/export/accounts.csv">Download accounts (CSV)</a>
+        <p class="field-help">Each account with its health, priority, motion, ARR, renewal date, owner and top reason.</p>
+      </li>
+      <li>
+        <a class="button" href="/settings/export/notes.csv">Download notes and follow-ups (CSV)</a>
+        <p class="field-help">Every note, call, meeting and email, and every follow-up, one per row.</p>
+      </li>
+    </ul>
+  </section>
+</div>
+{% endblock %}

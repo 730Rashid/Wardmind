@@ -18,6 +18,7 @@
     </ul>
     <p class="sheet-call">{% if sheet.call is none %}You haven't called this renewal.{% else %}Your call: {{ sheet.call.label }}.{% endif %}</p>
     {% if sheet.disagreement is not none %}<p class="sheet-disagreement">{{ sheet.disagreement.text }}</p>{% endif %}
+    {% if settings.your_name %}<p class="date-line">Prepared by {{ settings.your_name }}</p>{% endif %}
     <div class="brief-actions no-print">
       <button type="button" class="button js-only" data-print>Print or save as PDF</button>
     </div>

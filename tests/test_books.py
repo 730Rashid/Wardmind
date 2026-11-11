@@ -277,3 +277,73 @@ def test_delete_all_local_data_removes_every_book_and_opens_the_first() -> None:
     assert not vault.keys_path().exists()
     assert books.active_id() == "default"
     assert _notes() == []
+
+
+# --- A job keeps to the book it started in ------------------------------------------------------
+
+
+def test_a_bound_job_keeps_its_book_when_another_is_opened() -> None:
+    book = books.add("Book 2")
+    with books.bound("default"):
+        books.switch(book.id)
+        assert books.active_id() == "default"
+        assert secrets.secrets_dir() == books.book_folder("default")
+        assert data_dir() == books.book_data_dir("default")
+    assert books.active_id() == book.id
+
+
+def test_a_new_thread_starts_unbound() -> None:
+    import threading
+
+    book = books.add("Book 2")
+    books.switch(book.id)
+    seen: list[str] = []
+    with books.bound("default"):
+        thread = threading.Thread(target=lambda: seen.append(books.active_id()))
+        thread.start()
+        thread.join()
+    assert seen == [book.id]
+
+
+def _drop_from_list(book_id: str) -> None:
+    """The book disappears from books.json (deleted by another process)."""
+    listed = json.loads(books.books_path().read_text("utf-8"))
+    listed["books"] = [entry for entry in listed["books"] if entry["id"] != book_id]
+    books.books_path().write_text(json.dumps(listed), encoding="utf-8")
+    books.forget_cache()
+
+
+def test_a_job_whose_book_was_deleted_stops_instead_of_using_another() -> None:
+    book = books.add("Book 2")
+    with books.bound(book.id):
+        _drop_from_list(book.id)
+        with pytest.raises(BookError, match="deleted"):
+            books.active_id()
+
+
+def test_a_pinned_book_that_was_deleted_is_refused_not_swapped(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    book = books.add("Book 2")
+    monkeypatch.setenv(books.ENV_BOOK, book.id)
+    _drop_from_list(book.id)
+    with pytest.raises(BookError, match="deleted"):
+        books.active_id()
+
+
+def test_the_feed_sync_is_bound_to_the_book_open_when_it_starts(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    book = books.add("Book 2")
+    seen: list[str] = []
+
+    def sync_while_switching() -> int:
+        seen.append(books.active_id())
+        books.switch(book.id)  # the CSM opens another book mid-sync
+        seen.append(books.active_id())
+        return 0
+
+    monkeypatch.setattr(service, "_sync_due_feeds", sync_while_switching)
+    service.sync_due_feeds()
+    assert seen == ["default", "default"]
+    assert books.active_id() == book.id

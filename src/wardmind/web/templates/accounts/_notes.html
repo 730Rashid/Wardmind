@@ -9,6 +9,24 @@
   <h2 class="section-title" id="notes-heading">Notes</h2>
   <p class="field-help">Plain notes, with no contact behind them. Calls, meetings and emails go in the activity history above.</p>
 
+  {% if note_templates %}
+  {# A GET form: it reloads this page with ?template=<id>, and the Notes box starts from that text. #}
+  <form class="journal-form note-template-picker" method="get" action="/accounts/{{ account.id | idpath }}#notes">
+    <div class="field">
+      <label for="note-template">Start from a template</label>
+      <select id="note-template" name="template">
+        {% for option in note_templates %}
+        <option value="{{ option.id }}"{% if option.id == note_template_id %} selected{% endif %}>{{ option.name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="form-actions">
+      <button type="submit" class="button">Use template</button>
+    </div>
+  </form>
+  {% if note_template_name %}<p class="field-help" role="status">Filled in from "{{ note_template_name }}". Nothing is saved until you add the note.</p>{% endif %}
+  {% endif %}
+
   {% set form = journal.note_form %}
   <form class="journal-form" method="post" action="/accounts/{{ account.id | idpath }}/notes">
     <input type="hidden" name="back" value="account">

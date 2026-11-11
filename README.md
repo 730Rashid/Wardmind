@@ -50,8 +50,19 @@ attention this week. It is reachable three ways, all backed by the same core cod
     the standard onboarding plan, an agenda, questions to ask and the signals to watch. You can
     print it (1 page) or copy it as text.
   - **Settings:**
+    - Overview: a setup check (encryption, recovery key, backups, connections, mailbox and the
+      rest) that puts what's worth doing first, and a box to find any setting by name.
+    - Profile & region: your name (shown as "Prepared by" on renewal sheets and the brief), the
+      currency symbol and how dates are written.
     - Appearance: theme, accent colour, density, and which screen it opens on. These are saved
       to `config/settings.yaml`.
+    - Follow-ups: when new follow-ups are due, skipping weekends, how Today decides who needs
+      attention, and automatic follow-ups when an account turns At risk, a renewal is near or
+      the champion leaves. They only ever add a follow-up, once per occasion, and one you remove
+      never comes back.
+    - Note templates: starting text for call notes, quarterly reviews, kickoffs and more, with
+      the account's name, renewal date, owner and ARR filled in. Pick one on any account's note
+      form.
     - Scoring: sliders for every weight and threshold, with a live preview of how your top 10
       would reorder. These are saved to `config/scoring.yaml` (a second book keeps its own).
     - Books: keep separate books on one computer, each with its own accounts, connections,
@@ -59,8 +70,12 @@ attention this week. It is reachable three ways, all backed by the same core cod
     - Connections: demo data or your data, HubSpot, spreadsheets and accounts added by hand.
     - Mailbox: log client emails into each account's activity history, read-only, with an app
       password.
-    - Data & privacy: web research and AI summaries on or off, your OpenRouter key, encryption
-      and auto-lock, and clearing the local cache.
+    - Backup & export: a password-protected backup of the open book (restoring one always makes
+      a new book), and CSV exports of accounts and of notes and follow-ups.
+    - Data & privacy: web research and AI summaries on or off, your OpenRouter key, encryption,
+      replacing every key, auto-lock, and clearing the local cache.
+    - Activity log: sign-ins, unlocks and failed unlocks, encryption changes, books,
+      connections, keys, backups and saved settings. It holds no customer data.
 - **Desktop app:** `Wardmind.exe` (or `wardmind desktop`) shows the same dashboard in its own
   window on Windows
 - **Claude (MCP):** `wardmind mcp` serves the book to Claude over stdio
@@ -265,6 +280,10 @@ All weights, thresholds and windows live in [`config/scoring.yaml`](config/scori
 - Optional encryption at rest (Settings > Data & privacy): your data and keys are encrypted
   with AES-256-GCM, unlocked by your Windows sign-in or a password, with a one-time recovery
   key. With a password, Wardmind locks after 15 idle minutes or when you press **Lock now**.
+  **Replace all keys** re-encrypts everything with new keys, so an old copy of the key file or
+  an old password or recovery key opens nothing.
+- An activity log of security events (sign-ins, unlocks, failed unlocks, key changes), with no
+  customer data in it.
 - Nothing is loaded from a CDN. htmx and the Atkinson Hyperlegible Next font are vendored; see
   [`VENDORED.md`](src/wardmind/web/static/VENDORED.md).
 - A strict Content-Security-Policy blocks inline scripts and third-party requests.

@@ -456,13 +456,26 @@ def test_with_a_password_a_locked_book_stays_locked() -> None:
         vault.unlock()  # no Windows slot to fall back on
 
 
-@pytest.mark.usefixtures("cheap_argon")
+@pytest.fixture
+def ticket_reader(monkeypatch: pytest.MonkeyPatch) -> None:
+    """This test process plays the MCP server, which may read the app's ticket."""
+    monkeypatch.setattr(vault, "_ticket_reader", True)
+    monkeypatch.setattr(vault, "_ticket_checked", 0.0)
+
+
+def _need_ticket() -> Path:
+    ticket = secrets_dir() / vault.TICKET_FILE
+    if not ticket.exists():
+        pytest.skip("the ticket needs Windows protection")
+    return ticket
+
+
+@pytest.mark.usefixtures("cheap_argon", "ticket_reader")
 def test_the_ticket_lets_another_process_in_until_the_app_locks() -> None:
     files = _seed()
     vault.enable(password=PASSWORD, use_dpapi=True)
     assert (secrets_dir() / vault.TICKET_FILE).exists() == vault.dpapi_available()
-    if not vault.dpapi_available():
-        pytest.skip("the ticket needs Windows protection")
+    _need_ticket()
     vault.forget_key()  # another process: the MCP server
     path = next(iter(files))
     assert vault.read_bytes(path) == files[path]
@@ -472,16 +485,87 @@ def test_the_ticket_lets_another_process_in_until_the_app_locks() -> None:
 
 
 @pytest.mark.usefixtures("cheap_argon")
-def test_an_expired_ticket_is_ignored() -> None:
+def test_the_web_app_never_opens_the_book_from_a_ticket() -> None:
+    """A restarted app (or a second one) must ask for the password, even with a ticket there."""
+    files = _seed()
     vault.enable(password=PASSWORD, use_dpapi=True)
-    ticket = secrets_dir() / vault.TICKET_FILE
-    if not ticket.exists():
-        pytest.skip("the ticket needs Windows protection")
-    body = json.loads(ticket.read_text("utf-8"))
-    body["until"] = 0
-    ticket.write_text(json.dumps(body), encoding="utf-8")
+    _need_ticket()
     vault.forget_key()
     assert not vault.ensure_unlocked()
+    with pytest.raises(Locked):
+        vault.read_bytes(next(iter(files)))
+
+
+@pytest.mark.usefixtures("cheap_argon", "ticket_reader")
+def test_an_expired_ticket_is_ignored(monkeypatch: pytest.MonkeyPatch) -> None:
+    vault.enable(password=PASSWORD, use_dpapi=True)
+    _need_ticket()
+    vault.forget_key()
+    later = vault.time.time() + vault.TICKET_MINUTES * 60 + 1
+    monkeypatch.setattr(vault.time, "time", lambda: later)
+    assert not vault.ensure_unlocked()
+
+
+@pytest.mark.usefixtures("cheap_argon", "ticket_reader")
+def test_editing_the_ticket_file_cant_extend_it(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The expiry is inside the protected blob; a field added outside it changes nothing, and an
+    old-format ticket with an outside expiry is refused."""
+    vault.enable(password=PASSWORD, use_dpapi=True)
+    ticket = _need_ticket()
+    body = json.loads(ticket.read_text("utf-8"))
+    body["until"] = 10**12
+    ticket.write_text(json.dumps(body), encoding="utf-8")
+    vault.forget_key()
+    real_time = vault.time.time
+    later = real_time() + vault.TICKET_MINUTES * 60 + 1
+    monkeypatch.setattr(vault.time, "time", lambda: later)
+    assert not vault.ensure_unlocked()
+    monkeypatch.setattr(vault.time, "time", real_time)
+    old_format = {"blob": body["blob"], "until": 10**12}
+    ticket.write_text(json.dumps(old_format), encoding="utf-8")
+    assert not vault.ensure_unlocked()
+
+
+@pytest.mark.usefixtures("cheap_argon", "ticket_reader")
+def test_a_ticket_from_another_key_file_epoch_is_refused() -> None:
+    vault.enable(password=PASSWORD, use_dpapi=True)
+    _need_ticket()
+    keys = vault.load_keys()
+    assert keys is not None
+    vault._save_keys(keys.replace(epoch=keys.epoch + 1))
+    vault.forget_key()
+    assert not vault.ensure_unlocked()
+
+
+@pytest.mark.usefixtures("cheap_argon", "ticket_reader")
+def test_a_ticket_session_ends_when_the_ticket_runs_out(monkeypatch: pytest.MonkeyPatch) -> None:
+    files = _seed()
+    vault.enable(password=PASSWORD, use_dpapi=True)
+    _need_ticket()
+    vault.forget_key()
+    path = next(iter(files))
+    assert vault.read_bytes(path) == files[path]
+    later = vault.time.time() + vault.TICKET_MINUTES * 60 + 1
+    monkeypatch.setattr(vault.time, "time", lambda: later)
+    with pytest.raises(Locked):
+        vault.read_bytes(path)
+
+
+@pytest.mark.usefixtures("cheap_argon")
+def test_the_app_refreshes_its_ticket_while_unlocked(monkeypatch: pytest.MonkeyPatch) -> None:
+    vault.enable(password=PASSWORD, use_dpapi=True)
+    ticket = _need_ticket()
+    first = ticket.read_bytes()
+    vault.refresh_ticket()  # plenty of time left: not rewritten
+    assert ticket.read_bytes() == first
+    later = vault.time.time() + vault.TICKET_MINUTES * 60 * 0.75
+    monkeypatch.setattr(vault.time, "time", lambda: later)
+    vault.refresh_ticket()
+    assert ticket.read_bytes() != first
+    vault.lock()
+    assert not ticket.exists()
+    vault.refresh_ticket()  # locked: nothing written
+    assert not ticket.exists()
 
 
 @pytest.mark.usefixtures("cheap_argon")
@@ -550,3 +634,211 @@ def test_turning_off_deletes_the_ticket() -> None:
     vault.disable()
     assert not (secrets_dir() / vault.TICKET_FILE).exists()
     assert vault.state() is State.PLAIN
+
+
+# --- Replacing every key, and a key file that was tampered with ------------------------------
+
+
+def _epochs(paths: list[Path]) -> set[int]:
+    return {int.from_bytes(path.read_bytes()[6:10], "big") for path in paths}
+
+
+def _keys_json() -> dict:
+    return json.loads(vault.keys_path().read_text("utf-8"))
+
+
+def _write_keys_json(body: dict) -> None:
+    text = json.dumps(body)
+    vault.keys_path().write_text(text, encoding="utf-8")
+    (secrets_dir() / vault.KEYS_BACKUP).write_text(text, encoding="utf-8")
+
+
+@pytest.mark.usefixtures("cheap_argon")
+def test_replacing_all_keys_reencrypts_and_old_secrets_open_nothing() -> None:
+    files = _seed()
+    old_code = vault.enable(password=PASSWORD, use_dpapi=True)
+    old_copy = vault.keys_path().read_text("utf-8")
+    new_code = vault.replace_all_keys(password="a brand new passphrase")
+    assert new_code != old_code and CODE_SHAPE.match(new_code)
+    assert _epochs(list(files)) == {2}
+    assert vault.state() is State.ON and "previous" not in _keys_json()
+    for path, body in files.items():
+        assert vault.read_bytes(path) == body
+    vault.lock()
+    with pytest.raises(Locked):
+        vault.unlock(password=PASSWORD)
+    with pytest.raises(Locked):
+        vault.unlock(recovery=old_code)
+    # An old copy of keys.json with the old password opens the old master key, which no file
+    # uses any more.
+    vault.keys_path().write_text(old_copy, encoding="utf-8")
+    vault.unlock(password=PASSWORD)
+    with pytest.raises((Locked, Damaged)):
+        vault.read_bytes(next(iter(files)))
+    vault.forget_key()
+
+
+@pytest.mark.usefixtures("cheap_argon")
+def test_replacing_keys_needs_the_password_when_there_is_one() -> None:
+    vault.enable(password=PASSWORD, use_dpapi=True)
+    with pytest.raises(VaultError, match="Type a password"):
+        vault.replace_all_keys()
+
+
+def test_replacing_keys_keeps_windows_protection_without_a_password() -> None:
+    files = _seed()
+    vault.enable(use_dpapi=True)
+    vault.replace_all_keys()
+    vault.forget_key()
+    assert vault.ensure_unlocked()
+    for path, body in files.items():
+        assert vault.read_bytes(path) == body
+
+
+def test_an_interrupted_key_replacement_finishes_on_resume(monkeypatch: pytest.MonkeyPatch) -> None:
+    files = _seed()
+    vault.enable(use_dpapi=True)
+    real_rewrite = vault._rewrite
+    done: list[Path] = []
+
+    def crash_after_two(path: Path, change) -> None:  # type: ignore[no-untyped-def]
+        if len(done) == 2:
+            raise KeyboardInterrupt
+        real_rewrite(path, change)
+        done.append(path)
+
+    monkeypatch.setattr(vault, "_rewrite", crash_after_two)
+    with pytest.raises(KeyboardInterrupt):
+        vault.replace_all_keys()
+    monkeypatch.setattr(vault, "_rewrite", real_rewrite)
+    assert vault.state() is State.REKEYING
+    assert _epochs(list(files)) == {1, 2}
+    vault.forget_key()  # a new run of the app
+    for path, body in files.items():  # readable in between, with old and new keys
+        assert vault.read_bytes(path) == body
+    assert vault.try_resume()
+    assert vault.state() is State.ON and _epochs(list(files)) == {2}
+    for path, body in files.items():
+        assert vault.read_bytes(path) == body
+
+
+def test_a_key_file_saying_plain_is_damaged() -> None:
+    vault.enable(use_dpapi=True)
+    body = _keys_json()
+    body["state"] = "plain"
+    _write_keys_json(body)
+    with pytest.raises(Damaged):
+        vault.state()
+
+
+def test_a_forged_turn_off_is_refused_before_anything_is_decrypted() -> None:
+    files = _seed()
+    vault.enable(use_dpapi=True)
+    body = _keys_json()
+    body["state"] = "decrypting"
+    _write_keys_json(body)
+    vault.forget_key()
+    with pytest.raises(Damaged, match="changed"):
+        vault.resume()
+    assert all(vault.is_encrypted(path.read_bytes()) for path in files)
+
+
+def test_a_forged_turn_off_without_a_mac_is_refused_too() -> None:
+    _seed()
+    vault.enable(use_dpapi=True)
+    body = _keys_json()
+    body["state"] = "decrypting"
+    del body["mac"]
+    _write_keys_json(body)
+    vault.forget_key()
+    with pytest.raises(Damaged):
+        vault.resume()
+
+
+def test_a_genuine_interrupted_turn_off_still_finishes() -> None:
+    files = _seed()
+    vault.enable(use_dpapi=True)
+    keys = vault.load_keys()
+    assert keys is not None
+    vault._save_keys(keys.replace(state=State.DECRYPTING))  # what disable() writes first
+    vault.forget_key()
+    vault.resume()
+    assert vault.state() is State.PLAIN
+    for path, body in files.items():
+        assert path.read_bytes() == body
+
+
+def test_a_deleted_key_file_comes_back_from_its_copy() -> None:
+    files = _seed()
+    vault.enable(use_dpapi=True)
+    vault.keys_path().unlink()
+    assert vault.state() is State.ON
+    vault.forget_key()
+    path = next(iter(files))
+    assert vault.read_bytes(path) == files[path]
+
+
+def test_plain_text_never_overwrites_an_encrypted_file_after_the_keys_are_deleted() -> None:
+    files = _seed()
+    vault.enable(use_dpapi=True)
+    vault.keys_path().unlink()
+    (secrets_dir() / vault.KEYS_BACKUP).unlink()
+    vault.forget_key()
+    path = next(iter(files))
+    with pytest.raises(Damaged, match="missing"):
+        vault.write_bytes(path, b"plain over it")
+    assert vault.is_encrypted(path.read_bytes())
+
+
+@pytest.mark.parametrize(
+    ("field", "value"), [("memory", 10**9), ("iterations", 10**6), ("lanes", 0)]
+)
+@pytest.mark.usefixtures("cheap_argon")
+def test_a_key_file_asking_for_absurd_password_work_is_refused(field: str, value: int) -> None:
+    vault.enable(password=PASSWORD, use_dpapi=True)
+    body = _keys_json()
+    for slot in body["slots"]:
+        if slot["kind"] == "password":
+            slot[field] = value
+    _write_keys_json(body)
+    vault.forget_key()
+    with pytest.raises(Damaged):
+        vault.unlock(password=PASSWORD)
+
+
+def test_a_tampered_slot_list_is_noticed_at_unlock() -> None:
+    vault.enable(use_dpapi=True)
+    body = _keys_json()
+    body["slots"] = [slot for slot in body["slots"] if slot["kind"] != "recovery"]
+    _write_keys_json(body)
+    vault.forget_key()
+    with pytest.raises(Damaged, match="changed"):
+        vault.unlock()
+
+
+def test_try_resume_finishes_an_interrupted_turn_on() -> None:
+    files = _seed()
+    vault.enable(use_dpapi=True)
+    keys = vault.load_keys()
+    assert keys is not None
+    vault.disable()
+    for path in files:  # plain again; now pretend a turn-on stopped half way
+        assert not vault.is_encrypted(path.read_bytes())
+    vault.enable(use_dpapi=True)
+    assert vault.try_resume() and vault.state() is State.ON
+
+
+def test_old_temp_files_left_by_a_crash_are_swept() -> None:
+    _seed()
+    old = _data(".journal.json-abc123.tmp")
+    fresh = _data(".journal.json-def456.tmp")
+    feed = secrets_dir() / "feeds" / ".feed-1-xyz.tmp"
+    for path in (old, fresh, feed):
+        path.write_bytes(b"half written plain text")
+    stale = vault.time.time() - vault.STALE_TEMP_SECONDS - 5
+    os.utime(old, (stale, stale))
+    os.utime(feed, (stale, stale))
+    assert vault.sweep_temp_files() == 2
+    assert not old.exists() and not feed.exists()
+    assert fresh.exists()  # may be a write still in progress
+    assert _data("journal.json").exists()

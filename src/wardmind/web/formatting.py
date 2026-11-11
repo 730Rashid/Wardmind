@@ -1,8 +1,9 @@
 """Formatting for the account view, the weekly brief and onboarding prep: dates, ages, sentences
 and bars.
 
-Pure functions only. Nothing here reads the clock or the config; callers pass `today` and
-thresholds in, which keeps every branch testable.
+Pure functions only, apart from the display preferences (use_display), which the app sets from
+settings.yaml on each request and the CLI sets once per run. Nothing here reads the clock or the
+config; callers pass `today` and thresholds in, which keeps every branch testable.
 """
 
 from __future__ import annotations
@@ -15,6 +16,7 @@ from wardmind.core.briefs import AccountDetail, BreakdownRow, TimelineEntry
 from wardmind.core.config import Thresholds
 from wardmind.core.models import Health, Motion
 from wardmind.core.onboarding import MilestoneStatus, OnboardingBrief, PlanMilestone
+from wardmind.core.settings import Currency, DateStyle
 
 BAR_TRACK_PX = 160  # the track of the signal with the largest max_points
 # The book bar and its legend read left to right in this order.
@@ -34,13 +36,45 @@ _MONTHS = (
     "December",
 )
 
+# --- Display preferences (Settings > Profile & region) -------------------------------------------
+# The currency symbol and date style every screen, the brief and the CLI use. The default is the
+# look Wardmind always had: US dollars, and dates as "21 October 2026". One tuple, replaced whole,
+# so a request never sees a symbol from one choice and a date style from another.
+_display: tuple[Currency, DateStyle] = (Currency.USD, DateStyle.DAY_MONTH)
+
+
+def use_display(currency: Currency, date_style: DateStyle) -> None:
+    """Choose the symbol and date style that the formatters below use from now on."""
+    global _display
+    _display = (currency, date_style)
+
+
+def currency_symbol() -> str:
+    """The symbol written before every amount: "$", "£", "CA$"."""
+    return _display[0].symbol
+
+
+def date_style() -> DateStyle:
+    """The date style in use: how long_date, day_label and week_of write a date."""
+    return _display[1]
+
 
 def day_label(day: date | datetime, today: date | datetime) -> str:
-    """'14 October', with the year added ('14 October 2025') only when it differs from today's."""
+    """'14 October', with the year added ('14 October 2025') only when it differs from today's.
+    Month-day style gives 'October 14' and 'October 14, 2025'. ISO always gives '2026-10-14'."""
     chosen = _as_date(day)
-    label = f"{chosen.day} {_MONTHS[chosen.month - 1]}"
+    style = date_style()
+    if style is DateStyle.ISO:
+        return chosen.isoformat()
+    month = _MONTHS[chosen.month - 1]
+    if style is DateStyle.MONTH_DAY:
+        label = f"{month} {chosen.day}"
+        separator = ", "
+    else:
+        label = f"{chosen.day} {month}"
+        separator = " "
     if chosen.year != _as_date(today).year:
-        label = f"{label} {chosen.year}"
+        label = f"{label}{separator}{chosen.year}"
     return label
 
 
@@ -122,9 +156,31 @@ def group_by_day(entries: Sequence[TimelineEntry]) -> list[tuple[date, list[Time
 
 
 def long_date(day: date | datetime) -> str:
-    """'21 October 2026'."""
+    """'21 October 2026'. Month-day style gives 'October 21, 2026'; ISO gives '2026-10-21'."""
+    return long_date_in(day, date_style())
+
+
+def long_date_in(day: date | datetime, style: DateStyle) -> str:
+    """long_date in the style given, not the one in use (the profile page shows every style)."""
     chosen = _as_date(day)
-    return f"{chosen.day} {_MONTHS[chosen.month - 1]} {chosen.year}"
+    if style is DateStyle.ISO:
+        return chosen.isoformat()
+    month = _MONTHS[chosen.month - 1]
+    if style is DateStyle.MONTH_DAY:
+        return f"{month} {chosen.day}, {chosen.year}"
+    return f"{chosen.day} {month} {chosen.year}"
+
+
+def weekday_date(day: date) -> str:
+    """The date line: 'Tuesday 21 October', 'Tuesday, October 21' or 'Tuesday 2026-10-21'."""
+    style = date_style()
+    weekday = f"{day:%A}"  # strftime has no %-d, so the day is written by hand below
+    if style is DateStyle.ISO:
+        return f"{weekday} {day.isoformat()}"
+    month = _MONTHS[day.month - 1]
+    if style is DateStyle.MONTH_DAY:
+        return f"{weekday}, {month} {day.day}"
+    return f"{weekday} {day.day} {month}"
 
 
 def week_of(day: date | datetime) -> str:
@@ -223,7 +279,8 @@ def onboarding_plain_text(brief: OnboardingBrief) -> str:
         timing = "Start date not known."
     else:
         timing = f"Day {brief.day} of {brief.window_days}."
-    facts = f"{timing} {brief.health.label}. ${account.arr:,.0f} ARR. {account.owner}."
+    money = f"{currency_symbol()}{account.arr:,.0f}"
+    facts = f"{timing} {brief.health.label}. {money} ARR. {account.owner}."
     plan = [f"{step.position}. {step.name}: {step.status.label}" for step in brief.milestones]
     agenda = [
         f"{number}. {item.topic}: {item.detail}"

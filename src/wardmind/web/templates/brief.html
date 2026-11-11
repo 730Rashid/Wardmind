@@ -6,6 +6,7 @@
     <div class="brief-title">
       <h1 class="page-title">Weekly brief</h1>
       <p class="date-line">{{ today_day | week_of }}</p>
+      {% if settings.your_name %}<p class="date-line">Prepared by {{ settings.your_name }}</p>{% endif %}
     </div>
     <button type="button" class="button js-only" data-print>Print or save as PDF</button>
   </header>

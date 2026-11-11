@@ -613,8 +613,12 @@ _MONTHS: dict[str, int] = {
     "sept": 9,
 }
 
-_CURRENCY_SYMBOL = re.compile(r"[$€£¥]")
-_CURRENCY_CODE = re.compile(r"(?<![A-Za-z])(?:USD|EUR|GBP)(?![A-Za-z])", re.IGNORECASE)
+# Every symbol and code Settings > Profile & region can show (settings.Currency), so an amount
+# the app wrote ("CA$120,000", "₹4,00,000") reads back. The prefixed dollars go first.
+_CURRENCY_SYMBOL = re.compile(r"(?:CA|A|NZ)\$|[$€£¥₹]", re.IGNORECASE)
+_CURRENCY_CODE = re.compile(
+    r"(?<![A-Za-z])(?:USD|EUR|GBP|CAD|AUD|NZD|INR|JPY)(?![A-Za-z])", re.IGNORECASE
+)
 _MONEY_SUFFIXES = (  # checked in this order, so "bn" isn't read as "n"
     ("bn", Decimal(1_000_000_000)),
     ("k", Decimal(1_000)),

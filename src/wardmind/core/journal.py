@@ -49,7 +49,9 @@ from wardmind.core.store import DEMO_JOURNAL_FILE, JOURNAL_FILE, WRITE_LOCK, Loc
 MAX_NOTE = 4000  # characters in one note
 MAX_FOLLOW_UP = 200  # characters in a follow-up's text (one line)
 MAX_OUTCOME_NOTE = 1000
-MAX_NOTES_PER_ACCOUNT = 1000
+MAX_NOTES_PER_ACCOUNT = 1000  # your own notes and activities (mailbox entries not counted)
+MAX_MAILBOX_ENTRIES = 500  # emails logged by the mailbox sync; the oldest unpinned go first
+MAILBOX_DAYS_AHEAD = 1  # a logged email's date can be at most this far after today
 MAX_SUBJECT = 300  # characters in an activity's subject (one line)
 MAX_PEOPLE = 20  # client-side email addresses kept on one logged email
 MAX_TEAM = 12  # team members per account
@@ -59,6 +61,7 @@ REPLY_WAIT_DAYS = 5  # a sent email with no reply after this many days is "await
 ANSWER_WAIT_DAYS = 2  # a received email not answered after this many days is "awaiting yours"
 QUIET_THREAD_DAYS = 60  # a thread whose latest email is older than this has gone quiet
 MAX_OPEN_FOLLOW_UPS = 20  # open follow-ups per account
+MAX_DISMISSED_RULES = 200  # removed automatic follow-ups remembered per account
 MAX_SNOOZE_DAYS = 90
 SNOOZE_CHOICES = (3, 7, 14, 30)  # the snooze buttons, in days
 FOLLOW_UP_DEFAULT_DAYS = 7  # a new follow-up is due this many days from today unless chosen
@@ -147,6 +150,10 @@ class FollowUp(BaseModel):
     status: FollowUpStatus = FollowUpStatus.OPEN
     created_at: datetime
     done_at: datetime | None = None  # set while DONE
+    # The occasion key of the automatic rule (core/rules.py) that added this follow-up, e.g.
+    # "at_risk:2026-11-02", "renewal:2027-01-14" or "champion_left:2026-10-30". None for one the
+    # CSM added. A rule adds at most one follow-up per key on an account, open or done.
+    rule: str | None = None
 
 
 class Snooze(BaseModel):
@@ -292,11 +299,20 @@ class AccountJournal(BaseModel):
     outcomes: list[Outcome] = Field(default_factory=list)  # in the order recorded
     team: list[TeamMember] = Field(default_factory=list)  # in the order added
     calls: list[ForecastCall] = Field(default_factory=list)  # in the order made
+    # Occasion keys (FollowUp.rule) of automatic follow-ups the CSM removed, so a rule never adds
+    # them back. The newest MAX_DISMISSED_RULES are kept.
+    dismissed_rules: list[str] = Field(default_factory=list)
 
     @property
     def empty(self) -> bool:
         return not (
-            self.notes or self.follow_ups or self.snooze or self.outcomes or self.team or self.calls
+            self.notes
+            or self.follow_ups
+            or self.snooze
+            or self.outcomes
+            or self.team
+            or self.calls
+            or self.dismissed_rules
         )
 
 
@@ -427,11 +443,18 @@ def thread_key(subject: str) -> str:
     return text.casefold()
 
 
-def awaiting_replies(journal: AccountJournal, today: date) -> list[ThreadStatus]:
+def awaiting_replies(
+    journal: AccountJournal,
+    today: date,
+    *,
+    reply_wait_days: int = REPLY_WAIT_DAYS,
+    answer_wait_days: int = ANSWER_WAIT_DAYS,
+) -> list[ThreadStatus]:
     """Email threads waiting on someone, from MAILBOX emails with a non-empty thread. For each
     thread take its latest email (happened_on, then created_at). Waiting on them when it was SENT
-    and today - happened_on >= REPLY_WAIT_DAYS; waiting on you when it was RECEIVED and
-    today - happened_on >= ANSWER_WAIT_DAYS. Threads whose latest email is older than
+    and today - happened_on >= reply_wait_days; waiting on you when it was RECEIVED and
+    today - happened_on >= answer_wait_days (the Settings values; the defaults are
+    REPLY_WAIT_DAYS and ANSWER_WAIT_DAYS). Threads whose latest email is older than
     QUIET_THREAD_DAYS are left out (they've gone quiet). Waiting on you first, then oldest first,
     then by thread."""
     latest: dict[str, Note] = {}
@@ -448,7 +471,7 @@ def awaiting_replies(journal: AccountJournal, today: date) -> list[ThreadStatus]
         if days > QUIET_THREAD_DAYS:
             continue
         waiting_on_them = note.direction is Direction.SENT
-        if days < (REPLY_WAIT_DAYS if waiting_on_them else ANSWER_WAIT_DAYS):
+        if days < (reply_wait_days if waiting_on_them else answer_wait_days):
             continue
         found.append(
             ThreadStatus(
@@ -592,17 +615,21 @@ class TodayView(BaseModel):
 
 
 def today_view(
-    book: list[ScoredAccount], journals: dict[str, AccountJournal], today: date
+    book: list[ScoredAccount],
+    journals: dict[str, AccountJournal],
+    today: date,
+    *,
+    quiet_days: int = QUIET_DAYS,
 ) -> TodayView:
     """Build the Today page from the scored book and every account's journal. Journal entries
     for ids that aren't in the book are ignored. An account is in "Needs attention" when its
     health is AT_RISK or WATCH, active_snooze is None, it has no open follow-up, and its
-    last_contact is None or more than QUIET_DAYS days before today. A snoozed account is listed
-    in `snoozed` and left out of `attention`; its open follow-ups still appear in `due` and
-    `upcoming` (a follow-up is a promise the CSM made, so a snooze never hides it), and so does a
-    renewal awaiting its outcome in `outcomes`."""
+    last_contact is None or more than quiet_days (the Settings value; default QUIET_DAYS) days
+    before today. A snoozed account is listed in `snoozed` and left out of `attention`; its open
+    follow-ups still appear in `due` and `upcoming` (a follow-up is a promise the CSM made, so a
+    snooze never hides it), and so does a renewal awaiting its outcome in `outcomes`."""
     upcoming_end = today + timedelta(days=UPCOMING_DAYS)
-    quiet_before = today - timedelta(days=QUIET_DAYS)
+    quiet_before = today - timedelta(days=quiet_days)
     week_start = today - timedelta(days=6)
     due_rows: list[tuple[int, DueItem]] = []
     upcoming_rows: list[tuple[int, DueItem]] = []
@@ -693,7 +720,7 @@ class Journal:
         with WRITE_LOCK:
             data = _load(self._path)
             journal = data.by_account.get(account_id, AccountJournal())
-            if len(journal.notes) >= MAX_NOTES_PER_ACCOUNT:
+            if _own_entries(journal) >= MAX_NOTES_PER_ACCOUNT:
                 raise ValueError(_TOO_MANY_NOTES)
             note = Note(
                 id=_new_id("n-", {entry.id for entry in journal.notes}),
@@ -780,7 +807,7 @@ class Journal:
         with WRITE_LOCK:
             data = _load(self._path)
             journal = data.by_account.get(account_id, AccountJournal())
-            if len(journal.notes) >= MAX_NOTES_PER_ACCOUNT:
+            if _own_entries(journal) >= MAX_NOTES_PER_ACCOUNT:
                 raise ValueError(_TOO_MANY_NOTES)
             note = Note(
                 id=_new_id("n-", {entry.id for entry in journal.notes}),
@@ -799,27 +826,37 @@ class Journal:
 
     def log_email(self, account_id: str, email: LoggedEmail, *, now: datetime) -> Note | None:
         """Log one email from the mailbox sync. None (nothing written) when this account already
-        has an entry with the same message_id, or has MAX_NOTES_PER_ACCOUNT entries. Never raises
+        has an entry with the same message_id. Mailbox entries have their own room
+        (MAX_MAILBOX_ENTRIES), so mail can never fill the space for the CSM's own notes: when it
+        is full, the oldest unpinned mailbox entry makes way (None when all are pinned). An
+        email dated more than MAILBOX_DAYS_AHEAD after today is dated today+1 instead, so a
+        forged Date header can't make an account look contacted for weeks. Never raises
         for odd content: the subject is made one line (breaks and tabs become spaces) and cut
         to MAX_SUBJECT; control and format characters are dropped from subject, snippet and by
         (the snippet keeps \n and \t); the text is the snippet stripped and cut to MAX_NOTE, else
-        the subject, else "(No subject)". happened_on is email.sent_on (not checked against
-        today: clocks differ). people is cut to MAX_PEOPLE. thread is thread_key(subject). kind
-        EMAIL, source MAILBOX, created_at now."""
+        the subject, else "(No subject)". happened_on is email.sent_on, capped as above. people
+        is cut to MAX_PEOPLE. thread is thread_key(subject). kind EMAIL, source MAILBOX,
+        created_at now."""
         subject = _subject_line(email.subject)
         snippet = _snippet_text(email.snippet)
         with WRITE_LOCK:
             data = _load(self._path)
             journal = data.by_account.get(account_id, AccountJournal())
-            if len(journal.notes) >= MAX_NOTES_PER_ACCOUNT:
-                return None
             if any(entry.message_id == email.message_id for entry in journal.notes):
                 return None
+            mailbox = [entry for entry in journal.notes if entry.source is NoteSource.MAILBOX]
+            if len(mailbox) >= MAX_MAILBOX_ENTRIES:
+                movable = [entry for entry in mailbox if not entry.pinned]
+                if not movable:
+                    return None
+                oldest = min(movable, key=lambda entry: (entry.happened_on, entry.created_at))
+                journal.notes = [entry for entry in journal.notes if entry.id != oldest.id]
+            latest = _naive(now).date() + timedelta(days=MAILBOX_DAYS_AHEAD)
             note = Note(
                 id=_new_id("n-", {entry.id for entry in journal.notes}),
                 kind=TouchKind.EMAIL,
                 text=snippet or subject or _NO_SUBJECT,
-                happened_on=email.sent_on,
+                happened_on=min(email.sent_on, latest),
                 created_at=_naive(now),
                 subject=subject,
                 by=_drop_hidden(email.by).strip(),
@@ -900,15 +937,29 @@ class Journal:
             return True
 
     def add_follow_up(
-        self, account_id: str, text: str, due: date, *, now: datetime, today: date
+        self,
+        account_id: str,
+        text: str,
+        due: date,
+        *,
+        now: datetime,
+        today: date,
+        rule: str | None = None,
     ) -> FollowUp:
         """ValueError("This account has 20 open follow-ups. Finish some first.") at
-        MAX_OPEN_FOLLOW_UPS open ones."""
+        MAX_OPEN_FOLLOW_UPS open ones. `rule` is the occasion key of an automatic follow-up
+        (core/rules.py): ValueError("That follow-up was already added.") when this account already
+        has a follow-up with that key, open or done."""
         cleaned = clean_follow_up_text(text)
         day = check_due(due, today)
         with WRITE_LOCK:
             data = _load(self._path)
             journal = data.by_account.get(account_id, AccountJournal())
+            if rule is not None and (
+                rule in journal.dismissed_rules
+                or any(entry.rule == rule for entry in journal.follow_ups)
+            ):
+                raise ValueError(_RULE_TAKEN)
             if len(open_follow_ups(journal)) >= MAX_OPEN_FOLLOW_UPS:
                 raise ValueError(_TOO_MANY_OPEN)
             item = FollowUp(
@@ -917,6 +968,7 @@ class Journal:
                 due=day,
                 status=FollowUpStatus.OPEN,
                 created_at=_naive(now),
+                rule=rule,
             )
             journal.follow_ups.append(item)
             data.by_account[account_id] = journal
@@ -983,7 +1035,13 @@ class Journal:
             journal = data.by_account.get(account_id)
             if journal is None or not any(entry.id == follow_up_id for entry in journal.follow_ups):
                 return False
+            removed = next(entry for entry in journal.follow_ups if entry.id == follow_up_id)
             journal.follow_ups = [entry for entry in journal.follow_ups if entry.id != follow_up_id]
+            if removed.rule is not None and removed.rule not in journal.dismissed_rules:
+                # Removed on purpose: the rule that added it mustn't add it again.
+                journal.dismissed_rules = [*journal.dismissed_rules, removed.rule][
+                    -MAX_DISMISSED_RULES:
+                ]
             _save(self._path, data)
             return True
 
@@ -1188,6 +1246,11 @@ class Journal:
             return len(gone_ids)
 
 
+def _own_entries(journal: AccountJournal) -> int:
+    """The entries that count against MAX_NOTES_PER_ACCOUNT: all but the mailbox's."""
+    return sum(1 for entry in journal.notes if entry.source is not NoteSource.MAILBOX)
+
+
 def _new_id(prefix: str, taken: set[str]) -> str:
     """prefix + 8 random hex characters, not in taken."""
     while True:
@@ -1207,6 +1270,7 @@ _TOO_MANY_NOTES = (
     "Remove some old ones first."
 )
 _TOO_MANY_OPEN = f"This account has {MAX_OPEN_FOLLOW_UPS} open follow-ups. Finish some first."
+_RULE_TAKEN = "That follow-up was already added."
 _NO_NOTE = "That note isn't in this account."
 _NO_FOLLOW_UP = "That follow-up isn't in this account."
 _NO_ENTRY = "That entry isn't there any more."

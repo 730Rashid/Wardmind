@@ -8,11 +8,12 @@ from typing import Annotated
 
 import typer
 
-from wardmind.core import books, service
+from wardmind.core import books, service, vault
 from wardmind.core.briefs import WeeklyBrief, weekly_brief
 from wardmind.core.connectors.errors import ConnectorError
 from wardmind.core.models import Health, Motion, ScoredAccount
 from wardmind.core.settings import DataSource, load_settings
+from wardmind.web import formatting
 
 app = typer.Typer(no_args_is_help=True, add_completion=False, help=__doc__)
 
@@ -31,6 +32,7 @@ def score(
 ) -> None:
     """Print the top of the ranked book with each account's top reason."""
     _pin(book_id)
+    _use_display()
     as_of = date.today()
     try:
         book = service.filter_book(service.get_book(as_of=as_of), motion=motion)
@@ -58,7 +60,7 @@ def _header(brief: WeeklyBrief) -> str:
     account_word = "account" if brief.total_accounts == 1 else "accounts"
     return (
         f"{brief.total_accounts} {account_word}, {at_risk} at risk, "
-        f"${brief.arr_at_risk:,.0f} ARR at risk"
+        f"{formatting.currency_symbol()}{brief.arr_at_risk:,.0f} ARR at risk"
     )
 
 
@@ -69,7 +71,7 @@ def _row(rank: int, item: ScoredAccount) -> str:
         f"{item.priority:.1f}",
         _cut(item.account.name),
         item.motion.label,
-        f"${item.account.arr:,.0f}",
+        f"{formatting.currency_symbol()}{item.account.arr:,.0f}",
         item.top_reason,
     )
 
@@ -88,7 +90,11 @@ def _cut(name: str) -> str:
 
 def _pin(book_id: str | None) -> None:
     """Pin this process to one book when --book is given. An unknown id exits with 2, with the
-    message on stderr, before anything else runs. Without --book the open book is used."""
+    message on stderr, before anything else runs. Without --book the open book is used.
+
+    These commands (the MCP server and `score`) may also read a password-protected book through
+    the app's unlock ticket while the app is open and unlocked (see vault.allow_ticket)."""
+    vault.allow_ticket()
     if book_id is None:
         return
     try:
@@ -96,6 +102,12 @@ def _pin(book_id: str | None) -> None:
     except books.BookError as error:
         typer.echo(str(error), err=True)
         raise typer.Exit(code=2) from None
+
+
+def _use_display() -> None:
+    """Amounts and dates print as Settings > Profile & region chose (US dollars by default)."""
+    settings = load_settings()
+    formatting.use_display(settings.currency, settings.date_style)
 
 
 @app.command("books")

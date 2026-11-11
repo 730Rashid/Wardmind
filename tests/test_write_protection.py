@@ -82,3 +82,25 @@ def test_scoring_config_round_trips_through_yaml(tmp_path):
     positions = [text.index(kind.value + ":") for kind in SignalKind]
     assert positions == sorted(positions)
     assert not list(tmp_path.rglob("*.tmp"))  # the atomic write cleaned up after itself
+
+
+def test_pages_send_the_opener_and_permissions_policies(client):
+    response = client.get("/settings/appearance")
+    assert response.headers["Cross-Origin-Opener-Policy"] == "same-origin"
+    assert "camera=()" in response.headers["Permissions-Policy"]
+    assert "clipboard-read=()" in response.headers["Permissions-Policy"]
+
+
+def test_an_oversized_body_is_refused_before_it_is_read(client):
+    from wardmind.web.app import MAX_BODY_BYTES
+
+    response = client.post(
+        "/settings/appearance",
+        content=b"x",
+        headers={
+            "Origin": "http://127.0.0.1",
+            "Content-Type": "application/x-www-form-urlencoded",
+            "Content-Length": str(MAX_BODY_BYTES + 1),
+        },
+    )
+    assert response.status_code == 413

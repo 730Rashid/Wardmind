@@ -344,8 +344,9 @@ Changes from sections A, B and E above, after a review of the code:
   `replace_recovery_code`, `ensure_unlocked`, `forget_key`. `lock()` marks the process locked
   by the user, so Windows protection doesn't unlock it again by itself.
 - The unlock ticket: with a password slot, unlocking writes `unlock-ticket.json`, the master key
-  wrapped by DPAPI, valid 12 hours. The MCP server and the CLI open the book from it; a session
-  opened that way ends as soon as the ticket is gone. `lock()` deletes it.
+  wrapped by DPAPI. The MCP server and the CLI open the book from it; a session opened that way
+  ends as soon as the ticket is gone. `lock()` deletes it. (Hardened after the 2026-11-11 review:
+  see "Security review fixes" below.)
 - Settings > Data & privacy > Encryption: turn on (Windows or a password, then the recovery key
   page, which needs a tick before anything is encrypted; the pending key lives in memory for 10
   minutes under a random token), change or remove the password, make a new recovery key, turn
@@ -398,3 +399,48 @@ Changes from section C, chosen so that nothing already on disk moves:
 - **Not in this phase:** a per-book backup download, and feeds of books that aren't open don't
   sync until that book is opened.
 
+### Security review fixes (2026-11-11)
+
+A second review (by Fable, read-only, against d590678) found no Critical issues, one High, four
+Medium and some Low ones. What changed:
+
+- **High, the unlock ticket defeated the password.** Only processes that call
+  `vault.allow_ticket()` (the MCP server and `wardmind score`) read it; the web app and the
+  desktop window never do, so a restarted app always asks for the password. The expiry and the
+  key file's epoch are inside the DPAPI-protected blob (editing the file can't extend it), the
+  ticket lasts `TICKET_MINUTES` (10) and the running app rewrites it while it stays unlocked, a
+  ticket-opened session re-checks it every minute, and the app deletes it when it starts and
+  when it stops.
+- **Medium, a book switch during a background job.** `books.bound(book_id)` (a context
+  variable) makes `active_id()` answer the job's own book. The feed scheduler's tick, the
+  mailbox sync and each step of "Look up all websites" are bound to the book open when they
+  started, so keys, caches, summaries and logos never cross books. A job, or a pinned MCP
+  server, whose book is deleted stops with `BookError` instead of carrying on in another book.
+- **Medium, an interrupted turn-on or turn-off was never finished.** The lock gate calls
+  `vault.try_resume()` on the next request once Wardmind is unlocked.
+- **Medium, changing the password or recovery key revoked nothing.** The new **Replace all
+  keys** (Data & privacy) makes a new master key and new book keys, encrypts every file again,
+  and shows a new recovery key; the epoch goes up, so an old copy of keys.json, an old password,
+  an old recovery key or an old ticket opens nothing. While it runs, keys.json keeps the
+  previous book keys (wrapped by the new master key) under `previous`, and the state is
+  `rekeying`, so a crash part way finishes on the next unlock. The password and recovery-key
+  pages now say plainly that they alone don't affect old copies of the key file.
+- **Low/Medium, keys.json wasn't authenticated.** It carries an HMAC (under a key derived from
+  the master key) over its whole contents, checked at every unlock; a turn-off or key
+  replacement is only finished when the MAC is present and right. A key file saying "plain" is
+  refused, a deleted keys.json comes back from keys.json.bak, plain text is never written over an
+  encrypted file, and the Argon2 cost read from the file is bounded (at most 1 GiB, 16 passes,
+  16 lanes).
+- **Low/Medium, the mailbox.** Mailbox entries have their own room (`MAX_MAILBOX_ENTRIES`, oldest
+  unpinned first out), so mail can't fill the space for the CSM's own notes, and an email's date
+  is capped at tomorrow, so a forged Date header can't keep an account out of Needs attention.
+- **Low.** One unlock try is checked at a time (`UnlockThrottle.begin/end`); the session cookie's
+  name carries the port; request bodies over 16 MB (260 MB for restoring a backup) are refused
+  before they are read; temp files a crashed write left behind are swept at start and before
+  encrypting; `Cross-Origin-Opener-Policy` and `Permissions-Policy` headers; errors name a file,
+  never its full path; Data & privacy suggests BitLocker for what encryption can't cover.
+- **Not changed, on purpose:** the unlock page keeps `autocomplete="current-password"` (a
+  password manager makes long passwords practical); a DPAPI-mode book still opens for anyone
+  signed in to the same Windows account (that is what Windows protection means); every port on
+  127.0.0.1 is the same site to a browser, so the cookie's protection there is HttpOnly,
+  SameSite=Strict and a CSP that loads nothing from other ports.

@@ -1302,3 +1302,18 @@ def test_issues_csv_neutralises_cells_a_spreadsheet_would_run_as_formulas(cell, 
     issues = [ImportIssue(row=2, field="arr", message='ARR "TBC" isn\'t an amount.')]
     rows_out = list(csv.reader(io.StringIO(issues_csv(table, issues))))
     assert rows_out[1][0] == written
+
+
+@pytest.mark.parametrize(
+    ("text", "expected"),
+    [
+        ("CA$120,000", 120000.0),
+        ("A$1.2m", 1200000.0),
+        ("NZ$5k", 5000.0),
+        ("₹400,000", 400000.0),
+        ("120,000 CAD", 120000.0),
+        ("JPY 9,000", 9000.0),
+    ],
+)
+def test_every_currency_the_app_can_show_reads_back(text: str, expected: float) -> None:
+    assert parse_money(text) == expected

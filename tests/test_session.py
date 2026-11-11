@@ -241,3 +241,23 @@ def test_wardmind_open_opens_the_signed_in_link(
         result = CliRunner().invoke(cli.app, ["open"])
     assert result.exit_code == 0, result.output
     assert opened == [f"http://127.0.0.1:{port}/enter?t={gate.entry_token}&next=%2F"]
+
+
+def test_the_cookie_name_carries_the_port() -> None:
+    assert session.cookie_name(8000) == "wardmind_session_8000"
+    assert session.cookie_name(8001) != session.cookie_name(8000)
+    assert session.cookie_name(None) == session.SESSION_COOKIE
+
+
+def test_the_activity_log_records_the_session_and_sign_ins(
+    client: TestClient, gate: SessionGate
+) -> None:
+    from wardmind.core import audit
+
+    for _ in range(3):  # a burst of bad links is one entry, not three
+        assert client.get("/enter?t=wrong").status_code == 403
+    _enter(client, gate)
+    kinds = [entry.event for entry in audit.entries()]
+    assert kinds.count(audit.Event.SIGN_IN_REFUSED) == 1
+    assert audit.Event.SIGN_IN in kinds and audit.Event.SESSION_STARTED in kinds
+    assert all(gate.entry_token not in entry.detail for entry in audit.entries())

@@ -800,19 +800,43 @@ def test_who_sent_it_drops_hidden_characters_and_blank_means_you(journal):
     assert mine.by == ""
 
 
-def test_the_sent_day_is_kept_even_when_it_is_after_today(journal):
-    logged = log_mail(journal, mail(sent_on=ahead(2)), now=NOW)
+def test_a_sent_day_far_after_today_is_capped_at_tomorrow(journal):
+    tomorrow = log_mail(journal, mail("m-1", sent_on=ahead(1)), now=NOW)
+    assert tomorrow is not None and tomorrow.happened_on == ahead(1)  # clocks differ a little
+    logged = log_mail(journal, mail("m-2", sent_on=ahead(40)), now=NOW)
 
     assert logged is not None
-    assert logged.happened_on == ahead(2)
+    assert logged.happened_on == ahead(1)
 
 
-def test_an_account_at_its_note_limit_logs_no_more_email_and_writes_nothing(store, journal, writes):
+def test_email_has_its_own_room_beside_a_full_set_of_notes(store, journal):
     fill_notes(store)
-    writes.clear()
 
-    assert log_mail(journal, mail("m-new"), now=NOW) is None
-    assert writes == []
+    assert log_mail(journal, mail("m-new"), now=NOW) is not None
+    with refused(TOO_MANY_NOTES):  # the CSM's own limit is unchanged
+        journal.add_activity(ACC, TouchKind.CALL, "One more", ago(1), now=NOW, today=TODAY)
+
+
+def test_a_flood_of_email_never_blocks_your_own_notes(journal, monkeypatch):
+    monkeypatch.setattr(journal_module, "MAX_MAILBOX_ENTRIES", 3)
+    for index in range(5):
+        log_mail(journal, mail(f"m-{index}", sent_on=ago(10 - index)), now=NOW)
+    entries = journal.for_account(ACC).notes
+    assert sorted(entry.message_id for entry in entries) == ["m-2", "m-3", "m-4"]
+    journal.add_activity(ACC, TouchKind.CALL, "My own call", ago(1), now=NOW, today=TODAY)
+
+
+def test_pinned_email_is_kept_and_a_full_pinned_mailbox_logs_nothing(journal, monkeypatch):
+    monkeypatch.setattr(journal_module, "MAX_MAILBOX_ENTRIES", 2)
+    first = log_mail(journal, mail("m-1", sent_on=ago(9)), now=NOW)
+    second = log_mail(journal, mail("m-2", sent_on=ago(8)), now=NOW)
+    assert first is not None and second is not None
+    journal.set_pinned(ACC, first.id, True)
+    log_mail(journal, mail("m-3", sent_on=ago(7)), now=NOW)  # m-2 makes way, m-1 is pinned
+    assert {e.message_id for e in journal.for_account(ACC).notes} == {"m-1", "m-3"}
+    third = next(e for e in journal.for_account(ACC).notes if e.message_id == "m-3")
+    journal.set_pinned(ACC, third.id, True)
+    assert log_mail(journal, mail("m-4"), now=NOW) is None
 
 
 # Pinning -------------------------------------------------------------------------------------

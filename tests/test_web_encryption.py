@@ -550,6 +550,81 @@ def test_a_new_recovery_key_replaces_the_old_one(client: TestClient) -> None:
     assert vault.is_unlocked()
 
 
+# --- Replacing all keys -----------------------------------------------------------------------
+
+
+def test_replacing_keys_needs_the_box(client: TestClient) -> None:
+    _turn_on_with_windows(client)
+    response = _post(client, "/settings/privacy/encryption/rekey")
+    assert response.status_code == 422
+    assert "Tick the box to confirm your old recovery key will stop working." in _text(response)
+
+
+def test_replacing_keys_with_windows_shows_a_new_recovery_key(client: TestClient) -> None:
+    old = _turn_on_with_windows(client)
+    store = LocalStore()
+    _add_note(store)
+    before = _managed_raw()
+    response = _post(client, "/settings/privacy/encryption/rekey", {"confirm_rekey": "1"})
+    assert response.status_code == 200
+    assert response.headers["cache-control"] == "no-store"
+    assert "Every key has been replaced" in _text(response)
+    new = _shown_code(response)
+    assert new != old
+    assert _managed_raw() != before
+    assert _note_texts(store) == ["Talked renewal terms"]
+    vault.lock()
+    with pytest.raises(Locked):
+        vault.unlock(recovery=old)
+    vault.unlock(recovery=new)
+
+
+def test_replacing_keys_with_a_password_asks_for_it(client: TestClient) -> None:
+    _turn_on_with_password(client)
+    page = _text(_get(client, "/settings/privacy"))
+    assert "Replace all keys" in page
+    missing = _post(client, "/settings/privacy/encryption/rekey", {"confirm_rekey": "1"})
+    assert missing.status_code == 422
+    mismatch = _post(
+        client,
+        "/settings/privacy/encryption/rekey",
+        {"confirm_rekey": "1", "password": PASSWORD, "confirm": PASSWORD + "x"},
+    )
+    assert mismatch.status_code == 422
+    assert PASSWORD not in mismatch.text
+    done = _post(
+        client,
+        "/settings/privacy/encryption/rekey",
+        {"confirm_rekey": "1", "password": PASSWORD, "confirm": PASSWORD},
+    )
+    assert done.status_code == 200
+    assert PASSWORD not in done.text
+    vault.lock()
+    vault.unlock(password=PASSWORD)
+    assert vault.is_unlocked()
+
+
+def test_replacing_keys_needs_encryption_on(client: TestClient) -> None:
+    response = _post(client, "/settings/privacy/encryption/rekey", {"confirm_rekey": "1"})
+    assert response.headers["location"] == "/settings/privacy?notice=encryption-not-on"
+
+
+def test_an_interrupted_turn_on_finishes_on_the_next_page(client: TestClient) -> None:
+    _turn_on_with_windows(client)
+    keys = vault.load_keys()
+    assert keys is not None
+    vault.disable()
+    store = LocalStore()
+    _add_note(store)  # a plain file, written while "turning on" never finished
+    vault.enable(use_dpapi=True)
+    keys = vault.load_keys()
+    assert keys is not None
+    vault._save_keys(keys.replace(state=State.ENCRYPTING))
+    assert _get(client, "/settings/privacy").status_code == 200
+    assert vault.state() is State.ON
+    assert all(vault.is_encrypted(raw) for raw in _managed_raw())
+
+
 # --- Lock time --------------------------------------------------------------------------------
 
 

@@ -69,6 +69,15 @@ class SessionGate:
         return bool(value) and secrets.compare_digest(str(value), self.session_token)
 
 
+def cookie_name(port: int | None) -> str:
+    """The session cookie's name for the port the app answers on, e.g. "wardmind_session_8000".
+    Browsers keep cookies per host, not per port, so two Wardmind runs on different ports would
+    otherwise overwrite each other's cookie. (Every port on 127.0.0.1 is the same site to a
+    browser; the cookie is HttpOnly and SameSite=Strict, and Wardmind's pages load nothing from
+    other ports, which keeps it from being sent anywhere else in practice.)"""
+    return f"{SESSION_COOKIE}_{port}" if port else SESSION_COOKIE
+
+
 def is_open_path(path: str) -> bool:
     """Paths served without the session cookie: the sign-in link itself and static files."""
     return path == ENTER_PATH or path.startswith(OPEN_PREFIXES)

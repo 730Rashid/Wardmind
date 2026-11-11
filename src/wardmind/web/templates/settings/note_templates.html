@@ -1,0 +1,98 @@
+{% extends "settings/layout.html" %}
+{% block settings %}
+<div class="note-templates">
+  <section class="note-templates-section" aria-labelledby="note-templates-title">
+    <h2 class="section-title" id="note-templates-title">Your note templates</h2>
+    <p class="prose">A template is starting text for a note: the headings you fill in after a call, a meeting or a review. On an account's note form, choose one and its text fills the box. Nothing is saved until you add the note.</p>
+    <p class="field-help">A template can use these words, which are replaced with the account's details when it's used: {account} (the account's name), {today} (today's date), {renewal_date} (the renewal date, or "no renewal date"), {owner} (the owner, if there is one) and {arr} (the ARR). Anything else in braces is kept as typed.</p>
+
+    {% if rows %}
+    <ol class="note-template-list">
+      {% for row in rows %}
+      <li class="note-template" id="{{ row.id }}">
+        <div class="note-template-head">
+          <p class="note-template-name">{{ row.name }}</p>
+          <div class="note-template-actions">
+            <a class="button" href="/settings/note-templates/{{ row.id | idpath }}">Edit<span class="visually-hidden"> {{ row.name }}</span></a>
+            <form class="inline-form" method="post" action="/settings/note-templates/{{ row.id | idpath }}/up">
+              <button type="submit" class="button"{% if row.first %} disabled{% endif %}>Move up<span class="visually-hidden"> {{ row.name }}</span></button>
+            </form>
+            <form class="inline-form" method="post" action="/settings/note-templates/{{ row.id | idpath }}/down">
+              <button type="submit" class="button"{% if row.last %} disabled{% endif %}>Move down<span class="visually-hidden"> {{ row.name }}</span></button>
+            </form>
+            <form class="inline-form" method="post" action="/settings/note-templates/{{ row.id | idpath }}/delete">
+              <button type="submit" class="button">Delete<span class="visually-hidden"> {{ row.name }}</span></button>
+            </form>
+          </div>
+        </div>
+        <details class="note-template-text">
+          <summary>Show the text</summary>
+          <div class="note-template-body">{{ row.body }}</div>
+        </details>
+      </li>
+      {% endfor %}
+    </ol>
+    {% else %}
+    <p class="empty-card">No templates yet. Add your own below, or add the starter templates.</p>
+    {% endif %}
+
+    {% if missing %}
+    <form class="note-templates-starters" method="post" action="/settings/note-templates/starters">
+      {% if starters_error %}<p class="field-error" role="alert">{{ starters_error }}</p>{% endif %}
+      <p class="field-help">Starter templates not added yet: {{ missing | join(", ") }}.</p>
+      <button type="submit" class="button">Add the starter templates</button>
+    </form>
+    {% endif %}
+  </section>
+
+  <section class="note-templates-section note-template-form-section" aria-labelledby="note-template-form-title">
+    {% if editing %}
+    <h2 class="section-title" id="note-template-form-title">Edit template</h2>
+    <form class="settings-form note-template-form" method="post" action="/settings/note-templates/{{ edit_id | idpath }}/edit">
+      {% if edit_errors.form %}<p class="field-error" role="alert">{{ edit_errors.form }}</p>{% endif %}
+      <div class="field">
+        <label for="edit-template-name">Name</label>
+        <input type="text" id="edit-template-name" name="name" value="{{ edit_name }}" maxlength="{{ name_max }}" autocomplete="off"{% if edit_errors.name %} aria-invalid="true" aria-describedby="edit-template-name-error"{% endif %}>
+        {% if edit_errors.name %}<p class="field-error" id="edit-template-name-error">{{ edit_errors.name }}</p>{% endif %}
+      </div>
+      <div class="field">
+        <label for="edit-template-body">Text</label>
+        <p class="field-help" id="edit-template-body-help">Use the words listed above where the account's details belong.</p>
+        <textarea id="edit-template-body" name="body" rows="10" maxlength="{{ body_max }}" aria-describedby="edit-template-body-help{% if edit_errors.body %} edit-template-body-error{% endif %}"{% if edit_errors.body %} aria-invalid="true"{% endif %}>{{ edit_body }}</textarea>
+        {% if edit_errors.body %}<p class="field-error" id="edit-template-body-error">{{ edit_errors.body }}</p>{% endif %}
+      </div>
+      <div class="form-actions">
+        <button type="submit" class="button-primary">Save changes</button>
+        <a class="button" href="/settings/note-templates">Cancel</a>
+      </div>
+    </form>
+    {% elif can_add %}
+    <h2 class="section-title" id="note-template-form-title">Add a template</h2>
+    <form class="settings-form note-template-form" method="post" action="/settings/note-templates/add">
+      {% if add_errors.form %}<p class="field-error" role="alert">{{ add_errors.form }}</p>{% endif %}
+      <div class="field">
+        <label for="add-template-name">Name</label>
+        <input type="text" id="add-template-name" name="name" value="{{ add_name }}" maxlength="{{ name_max }}" autocomplete="off"{% if add_errors.name %} aria-invalid="true" aria-describedby="add-template-name-error"{% endif %}>
+        {% if add_errors.name %}<p class="field-error" id="add-template-name-error">{{ add_errors.name }}</p>{% endif %}
+      </div>
+      <div class="field">
+        <label for="add-template-body">Text</label>
+        <p class="field-help" id="add-template-body-help">Use the words listed above where the account's details belong.</p>
+        <textarea id="add-template-body" name="body" rows="10" maxlength="{{ body_max }}" aria-describedby="add-template-body-help{% if add_errors.body %} add-template-body-error{% endif %}"{% if add_errors.body %} aria-invalid="true"{% endif %}>{{ add_body }}</textarea>
+        {% if add_errors.body %}<p class="field-error" id="add-template-body-error">{{ add_errors.body }}</p>{% endif %}
+      </div>
+      <div class="form-actions">
+        <button type="submit" class="button-primary">Add template</button>
+      </div>
+    </form>
+    {% else %}
+    <h2 class="section-title" id="note-template-form-title">Add a template</h2>
+    {% if add_errors.form %}
+    <p class="field-error" role="alert">{{ add_errors.form }}</p>
+    {% else %}
+    <p class="field-help">You can keep {{ max_templates }} templates. Delete one to add another.</p>
+    {% endif %}
+    {% endif %}
+  </section>
+</div>
+{% endblock %}

@@ -30,6 +30,9 @@ import os
 import re
 import shutil
 import threading
+from collections.abc import Iterator
+from contextlib import contextmanager
+from contextvars import ContextVar
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -112,6 +115,10 @@ def other_books_dir() -> Path:
 _cache: tuple[tuple[str, int, int], BookList] | None = None
 _cache_lock = threading.Lock()
 _pinned: str | None = None
+# The book a background job (a feed sync, website lookups, a mailbox sync) started in. Set with
+# bound(); while set, active_id() returns it, so a book opened in the meantime never receives
+# that job's data or lends it its keys.
+_bound: ContextVar[str | None] = ContextVar("wardmind_bound_book", default=None)
 
 
 def _default_list() -> BookList:
@@ -188,12 +195,31 @@ def pinned() -> str | None:
     return _pinned or (os.environ.get(ENV_BOOK, "").strip() or None)
 
 
+@contextmanager
+def bound(book_id: str) -> Iterator[None]:
+    """Run the code inside against this book, whichever book is opened meanwhile (in this thread
+    or task; a new thread starts unbound, so a job binds inside its own thread)."""
+    token = _bound.set(book_id)
+    try:
+        yield
+    finally:
+        _bound.reset(token)
+
+
 def active_id() -> str:
-    """The open book's id: the pinned one, else books.json's current. A pinned book that has
-    since been deleted falls back to the current one."""
+    """The book this code works on: the one a running job is bound to (see bound), else the
+    pinned one (the MCP server's --book), else books.json's current. BookError when the bound or
+    pinned book has since been deleted: carrying on in another book would mix the two."""
     listed = load()
+    held = _bound.get()
+    if held is not None:
+        if listed.get(held) is None:
+            raise BookError("The book this job started in has been deleted.")
+        return held
     chosen = pinned()
-    if chosen is not None and listed.get(chosen) is not None:
+    if chosen is not None:
+        if listed.get(chosen) is None:
+            raise BookError(f"The book {chosen} has been deleted. `wardmind books` lists them.")
         return chosen
     return listed.current
 

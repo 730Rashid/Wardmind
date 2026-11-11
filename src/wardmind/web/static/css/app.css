@@ -7482,3 +7482,445 @@ a.button-primary {
 .books-add > .field-help {
   margin-block-start: var(--space-3);
 }
+
+/* Settings > Overview and Settings > Profile & region. Every class here starts with overview- or
+   profile-; the rest of the settings pages reuse the classes in app.css (settings-form, choices,
+   field-help, field-error, button-primary, check-list). Colours are the existing tokens, so dark
+   mode follows the rest of the app. */
+
+/* The setup check: a plain list with a hairline between items, not a stack of cards. */
+.overview-list {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.overview-item {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding-block: var(--space-4);
+  border-block-start: 1px solid var(--line);
+}
+
+.overview-item:last-child {
+  border-block-end: 1px solid var(--line);
+}
+
+.overview-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-1) var(--space-3);
+}
+
+.overview-title {
+  margin: 0;
+  font-size: var(--t-md);
+  line-height: var(--lh-md);
+  font-weight: 600;
+}
+
+/* The state's words sit beside the title, so a state is never told by colour alone. */
+.overview-mark {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  margin: 0;
+  font-size: var(--t-sm);
+  line-height: var(--lh-sm);
+  color: var(--ink);
+}
+
+.overview-icon {
+  inline-size: 0.875rem;
+  block-size: 0.875rem;
+}
+
+.overview-state,
+.overview-link {
+  margin: 0;
+}
+
+.overview-link {
+  font-size: var(--t-sm);
+  line-height: var(--lh-sm);
+}
+
+/* Done items are quieter: their title is lighter and their sentence is muted. */
+.overview-item--done .overview-title {
+  font-weight: 500;
+}
+
+.overview-item--done .overview-state,
+.overview-item--done .overview-mark,
+.overview-item--busy .overview-state {
+  color: var(--ink-muted);
+}
+
+.overview-summary {
+  margin-block: 0 var(--space-4);
+}
+
+/* The find box: the input takes what room it needs, the button sits beside it. */
+.overview-find {
+  margin: 0;
+}
+
+.overview-find-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+}
+
+.overview-find-row input[type="search"] {
+  inline-size: min(24rem, 100%);
+  padding-block: var(--space-2);
+  padding-inline: var(--space-3);
+}
+
+.overview-find .field-help {
+  margin-block: var(--space-2) 0;
+}
+
+.overview-results {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: var(--space-4) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.overview-result-where {
+  color: var(--ink-muted);
+  font-size: var(--t-sm);
+  line-height: var(--lh-sm);
+}
+
+.overview-none {
+  margin: var(--space-4) 0 0;
+}
+
+/* Profile & region: the name field is as wide as a short name needs, not the whole column. */
+.profile-name input[type="text"] {
+  inline-size: min(28rem, 100%);
+  padding-block: var(--space-2);
+  padding-inline: var(--space-3);
+}
+
+/* Settings > Note templates, the template picker on the account page's Notes box, and
+   Settings > Activity log. Every class here starts with note-template or activity-log (or reuses
+   an existing class from app.css). Colours and spacing come from the existing custom properties. */
+
+/* --- Note templates ------------------------------------------------------------------------ */
+
+.note-templates {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+}
+
+.note-templates-section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  min-inline-size: 0;
+}
+
+.note-template-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.note-template {
+  padding: var(--space-3) var(--space-4);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-card);
+  scroll-margin-block-start: var(--space-6);
+}
+
+.note-template-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2) var(--space-3);
+}
+
+.note-template-name {
+  margin: 0;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.note-template-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.note-template-actions .inline-form {
+  margin: 0;
+}
+
+.note-template-text {
+  margin-block-start: var(--space-2);
+}
+
+.note-template-text > summary {
+  cursor: pointer;
+  color: var(--ink-muted);
+  font-size: var(--t-sm);
+  line-height: var(--lh-sm);
+}
+
+.note-template-body {
+  margin-block-start: var(--space-2);
+  padding: var(--space-3);
+  max-block-size: 18rem;
+  overflow: auto;
+  background: var(--sunken);
+  border-radius: var(--radius-control);
+  font-size: var(--t-sm);
+  line-height: var(--lh-sm);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.note-templates-starters {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-2);
+}
+
+.note-templates-starters .field-help {
+  margin: 0;
+}
+
+.note-template-form-section {
+  padding-block-start: var(--space-5);
+  border-block-start: 1px solid var(--line);
+}
+
+.note-template-form textarea {
+  inline-size: 100%;
+  min-block-size: 10rem;
+  resize: vertical;
+}
+
+/* The picker above the account's Notes box: a select and a button, one row on a wide screen. */
+.note-template-picker .field {
+  flex: 1 1 14rem;
+  min-inline-size: 0;
+}
+
+.note-template-picker .form-actions {
+  align-items: flex-end;
+}
+
+.note-template-picker select {
+  inline-size: 100%;
+}
+
+/* --- Activity log -------------------------------------------------------------------------- */
+
+.activity-log {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+}
+
+.activity-log-section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  min-inline-size: 0;
+}
+
+.activity-log-filter {
+  margin: 0;
+}
+
+.activity-log-table {
+  inline-size: 100%;
+  border-collapse: collapse;
+  background: var(--surface);
+}
+
+.activity-log-table th,
+.activity-log-table td {
+  padding: var(--cell-pad);
+  vertical-align: top;
+  text-align: start;
+  font-size: var(--t-sm);
+  line-height: var(--lh-sm);
+  border-block-end: 1px solid var(--line);
+}
+
+.activity-log-table thead th {
+  font-weight: 600;
+  color: var(--ink-muted);
+  background: var(--sunken);
+}
+
+.activity-log-table tbody tr:last-child td {
+  border-block-end: 0;
+}
+
+.activity-log-when {
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.activity-log-table td:nth-child(4) {
+  overflow-wrap: anywhere;
+}
+
+.activity-log-download {
+  margin: 0;
+}
+
+.activity-log-clear {
+  padding-block-start: var(--space-5);
+  border-block-start: 1px solid var(--line);
+}
+
+@media (max-width: 40rem) {
+  .activity-log-table th,
+  .activity-log-table td {
+    padding-inline: var(--space-2);
+  }
+}
+
+/* Settings > Backup & export. The forms reuse .settings-form, .field, .field-help, .field-error,
+   .field-check and .button-primary from app.css; only the section frame and the export list are
+   new here. */
+
+.backup {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+}
+
+.backup-section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.backup-section + .backup-section {
+  padding-block-start: var(--space-5);
+  border-block-start: 1px solid var(--line);
+}
+
+.backup-section .settings-form {
+  margin-block-start: var(--space-2);
+}
+
+.backup-status {
+  margin: 0;
+  color: var(--ink-muted);
+  font-size: var(--t-sm);
+  line-height: var(--lh-sm);
+}
+
+.backup-export-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.backup-export-list li {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-1);
+}
+
+.backup-export-list .field-help {
+  margin: 0;
+}
+
+/* Settings > Follow-ups (web/templates/settings/follow_ups.html). Reuses the settings form, field,
+   choice and chip rules in app.css; only the layout of the two groups and their rules is new. */
+
+.followups-group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+
+.followups-group > .prose {
+  margin: 0;
+}
+
+.followups-rules {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+
+.followups-rule {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+/* The days a rule waits for sit under its checkbox, indented to line up with its label. */
+.followups-rule-days {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin-inline-start: 1.75rem;
+}
+
+.followups-preview {
+  margin: 0;
+  font-size: var(--t-sm);
+  line-height: var(--lh-sm);
+  color: var(--ink);
+}
+
+/* The new Settings pages' fields: the same size and padding as the Mailbox form's, so a text
+   box is never a thin line and a select never stretches across the page. Number boxes keep
+   their own width (.number-control). */
+:is(.backup, .note-templates, .followups-form, .activity-log)
+  :is(input[type="text"], input[type="password"], input[type="file"], select) {
+  inline-size: 100%;
+  max-inline-size: 28rem;
+  padding-block: var(--space-2);
+  padding-inline: var(--space-3);
+}
+
+:is(.backup, .note-templates) input[type="file"] {
+  padding-block: var(--space-1);
+}
+
+.followups-rule-days select {
+  inline-size: auto;
+  min-inline-size: 10rem;
+}
+
+.note-templates textarea {
+  padding: var(--space-2) var(--space-3);
+  color: var(--ink);
+  background: var(--surface);
+  border: 1px solid var(--control);
+  border-radius: var(--radius-control);
+  font: inherit;
+}

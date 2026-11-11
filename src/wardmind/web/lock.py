@@ -83,6 +83,9 @@ class UnlockThrottle:
     The first FREE_FAILURES wrong tries have no wait. After that, each wrong try blocks the next
     try for a wait that doubles: 2 s, 4 s, 8 s ... up to 60 s. A refused try is not a failure, so
     it doesn't lengthen the wait. A successful unlock clears everything.
+
+    One try is checked at a time (begin/end): tries sent together would otherwise each pass the
+    wait check before any failure is counted, and each run the password's costly key derivation.
     """
 
     def __init__(self, clock: Clock = time.monotonic) -> None:
@@ -90,6 +93,15 @@ class UnlockThrottle:
         self._failures = 0
         self._blocked_until = 0.0
         self._lock = threading.Lock()
+        self._busy = threading.Lock()
+
+    def begin(self) -> bool:
+        """Claim the one try that may run now. False while another try is being checked; the
+        caller answers "wait" without trying. A True must be followed by end()."""
+        return self._busy.acquire(blocking=False)
+
+    def end(self) -> None:
+        self._busy.release()
 
     def seconds_left(self) -> int:
         """Whole seconds (rounded up) until a try is allowed; 0 when one may be made now."""

@@ -119,6 +119,7 @@ _ALL_FILES = (
     JOURNAL_FILE,
     DEMO_JOURNAL_FILE,
     MAILBOX_FILE,
+    "note-templates.json",  # core/note_templates.NOTE_TEMPLATES_FILE (it imports this module)
 )
 
 _SAFE_ID = re.compile(r"[A-Za-z0-9_-]+")  # connection ids, used in file names

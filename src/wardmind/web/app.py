@@ -6,6 +6,8 @@ and the MCP server use.
 
 from __future__ import annotations
 
+import contextlib
+import logging
 import math
 import os
 import re
@@ -32,6 +34,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 
 from wardmind.core import (
+    audit,
     books,
     briefs,
     bulk,
@@ -47,7 +50,9 @@ from wardmind.core import (
     logos,
     mailbox,
     negotiation,
+    note_templates,
     research,
+    rules,
     secrets,
     service,
     summaries,
@@ -129,6 +134,8 @@ from wardmind.web.scoring_form import (
     slider_max,
 )
 
+_log = logging.getLogger(__name__)
+
 HOST = "127.0.0.1"  # fixed: no CLI flag or environment variable may change it
 
 WEB_DIR = Path(__file__).parent
@@ -149,7 +156,16 @@ SECURITY_HEADERS = {
     "X-Frame-Options": "DENY",
     # Other sites can't embed or fetch this app's responses (no-cors reads are refused).
     "Cross-Origin-Resource-Policy": "same-origin",
+    # A page opened from Wardmind (a customer's website) gets no handle on Wardmind's window.
+    "Cross-Origin-Opener-Policy": "same-origin",
+    # Wardmind never needs these; a page can't ask for them even if script got in.
+    "Permissions-Policy": (
+        "camera=(), microphone=(), geolocation=(), payment=(), usb=(), serial=(), hid=(), "
+        "bluetooth=(), clipboard-read=(), display-capture=()"
+    ),
 }
+MAX_BODY_BYTES = 16 * 1024 * 1024  # the largest request body most routes accept
+MAX_RESTORE_BODY_BYTES = 260 * 1024 * 1024  # a backup file (core/backup.py caps it at 250 MB)
 _MOTION_ORDER = (Motion.CHURN, Motion.RENEWAL, Motion.ONBOARDING)  # the order on the filter
 # The brief's motion names. Churn reads "Churn watch" here, where the filter says "Churn".
 _BRIEF_MOTION_LABELS: dict[Motion, str] = {
@@ -219,8 +235,8 @@ def idpath(value: object) -> str:
 
 
 def money(value: float) -> str:
-    """Whole dollars with separators: $184,000."""
-    return f"${value:,.0f}"
+    """Whole units with separators, after the chosen currency's symbol: $184,000 or £184,000."""
+    return f"{formatting.currency_symbol()}{value:,.0f}"
 
 
 def whole(value: float) -> int:
@@ -229,18 +245,20 @@ def whole(value: float) -> int:
 
 
 def money_short(value: float) -> str:
-    """Compact dollars: $1.4M, $950K, $800. A K value that rounds to 1,000K shows as millions."""
+    """Compact money: $1.4M, $950K, $800 (or the chosen currency's symbol). A K value that rounds
+    to 1,000K shows as millions."""
+    symbol = formatting.currency_symbol()
     thousands = round(value / 1_000)
     if thousands >= 1_000:
-        return f"${value / 1_000_000:.1f}M"
+        return f"{symbol}{value / 1_000_000:.1f}M"
     if value >= 1_000:
-        return f"${thousands}K"
-    return f"${value:,.0f}"
+        return f"{symbol}{thousands}K"
+    return f"{symbol}{value:,.0f}"
 
 
 def format_today(day: date) -> str:
-    """The date line, e.g. 'Tuesday 21 October'. Built by hand because strftime has no %-d."""
-    return f"{day:%A} {day.day} {day:%B}"
+    """The date line in the chosen style, e.g. 'Tuesday 21 October' (formatting.weekday_date)."""
+    return formatting.weekday_date(day)
 
 
 def summary_sentences(at_risk: int, arr_at_risk: float, watching: int) -> tuple[str, str]:
@@ -457,6 +475,7 @@ def _render(
     """
     today_day = date.today()
     current = load_settings()
+    formatting.use_display(current.currency, current.date_style)
     problems: list[ConnectionProblem] = []
     if book:
         combined = _combined_or_none()
@@ -1412,8 +1431,10 @@ def _quoted_id(account_id: str) -> str:
 
 
 def _arr_text(value: float) -> str:
-    """ARR as the edit form shows it: "$135,000", with cents only when the value has them."""
-    return f"${value:,.0f}" if float(value).is_integer() else f"${value:,.2f}"
+    """ARR as the edit form shows it: "$135,000" (in the chosen currency's symbol, which
+    importing.parse_money reads back), with cents only when the value has them."""
+    symbol = formatting.currency_symbol()
+    return f"{symbol}{value:,.0f}" if float(value).is_integer() else f"{symbol}{value:,.2f}"
 
 
 def _form_values(account: Account) -> dict[str, str]:
@@ -2162,6 +2183,7 @@ def _render_account(
     status_code: int = 200,
     activity: str = "",
     show_all: bool = False,
+    template: str = "",
 ) -> HTMLResponse:
     """One account's page. Without `research_panel`, the website section shows what is already
     saved, which is a file read and never a network call. `refusal` is a contact or client update
@@ -2233,6 +2255,21 @@ def _render_account(
     # Your call on this renewal (core/forecast.py), and where Wardmind's score disagrees with it.
     call = renewal_forecast.current_call(account_journal, detail.scored.account.renewal_date)
     found_undo = journal_pages.find_follow_up({account_id: account_journal}, undo)
+    shown = load_settings()  # the Settings > Follow-ups values this page's journal uses
+    # "Start from a template" (core/note_templates.py): the chosen template's text, with the
+    # account's details filled in, goes in the Notes box. It is saved only when the note is added.
+    saved_templates = note_templates.all_templates()
+    picked = next((item for item in saved_templates if item.id == template), None)
+    note_text = ""
+    if picked is not None:
+        note_text = note_templates.fill(
+            picked.body,
+            account=detail.scored.account.name,
+            today=format_today(today),
+            renewal_date=renewal_pages.renewal_day(detail.scored.account.renewal_date),
+            owner=detail.scored.account.owner,
+            arr=money(detail.scored.account.arr),
+        )
     journal_panel = journal_pages.panel(
         scored=detail.scored,
         account_journal=account_journal,
@@ -2245,6 +2282,11 @@ def _render_account(
         undo_id=found_undo[1].id if found_undo is not None else "",
         activity=activity,
         show_all=show_all,
+        follow_up_days=shown.follow_up_days,
+        skip_weekends=shown.skip_weekends,
+        reply_wait_days=shown.reply_wait_days,
+        answer_wait_days=shown.answer_wait_days,
+        note_text=note_text,
     )
     trend = journal_pages.sparkline(
         service.account_trend(detail.scored, detail.rank, today), config.thresholds, today
@@ -2285,6 +2327,10 @@ def _render_account(
             call.kind if call is not None else None, detail.scored.health
         ),
         call_box=renewal_pages.account_call(detail.scored.account, call, today),
+        # The "Start from a template" picker in the Notes box (accounts/_notes.html).
+        note_templates=saved_templates,
+        note_template_id=picked.id if picked is not None else "",
+        note_template_name=picked.name if picked is not None else "",
     )
 
 
@@ -2360,7 +2406,8 @@ def _due_day(fields: Mapping[str, str], today: date) -> date:
         return _day_field(fields, "due", today, _PICK_DAY)
     if fields.get("days", "").strip():
         return today + timedelta(days=_days_from(fields["days"], _PICK_DAY))
-    return today + timedelta(days=journal.FOLLOW_UP_DEFAULT_DAYS)
+    settings = load_settings()
+    return rules.due_day(today, settings.follow_up_days, settings.skip_weekends)
 
 
 def _snooze_day(fields: Mapping[str, str], today: date) -> date:
@@ -2528,7 +2575,12 @@ async def _journal_action(
 
 @asynccontextmanager
 async def _lifespan(_app: FastAPI) -> AsyncIterator[None]:
-    """Start the feed scheduler and the idle-lock watch with the app; stop both at shutdown."""
+    """Start the feed scheduler and the idle-lock watch with the app; stop both at shutdown.
+    An unlock ticket left by an earlier run that crashed is deleted at start, and this run's is
+    deleted when it stops, so the MCP server can't read the book once the app is gone."""
+    vault.delete_ticket()
+    with contextlib.suppress(vault.VaultError, OSError):
+        vault.sweep_temp_files()  # plain text a crashed write may have left behind
     service.start_feed_scheduler()
     _app.state.idle_watch.start()
     try:
@@ -2536,6 +2588,7 @@ async def _lifespan(_app: FastAPI) -> AsyncIterator[None]:
     finally:
         _app.state.idle_watch.stop()
         service.stop_feed_scheduler()
+        vault.delete_ticket()
 
 
 # --- Unused seats in the weekly brief (see core/insights.py: renewal_shelfware) -----------------
@@ -2595,7 +2648,18 @@ def _logo_redirect(account_id: str, code: str) -> RedirectResponse:
 _PENDING_KEY_MINUTES = 10
 _PENDING_KEY_LIMIT = 4  # pending recovery keys at once; the oldest is dropped first
 _ENCRYPTION_METHODS = ("windows", "password")
-_ENCRYPTION_ERRORS = ("method", "password", "confirm", "remove", "recovery", "off", "auto_lock")
+_ENCRYPTION_ERRORS = (
+    "method",
+    "password",
+    "confirm",
+    "remove",
+    "recovery",
+    "off",
+    "auto_lock",
+    "rekey",
+    "rekey_password",
+    "rekey_confirm",
+)
 _METHOD_ERROR = "Choose how Wardmind unlocks: your Windows sign-in or a password."
 _WINDOWS_UNAVAILABLE = "Windows can't unlock Wardmind on this computer. Choose a password."
 _MISMATCH = "The two passwords don't match. Type the same password in both boxes."
@@ -2603,6 +2667,7 @@ _SAVED_FIRST = "Tick the box to say you've saved your recovery key."
 _CONFIRM_REMOVE = "Tick the box to confirm you want to remove the password."
 _CONFIRM_RECOVERY = "Tick the box to confirm the old recovery key will stop working."
 _CONFIRM_OFF = "Tick the box to confirm you want to turn encryption off."
+_CONFIRM_REKEY = "Tick the box to confirm your old recovery key will stop working."
 _AUTO_LOCK_ERROR = "Pick 5, 15, 30 or 60 minutes, or never."
 _AUTO_LOCK_CHOICE_LABELS = (
     (5, "5 minutes"),
@@ -2672,6 +2737,20 @@ def _encryption_redirect(notice: str) -> RedirectResponse:
     return RedirectResponse(f"/settings/privacy?{urlencode({'notice': notice})}", status_code=303)
 
 
+# A change to encryption that a crash or a closed window interrupted. The lock gate finishes it on
+# the next request once Wardmind is unlocked, so no file stays plain (or keeps a replaced key).
+_UNFINISHED = (vault.State.ENCRYPTING, vault.State.DECRYPTING, vault.State.REKEYING)
+
+
+def _finish_encryption_change() -> None:
+    """vault.try_resume(), logged by exception type only when it can't finish yet (it is tried
+    again on the next request)."""
+    try:
+        vault.try_resume()
+    except vault.VaultError as error:
+        _log.warning("Couldn't finish the change to encryption yet (%s).", type(error).__name__)
+
+
 def _encryption_view(errors: Mapping[str, str] | None = None, method: str = "") -> dict[str, Any]:
     """What the Encryption section on Data & privacy shows. A password typed into a form is never
     passed in, so it can't be shown back."""
@@ -2684,7 +2763,7 @@ def _encryption_view(errors: Mapping[str, str] | None = None, method: str = "") 
     return {
         "off": state is vault.State.PLAIN,
         "on": state is vault.State.ON,
-        "busy": state in (vault.State.ENCRYPTING, vault.State.DECRYPTING),
+        "busy": state in _UNFINISHED,
         "has_password": vault.has_password(),
         "windows": vault.has_windows_unlock(),
         "dpapi": dpapi,
@@ -2936,6 +3015,15 @@ def _render_books(
     )
 
 
+# What the activity log says a connection was (core/audit.py: the detail names the kind).
+_CONNECTION_WORDS: dict[ConnectionKind, str] = {
+    ConnectionKind.HUBSPOT: "HubSpot",
+    ConnectionKind.SPREADSHEET: "Spreadsheet",
+    ConnectionKind.MANUAL: "Added by hand",
+    ConnectionKind.FEED: "Data feed",
+}
+
+
 def create_app(gate: session.SessionGate | None = None) -> FastAPI:
     """Build the web app: no API docs, a host allow-list, and security headers on every response.
 
@@ -2966,6 +3054,9 @@ def create_app(gate: session.SessionGate | None = None) -> FastAPI:
         ):
             vault.lock()
             service.reset_connectors()
+            audit.record(audit.Event.LOCKED, detail="after being idle")
+        else:
+            vault.refresh_ticket()  # keep the MCP server's ticket current while unlocked
 
     app.state.idle_watch = lock.IdleWatch(lock_if_idle)
 
@@ -2978,6 +3069,7 @@ def create_app(gate: session.SessionGate | None = None) -> FastAPI:
         ):
             vault.lock()
             service.reset_connectors()
+            audit.record(audit.Event.LOCKED, detail="after being idle")
         if vault.ensure_unlocked():
             return None
         if request.method.upper() not in ("GET", "HEAD"):
@@ -3002,6 +3094,8 @@ def create_app(gate: session.SessionGate | None = None) -> FastAPI:
             )
         if refused is not None:
             return refused
+        if vault.state() in _UNFINISHED:
+            await run_in_threadpool(_finish_encryption_change)
         # The idle clock is touched when a request starts and when it ends, so a page still
         # loading (or a migration still running) is never locked under its own feet. Static
         # files don't count as use.
@@ -3021,17 +3115,27 @@ def create_app(gate: session.SessionGate | None = None) -> FastAPI:
         ) -> Response:
             if session.is_open_path(request.url.path):
                 return await call_next(request)
-            if not gate.accepts_cookie(request.cookies.get(session.SESSION_COOKIE)):
+            name = session.cookie_name(request.url.port)
+            if not gate.accepts_cookie(request.cookies.get(name)):
                 return PlainTextResponse(session.LOCKED_OUT_MESSAGE, status_code=403)
             return await call_next(request)
 
+        audit.record(audit.Event.SESSION_STARTED)
+        refused_logged = [-60.0]  # when SIGN_IN_REFUSED was last recorded (monotonic seconds)
+
         @app.get(session.ENTER_PATH)
-        async def enter(t: str = "", next: str = "/") -> Response:  # noqa: A002
+        async def enter(request: Request, t: str = "", next: str = "/") -> Response:  # noqa: A002
             if not gate.accepts_entry(t):
+                # Logged at most once a minute, so a flood of bad links can't flood the log.
+                now = time.monotonic()
+                if now - refused_logged[0] >= 60:
+                    refused_logged[0] = now
+                    audit.record(audit.Event.SIGN_IN_REFUSED)
                 return PlainTextResponse(session.BAD_ENTRY_MESSAGE, status_code=403)
+            audit.record(audit.Event.SIGN_IN)
             response = RedirectResponse(session.safe_next(next), status_code=303)
             response.set_cookie(
-                session.SESSION_COOKIE,
+                session.cookie_name(request.url.port),
                 gate.session_token,
                 httponly=True,
                 samesite="strict",
@@ -3047,6 +3151,23 @@ def create_app(gate: session.SessionGate | None = None) -> FastAPI:
             return PlainTextResponse(CROSS_SITE_MESSAGE, status_code=403)
         if is_cross_site_load(request.method, request.headers):
             return PlainTextResponse(CROSS_SITE_LOAD_MESSAGE, status_code=403)
+        return await call_next(request)
+
+    @app.middleware("http")
+    async def body_size_cap(
+        request: Request, call_next: Callable[[Request], Awaitable[Response]]
+    ) -> Response:
+        """Refuse a request body larger than any form here takes before it is read (and spooled
+        to a temp file in plain text): MAX_BODY_BYTES, or MAX_RESTORE_BODY_BYTES for restoring a
+        backup. Each route still checks its own, smaller limit on what it reads."""
+        length = request.headers.get("content-length", "")
+        limit = (
+            MAX_RESTORE_BODY_BYTES
+            if request.url.path == "/settings/backup/restore"
+            else MAX_BODY_BYTES
+        )
+        if length.isdigit() and int(length) > limit:
+            return PlainTextResponse("That upload is too big.", status_code=413)
         return await call_next(request)
 
     # Registered last so it wraps everything above, including the 403.
@@ -3225,7 +3346,12 @@ def create_app(gate: session.SessionGate | None = None) -> FastAPI:
         book = service.get_book(connector, config, today)
         brief = briefs.weekly_brief(book, as_of=today, top_n=10)
         week_follow_ups, more_follow_ups = journal_pages.week_follow_ups(
-            journal.today_view(book, service.get_journal().all(), today),
+            journal.today_view(
+                book,
+                service.get_journal().all(),
+                today,
+                quiet_days=load_settings().quiet_days,
+            ),
             today,
             limit=_WEEK_FOLLOW_UPS,
         )
@@ -3409,6 +3535,8 @@ def create_app(gate: session.SessionGate | None = None) -> FastAPI:
             )
         pending.pop(token, None)
         notice = await run_in_threadpool(_turn_on_encryption, entry)
+        if notice == "encryption-on":
+            audit.record(audit.Event.ENCRYPTION_ON, book=books.active_id())
         return _encryption_redirect(notice)
 
     @app.post("/settings/privacy/encryption/off")
@@ -3426,6 +3554,8 @@ def create_app(gate: session.SessionGate | None = None) -> FastAPI:
         notice, _ = await run_in_threadpool(
             _change_encryption, vault.disable, "encryption-off", need_on=False
         )
+        if notice == "encryption-off":
+            audit.record(audit.Event.ENCRYPTION_OFF, book=books.active_id())
         return _encryption_redirect(notice)
 
     @app.post("/settings/privacy/encryption/password")
@@ -3442,6 +3572,8 @@ def create_app(gate: session.SessionGate | None = None) -> FastAPI:
         notice, _ = await run_in_threadpool(
             _change_encryption, lambda: vault.set_password(password), "password-set"
         )
+        if notice == "password-set":
+            audit.record(audit.Event.PASSWORD_SET)
         return _encryption_redirect(notice)
 
     @app.post("/settings/privacy/encryption/password/remove")
@@ -3458,12 +3590,15 @@ def create_app(gate: session.SessionGate | None = None) -> FastAPI:
         notice, _ = await run_in_threadpool(
             _change_encryption, vault.remove_password, "password-removed"
         )
+        if notice == "password-removed":
+            audit.record(audit.Event.PASSWORD_REMOVED)
         return _encryption_redirect(notice)
 
     @app.post("/settings/privacy/encryption/recovery")
     async def encryption_new_recovery(request: Request) -> Response:
-        """Make a new recovery key. The old one stops working at once. The new key is shown on
-        its own page, once; nothing is stored for it."""
+        """Make a new recovery key. The old one stops working with the current key file at once
+        (an older copy of keys.json still takes it: Replace all keys covers that). The new key is
+        shown on its own page, once; nothing is stored for it."""
         fields = await _posted_fields(request)
         if not fields.get("confirm_recovery"):
             return await run_in_threadpool(
@@ -3475,7 +3610,34 @@ def create_app(gate: session.SessionGate | None = None) -> FastAPI:
         notice, code = await run_in_threadpool(_change_encryption, vault.replace_recovery_code, "")
         if notice:
             return _encryption_redirect(notice)
+        audit.record(audit.Event.RECOVERY_KEY_REPLACED)
         return await run_in_threadpool(_recovery_key_page, request, code or "", mode="new")
+
+    @app.post("/settings/privacy/encryption/rekey")
+    async def encryption_rekey(request: Request) -> Response:
+        """Replace the master key and every book's key, and encrypt every file again (see
+        vault.replace_all_keys). With a password, it is typed again (or a new one) to protect
+        the new keys. The new recovery key is shown once, on its own page."""
+        fields = await _posted_fields(request)
+        errors: dict[str, str] = {}
+        has_password = await run_in_threadpool(vault.has_password)
+        if has_password:
+            errors = {f"rekey_{name}": text for name, text in _new_password_errors(fields).items()}
+        if not fields.get("confirm_rekey"):
+            errors["rekey"] = _CONFIRM_REKEY
+        if errors:
+            return await run_in_threadpool(
+                _render_privacy, request, encryption_errors=errors, status_code=422
+            )
+        password = fields.get("password", "") if has_password else None
+        notice, code = await run_in_threadpool(
+            _change_encryption, lambda: vault.replace_all_keys(password=password), ""
+        )
+        service.reset_connectors()
+        if notice:
+            return _encryption_redirect(notice)
+        audit.record(audit.Event.KEYS_REPLACED)
+        return await run_in_threadpool(_recovery_key_page, request, code or "", mode="rekey")
 
     @app.post("/settings/privacy/auto-lock")
     async def encryption_auto_lock(request: Request) -> Response:
@@ -3497,6 +3659,7 @@ def create_app(gate: session.SessionGate | None = None) -> FastAPI:
             save_settings,
             load_settings().model_copy(update={"auto_lock_minutes": minutes}),
         )
+        audit.record(audit.Event.SETTINGS_SAVED, detail="Data & privacy")
         return _encryption_redirect("auto-lock-saved")
 
     # --- Locking: /unlock and /lock (see core/vault.py and web/lock.py) -----------------------
@@ -3541,6 +3704,19 @@ def create_app(gate: session.SessionGate | None = None) -> FastAPI:
         fields = await _posted_fields(request)
         target = session.safe_next(fields.get("next"))
         throttle = app.state.throttle
+        if not throttle.begin():
+            return render_unlock(
+                request, next_path=target, alert=lock.too_many_tries(1), status_code=429
+            )
+        try:
+            return await unlock_attempt(request, fields, target, throttle)
+        finally:
+            throttle.end()
+
+    async def unlock_attempt(
+        request: Request, fields: dict[str, str], target: str, throttle: lock.UnlockThrottle
+    ) -> Response:
+        """One unlock try, while it holds the throttle's single slot (see unlock_submit)."""
         wait = throttle.seconds_left()
         if wait:
             return render_unlock(
@@ -3568,10 +3744,12 @@ def create_app(gate: session.SessionGate | None = None) -> FastAPI:
             await run_in_threadpool(attempt)
         except vault.Locked as error:
             throttle.failed()
+            audit.record(audit.Event.UNLOCK_FAILED, book=books.active_id())
             return render_unlock(
                 request, next_path=target, errors={slot: error.message}, status_code=422
             )
         throttle.succeeded()
+        audit.record(audit.Event.UNLOCKED, book=books.active_id())
         service.reset_connectors()
         app.state.idle.touch()
         return RedirectResponse(target, status_code=303)
@@ -3584,6 +3762,7 @@ def create_app(gate: session.SessionGate | None = None) -> FastAPI:
             return RedirectResponse("/", status_code=303)
         vault.lock()
         service.reset_connectors()
+        audit.record(audit.Event.LOCKED, book=books.active_id(), detail="by you")
         return RedirectResponse(lock.UNLOCK_PATH, status_code=303)
 
     # --- Books: the switcher and Settings > Books (see core/books.py) -------------------------
@@ -3601,6 +3780,7 @@ def create_app(gate: session.SessionGate | None = None) -> FastAPI:
                 await run_in_threadpool(_open_demo)
             else:
                 await run_in_threadpool(_open_book, choice)
+                audit.record(audit.Event.BOOK_OPENED, book=choice)
         except books.BookError:
             return _books_redirect("book-missing")
         except (vault.VaultError, OSError) as error:
@@ -3626,6 +3806,7 @@ def create_app(gate: session.SessionGate | None = None) -> FastAPI:
             )
         except (vault.VaultError, OSError) as error:
             return _books_redirect(_books_failure(error))
+        audit.record(audit.Event.BOOK_ADDED, book=added.id)
         return _books_redirect("added", added.id)
 
     @app.post("/settings/books/{book_id}/rename")
@@ -3646,6 +3827,7 @@ def create_app(gate: session.SessionGate | None = None) -> FastAPI:
             )
         except (vault.VaultError, OSError) as error:
             return _books_redirect(_books_failure(error))
+        audit.record(audit.Event.BOOK_RENAMED, book=book_id)
         return _books_redirect("renamed")
 
     @app.post("/settings/books/{book_id}/delete")
@@ -3667,6 +3849,7 @@ def create_app(gate: session.SessionGate | None = None) -> FastAPI:
         except (vault.VaultError, OSError) as error:
             return _books_redirect(_books_failure(error))
         await run_in_threadpool(service.reset_connectors)
+        audit.record(audit.Event.BOOK_DELETED, book=book_id)
         return _books_redirect("deleted")
 
     # --- Renewals: the honest forecast (see core/forecast.py) ---------------------------------
@@ -3801,6 +3984,7 @@ def create_app(gate: session.SessionGate | None = None) -> FastAPI:
         # Only the four appearance choices change; the data source is kept as it was.
         saved = (await run_in_threadpool(load_settings)).model_copy(update=chosen)
         await run_in_threadpool(save_settings, saved)
+        audit.record(audit.Event.SETTINGS_SAVED, detail="Appearance")
         return RedirectResponse("/settings/appearance?saved=1", status_code=303)
 
     @app.get("/settings/scoring")
@@ -3853,6 +4037,7 @@ def create_app(gate: session.SessionGate | None = None) -> FastAPI:
                 status_code=422,
             )
         await run_in_threadpool(save_scoring_config, draft)
+        audit.record(audit.Event.SETTINGS_SAVED, detail="Scoring")
         return RedirectResponse("/settings/scoring?saved=1", status_code=303)
 
     # Data & privacy: web research on or off, and clearing the local cache. The notices are
@@ -3897,6 +4082,7 @@ def create_app(gate: session.SessionGate | None = None) -> FastAPI:
                 status_code=422,
             )
         await run_in_threadpool(service.set_web_research, choice == "on")
+        audit.record(audit.Event.SETTINGS_SAVED, detail="Data & privacy")
         query = urlencode({"research": choice})
         return RedirectResponse(f"/settings/privacy?{query}", status_code=303)
 
@@ -3928,6 +4114,9 @@ def create_app(gate: session.SessionGate | None = None) -> FastAPI:
         """Delete all local data (service.delete_all_local_data). The notice on the next page
         names any environment variable still set, by name only, so the person can remove it."""
         service.delete_all_local_data()
+        # The log goes too (it is local data); the deletion is its first entry afterwards.
+        audit.clear()
+        audit.record(audit.Event.ALL_DATA_DELETED)
         return RedirectResponse("/settings/privacy?deleted_all=1", status_code=303)
 
     # AI summaries and the OpenRouter key. The key is never echoed: not in a page, notice or URL.
@@ -3958,6 +4147,7 @@ def create_app(gate: session.SessionGate | None = None) -> FastAPI:
             )
         await run_in_threadpool(service.set_ai_model, model)
         await run_in_threadpool(service.set_ai_summaries, choice == "on")
+        audit.record(audit.Event.SETTINGS_SAVED, detail="Data & privacy")
         return RedirectResponse(f"/settings/privacy?{urlencode({'ai': choice})}", status_code=303)
 
     @app.post("/settings/privacy/ai/key")
@@ -3975,12 +4165,14 @@ def create_app(gate: session.SessionGate | None = None) -> FastAPI:
             return await run_in_threadpool(
                 _render_privacy, request, key_error=_KEY_SAVE_FAILED, status_code=500
             )
+        audit.record(audit.Event.KEY_SAVED, detail="OpenRouter")
         return RedirectResponse("/settings/privacy?key=saved", status_code=303)
 
     @app.post("/settings/privacy/ai/key/delete")
     def remove_openrouter_key() -> RedirectResponse:
         """Remove the saved key file. A key set in the environment is not touched."""
-        secrets.delete_openrouter_key()
+        if secrets.delete_openrouter_key():
+            audit.record(audit.Event.KEY_DELETED, detail="OpenRouter")
         return RedirectResponse("/settings/privacy?key=removed", status_code=303)
 
     @app.post("/settings/privacy/ai/key/test")
@@ -4140,6 +4332,7 @@ def create_app(gate: session.SessionGate | None = None) -> FastAPI:
         activity: str = "",
         activity_all: str = "",
         call_code: str = Query("", alias="call"),
+        template: str = "",
     ) -> HTMLResponse:
         """One account's call prep: summary, next step, score breakdown and signal history. With
         Your data showing, it also has the edit link, where each figure came from, the notices,
@@ -4147,7 +4340,8 @@ def create_app(gate: session.SessionGate | None = None) -> FastAPI:
         shows only what is already saved. The journal parts (follow-ups, the activity history, the
         notes, the team, the trend and the renewal outcome) are on it too; `journal`, `day`, `undo`
         and `why` are its fixed codes. `activity` picks the Activity filter (a kind, else all) and
-        `activity_all=1` lists every entry of it."""
+        `activity_all=1` lists every entry of it. `template` is the id of a note template the
+        Notes box starts from (an unknown id leaves the box empty)."""
         status = (
             _account_status(added, edited, reading, unlinked)
             or _CONTACT_NOTICES.get(contact, "")
@@ -4164,6 +4358,7 @@ def create_app(gate: session.SessionGate | None = None) -> FastAPI:
             undo=undo,
             activity=activity,
             show_all=activity_all == "1",
+            template=template,
         )
 
     @app.post("/accounts/{account_id}/research")
@@ -4302,13 +4497,22 @@ def create_app(gate: session.SessionGate | None = None) -> FastAPI:
         book = service.get_book(as_of=today_day)
         journals = service.get_journal().all()
         found = journal_pages.find_follow_up(journals, undo)
+        shown = load_settings()  # the Settings > Follow-ups values Today uses
         return _render(
             request,
             "today.html",
             page="Today",
             active="today",
             book=True,
-            screen=today_pages.screen(book, journals, today_day, q),
+            screen=today_pages.screen(
+                book,
+                journals,
+                today_day,
+                q,
+                quiet_days=shown.quiet_days,
+                reply_wait_days=shown.reply_wait_days,
+                answer_wait_days=shown.answer_wait_days,
+            ),
             notice=journal_pages.notice_text(journal_code, day, today_day),
             undo_account=found[0] if found is not None else "",
             undo_id=found[1].id if found is not None else "",
@@ -5152,12 +5356,14 @@ def create_app(gate: session.SessionGate | None = None) -> FastAPI:
             service.get_store().add_connection, ConnectionKind.HUBSPOT, "HubSpot"
         )
         await run_in_threadpool(service.reset_connectors)
+        audit.record(audit.Event.KEY_SAVED, detail="HubSpot")
         return RedirectResponse("/settings/connections?saved=token", status_code=303)
 
     @app.post("/settings/connections/token/delete")
     def delete_token() -> RedirectResponse:
         """Remove the saved token file. A token set in the environment is not touched."""
-        secrets.delete_hubspot_token()
+        if secrets.delete_hubspot_token():
+            audit.record(audit.Event.KEY_DELETED, detail="HubSpot")
         service.reset_connectors()
         return RedirectResponse("/settings/connections?removed=token", status_code=303)
 
@@ -5417,6 +5623,8 @@ def create_app(gate: session.SessionGate | None = None) -> FastAPI:
                 error=str(error),
                 status_code=422,
             )
+        if draft.target == import_flow.NEW_TARGET:
+            audit.record(audit.Event.CONNECTION_ADDED, detail="Spreadsheet")
         settings = await run_in_threadpool(load_settings)
         if settings.source is DataSource.DEMO:
             await run_in_threadpool(
@@ -5551,6 +5759,7 @@ def create_app(gate: session.SessionGate | None = None) -> FastAPI:
         if config.kind is ConnectionKind.HUBSPOT:
             secrets.delete_hubspot_token()
         service.reset_connectors()
+        audit.record(audit.Event.CONNECTION_REMOVED, detail=_CONNECTION_WORDS[config.kind])
         return RedirectResponse("/settings/connections?removed=connection", status_code=303)
 
     @app.post("/settings/connections/hidden/{account_id}/show")
@@ -5728,6 +5937,7 @@ def create_app(gate: session.SessionGate | None = None) -> FastAPI:
                 status_code=500,
             )
         else:
+            audit.record(audit.Event.MAILBOX_CONNECTED)
             return RedirectResponse("/settings/mailbox?notice=connected", status_code=303)
         return await run_in_threadpool(
             _mailbox_page, request, form=form, errors=errors, status_code=422
@@ -5764,6 +5974,7 @@ def create_app(gate: session.SessionGate | None = None) -> FastAPI:
     def mailbox_disconnect() -> RedirectResponse:
         """Remove the saved settings and the password. The activity already logged stays."""
         service.disconnect_mailbox()
+        audit.record(audit.Event.MAILBOX_DISCONNECTED)
         return RedirectResponse("/settings/mailbox?notice=disconnected", status_code=303)
 
     @app.get("/connections/add")
@@ -5901,6 +6112,8 @@ def create_app(gate: session.SessionGate | None = None) -> FastAPI:
             except FeedError as error:
                 top_error = error.message
             else:
+                if secret:
+                    audit.record(audit.Event.KEY_SAVED, detail="Data feed")
                 return RedirectResponse(f"/connections/feeds/{draft.id}/match", status_code=303)
         return await run_in_threadpool(
             _render_setup, request, info, form, errors=errors, top_error=top_error, status_code=422
@@ -5994,6 +6207,8 @@ def create_app(gate: session.SessionGate | None = None) -> FastAPI:
             return await run_in_threadpool(
                 _render_match, request, draft, mapping, date_text, error=str(error), status_code=422
             )
+        if draft.connection_id is None:
+            audit.record(audit.Event.CONNECTION_ADDED, detail="Data feed")
         await run_in_threadpool(service.reset_connectors)
         return RedirectResponse(
             f"/settings/connections?{urlencode({'feed_added': config.id})}", status_code=303

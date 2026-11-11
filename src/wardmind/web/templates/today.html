@@ -63,6 +63,7 @@
             <div class="today-row-head">
               <a class="account-link" href="/accounts/{{ row.account_id | idpath }}">{{ row.name }}</a>
               <span class="due{% if row.late %} due--late{% endif %}">{% if row.late %}<svg class="icon" aria-hidden="true" focusable="false"><use href="/static/icons.svg#status-overdue"/></svg>{% endif %}{{ row.due_label }}</span>
+              {% if row.automatic %}<span class="chip chip--muted">Added automatically</span>{% endif %}
             </div>
             <p class="today-text">{{ row.text }}</p>
           </div>
@@ -144,7 +145,7 @@
               <input type="hidden" name="back" value="today">
               {% if query %}<input type="hidden" name="q" value="{{ query }}">{% endif %}
               <input type="hidden" name="text" value="{{ row.suggested }}">
-              <input type="hidden" name="days" value="7">
+              <input type="hidden" name="days" value="{{ settings.follow_up_days }}">
               <button type="submit" class="button button--small">Add follow-up<span class="visually-hidden"> for {{ row.name }}</span></button>
             </form>
             <details class="today-more">
@@ -199,6 +200,7 @@
             <div class="today-row-head">
               <a class="account-link" href="/accounts/{{ row.account_id | idpath }}">{{ row.name }}</a>
               <span class="due">{{ row.due_label }}</span>
+              {% if row.automatic %}<span class="chip chip--muted">Added automatically</span>{% endif %}
             </div>
             <p class="today-text">{{ row.text }}</p>
           </div>

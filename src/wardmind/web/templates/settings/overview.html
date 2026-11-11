@@ -1,0 +1,46 @@
+{% extends "settings/layout.html" %}
+{% block settings %}
+<div class="overview">
+  <section class="overview-section" aria-labelledby="setup-title">
+    <h2 class="section-title" id="setup-title">Setup check</h2>
+    <p class="prose overview-summary">{{ summary }}</p>
+
+    <ul class="overview-list">
+      {% for item in checks %}
+      <li class="overview-item overview-item--{{ item.state.value }}">
+        <div class="overview-head">
+          <h3 class="overview-title">{{ item.title }}</h3>
+          <p class="overview-mark">{% if item.state.value == "done" %}<svg class="icon overview-icon" aria-hidden="true" focusable="false"><use href="/static/icons.svg#check"/></svg> {% endif %}{{ item.mark }}</p>
+        </div>
+        <p class="overview-state">{{ item.sentence }}</p>
+        <p class="overview-link"><a href="{{ item.href }}">Go to {{ item.link_label }}</a></p>
+      </li>
+      {% endfor %}
+    </ul>
+  </section>
+
+  <section class="overview-section" aria-labelledby="find-title">
+    <h2 class="section-title" id="find-title">Find a setting</h2>
+    <form class="overview-find" method="get" action="/settings/overview" role="search">
+      <div class="overview-find-row">
+        <label class="visually-hidden" for="field-find-setting">Find a setting</label>
+        <input type="search" name="q" id="field-find-setting" value="{{ find_query }}" maxlength="100" autocomplete="off" spellcheck="false" aria-describedby="find-help">
+        <button type="submit" class="button">Find</button>
+      </div>
+      <p class="field-help" id="find-help">Try a word such as dark, currency or export.</p>
+    </form>
+
+    {% if searched %}
+      {% if matches %}
+      <ul class="overview-results" aria-label="Matching settings">
+        {% for entry in matches %}
+        <li class="overview-result"><a href="{{ entry.href }}">{{ entry.title }}</a> <span class="overview-result-where">{{ entry.section }}</span></li>
+        {% endfor %}
+      </ul>
+      {% else %}
+      <p class="overview-none" role="status">No setting matches “{{ find_query }}”. Try another word.</p>
+      {% endif %}
+    {% endif %}
+  </section>
+</div>
+{% endblock %}

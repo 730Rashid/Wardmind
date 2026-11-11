@@ -30,6 +30,8 @@ from __future__ import annotations
 
 import base64
 import contextlib
+import hashlib
+import hmac
 import json
 import os
 import secrets
@@ -37,7 +39,7 @@ import tempfile
 import threading
 import time
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import StrEnum
 from pathlib import Path
 
@@ -89,6 +91,7 @@ class State(StrEnum):
     ENCRYPTING = "encrypting"  # turning on: some files may still be plain
     ON = "on"  # every managed file is encrypted
     DECRYPTING = "decrypting"  # turning off: some files may still be encrypted
+    REKEYING = "rekeying"  # replacing every key: some files may still use the previous ones
 
 
 class SlotKind(StrEnum):
@@ -146,7 +149,8 @@ def locate(path: Path) -> tuple[str, str]:
                     if relative.parts[0] == books.BOOKS_DIR:
                         break  # a folder of a book that isn't listed: not the first book's
                 return book_id, f"{tag}/{relative.as_posix()}"
-    raise VaultError(f"{path} isn't in a Wardmind book's data or secrets folder.")
+    # The file's name only: an error can reach a page, and the full path names the user.
+    raise VaultError(f"{path.name} isn't in a Wardmind book's data or secrets folder.")
 
 
 def logical_path(path: Path) -> str:
@@ -192,6 +196,32 @@ def _book_files(book_id: str) -> list[Path]:
 
 def _skipped(path: Path) -> bool:
     return path.name.startswith(".") or path.suffix == ".tmp"
+
+
+STALE_TEMP_SECONDS = 600  # a write's temp file older than this was left by a crash
+
+
+def sweep_temp_files(*, older_than: float = STALE_TEMP_SECONDS) -> int:
+    """Delete the temp files that atomic writes leave behind when a process is killed mid-write
+    (".<name>-<random>.tmp" beside the file). They may hold plain text, and the vault never
+    encrypts them. Only files older than `older_than` seconds go, so a write in progress in
+    another process is left alone. Returns how many were deleted."""
+    cutoff = time.time() - older_than
+    removed = 0
+    for book_id in _book_ids():
+        data, root = _book_roots(book_id)
+        folders = [data] if data.is_dir() else []
+        folders += [root / folder for folder in SECRET_FOLDERS if (root / folder).is_dir()]
+        candidates: list[Path] = [path for folder in folders for path in folder.rglob(".*.tmp")]
+        candidates += list(root.glob(".*.tmp"))
+        for path in candidates:
+            try:
+                if path.is_file() and path.stat().st_mtime < cutoff:
+                    path.unlink()
+                    removed += 1
+            except OSError:
+                continue
+    return removed
 
 
 # --- DPAPI (Windows): wraps the master key for this Windows account --------------------------
@@ -258,6 +288,10 @@ class KeyFile:
     epoch: int
     slots: tuple[Slot, ...]
     books: dict[str, tuple[bytes, bytes]]  # book id -> (nonce, wrapped book key)
+    # While REKEYING: the epoch being replaced and its book keys, wrapped by the NEW master key,
+    # so files not yet rewritten can still be read. None at any other time.
+    previous: tuple[int, dict[str, tuple[bytes, bytes]]] | None = None
+    mac: str | None = None  # see _keys_mac; None in a file written without the master key
 
     def slot(self, kind: SlotKind) -> Slot | None:
         return next((slot for slot in self.slots if slot.kind is kind), None)
@@ -266,14 +300,20 @@ class KeyFile:
         self,
         *,
         state: State | None = None,
+        epoch: int | None = None,
         slots: tuple[Slot, ...] | None = None,
         books: dict[str, tuple[bytes, bytes]] | None = None,
+        previous: tuple[int, dict[str, tuple[bytes, bytes]]] | None | bool = False,
     ) -> KeyFile:
+        """A copy with these fields changed. `previous=None` clears it; leaving it out keeps it.
+        The MAC is never copied: _save_keys writes a new one."""
         return KeyFile(
             state if state is not None else self.state,
-            self.epoch,
+            epoch if epoch is not None else self.epoch,
             slots if slots is not None else self.slots,
             books if books is not None else self.books,
+            self.previous if previous is False else previous,  # type: ignore[arg-type]
+            None,
         )
 
 
@@ -290,40 +330,88 @@ def _unb64(text: object) -> bytes:
         raise Damaged("Wardmind's key file is damaged.") from error
 
 
+def _wrapped_books(raw: object) -> dict[str, tuple[bytes, bytes]]:
+    if not isinstance(raw, dict):
+        raise TypeError("books")
+    return {
+        str(book_id): (_unb64(entry["nonce"]), _unb64(entry["wrapped"]))
+        for book_id, entry in raw.items()
+    }
+
+
 def _parse_keys(text: str) -> KeyFile:
     try:
         raw = json.loads(text)
         state = State(raw["state"])
+        if state is State.PLAIN:
+            raise ValueError("a key file is never plain")  # plain means there is no key file
         epoch = int(raw["epoch"])
+        if not 1 <= epoch < 2**32:
+            raise ValueError("epoch")
         slots = tuple(
             Slot(SlotKind(item["kind"]), {k: v for k, v in item.items() if k != "kind"})
             for item in raw["slots"]
         )
-        books = {
-            str(book_id): (_unb64(entry["nonce"]), _unb64(entry["wrapped"]))
-            for book_id, entry in raw["books"].items()
-        }
+        books = _wrapped_books(raw["books"])
         if DEFAULT_BOOK not in books:
             raise KeyError(DEFAULT_BOOK)
-        return KeyFile(state, epoch, slots, books)
-    except (KeyError, TypeError, ValueError) as error:
+        previous = None
+        if raw.get("previous") is not None:
+            previous = (int(raw["previous"]["epoch"]), _wrapped_books(raw["previous"]["books"]))
+        mac = raw.get("mac")
+        if mac is not None and not isinstance(mac, str):
+            raise TypeError("mac")
+        return KeyFile(state, epoch, slots, books, previous, mac)
+    except (KeyError, TypeError, ValueError, AttributeError) as error:
         raise Damaged("Wardmind's key file is damaged.") from error
 
 
-def _dump_keys(keys: KeyFile) -> str:
-    return json.dumps(
-        {
-            "version": KEYS_VERSION,
-            "state": keys.state.value,
-            "epoch": keys.epoch,
-            "slots": [{"kind": slot.kind.value, **slot.fields} for slot in keys.slots],
-            "books": {
-                book_id: {"nonce": _b64(nonce), "wrapped": _b64(wrapped)}
-                for book_id, (nonce, wrapped) in keys.books.items()
-            },
-        },
-        indent=2,
-    )
+def _books_json(books: dict[str, tuple[bytes, bytes]]) -> dict[str, dict[str, str]]:
+    return {
+        book_id: {"nonce": _b64(nonce), "wrapped": _b64(wrapped)}
+        for book_id, (nonce, wrapped) in books.items()
+    }
+
+
+def _keys_body(keys: KeyFile) -> dict[str, object]:
+    """Everything in keys.json except the MAC."""
+    body: dict[str, object] = {
+        "version": KEYS_VERSION,
+        "state": keys.state.value,
+        "epoch": keys.epoch,
+        "slots": [{"kind": slot.kind.value, **slot.fields} for slot in keys.slots],
+        "books": _books_json(keys.books),
+    }
+    if keys.previous is not None:
+        body["previous"] = {"epoch": keys.previous[0], "books": _books_json(keys.previous[1])}
+    return body
+
+
+def _keys_mac(keys: KeyFile, master: bytes) -> str:
+    """HMAC-SHA256 over the key file's contents (canonical JSON), under a key derived from the
+    master key. Someone who can write keys.json but doesn't have the master key can't change its
+    state, slots or books without the next unlock noticing."""
+    canonical = json.dumps(_keys_body(keys), sort_keys=True, separators=(",", ":"))
+    mac_key = _hkdf(master, b"wardmind keys mac v1")
+    return _b64(hmac.new(mac_key, canonical.encode("utf-8"), hashlib.sha256).digest())
+
+
+def _check_mac(keys: KeyFile, master: bytes, *, required: bool) -> None:
+    """Damaged when the key file's MAC is wrong, or missing where it is `required` (a turn-off
+    or key replacement to finish: acting on a forged one would rewrite every file)."""
+    if keys.mac is None:
+        if required:
+            raise Damaged("Wardmind's key file has been changed. Restore it from a backup.")
+        return
+    if not hmac.compare_digest(keys.mac, _keys_mac(keys, master)):
+        raise Damaged("Wardmind's key file has been changed. Restore it from a backup.")
+
+
+def _dump_keys(keys: KeyFile, master: bytes | None = None) -> str:
+    body = _keys_body(keys)
+    if master is not None:
+        body["mac"] = _keys_mac(keys, master)
+    return json.dumps(body, indent=2)
 
 
 _keys_cache: tuple[tuple[int, int], KeyFile] | None = None
@@ -338,7 +426,16 @@ def load_keys() -> KeyFile | None:
     try:
         info = path.stat()
     except FileNotFoundError:
-        return None
+        backup = _root_dir() / KEYS_BACKUP
+        if not backup.exists():
+            return None
+        # keys.json is gone but its copy isn't: turning encryption off deletes both, so this is a
+        # crash or someone deleting it. Put the copy back rather than treating the book as plain.
+        try:
+            _write_raw(path, backup.read_bytes())
+            info = path.stat()
+        except OSError as error:
+            raise Damaged("Wardmind's key file is missing. Restore it from a backup.") from error
     stamp = (info.st_mtime_ns, info.st_size)
     with _keys_lock:
         if _keys_cache is not None and _keys_cache[0] == stamp:
@@ -353,9 +450,15 @@ def load_keys() -> KeyFile | None:
     return keys
 
 
-def _save_keys(keys: KeyFile) -> None:
+def _save_keys(keys: KeyFile, master: bytes | None = None) -> None:
+    """Write keys.json and its copy. With the master key (every caller that has one passes it),
+    the file carries a MAC (see _keys_mac)."""
     global _keys_cache
-    text = _dump_keys(keys)
+    if master is None:
+        with _session_lock:
+            if _session is not None and _session.epoch == keys.epoch:
+                master = _session.master
+    text = _dump_keys(keys, master)
     _write_raw(keys_path(), text.encode("utf-8"))
     _write_raw(_root_dir() / KEYS_BACKUP, text.encode("utf-8"))
     with _keys_lock:
@@ -465,6 +568,10 @@ def _master_from_password(keys: KeyFile, password: str) -> bytes:
         lanes = int(slot.fields["lanes"])
     except (KeyError, TypeError, ValueError) as error:
         raise Damaged("Wardmind's key file is damaged.") from error
+    # A key file edited to ask for gigabytes of memory or hours of work is refused before any
+    # work is done. Wardmind writes ARGON2 (128 MiB, 3 passes, 4 lanes).
+    if not (8 <= memory <= ARGON2_MAX_MEMORY and 1 <= iterations <= 16 and 1 <= lanes <= 16):
+        raise Damaged("Wardmind's key file is damaged.")
     key = _password_key(password, _unb64(slot.fields.get("salt")), memory, iterations, lanes)
     return _unwrap(
         key,
@@ -481,6 +588,7 @@ MIN_PASSWORD = 10
 MAX_PASSWORD = 1024
 # Argon2id cost. About 0.2 s here at 128 MiB; tests lower it through ARGON2.
 ARGON2 = {"memory": 131072, "iterations": 3, "lanes": 4}
+ARGON2_MAX_MEMORY = 1048576  # KiB (1 GiB): the most a key file may ask for
 
 
 def check_password(password: str) -> str:
@@ -541,11 +649,19 @@ class _Session:
     book_keys: dict[str, bytes]  # unwrapped as each book is first used
     file_keys: dict[tuple[str, str], bytes]  # (book id, logical path) -> file key
     from_ticket: bool = False  # the MCP server or CLI, unlocked by the app's ticket
+    # While REKEYING: the epoch being replaced and its book keys, for files not yet rewritten.
+    previous_epoch: int | None = None
+    previous_keys: dict[str, bytes] = field(default_factory=dict)
+    previous_file_keys: dict[tuple[str, str], bytes] = field(default_factory=dict)
 
 
 _session: _Session | None = None
 _session_lock = threading.RLock()
 _locked_by_user = False  # "Lock now": Windows protection must not unlock it again by itself
+# Only the MCP server and the command line may open the book from the app's ticket (see
+# allow_ticket). The web app and the desktop window never do: they write the ticket, and must
+# ask for the password themselves after a restart.
+_ticket_reader = False
 
 
 def is_unlocked() -> bool:
@@ -565,16 +681,36 @@ def _unwrap_book(keys: KeyFile, master: bytes, book_id: str) -> bytes:
     )
 
 
+def _previous_label(book_id: str, epoch: int) -> bytes:
+    return _book_label(book_id) + b" epoch " + str(epoch).encode("ascii")
+
+
 def _open_book(keys: KeyFile, master: bytes, *, from_ticket: bool = False) -> _Session:
     """A session for this master key. The first book's key is unwrapped at once, which checks
-    the master key; the others as they are used."""
+    the master key, and then the key file's MAC; the other books' keys as they are used. During
+    a key replacement the previous keys are unwrapped too."""
     first = _unwrap_book(keys, master, DEFAULT_BOOK)
+    _check_mac(keys, master, required=keys.state in (State.DECRYPTING, State.REKEYING))
+    previous_epoch: int | None = None
+    previous_keys: dict[str, bytes] = {}
+    if keys.previous is not None:
+        previous_epoch = keys.previous[0]
+        for book_id, (nonce, wrapped) in keys.previous[1].items():
+            previous_keys[book_id] = _unwrap(
+                master,
+                nonce,
+                wrapped,
+                _previous_label(book_id, previous_epoch),
+                "Wardmind's key file doesn't match.",
+            )
     return _Session(
         master=master,
         epoch=keys.epoch,
         book_keys={DEFAULT_BOOK: first},
         file_keys={},
         from_ticket=from_ticket,
+        previous_epoch=previous_epoch,
+        previous_keys=previous_keys,
     )
 
 
@@ -646,10 +782,16 @@ def _active_session() -> _Session:
     global _session
     with _session_lock:
         if _session is not None:
-            if _session.from_ticket and not _ticket_path().exists():
+            if _session.from_ticket and not _ticket_still_good():
                 _session = None
                 raise Locked("Wardmind is locked. Unlock it in the app.")
-            return _session
+            current = load_keys()
+            if current is None or current.epoch == _session.epoch:
+                return _session
+            # The keys were replaced by another process: this key is no longer the right one.
+            _session = None
+            if _locked_by_user:
+                raise Locked("Wardmind is locked.")
         if _locked_by_user:
             raise Locked("Wardmind is locked.")
         keys = load_keys()
@@ -659,7 +801,7 @@ def _active_session() -> _Session:
             unlock()
             assert _session is not None
             return _session
-        master = _read_ticket()
+        master = _read_ticket(keys.epoch) if _ticket_reader else None
         if master is None:
             raise Locked("Wardmind is locked. Unlock it in the app.")
         _session = _open_book(keys, master, from_ticket=True)
@@ -667,9 +809,26 @@ def _active_session() -> _Session:
 
 
 # --- The unlock ticket: lets the MCP server read a password-protected book while the app is open
+#
+# The app writes it on unlock and rewrites it every few minutes while it stays unlocked (the idle
+# watch calls refresh_ticket); locking, turning encryption off and the app stopping delete it. A
+# ticket left behind by a crash stops working after TICKET_MINUTES. Everything that decides
+# whether it works (the key, the expiry, the key file's epoch) is inside the Windows-protected
+# blob, so editing the file can't extend it. Only processes that called allow_ticket() read it.
 
 TICKET_FILE = "unlock-ticket.json"
-TICKET_HOURS = 12  # a ticket left behind by a crash stops working after this long
+TICKET_VERSION = 2
+TICKET_MINUTES = 10  # how long a ticket works without being refreshed
+TICKET_RECHECK_SECONDS = 60  # a ticket-opened session re-reads the ticket this often
+
+_ticket_until = 0.0  # when the ticket this process wrote runs out (0: none written)
+_ticket_checked = 0.0  # when a ticket-opened session last found its ticket good
+
+
+def allow_ticket() -> None:
+    """Let this process open the book from the app's ticket (the MCP server, the command line)."""
+    global _ticket_reader
+    _ticket_reader = True
 
 
 def _ticket_path() -> Path:
@@ -677,27 +836,71 @@ def _ticket_path() -> Path:
 
 
 def _write_ticket(master: bytes) -> None:
+    global _ticket_until
     if not dpapi_available():
         return
+    keys = load_keys()
+    if keys is None:
+        return
+    until = time.time() + TICKET_MINUTES * 60
+    inner = json.dumps({"master": _b64(master), "until": until, "epoch": keys.epoch})
     try:
-        blob = dpapi_protect(master)
+        blob = dpapi_protect(inner.encode("utf-8"))
     except VaultError:
         return
-    body = json.dumps({"blob": _b64(blob), "until": time.time() + TICKET_HOURS * 3600})
+    body = json.dumps({"version": TICKET_VERSION, "blob": _b64(blob)})
     _write_raw(_ticket_path(), body.encode("utf-8"))
+    _ticket_until = until
 
 
-def _read_ticket() -> bytes | None:
+def _read_ticket(epoch: int) -> bytes | None:
+    """The master key from a ticket that is current: right version, not expired, written for
+    this key file's epoch. None otherwise."""
     try:
-        raw = json.loads(_ticket_path().read_text(encoding="utf-8"))
-        if float(raw["until"]) < time.time():
+        outer = json.loads(_ticket_path().read_text(encoding="utf-8"))
+        if outer.get("version") != TICKET_VERSION:
             return None
-        return dpapi_unprotect(_unb64(raw["blob"]))
-    except (OSError, KeyError, TypeError, ValueError, VaultError):
+        inner = json.loads(dpapi_unprotect(_unb64(outer["blob"])).decode("utf-8"))
+        if float(inner["until"]) < time.time() or int(inner["epoch"]) != epoch:
+            return None
+        master = _unb64(inner["master"])
+    except (OSError, KeyError, TypeError, ValueError, AttributeError, VaultError):
         return None
+    return master if len(master) == KEY_BYTES else None
+
+
+def _ticket_still_good() -> bool:
+    """For a session opened from the ticket: the ticket is still there and current. Re-read at
+    most every TICKET_RECHECK_SECONDS; a missing file ends the session at once."""
+    global _ticket_checked
+    if not _ticket_path().exists():
+        return False
+    now = time.time()
+    if now - _ticket_checked < TICKET_RECHECK_SECONDS:
+        return True
+    keys = load_keys()
+    if keys is None or _read_ticket(keys.epoch) is None:
+        return False
+    _ticket_checked = now
+    return True
+
+
+def refresh_ticket() -> None:
+    """Called by the app while it runs: keep this process's ticket from running out while the
+    book stays unlocked. Rewritten when less than half its time is left; nothing to do for a
+    process without its own unlocked session or a book without a password."""
+    with _session_lock:
+        session = _session
+    if session is None or session.from_ticket or not has_password():
+        return
+    if _ticket_until - time.time() > TICKET_MINUTES * 30:
+        return
+    _write_ticket(session.master)
 
 
 def delete_ticket() -> None:
+    global _ticket_until
+    _ticket_until = 0.0
     with contextlib.suppress(OSError):
         _ticket_path().unlink(missing_ok=True)
 
@@ -710,7 +913,7 @@ def _replace_slots(keep: Callable[[Slot], bool], add: list[Slot]) -> None:
     if keys is None:
         raise VaultError("Encryption is off.")
     slots = tuple(slot for slot in keys.slots if keep(slot)) + tuple(add)
-    _save_keys(keys.replace(slots=slots))
+    _save_keys(keys.replace(slots=slots), _active_session().master)
 
 
 def set_password(password: str) -> None:
@@ -748,13 +951,25 @@ def replace_recovery_code() -> str:
     return code
 
 
-def _file_key(session: _Session, book_id: str, logical: str) -> bytes:
-    key = session.file_keys.get((book_id, logical))
-    if key is None:
-        book = _book_key(session, book_id)
-        key = _hkdf(book, b"wardmind file v1\x00" + logical.encode("utf-8"))
-        session.file_keys[(book_id, logical)] = key
-    return key
+def _file_key(session: _Session, book_id: str, logical: str, epoch: int | None = None) -> bytes:
+    """The key for this file under the session's epoch, or (while keys are being replaced)
+    under the previous epoch when the file's header says so."""
+    info = b"wardmind file v1\x00" + logical.encode("utf-8")
+    if epoch is None or epoch == session.epoch:
+        key = session.file_keys.get((book_id, logical))
+        if key is None:
+            key = _hkdf(_book_key(session, book_id), info)
+            session.file_keys[(book_id, logical)] = key
+        return key
+    if epoch == session.previous_epoch and book_id in session.previous_keys:
+        key = session.previous_file_keys.get((book_id, logical))
+        if key is None:
+            key = _hkdf(session.previous_keys[book_id], info)
+            session.previous_file_keys[(book_id, logical)] = key
+        return key
+    if epoch > session.epoch:
+        raise Locked("Wardmind's keys were replaced. Unlock it again.")
+    raise Damaged(f"{logical} was encrypted with a key Wardmind no longer has.")
 
 
 # --- Encrypting one file ------------------------------------------------------------------------
@@ -784,8 +999,9 @@ def decrypt(
         raise Damaged(f"{logical} was written by a newer Wardmind.")
     use = session if session is not None else _active_session()
     nonce = header[10:HEADER_BYTES]
+    epoch = int.from_bytes(header[6:10], "big")
     try:
-        return AESGCM(_file_key(use, book, logical)).decrypt(
+        return AESGCM(_file_key(use, book, logical, epoch)).decrypt(
             nonce, raw[HEADER_BYTES:], header + logical.encode()
         )
     except InvalidTag as error:
@@ -814,10 +1030,22 @@ def write_bytes(path: Path, data: bytes) -> None:
     """Replace the file atomically: encrypted while encryption is on (or turning on), else plain.
     On POSIX the file is 0600 and new folders 0700; on Windows the profile folder's ACL applies."""
     current = state()
-    if current in (State.ON, State.ENCRYPTING):
+    if current in (State.ON, State.ENCRYPTING, State.REKEYING):
         book_id, logical = locate(path)
         data = encrypt(data, logical, book=book_id)
+    elif current is State.PLAIN and _is_encrypted_file(path):
+        # No key file, yet this file is encrypted: the key file was deleted. Writing plain text
+        # over it would quietly turn encryption off for this file.
+        raise Damaged("Wardmind's key file is missing. Restore it from a backup.")
     _write_raw(path, data)
+
+
+def _is_encrypted_file(path: Path) -> bool:
+    try:
+        with path.open("rb") as handle:
+            return is_encrypted(handle.read(len(MAGIC)))
+    except OSError:
+        return False
 
 
 def write_text(path: Path, text: str) -> None:
@@ -901,12 +1129,13 @@ def enable(
             slots=(unlock_slot, _recovery_slot(master, shown)),
             books=wrapped_books,
         )
-        _save_keys(keys)
+        sweep_temp_files(older_than=60)  # a minute: never a write still in progress
+        _save_keys(keys, master)
         with _session_lock:
             _session = _Session(master=master, epoch=1, book_keys=book_keys, file_keys={})
             _locked_by_user = False
         _encrypt_all()
-        _save_keys(_with_state(keys, State.ON))
+        _save_keys(_with_state(keys, State.ON), master)
     if password is not None:
         _write_ticket(master)
     return shown
@@ -925,8 +1154,8 @@ def disable() -> None:
         keys = load_keys()
         if keys is None:
             return
-        _active_session()  # Locked unless unlocked (or unlockable through Windows protection)
-        _save_keys(_with_state(keys, State.DECRYPTING))
+        session = _active_session()  # Locked unless unlocked (or unlockable through Windows)
+        _save_keys(_with_state(keys, State.DECRYPTING), session.master)
         _decrypt_all()
         left = [path for path in managed_files() if is_encrypted(path.read_bytes())]
         if left:
@@ -942,16 +1171,123 @@ def resume() -> None:
     """Finish a turn-on or turn-off that was interrupted (a crash, a closed window). Safe to call
     at any time: it does nothing when the state is PLAIN or ON."""
     with _migrate_lock:
+        _resume_locked()
+
+
+def try_resume() -> bool:
+    """resume() when nothing else is changing encryption right now; True when it ran. The web
+    app calls this on each request while a change is unfinished (a crash, a closed window), so
+    no file stays plain, or keeps an old key, for longer than it must."""
+    if not _migrate_lock.acquire(blocking=False):
+        return False
+    try:
+        _resume_locked()
+    finally:
+        _migrate_lock.release()
+    return True
+
+
+def _resume_locked() -> None:
+    keys = load_keys()
+    if keys is None or keys.state is State.ON:
+        return
+    session = _active_session()  # Locked unless unlocked; checks the MAC where it is required
+    if keys.state is State.ENCRYPTING:
+        _encrypt_all()
+        _save_keys(_with_state(keys, State.ON), session.master)
+    elif keys.state is State.DECRYPTING:
+        _decrypt_all()
+        _delete_keys()
+        delete_ticket()
+        forget_key()
+    elif keys.state is State.REKEYING:
+        _finish_rekey(keys, session)
+
+
+def replace_all_keys(*, password: str | None = None) -> str:
+    """Replace the master key and every book's key, re-encrypt every file with the new ones, and
+    return a new recovery key to show once. Afterwards an old copy of keys.json, an old password,
+    an old recovery key or an old unlock ticket opens nothing.
+
+    With a password slot, `password` is required (the new one, or the same one again): the slot
+    has to be made again under the new master key. Without one, Windows protection is kept.
+    Interrupted (a crash), it finishes on the next unlock: until then the files not yet
+    rewritten are read with the previous keys, which keys.json keeps, wrapped by the new master
+    key. Locked when Wardmind isn't unlocked; VaultError when encryption isn't fully on."""
+    if password is not None:
+        check_password(password)
+    code = new_recovery_code()
+    global _session
+    with _migrate_lock:
         keys = load_keys()
-        if keys is None:
-            return
-        if keys.state is State.ENCRYPTING:
-            _encrypt_all()
-            _save_keys(_with_state(keys, State.ON))
-        elif keys.state is State.DECRYPTING:
-            _decrypt_all()
-            _delete_keys()
-            forget_key()
+        if keys is None or keys.state is not State.ON:
+            raise VaultError("Wait until encryption is fully on.")
+        old = _active_session()
+        if keys.slot(SlotKind.PASSWORD) is not None and password is None:
+            raise VaultError("Type a password: this book is protected by one.")
+        old_keys = {book_id: _book_key(old, book_id) for book_id in keys.books}
+        master = os.urandom(KEY_BYTES)
+        epoch = keys.epoch + 1
+        book_keys = {book_id: os.urandom(KEY_BYTES) for book_id in keys.books}
+        unlock_slot = (
+            _password_slot(master, password) if password is not None else _dpapi_slot(master)
+        )
+        new_keys = KeyFile(
+            state=State.REKEYING,
+            epoch=epoch,
+            slots=(unlock_slot, _recovery_slot(master, code)),
+            books={
+                book_id: _wrap(master, key, _book_label(book_id))
+                for book_id, key in book_keys.items()
+            },
+            previous=(
+                keys.epoch,
+                {
+                    book_id: _wrap(master, key, _previous_label(book_id, keys.epoch))
+                    for book_id, key in old_keys.items()
+                },
+            ),
+        )
+        delete_ticket()  # an old ticket holds the old master key
+        _save_keys(new_keys, master)
+        session = _Session(
+            master=master,
+            epoch=epoch,
+            book_keys=book_keys,
+            file_keys={},
+            previous_epoch=keys.epoch,
+            previous_keys=old_keys,
+        )
+        with _session_lock:
+            _session = session
+        _finish_rekey(new_keys, session)
+    if password is not None:
+        _write_ticket(master)
+    return code
+
+
+def _finish_rekey(keys: KeyFile, session: _Session) -> None:
+    """Rewrite every file still under the previous epoch with the current keys, then drop the
+    previous keys from keys.json (the state goes back to ON)."""
+    for path in managed_files():
+        _rewrite(
+            path,
+            lambda raw, book_id, logical: (
+                raw
+                if is_encrypted(raw) and int.from_bytes(raw[6:10], "big") == session.epoch
+                else encrypt(
+                    decrypt(raw, logical, session, book=book_id) if is_encrypted(raw) else raw,
+                    logical,
+                    session,
+                    book=book_id,
+                )
+            ),
+        )
+    _save_keys(keys.replace(state=State.ON, previous=None), session.master)
+    with _session_lock:
+        session.previous_epoch = None
+        session.previous_keys = {}
+        session.previous_file_keys = {}
 
 
 def _with_state(keys: KeyFile, new: State) -> KeyFile:
@@ -1009,7 +1345,7 @@ def add_book_key(book_id: str) -> None:
         session = _active_session()
         key = os.urandom(KEY_BYTES)
         books = {**keys.books, book_id: _wrap(session.master, key, _book_label(book_id))}
-        _save_keys(keys.replace(books=books))
+        _save_keys(keys.replace(books=books), session.master)
         with _session_lock:
             session.book_keys[book_id] = key
 

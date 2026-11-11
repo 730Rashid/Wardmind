@@ -1,0 +1,83 @@
+{% extends "settings/layout.html" %}
+{# A number box for whole days, with its help and its message. The message is linked to the box
+   with aria-describedby, and the box is marked invalid, so nothing depends on colour alone. #}
+{% macro days_box(name, label, low, high, values, errors, help) %}
+{% set id = name | replace("_", "-") %}
+<div class="field">
+  <label for="{{ id }}">{{ label }}</label>
+  <div class="number-control">
+    <input type="number" id="{{ id }}" name="{{ name }}" min="{{ low }}" max="{{ high }}" step="1" value="{{ values[name] }}" aria-describedby="{{ id }}-help{% if errors[name] %} {{ id }}-error{% endif %}"{% if errors[name] %} aria-invalid="true"{% endif %}>
+    <span class="field-unit">days</span>
+  </div>
+  <p class="field-help" id="{{ id }}-help">{{ help }}</p>
+  {% if errors[name] %}<p class="field-error" id="{{ id }}-error">{{ errors[name] }}</p>{% endif %}
+</div>
+{% endmacro %}
+
+{% block settings %}
+<form class="settings-form followups-form" method="post" action="/settings/follow-ups">
+  {% if errors %}
+  <p class="field-error" role="alert">Nothing was saved. Fix the marked settings, then save again.</p>
+  {% endif %}
+  {% if errors.form %}<p class="field-error">{{ errors.form }}</p>{% endif %}
+
+  <section class="followups-group" aria-labelledby="followups-due-title">
+    <h2 class="section-title" id="followups-due-title">When things are due</h2>
+
+    {{ days_box("follow_up_days", "New follow-ups are due in", 1, 90, values, errors, "The default due date when you add a follow-up. It shows on Today and on the account page.") }}
+
+    <div class="field-check">
+      <label class="choice"><input type="checkbox" id="skip-weekends" name="skip_weekends" value="1"{% if values.skip_weekends %} checked{% endif %} aria-describedby="skip-weekends-help"> Skip weekends</label>
+      <p class="field-help" id="skip-weekends-help">A due date Wardmind picks that lands on a weekend moves to Monday.</p>
+    </div>
+
+    {{ days_box("quiet_days", "Needs attention skips accounts you contacted in the last", 3, 90, values, errors, "Shows on Today. An account you contacted this recently isn't listed under Needs attention.") }}
+
+    {{ days_box("reply_wait_days", "Waiting on their reply after", 1, 30, values, errors, "Shows on Today under Waiting on replies, and on the account page. It covers an email you sent that they haven't answered.") }}
+
+    {{ days_box("answer_wait_days", "Waiting on your reply after", 1, 14, values, errors, "Shows on Today under Waiting on replies, and on the account page. It covers an email they sent that you haven't answered.") }}
+  </section>
+
+  <section class="followups-group" aria-labelledby="followups-auto-title">
+    <h2 class="section-title" id="followups-auto-title">Automatic follow-ups</h2>
+    <p class="prose">These rules only add follow-ups. They never change or delete anything. Each rule adds at most one follow-up per account for each occasion, and only for your own data, not demo data. You can mark an added follow-up done like any other.</p>
+
+    <fieldset class="followups-rules" aria-describedby="followups-rules-help">
+      <legend>Add a follow-up when</legend>
+      <p class="field-help" id="followups-rules-help">Added follow-ups show on Today and on the account page, marked Added automatically.</p>
+
+      <div class="followups-rule">
+        <label class="choice"><input type="checkbox" id="rule-at-risk" name="rule_at_risk" value="1"{% if values.rule_at_risk %} checked{% endif %}> When an account turns At risk, add “Check in: health dropped to At risk”</label>
+        <div class="followups-rule-days">
+          {{ days_box("rule_at_risk_days", "Due in", 0, 30, values, errors, "0 means today.") }}
+        </div>
+      </div>
+
+      <div class="followups-rule">
+        <label class="choice"><input type="checkbox" id="rule-renewal" name="rule_renewal" value="1"{% if values.rule_renewal %} checked{% endif %}> Before a renewal, add “Prepare the renewal”</label>
+        <div class="followups-rule-days">
+          <div class="field">
+            <label for="rule-renewal-days">Days before the renewal</label>
+            <select id="rule-renewal-days" name="rule_renewal_days"{% if errors.rule_renewal_days %} aria-invalid="true" aria-describedby="rule-renewal-days-error"{% endif %}>
+              {% for days in renewal_choices %}
+              <option value="{{ days }}"{% if values.rule_renewal_days == days|string %} selected{% endif %}>{{ days }} days</option>
+              {% endfor %}
+            </select>
+            {% if errors.rule_renewal_days %}<p class="field-error" id="rule-renewal-days-error">{{ errors.rule_renewal_days }}</p>{% endif %}
+          </div>
+        </div>
+      </div>
+
+      <div class="followups-rule">
+        <label class="choice"><input type="checkbox" id="rule-champion-left" name="rule_champion_left" value="1"{% if values.rule_champion_left %} checked{% endif %}> When the champion leaves, add “Find a new champion”, due in 3 days</label>
+      </div>
+    </fieldset>
+
+    {% if preview %}
+    <p class="followups-preview" id="followups-preview">{{ preview }}</p>
+    {% endif %}
+  </section>
+
+  <button type="submit" class="button-primary">Save changes</button>
+</form>
+{% endblock %}

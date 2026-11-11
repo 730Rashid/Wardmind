@@ -201,7 +201,10 @@ worked out from its sample readings.
 | The list of books: each book's id and name, and which one is open (names aren't encrypted, so don't use a client's name) | `%LOCALAPPDATA%\wardmind\books.json` |
 | Every book after the first: its own data folder, keys and scoring, laid out like the first book's | `%LOCALAPPDATA%\wardmind\books\<id>` |
 | Encryption keys, when encryption is on (each one locked by Windows, your password or your recovery key; never the key itself in plain form) | `%LOCALAPPDATA%\wardmind\keys.json` and `keys.json.bak` |
-| While a password-protected Wardmind is unlocked: a key Windows protects, so Claude can read your book (deleted when Wardmind locks, unusable after 12 hours) | `%LOCALAPPDATA%\wardmind\unlock-ticket.json` |
+| While a password-protected Wardmind is unlocked: a key Windows protects, so Claude can read your book (deleted when Wardmind locks or closes; it stops working 10 minutes after the app last renewed it) | `%LOCALAPPDATA%\wardmind\unlock-ticket.json` |
+| The activity log: the last 1,000 events (sign-ins, unlocks, failed unlocks, locks, encryption and key changes, books, connections, keys saved or deleted, backups, exports, settings saved), each with its time and a book id. No names, notes, emails, tokens or passwords, so it isn't encrypted. Clear it in Settings > Activity log; Delete all local data clears it too | `%LOCALAPPDATA%\wardmind\activity-log.jsonl` |
+| Note templates (encrypted when encryption is on) | `%LOCALAPPDATA%\wardmind\data\note-templates.json` |
+| Backups you download (Settings > Backup & export) | Wherever you save them. Each is sealed with the password you chose (Argon2id and AES-256-GCM); without it the file can't be read. Connection keys and tokens are left out unless you tick the box. |
 
 The table describes the first book. Each other book keeps the same files in its own folder,
 `%LOCALAPPDATA%\wardmind\books\<id>`, so books never share accounts, notes, connections or

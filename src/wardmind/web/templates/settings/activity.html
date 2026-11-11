@@ -1,0 +1,63 @@
+{% extends "settings/layout.html" %}
+{% block settings %}
+<div class="activity-log">
+  <section class="activity-log-section" aria-labelledby="activity-log-title">
+    <h2 class="section-title" id="activity-log-title">What Wardmind did</h2>
+    <p class="prose">The log keeps the last {{ log_size }} things Wardmind did and when: unlocking and locking, encryption and passwords, books, connections, keys and settings you saved. It holds no customer data: no names, notes, emails, tokens or passwords. It stays on this computer.</p>
+
+    <nav class="activity-log-filter" aria-label="Show one kind of entry">
+      <ul class="filter-list">
+        {% for option in choices %}
+        <li><a class="filter-chip{% if option.current %} is-current{% endif %}" href="/settings/activity?group={{ option.key }}"{% if option.current %} aria-current="true"{% endif %}>{{ option.label }}</a></li>
+        {% endfor %}
+      </ul>
+    </nav>
+
+    {% if rows %}
+    <p class="field-help" role="status">Showing the newest {{ rows | length }} of {{ total }} {% if total == 1 %}entry{% else %}entries{% endif %}.{% if more %} Download the CSV for the rest.{% endif %}</p>
+    <div class="table-card activity-log-table-wrap">
+      <table class="activity-log-table">
+        <thead>
+          <tr>
+            <th scope="col">When</th>
+            <th scope="col">What</th>
+            <th scope="col">Book</th>
+            <th scope="col">Detail</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in rows %}
+          <tr>
+            <td class="activity-log-when">{{ row.when }}</td>
+            <td>{{ row.what }}</td>
+            <td>{{ row.book }}</td>
+            <td>{{ row.detail }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <p class="empty-card">Nothing here yet.</p>
+    {% endif %}
+
+    <p class="activity-log-download">
+      <a class="button" href="{{ csv_link }}">Download as CSV</a>
+    </p>
+  </section>
+
+  <section class="activity-log-section activity-log-clear" aria-labelledby="activity-clear-title">
+    <h2 class="section-title" id="activity-clear-title">Clear the log</h2>
+    <p class="prose">Removes every entry. The clearing is kept as the first entry of the new log.</p>
+    <form class="settings-form" method="post" action="/settings/activity/clear">
+      <div class="field-check">
+        <label class="choice"><input type="checkbox" name="confirm" value="1"{% if clear_error %} aria-invalid="true" aria-describedby="activity-clear-error"{% endif %}> Clear the whole log. This can't be undone.</label>
+        {% if clear_error %}<p class="field-error" id="activity-clear-error" role="alert">{{ clear_error }}</p>{% endif %}
+      </div>
+      <div class="form-actions">
+        <button type="submit" class="button">Clear the log</button>
+      </div>
+    </form>
+  </section>
+</div>
+{% endblock %}

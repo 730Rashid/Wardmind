@@ -731,3 +731,23 @@ async def test_a_damaged_book_gives_a_tool_error_that_says_it_cannot_be_read(
         result = await client.call_tool("list_book", {})
     text = _error_text(result)
     assert "Wardmind can't read its data: Wardmind's key file is damaged." in text
+
+
+def test_only_one_unlock_try_is_checked_at_a_time() -> None:
+    """Tries sent together can't each slip past the wait: while one is being checked, the next
+    is told to wait, and the password isn't tried at all."""
+    clock = FakeClock()
+    app = _app_with_clock(clock)
+    _with_password()
+    client = _client(app)
+    _lock_now(client)
+    assert app.state.throttle.begin()  # another try is being checked
+    try:
+        response = _unlock_post(client, password=PASSWORD, next="/")
+        assert response.status_code == 429
+        assert not vault.is_unlocked()
+    finally:
+        app.state.throttle.end()
+    assert _unlock_post(client, password=PASSWORD, next="/").status_code == 303
+    assert app.state.throttle.begin()  # the slot was given back after the try
+    app.state.throttle.end()
