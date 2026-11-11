@@ -1,5 +1,34 @@
 # Wardmind
 
+## Why I built this
+
+A Customer Success manager looks after dozens of accounts. The signs that one of them is in
+trouble are spread across different tools. Usage lives in one, support tickets in another and
+the renewal date in the CRM. The last real conversation is somewhere in an inbox. By the time
+the risk is obvious, the renewal can be weeks away.
+
+I wanted one place that answers a simple question each morning: which accounts need me this
+week, and why? Not a black-box health score, but a ranked list where every point traces back to
+a plain-English reason, such as "active users down 38% in 30 days" or "the champion has left",
+with a suggested next step.
+
+I also wanted it to respect the data it holds. Customer data stays on your own computer.
+Nothing is sent anywhere unless you turn it on, and the data can be encrypted at rest. It works
+with HubSpot, a spreadsheet or accounts typed in by hand. Claude can read the same book over
+MCP, so you can ask about your accounts in plain language.
+
+I'm job hunting after finishing an internship, and I like to keep busy alongside it, so I build
+projects like this one in my own time. I'm also working through Microsoft's SC-900 course
+(Security, Compliance and Identity Fundamentals).
+
+## How it was built
+
+Wardmind was developed with the assistance of Claude, Anthropic's AI model, using Claude Code.
+Claude wrote much of the code, tests and documentation, working from my direction and my
+decisions about what Wardmind should do.
+
+## What it does
+
 Rank a Customer Success book of business and explain, in plain English, why each account needs
 attention this week. It is reachable three ways, all backed by the same core code:
 
