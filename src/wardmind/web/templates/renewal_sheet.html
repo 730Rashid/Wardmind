@@ -1,0 +1,102 @@
+{% extends "base.html" %}
+{% from "partials/logo.html" import account_logo %}
+{% block content %}
+{% set days = sheet.days_to_renewal %}
+{% set renews = sheet.renewal_date | long_date %}
+{% set last = sheet.last_renewal %}
+<div class="renewal-sheet">
+  <p class="brief-back no-print"><a href="/accounts/{{ sheet.account_id | idpath }}">Back to the account</a></p>
+
+  <header class="sheet-head">
+    <p class="sheet-account">{{ account_logo(sheet.account_id, sheet.name, logos, "lg") }}<span class="sheet-name">{{ sheet.name }}</span></p>
+    <h1 class="page-title">Renewal call prep</h1>
+    <ul class="facts sheet-facts">
+      <li>{% if days > 1 %}Renews on {{ renews }}, in {{ days }} days{% elif days == 1 %}Renews on {{ renews }}, tomorrow{% elif days == 0 %}Renews on {{ renews }}, today{% else %}Renewal date passed {{ -days }} {{ "day" if days == -1 else "days" }} ago, {{ renews }}{% endif %}</li>
+      <li>{{ sheet.arr | money }} ARR</li>
+      <li>{{ sheet.owner }}</li>
+      <li>Wardmind's health <span class="health health--{{ sheet.health.value }}"><svg class="icon" aria-hidden="true" focusable="false"><use href="/static/icons.svg#health-{{ sheet.health.value | replace('_', '-') }}"/></svg> {{ sheet.health.label }}</span></li>
+    </ul>
+    <p class="sheet-call">{% if sheet.call is none %}You haven't called this renewal.{% else %}Your call: {{ sheet.call.label }}.{% endif %}</p>
+    {% if sheet.disagreement is not none %}<p class="sheet-disagreement">{{ sheet.disagreement.text }}</p>{% endif %}
+    <div class="brief-actions no-print">
+      <button type="button" class="button js-only" data-print>Print or save as PDF</button>
+    </div>
+  </header>
+
+  <section class="sheet-section" aria-labelledby="contract-heading">
+    <h2 class="section-title" id="contract-heading">The contract</h2>
+    <ul class="facts sheet-facts">
+      <li>{{ sheet.arr | money }} ARR</li>
+      {% if sheet.seats_used is not none %}<li>Seats in use: {{ sheet.seats_used }}%</li>{% endif %}
+      {% if sheet.unused_arr is not none %}<li>About {{ sheet.unused_arr | money }} pays for unused seats</li>{% endif %}
+      {% if sheet.customer_years == 0 %}<li>A customer for less than a year</li>{% elif sheet.customer_years == 1 %}<li>A customer for 1 year</li>{% elif sheet.customer_years is not none %}<li>A customer for {{ sheet.customer_years }} years</li>{% endif %}
+    </ul>
+    {% if last is none %}
+    <p class="sheet-empty">No past renewal recorded.</p>
+    {% else %}
+    <p>Last renewal: {{ last.kind.label }}, decided {{ last.decided_on | long_date }}. {% if last.arr_after is none %}ARR was {{ last.arr_before | money }}.{% else %}ARR went from {{ last.arr_before | money }} to {{ last.arr_after | money }}.{% endif %}</p>
+    {% endif %}
+  </section>
+
+  <div class="sheet-columns">
+    <section class="sheet-column" aria-labelledby="strong-heading">
+      <h2 class="section-title" id="strong-heading">Where you're strong</h2>
+      {% if sheet.strengths %}
+      <ul class="sheet-list">
+        {% for item in sheet.strengths %}<li>{{ item }}</li>{% endfor %}
+      </ul>
+      {% else %}
+      <p class="sheet-empty">Nothing stands out in your favour yet.</p>
+      {% endif %}
+    </section>
+    <section class="sheet-column" aria-labelledby="exposed-heading">
+      <h2 class="section-title" id="exposed-heading">Where you're exposed</h2>
+      {% if sheet.exposures %}
+      <ul class="sheet-list">
+        {% for item in sheet.exposures %}<li>{{ item }}</li>{% endfor %}
+      </ul>
+      {% else %}
+      <p class="sheet-empty">No exposures found.</p>
+      {% endif %}
+    </section>
+  </div>
+
+  <section class="sheet-section" aria-labelledby="asks-heading">
+    <h2 class="section-title" id="asks-heading">What they may ask for</h2>
+    {% if sheet.asks %}
+    <ul class="sheet-list sheet-asks">
+      {% for ask in sheet.asks %}<li><strong>{{ ask.ask }}.</strong> {{ ask.because }}</li>{% endfor %}
+    </ul>
+    {% else %}
+    <p class="sheet-empty">No likely asks from what Wardmind can see.</p>
+    {% endif %}
+  </section>
+
+  <div class="sheet-columns">
+    <section class="sheet-column" aria-labelledby="recent-heading">
+      <h2 class="section-title" id="recent-heading">Recent contact</h2>
+      {% if sheet.recent %}
+      <ul class="sheet-touches">
+        {% for entry in sheet.recent %}
+        <li><span class="sheet-touch-when"><time datetime="{{ entry.happened_on.isoformat() }}">{{ entry.happened_on | long_date }}</time>, {{ entry.kind_label | lower }}:</span> {{ entry.text }}</li>
+        {% endfor %}
+      </ul>
+      {% else %}
+      <p class="sheet-empty">No contact logged yet.</p>
+      {% endif %}
+    </section>
+    <section class="sheet-column" aria-labelledby="follow-heading">
+      <h2 class="section-title" id="follow-heading">Open follow-ups</h2>
+      {% if sheet.follow_ups %}
+      <ul class="sheet-list">
+        {% for item in sheet.follow_ups %}<li>{{ item }}</li>{% endfor %}
+      </ul>
+      {% else %}
+      <p class="sheet-empty">No open follow-ups.</p>
+      {% endif %}
+    </section>
+  </div>
+
+  <p class="section-note sheet-footnote">Seat counts and price per seat aren't in the data Wardmind reads, so this uses ARR and the share of seats in use.</p>
+</div>
+{% endblock %}

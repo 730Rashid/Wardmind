@@ -198,6 +198,32 @@ class Outcome(BaseModel):
     recorded_at: datetime
 
 
+class CallKind(StrEnum):
+    """Your own forecast for a renewal (the honest forecast)."""
+
+    COMMIT = "commit"  # you would bet on it renewing
+    LIKELY = "likely"  # probably renews, not certain
+    AT_RISK = "at_risk"  # you think it may not renew
+
+    @property
+    def label(self) -> str:
+        return {"commit": "Commit", "likely": "Likely", "at_risk": "At risk"}[self.value]
+
+
+class ForecastCall(BaseModel):
+    """Your call on one renewal. One call per renewal_date; a new call replaces the old one."""
+
+    id: str  # "c-" + 8 hex
+    kind: CallKind
+    renewal_date: date  # the renewal the call is about (the account's renewal date then)
+    made_on: date  # the day the call was made (today when it was recorded)
+    # What Wardmind thought when the call was made, so the two can be compared later.
+    health: Health
+    risk: float
+    arr: float = Field(ge=0)
+    recorded_at: datetime
+
+
 class TeamRole(StrEnum):
     """Who on your side works the account."""
 
@@ -265,10 +291,13 @@ class AccountJournal(BaseModel):
     snooze: Snooze | None = None
     outcomes: list[Outcome] = Field(default_factory=list)  # in the order recorded
     team: list[TeamMember] = Field(default_factory=list)  # in the order added
+    calls: list[ForecastCall] = Field(default_factory=list)  # in the order made
 
     @property
     def empty(self) -> bool:
-        return not (self.notes or self.follow_ups or self.snooze or self.outcomes or self.team)
+        return not (
+            self.notes or self.follow_ups or self.snooze or self.outcomes or self.team or self.calls
+        )
 
 
 class JournalData(BaseModel):
@@ -1041,13 +1070,64 @@ class Journal:
             _save(self._path, data)
             return True
 
+    # Forecast calls (the honest forecast)
+    def make_call(
+        self,
+        account_id: str,
+        kind: CallKind,
+        scored: ScoredAccount,
+        *,
+        now: datetime,
+        today: date,
+    ) -> ForecastCall:
+        """Record your call on scored.account's next renewal (scored.account.id must equal
+        account_id, else ValueError("That call is for a different account.")). renewal_date is
+        scored.account.renewal_date, made_on is today, and health, risk and arr come from scored.
+        A call with the same renewal_date replaces the earlier one (one call per renewal);
+        calls on other renewal dates are kept, so past calls can be checked against outcomes."""
+        if scored.account.id != account_id:
+            raise ValueError("That call is for a different account.")
+        renewal = scored.account.renewal_date
+        with WRITE_LOCK:
+            data = _load(self._path)
+            journal = data.by_account.get(account_id, AccountJournal())
+            kept = [entry for entry in journal.calls if entry.renewal_date != renewal]
+            made = ForecastCall(
+                id=_new_id("c-", {entry.id for entry in journal.calls}),
+                kind=kind,
+                renewal_date=renewal,
+                made_on=today,
+                health=scored.health,
+                risk=scored.risk,
+                arr=scored.account.arr,
+                recorded_at=_naive(now),
+            )
+            journal.calls = [*kept, made]
+            data.by_account[account_id] = journal
+            _save(self._path, data)
+        return made
+
+    def clear_call(self, account_id: str, renewal_date: date) -> bool:
+        """Remove the call on that renewal_date. False when there wasn't one."""
+        with WRITE_LOCK:
+            data = _load(self._path)
+            journal = data.by_account.get(account_id)
+            if journal is None or not any(
+                entry.renewal_date == renewal_date for entry in journal.calls
+            ):
+                return False
+            journal.calls = [entry for entry in journal.calls if entry.renewal_date != renewal_date]
+            _save(self._path, data)
+            return True
+
     # Accounts that are linked or removed
     def move_account(self, from_id: str, to_id: str) -> None:
-        """Linking: from_id's notes, follow-ups, outcomes and team are appended to to_id's (ids
-        that clash get new ones); the later of the two snoozes is kept. A moved MAILBOX email whose
-        message_id to_id already has is dropped, and a moved team member whose email to_id's team
-        already has is dropped. from_id is then removed. Nothing happens when from_id has no
-        journal or from_id == to_id."""
+        """Linking: from_id's notes, follow-ups, outcomes, team and calls are appended to to_id's
+        (ids that clash get new ones); the later of the two snoozes is kept. A moved MAILBOX email
+        whose message_id to_id already has is dropped, and a moved team member whose email to_id's
+        team already has is dropped. A moved call whose renewal_date to_id already has a call for
+        is dropped too: to_id's call wins. from_id is then removed. Nothing happens when from_id
+        has no journal or from_id == to_id."""
         if from_id == to_id:
             return
         with WRITE_LOCK:
@@ -1081,6 +1161,15 @@ class Journal:
             target.team = [
                 *target.team,
                 *_adopt(team, {entry.id for entry in target.team}, "t-"),
+            ]
+            target_renewals = {entry.renewal_date for entry in target.calls}
+            target.calls = [
+                *target.calls,
+                *_adopt(
+                    [entry for entry in moving.calls if entry.renewal_date not in target_renewals],
+                    {entry.id for entry in target.calls},
+                    "c-",
+                ),
             ]
             target.snooze = _later_snooze(moving.snooze, target.snooze)
             data.by_account[to_id] = target

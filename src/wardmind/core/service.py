@@ -17,6 +17,7 @@ from wardmind.core import (
     bulk,
     client_updates,
     contacts,
+    growth,
     history,
     import_flow,
     journal,
@@ -1201,3 +1202,35 @@ def _sync_mailbox_if_due(now: datetime) -> None:
             sync_mailbox_now()
     except Exception as exc:
         _log.warning("The mailbox wasn't synced (%s).", type(exc).__name__)
+
+
+# --- Growth radar (see core/growth.py) -----------------------------------------------------------
+
+
+def account_funding(account: Account, now: datetime | None = None) -> growth.FundingNews | None:
+    """The newest funding headline in the account's saved website lookup, when one is within
+    growth.FUNDING_DAYS of today (as of `now`). None when web research is off or there is no
+    saved lookup. Nothing is fetched."""
+    moment = now if now is not None else datetime.now(UTC)
+    saved = saved_lookup(account, moment)
+    if saved is None:
+        return None
+    return growth.funding_news(saved.articles, moment.date())
+
+
+def book_funding(now: datetime | None = None) -> dict[str, growth.FundingNews]:
+    """account_funding() for every account in the book, keyed by account id. Accounts with no
+    funding news are left out, and the result is {} at once when web research is off. Nothing is
+    fetched."""
+    if not load_settings().web_research:
+        return {}
+    moment = now if now is not None else datetime.now(UTC)
+    found: dict[str, growth.FundingNews] = {}
+    for account in get_connector().list_accounts():
+        saved = _saved_lookup_for(account, moment)
+        if saved is None:
+            continue
+        news = growth.funding_news(saved.articles, moment.date())
+        if news is not None:
+            found[account.id] = news
+    return found

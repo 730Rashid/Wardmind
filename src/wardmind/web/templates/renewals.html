@@ -1,0 +1,109 @@
+{% extends "base.html" %}
+{% from "partials/logo.html" import account_logo %}
+{# Renewals: the honest forecast (core/forecast.py). `screen` is built by renewal_pages.renewals_page.
+   Each call button is its own small form: it saves at once and comes back here at the row. The
+   calibration at the foot is the same whether or not any renewal is in the window. #}
+{% block content %}
+<div class="renewals">
+  <header class="renewals-head">
+    <h1 class="page-title">Renewals</h1>
+    <p class="date-line">{{ today }}</p>
+    <p class="summary"><span class="summary-line">{{ screen.summary }}</span></p>
+  </header>
+
+  {% if screen.notice %}
+  <p class="status-line" role="status">{{ screen.notice }}</p>
+  {% endif %}
+
+  {% if screen.empty %}
+  <div class="empty empty-card">
+    {% if screen.empty_text %}<p>{{ screen.empty_text }}</p>{% endif %}
+    <p><a href="/">Go to My book</a></p>
+  </div>
+  {% else %}
+  <section class="account-section renewal-section" aria-labelledby="calls-heading">
+    <h2 class="section-title" id="calls-heading">Your calls</h2>
+    {% if screen.segments %}
+    <svg class="renewal-bar" viewBox="0 0 100 24" preserveAspectRatio="none" width="100%" height="24" role="img" aria-label="{{ screen.bar_label }}">
+      {% for seg in screen.segments %}
+      <rect x="{{ seg.x }}" width="{{ seg.width }}" height="24" class="renewal-seg renewal-seg--{{ seg.slot }}"/>
+      {% endfor %}
+    </svg>
+    {% endif %}
+    <ul class="renewal-totals">
+      {% for total in screen.totals %}
+      <li class="renewal-total">
+        <span class="renewal-name"><span class="renewal-key renewal-key--{{ total.slot }}" aria-hidden="true"></span>{{ total.label }}</span>
+        <span class="renewal-figure">{{ total.count_text }}, {{ total.arr | money_short }} ARR</span>
+      </li>
+      {% endfor %}
+    </ul>
+    <p class="renewal-line">{{ screen.disagree_line }}{% if screen.filter_href %} <a href="{{ screen.filter_href }}">{{ screen.filter_text }}</a>{% endif %}</p>
+  </section>
+
+  <section class="account-section renewal-section" aria-labelledby="list-heading">
+    <h2 class="section-title" id="list-heading">Renewals, soonest first</h2>
+    {% if screen.rows %}
+    <ul class="today-list renewal-list">
+      {% for row in screen.rows %}
+      <li class="today-row renewal-row" id="{{ row.anchor }}">
+        {{ account_logo(row.account_id, row.name, logos) }}
+        <div class="today-row-body">
+          <div class="today-row-head">
+            <a class="account-link" href="/accounts/{{ row.account_id | idpath }}">{{ row.name }}</a>
+            <span class="health health--{{ row.health.value }}"><svg class="icon" aria-hidden="true" focusable="false"><use href="/static/icons.svg#health-{{ row.health.value | replace('_', '-') }}"/></svg> {{ row.health.label }}</span>
+          </div>
+          <p class="field-help">{{ row.when }}. {{ row.arr | money }} ARR.</p>
+          <p class="renewal-line">{{ row.call_text }}</p>
+          {% if row.disagreement %}<p class="renewal-disagree">{{ row.disagreement }}</p>{% endif %}
+        </div>
+        <div class="today-row-actions renewal-actions">
+          <div class="call-choices" role="group" aria-label="Your call on {{ row.name }}">
+            {% for choice in row.choices %}
+            <form class="inline-form" method="post" action="/accounts/{{ row.account_id | idpath }}/call">
+              <input type="hidden" name="kind" value="{{ choice.value }}">
+              <input type="hidden" name="back" value="renewals">
+              {% if screen.showing_disagree %}<input type="hidden" name="show" value="disagree">{% endif %}
+              <button type="submit" class="button button--small call-choice" aria-pressed="{{ 'true' if choice.selected else 'false' }}">{{ choice.label }}<span class="visually-hidden"> for {{ row.name }}</span></button>
+            </form>
+            {% endfor %}
+            {% if row.can_clear %}
+            <form class="inline-form" method="post" action="/accounts/{{ row.account_id | idpath }}/call">
+              <input type="hidden" name="kind" value="clear">
+              <input type="hidden" name="back" value="renewals">
+              {% if screen.showing_disagree %}<input type="hidden" name="show" value="disagree">{% endif %}
+              <button type="submit" class="button button--small">Clear<span class="visually-hidden"> the call for {{ row.name }}</span></button>
+            </form>
+            {% endif %}
+          </div>
+          <a class="button button--small" href="/accounts/{{ row.account_id | idpath }}/renewal-sheet">Negotiation sheet<span class="visually-hidden"> for {{ row.name }}</span></a>
+        </div>
+      </li>
+      {% endfor %}
+    </ul>
+    {% endif %}
+  </section>
+  {% endif %}
+
+  <section class="account-section renewal-section" aria-labelledby="calibration-heading">
+    <h2 class="section-title" id="calibration-heading">How your calls held up</h2>
+    {% if screen.calibration_yours %}
+    <ul class="renewal-record">
+      {% for sentence in screen.calibration_yours %}
+      <li>{{ sentence }}</li>
+      {% endfor %}
+    </ul>
+    {% else %}
+    <p class="field-help">When renewals you've called are decided, this shows how your calls held up. Record each outcome on the account page.</p>
+    {% endif %}
+    {% if screen.calibration_wardmind %}
+    <h3 class="renewal-sub" id="wardmind-record">Wardmind's score</h3>
+    <ul class="renewal-record" aria-labelledby="wardmind-record">
+      {% for sentence in screen.calibration_wardmind %}
+      <li>{{ sentence }}</li>
+      {% endfor %}
+    </ul>
+    {% endif %}
+  </section>
+</div>
+{% endblock %}

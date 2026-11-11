@@ -76,6 +76,19 @@
           <label for="view-list"><svg class="icon" aria-hidden="true" focusable="false"><use href="/static/icons.svg#view-list"/></svg>List</label>
         </span>
       </fieldset>
+      {# Sort by: the same switch as Cards or List. Priority is the default; any other value means it too. #}
+      <fieldset class="view-switch sort-switch">
+        <legend class="visually-hidden">Sort by</legend>
+        <span class="sort-label" aria-hidden="true">Sort by:</span>
+        <span class="view-option">
+          <input class="visually-hidden filter-input" type="radio" name="sort" id="sort-priority" value="priority"{% if sort != "growth" %} checked{% endif %}>
+          <label for="sort-priority">Priority</label>
+        </span>
+        <span class="view-option">
+          <input class="visually-hidden filter-input" type="radio" name="sort" id="sort-growth" value="growth"{% if sort == "growth" %} checked{% endif %}>
+          <label for="sort-growth">Room to grow</label>
+        </span>
+      </fieldset>
       <button type="submit" class="button no-js-only">Show accounts</button>
     </div>
 

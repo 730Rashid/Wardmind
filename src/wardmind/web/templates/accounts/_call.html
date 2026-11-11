@@ -1,0 +1,31 @@
+{# Your call on the renewal (core/forecast.py): the CSM's own forecast, kept apart from Wardmind's
+   score. `call_box` comes from renewal_pages.account_call, `call_disagreement` from the route. The
+   box is hidden once the renewal date has passed: the outcome form takes over then. #}
+{% if call_box.visible %}
+<section class="call-box" id="call" aria-labelledby="call-heading">
+  <h2 class="section-title" id="call-heading">Your call</h2>
+  <p class="field-help">Your own forecast for the renewal on {{ call_box.renewal_text }}. Wardmind keeps it private and later shows how your calls held up.</p>
+  {% if call_box.current %}<p class="status-line">{{ call_box.current }}</p>{% endif %}
+  {% if call_disagreement %}<p class="renewal-disagree">{{ call_disagreement.text }}</p>{% endif %}
+  <form class="journal-form" method="post" action="/accounts/{{ account.id | idpath }}/call">
+    <input type="hidden" name="back" value="account">
+    <fieldset class="journal-kinds">
+      <legend>Your forecast</legend>
+      {% for choice in call_box.choices %}
+      <label class="choice"><input type="radio" name="kind" value="{{ choice.value }}"{% if choice.selected %} checked{% endif %}> {{ choice.label }}</label>
+      {% endfor %}
+    </fieldset>
+    <div class="form-actions">
+      <button type="submit" class="button-primary">Save</button>
+    </div>
+  </form>
+  {% if call_box.current %}
+  <form class="inline-form" method="post" action="/accounts/{{ account.id | idpath }}/call">
+    <input type="hidden" name="kind" value="clear">
+    <input type="hidden" name="back" value="account">
+    <button type="submit" class="button button--small">Clear</button>
+  </form>
+  {% endif %}
+  <p><a href="/renewals">All renewals</a></p>
+</section>
+{% endif %}

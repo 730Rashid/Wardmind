@@ -6745,3 +6745,417 @@ a.button-primary {
     max-inline-size: none;
   }
 }
+
+/* Room to grow: the account aside's section, the band tag on My book rows and cards, and the
+   "Sort by:" label on the sort switch. Colours come only from the tokens on :root in app.css, so
+   the light and dark themes follow them. */
+
+/* In the account aside, under unused seats, with the same rule and spacing as .shelfware. */
+.growth {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding-block-start: var(--space-4);
+  border-block-start: 1px solid var(--line);
+}
+
+.growth > .section-title {
+  margin: 0;
+}
+
+.growth p {
+  margin: 0;
+}
+
+.growth-held,
+.growth-caption {
+  color: var(--ink-muted);
+}
+
+.growth-caption {
+  font-size: var(--t-sm);
+  line-height: var(--lh-sm);
+}
+
+.growth-reasons {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin: 0;
+  padding-inline-start: var(--space-5);
+}
+
+/* The band tag: a pill's shape, with its words as well as its hue, so no meaning rests on colour. */
+.growth-tag {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.125rem 0.5rem;
+  border: 1px solid color-mix(in srgb, currentColor 16%, transparent);
+  border-radius: var(--radius-tag);
+  background: var(--tag-slate-bg);
+  color: var(--tag-slate-ink);
+  font-size: var(--t-sm);
+  line-height: var(--lh-sm);
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.growth-tag--strong {
+  background: var(--tag-green-bg);
+  color: var(--tag-green-ink);
+}
+
+.growth-tag--some {
+  background: var(--tag-blue-bg);
+  color: var(--tag-blue-ink);
+}
+
+/* The sort switch's own label, read as text inside the switch before its two options. */
+.sort-label {
+  padding: 0.3125rem 0.625rem;
+  color: var(--ink-muted);
+  font-size: var(--t-sm);
+  line-height: var(--lh-sm);
+  white-space: nowrap;
+}
+
+/* On paper, the section is kept whole rather than split across two pages. */
+@media print {
+  .growth {
+    break-inside: avoid;
+  }
+}
+
+/* The renewals page and the account page's "Your call" box. Colours are the :root tokens in app.css,
+   so both themes and every accent follow it. Meaning is never colour alone: each total, segment key
+   and call button also carries its word. */
+
+.renewals-head {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+/* The ARR bar: the server places each segment (x and width), and the fill comes from these. */
+.renewal-bar {
+  display: block;
+  inline-size: 100%;
+  block-size: 24px;
+  overflow: visible;
+}
+
+.renewal-seg--commit {
+  fill: var(--healthy);
+}
+
+.renewal-seg--likely {
+  fill: var(--accent-blue);
+}
+
+.renewal-seg--at_risk {
+  fill: var(--risk);
+}
+
+.renewal-seg--none {
+  fill: var(--line);
+}
+
+.renewal-totals {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
+  gap: var(--space-4);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.renewal-total {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.renewal-name {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-weight: 600;
+}
+
+.renewal-figure {
+  font-size: var(--t-sm);
+  line-height: var(--lh-sm);
+  color: var(--ink-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.renewal-key {
+  display: inline-block;
+  flex: none;
+  inline-size: 0.75rem;
+  block-size: 0.75rem;
+  border-radius: 2px;
+}
+
+.renewal-key--commit {
+  background: var(--healthy);
+}
+
+.renewal-key--likely {
+  background: var(--accent-blue);
+}
+
+.renewal-key--at_risk {
+  background: var(--risk);
+}
+
+.renewal-key--none {
+  background: var(--line);
+  outline: 1px solid var(--bar);
+  outline-offset: -1px;
+}
+
+.renewal-line {
+  margin: 0;
+  font-size: var(--t-sm);
+  line-height: var(--lh-sm);
+}
+
+.renewal-line a {
+  white-space: nowrap;
+}
+
+/* A disagreement: a rule at the start and the words. The words say what it is. */
+.renewal-disagree {
+  margin: 0;
+  padding-inline-start: var(--space-3);
+  border-inline-start: 3px solid var(--risk);
+  color: var(--ink);
+}
+
+.renewal-row .today-row-body > p {
+  margin: 0;
+}
+
+.renewal-actions {
+  flex-direction: column;
+  align-items: flex-end;
+}
+
+.call-choices {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-2);
+}
+
+/* The chosen call: filled with the accent, and aria-pressed says so for a screen reader. */
+.call-choice[aria-pressed="true"] {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--on-accent);
+  font-weight: 600;
+}
+
+.call-choice[aria-pressed="true"]:hover {
+  color: var(--on-accent);
+}
+
+.renewal-record {
+  margin: 0;
+  padding-inline-start: var(--space-5);
+}
+
+.renewal-sub {
+  margin: var(--space-2) 0 0;
+  font-size: var(--t-body);
+  line-height: var(--lh-body);
+  font-weight: 600;
+}
+
+/* In the account aside, a flat section like its neighbours (unused seats, room to grow). */
+.call-box {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding-block-start: var(--space-4);
+  border-block-start: 1px solid var(--line);
+}
+
+.call-box > .section-title,
+.call-box p {
+  margin: 0;
+}
+
+.call-box .journal-form {
+  max-inline-size: none;
+}
+
+@media (max-width: 767px) {
+  .renewal-actions {
+    align-items: flex-start;
+  }
+
+  .call-choices {
+    justify-content: flex-start;
+  }
+}
+
+/* The negotiation sheet (renewal_sheet.html): a one-page prep for a renewal call. Colours are the
+   tokens in app.css, and every state is also written in words. The print rules keep the whole sheet
+   on one A4 page (app.css sets the page size and margins). */
+
+.renewal-sheet {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+  max-inline-size: 52rem;
+}
+
+.sheet-head {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.sheet-account {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin: 0;
+}
+
+.sheet-name {
+  font-size: var(--t-md);
+  line-height: var(--lh-md);
+  font-weight: 600;
+}
+
+.sheet-call {
+  margin: 0;
+  font-weight: 600;
+}
+
+.sheet-disagreement {
+  margin: 0;
+  color: var(--ink-muted);
+}
+
+.sheet-section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.sheet-columns {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-2) var(--space-6);
+  align-items: start;
+}
+
+.sheet-column {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-inline-size: 0;
+}
+
+@media screen and (max-width: 30rem) {
+  .sheet-columns {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.sheet-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin: 0;
+  padding-inline-start: 1.25rem;
+  list-style: disc;
+}
+
+.sheet-touches {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.sheet-touch-when {
+  color: var(--ink-muted);
+}
+
+.sheet-empty {
+  margin: 0;
+  color: var(--ink-muted);
+}
+
+.sheet-footnote {
+  margin: 0;
+}
+
+.sheet-link .field-help {
+  margin-block-start: var(--space-1);
+}
+
+/* On paper the sheet is as wide as the page and set a step smaller, with the sections spaced to fit
+   one A4 page. Each heading stays with what it introduces, and no item is split across pages. */
+@media print {
+  .renewal-sheet {
+    gap: var(--space-2);
+    max-inline-size: none;
+    font-size: var(--t-sm);
+    line-height: var(--lh-sm);
+  }
+
+  .renewal-sheet .page-title {
+    font-size: var(--t-md);
+    line-height: var(--lh-md);
+  }
+
+  .renewal-sheet .section-title {
+    font-size: var(--t-body);
+    line-height: var(--lh-body);
+  }
+
+  .sheet-name {
+    font-size: var(--t-body);
+    line-height: var(--lh-body);
+  }
+
+  .sheet-section {
+    gap: var(--space-1);
+  }
+
+  .sheet-columns {
+    gap: var(--space-1) var(--space-5);
+  }
+
+  .sheet-column {
+    gap: var(--space-1);
+  }
+
+  .sheet-list {
+    gap: 0;
+  }
+
+  .sheet-touches {
+    gap: var(--space-1);
+  }
+
+  .sheet-head {
+    gap: var(--space-1);
+  }
+
+  .sheet-section,
+  .sheet-column,
+  .sheet-list > li,
+  .sheet-touches > li {
+    break-inside: avoid;
+  }
+}

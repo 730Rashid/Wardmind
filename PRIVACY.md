@@ -135,8 +135,9 @@ agreeing it with them. Wardmind records who agreed and when.
 
 ## Notes, follow-ups and score history
 
-**Your journal** holds the notes, calls, meetings and emails you log, your follow-ups, snoozes and
-renewal outcomes. It is your own record of your customers, so:
+**Your journal** holds the notes, calls, meetings and emails you log, your follow-ups, snoozes,
+renewal outcomes, and your own forecast call on each renewal (Commit, Likely or At risk). It is
+your own record of your customers, so:
 
 - It stays on this computer, in `%LOCALAPPDATA%\wardmind\data\journal.json`. Notes you type
   while trying the demo data go in a separate file, `demo-journal.json`, and never mix with
@@ -146,6 +147,8 @@ renewal outcomes. It is your own record of your customers, so:
 - A renewal outcome also keeps what Wardmind thought of the account when you recorded it (its
   risk, health and signal values), so the scoring can later learn from real outcomes. Nothing
   learns from it yet, and it never leaves your computer.
+- A forecast call keeps the same snapshot (health, risk and ARR when you made it), so the
+  Renewals page can later show how your calls, and Wardmind's score, held up. Only you see it.
 - Removing a note, follow-up or outcome deletes it. Removing a connection or deleting a
   hand-added account deletes its accounts' journal.
 
@@ -184,7 +187,7 @@ worked out from its sample readings.
 | Web research results | `%LOCALAPPDATA%\wardmind\data\research`, until **Clear local cache** or turning web research off |
 | AI summaries | `%LOCALAPPDATA%\wardmind\data\summaries` |
 | Contacts | `%LOCALAPPDATA%\wardmind\data\contacts.json` |
-| Notes, activity (calls, meetings, logged emails), pins, account teams, follow-ups, snoozes and renewal outcomes | `%LOCALAPPDATA%\wardmind\data\journal.json` (demo data: `demo-journal.json`) |
+| Notes, activity (calls, meetings, logged emails), pins, account teams, follow-ups, snoozes, renewal outcomes and forecast calls | `%LOCALAPPDATA%\wardmind\data\journal.json` (demo data: `demo-journal.json`) |
 | Mailbox settings: provider, server, username, your other addresses, last check | `%LOCALAPPDATA%\wardmind\data\mailbox.json` |
 | Mailbox app password | `%LOCALAPPDATA%\wardmind\feeds\mailbox-password` |
 | Logos | `%LOCALAPPDATA%\wardmind\data\logos` |

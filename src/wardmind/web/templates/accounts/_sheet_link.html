@@ -1,0 +1,9 @@
+{# The way to the negotiation sheet. Shown for a renewal: the motion is Renewal when the renewal is
+   0 to 120 days away (scoring.MotionWindows). Other accounts have no renewal call to prepare yet. #}
+{% if detail.scored.motion.value == 'renewal' %}
+<section class="sheet-link" aria-labelledby="sheet-link-heading">
+  <h2 class="section-title" id="sheet-link-heading">Renewal call</h2>
+  <p><a href="/accounts/{{ detail.scored.account.id | idpath }}/renewal-sheet">Open the negotiation sheet</a></p>
+  <p class="field-help">Strengths, exposures and what they may ask for, on one printable page.</p>
+</section>
+{% endif %}

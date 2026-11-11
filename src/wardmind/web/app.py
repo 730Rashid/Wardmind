@@ -37,6 +37,7 @@ from wardmind.core import (
     client_updates,
     contacts,
     editing,
+    growth,
     history,
     import_flow,
     importing,
@@ -44,11 +45,13 @@ from wardmind.core import (
     journal,
     logos,
     mailbox,
+    negotiation,
     research,
     secrets,
     service,
     summaries,
 )
+from wardmind.core import forecast as renewal_forecast
 from wardmind.core.client_updates import ClientUpdate, UpdateKind, UpdateStatus
 from wardmind.core.config import ScoringConfig, load_scoring_config, save_scoring_config
 from wardmind.core.connectors.combined import CombinedConnector, ConnectionProblem, Provenance
@@ -99,7 +102,14 @@ from wardmind.core.store import (
     Notice,
     connection_for,
 )
-from wardmind.web import contact_pages, feed_pages, formatting, journal_pages, today_pages
+from wardmind.web import (
+    contact_pages,
+    feed_pages,
+    formatting,
+    journal_pages,
+    renewal_pages,
+    today_pages,
+)
 from wardmind.web import runway as runway_geometry
 from wardmind.web.scoring_form import (
     FIELD_NAMES,
@@ -2207,7 +2217,13 @@ def _render_account(
         else insights.shelfware(detail.scored.account, latest, today, config.motion)
     )
     reading_ages = {age.kind: age for age in confidence.ages}
+    # Room to grow (core/growth.py): the funding headline comes from the saved website lookup only.
+    radar = growth.growth_radar(
+        detail.scored, latest, service.account_funding(detail.scored.account)
+    )
     account_journal = service.account_journal(account_id)
+    # Your call on this renewal (core/forecast.py), and where Wardmind's score disagrees with it.
+    call = renewal_forecast.current_call(account_journal, detail.scored.account.renewal_date)
     found_undo = journal_pages.find_follow_up({account_id: account_journal}, undo)
     journal_panel = journal_pages.panel(
         scored=detail.scored,
@@ -2255,6 +2271,12 @@ def _render_account(
         forecast=forecast,
         seats=seats,
         reading_ages=reading_ages,
+        growth=radar,
+        call=call,
+        call_disagreement=renewal_forecast.disagreement(
+            call.kind if call is not None else None, detail.scored.health
+        ),
+        call_box=renewal_pages.account_call(detail.scored.account, call, today),
     )
 
 
@@ -2628,7 +2650,8 @@ def create_app() -> FastAPI:
     ) -> Response:
         """My book. Filters come from the query string, each one repeatable (motion=churn&
         motion=renewal): motion, health, data=blind (Healthy only because the data is missing or
-        out of date) and, with web research, topic; view=list shows the table instead of cards.
+        out of date) and, with web research, topic; view=list shows the table instead of cards;
+        sort=growth ranks by room to grow (core/growth.py), and any other sort is priority.
         An htmx refresh gets only the results partial, not on a history restore. With Your data
         and nothing connected, this is the Setup page instead."""
         if _needs_setup():
@@ -2643,7 +2666,8 @@ def create_app() -> FastAPI:
         book = service.get_book(connector)
         brief = briefs.weekly_brief(book, as_of=today)
 
-        confidence = insights.book_confidence(book, service.latest_book_signals(connector), today)
+        latest = service.latest_book_signals(connector)
+        confidence = insights.book_confidence(book, latest, today)
         blind = {account_id for account_id, found in confidence.items() if found.blind_spot}
         params = request.query_params
         motions = _chosen(params.getlist("motion"), Motion)
@@ -2651,7 +2675,10 @@ def create_app() -> FastAPI:
         topics = _chosen(params.getlist("topic"), research.Topic)
         data = _chosen(params.getlist("data"), _DataFilter)
         view = "list" if params.get("view") == "list" else "cards"
+        sort = "growth" if params.get("sort") == "growth" else "priority"
         flags = service.account_flags()
+        # Room to grow for every account, computed once per request: the tags and the sort.
+        radars = growth.book_growth(book, latest, service.book_funding())
         ranks = {item.account.id: rank for rank, item in enumerate(book, start=1)}
         rows: list[tuple[int, ScoredAccount]] = [
             (ranks[item.account.id], item)
@@ -2661,6 +2688,9 @@ def create_app() -> FastAPI:
             and (not topics or not topics.isdisjoint(flags.get(item.account.id, [])))
             and (_DataFilter.BLIND not in data or item.account.id in blind)
         ]
+        if sort == "growth":
+            # Stable: accounts with equal growth keep the priority order they came in.
+            rows.sort(key=lambda row: -radars[row[1].account.id].score)
         first, second = summary_sentences(
             brief.counts_by_health[Health.AT_RISK],
             brief.arr_at_risk,
@@ -2695,6 +2725,8 @@ def create_app() -> FastAPI:
             filter_groups=groups,
             filtered=bool(motions or healths or topics or data),
             view=view,
+            sort=sort,
+            radar_by_id=radars,
             rows=rows,
             blind_spots=blind,
             q=q,
@@ -2855,6 +2887,114 @@ def create_app() -> FastAPI:
             reading_ages=reading_ages,
             forecast=forecast,
             plain_text=formatting.onboarding_plain_text(brief),
+        )
+
+    # --- Renewals: the honest forecast (see core/forecast.py) ---------------------------------
+
+    @app.get("/renewals")
+    def renewals_route(request: Request, show: str = "", call: str = "") -> HTMLResponse:
+        """Renewals in the scoring window, soonest first: your call on each (Commit, Likely or At
+        risk), the ARR behind each call, where your call and Wardmind's score disagree (show=
+        disagree lists only those) and how the calls held up. `call` is a notice code from a
+        save."""
+        today = date.today()
+        config = load_scoring_config()
+        book = service.get_book(config=config, as_of=today)
+        journals = service.get_journal().all()
+        view = renewal_forecast.forecast_view(
+            book, journals, today, config.motion.renewal_window_days
+        )
+        page = renewal_pages.renewals_page(
+            view,
+            renewal_forecast.calibration(journals),
+            window_days=config.motion.renewal_window_days,
+            book_size=len(book),
+            disagree_only=show == "disagree",
+            notice=renewal_pages.call_notice(call),
+            money_short=money_short,
+        )
+        return _render(
+            request, "renewals.html", page="Renewals", active="renewals", book=True, screen=page
+        )
+
+    def record_call(
+        account_id: str, scored: ScoredAccount, fields: Mapping[str, str], today: date
+    ) -> str:
+        """Save, clear or refuse one posted call. A call can't be saved on a renewal date that has
+        passed (the outcome takes over then), but a clear always goes through. Returns the notice
+        code."""
+        text = fields.get("kind", "")
+        if text == renewal_pages.CLEAR:
+            service.get_journal().clear_call(account_id, scored.account.renewal_date)
+            return renewal_pages.CALL_CLEARED
+        try:
+            kind = journal.CallKind(text)
+        except ValueError:
+            return renewal_pages.CALL_PICK
+        if scored.account.renewal_date < today:
+            return renewal_pages.CALL_PASSED
+        service.get_journal().make_call(
+            account_id, kind, scored, now=datetime.now(UTC), today=today
+        )
+        return renewal_pages.CALL_SAVED
+
+    @app.post("/accounts/{account_id}/call")
+    async def record_call_route(request: Request, account_id: str) -> Response:
+        """Your call on the account's next renewal, or Clear. Back to the renewals page when the
+        form was sent from there (back=renewals, keeping show=disagree), else to the account page's
+        call box. Unknown account: 404."""
+        scored = await run_in_threadpool(_book_account, account_id)
+        if scored is None:
+            return await run_in_threadpool(
+                _missing, request, "Account not found", f"No account with id {account_id}."
+            )
+        fields = await _posted_fields(request)
+        code = await run_in_threadpool(record_call, account_id, scored, fields, date.today())
+        return RedirectResponse(
+            renewal_pages.call_redirect(
+                fields.get("back", ""), account_id, code, fields.get("show", "")
+            ),
+            status_code=303,
+        )
+
+    # --- Negotiation sheet (see core/negotiation.py) ------------------------------------------
+    @app.get("/accounts/{account_id}/renewal-sheet")
+    def renewal_sheet(request: Request, account_id: str) -> HTMLResponse:
+        """One account's negotiation sheet: the one-page prep for its renewal call, built from the
+        same data as the account page (negotiation.negotiation_sheet)."""
+
+        connector = service.get_connector()
+        config = load_scoring_config()
+        as_of = date.today()
+        detail = service.get_account_detail(account_id, connector, config, as_of)
+        if detail is None:
+            return _render(
+                request,
+                "not_found.html",
+                page="Account not found",
+                status_code=404,
+                message=f"No account with id {account_id}.",
+                book=True,
+            )
+        scored = detail.scored
+        latest = latest_signals(connector.list_signals(account_id)).get(account_id, {})
+        radar = growth.growth_radar(scored, latest, service.account_funding(scored.account))
+        # Unused seats are expected while onboarding is still rolling out, as on the account page.
+        seats = (
+            None
+            if scored.motion is Motion.ONBOARDING
+            else insights.shelfware(scored.account, latest, as_of, config.motion)
+        )
+        sheet = negotiation.negotiation_sheet(
+            scored, latest, service.account_journal(account_id), radar, seats, as_of
+        )
+        return _render(
+            request,
+            "renewal_sheet.html",
+            page=f"{sheet.name} renewal",
+            active="book",
+            book=True,
+            sheet=sheet,
         )
 
     @app.get("/settings")
@@ -3221,6 +3361,7 @@ def create_app() -> FastAPI:
         logo: str = "",
         activity: str = "",
         activity_all: str = "",
+        call_code: str = Query("", alias="call"),
     ) -> HTMLResponse:
         """One account's call prep: summary, next step, score breakdown and signal history. With
         Your data showing, it also has the edit link, where each figure came from, the notices,
@@ -3235,6 +3376,7 @@ def create_app() -> FastAPI:
             or _UPDATES_NOTICES.get(updates, "")
             or journal_pages.notice_text(journal_code, day, date.today())
             or _LOGO_NOTICES.get(logo, "")
+            or renewal_pages.call_notice(call_code)
         )
         return _render_account(
             request,

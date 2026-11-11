@@ -1,0 +1,19 @@
+{# Room to grow (core/growth.py): the band and the reasons (the sentence only when there are no signs) from seat use, the usage
+   trend, NPS and the website's funding news. Held back while the account is At risk: then only the
+   sentence, muted. #}
+<section class="growth" aria-labelledby="growth-heading">
+  <h2 class="section-title" id="growth-heading">Room to grow</h2>
+  {% if growth.held_back %}
+  <p class="growth-held">{{ growth.sentence }}</p>
+  {% else %}
+  <p><span class="growth-tag growth-tag--{{ growth.band.value }}">{{ growth.band.label }}</span></p>
+  {% if growth.score == 0 %}
+  <p>{{ growth.sentence }}</p>
+  {% elif growth.reasons %}
+  <ul class="growth-reasons">
+    {% for reason in growth.reasons %}<li>{{ reason.plain_english }}</li>{% endfor %}
+  </ul>
+  {% endif %}
+  <p class="growth-caption">From seat use, the usage trend, NPS and funding news on their own website.</p>
+  {% endif %}
+</section>

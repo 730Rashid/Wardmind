@@ -6,9 +6,16 @@ attention this week. It is reachable three ways, all backed by the same core cod
 ![Wardmind: the ranked book, an account page, the weekly brief and onboarding prep](docs/demo.gif)
 
 - **Web dashboard:** `wardmind ui` opens a local page at http://127.0.0.1:8000 with:
-  - **Today:** follow-ups due, accounts that need attention, and renewals to record
-  - **My book:** the ranked list, with what changed since last week
-  - **Account pages:** the score breakdown, signal history and next step
+  - **Today:** follow-ups due, threads waiting on a reply, accounts that need attention, and
+    renewals to record, with a find box
+  - **My book:** the ranked list with each client's logo, what changed since last week, and a
+    sort by room to grow
+  - **Account pages:** the score breakdown, signal history and next step; an activity history
+    (calls, meetings and emails, logged automatically once you connect a mailbox), notes, pins,
+    the account team, and room to grow
+  - **Renewals:** call each upcoming renewal Commit, Likely or At risk, see the ARR behind each
+    call and where Wardmind disagrees, and later how your calls held up. Each renewal has a
+    one-page negotiation sheet: strengths, exposures and what the client may ask for.
   - **Weekly brief:** a one-page summary with **Print or save as PDF** (fits on 2 A4 pages)
   - **Onboarding prep:** pick an account to get a call brief. It covers where the account is on
     the standard onboarding plan, an agenda, questions to ask and the signals to watch. You can
@@ -19,6 +26,8 @@ attention this week. It is reachable three ways, all backed by the same core cod
     - Scoring: sliders for every weight and threshold, with a live preview of how your top 10
       would reorder. These are saved to `config/scoring.yaml`.
     - Connections: demo data or your data, HubSpot, spreadsheets and accounts added by hand.
+    - Mailbox: log client emails into each account's activity history, read-only, with an app
+      password.
     - Data & privacy: web research and AI summaries on or off, your OpenRouter key, and
       clearing the local cache.
 - **Desktop app:** `Wardmind.exe` (or `wardmind desktop`) shows the same dashboard in its own

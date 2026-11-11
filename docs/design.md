@@ -789,3 +789,42 @@ rebuilt so each client is one easy-to-find row or card.
   the window (a tick), the projected finish (an ink mark) and any overrun past the window (risk
   colour). The words under it say the same: "Day 29 of 90. Projected finish: day 87." The headline
   counts accounts with an overdue milestone, which is not the same as a Late forecast.
+
+## The commercial side: growth, renewals and the negotiation sheet (November 2026)
+
+Three read-outs for account managers, each plain arithmetic on the account's own data, never a
+model (`core/growth.py`, `core/forecast.py`, `core/negotiation.py`).
+
+### Room to grow (account aside, My book)
+- A second, positive score from 0 to 100: seat use from 80% (35 points at 100%), the usage trend
+  from 0% (30 points at +30%), NPS from 7 (20 points at 10), and 15 points for a funding headline
+  on the client's own website in the last 180 days (saved lookups only, so no new network call).
+- Bands: Ready to grow (50 and up), Some room (25 and up), No signs yet. The aside shows the band
+  tag and the reasons; the sentence appears only when there are no signs.
+- Held back while the account is At risk: "Held back while this account is At risk. Fix the risk
+  before talking about growth."
+- My book: "Sort by: Priority | Room to grow" beside Cards/List, and a band tag beside the health
+  badge on rows and cards. The rank numbers stay the priority ranks.
+
+### Renewals (`/renewals`, in the main menu)
+- Every renewal in the renewal window (120 days by default), soonest first, with your call as three
+  small buttons (Commit, Likely, At risk) and Clear. The current call is pressed and says so in
+  words. A call can't be made once the renewal date has passed (record the outcome instead).
+- "Your calls": a bar of ARR by call (Commit green, Likely blue, At risk red, Not called a neutral
+  track) and each call's count and ARR.
+- Disagreements: Commit or Likely on an account Wardmind calls At risk, or At risk on a Healthy
+  one. Each says what to check, and `?show=disagree` lists only those.
+- "How your calls held up": once outcomes are recorded, "When you said Commit, 9 of 10 renewed."
+  and the same for Wardmind's own health ("When Wardmind said At risk, 3 of 4 churned."). Counts,
+  never percentages: the samples are small.
+- The account aside has "Your call" with the same choices.
+
+### Negotiation sheet (`/accounts/{id}/renewal-sheet`)
+- Linked from the aside ("Renewal call") while the account's motion is Renewal, and from each row
+  on Renewals. Prints on one A4 page.
+- Header (logo, renewal date and days, ARR, owner, Wardmind's health, your call and any
+  disagreement), the contract (ARR, seats in use, unused-seat ARR, tenure, the last renewal), where
+  you're strong, where you're exposed, what they may ask for (each ask with its reason), recent
+  contact and open follow-ups.
+- Seat counts and price per seat aren't in the data, so the sheet says it works from ARR and the
+  share of seats in use. The unused-seat line is left out when the score already names seat use.

@@ -4,11 +4,16 @@
 {% macro blind_tag() -%}
 <span class="chip">Blind spot<span class="visually-hidden"> — healthy may only mean data is missing or out of date</span></span>
 {%- endmacro %}
+{# Room to grow (core/growth.py): a tag beside the health badge, only for Ready to grow and Some room. #}
+{% macro growth_tag(radar) -%}
+{% if radar and radar.band.value in ("strong", "some") %}<span class="growth-tag growth-tag--{{ radar.band.value }}">{{ radar.band.label }}</span>{% endif %}
+{%- endmacro %}
+{% set order_text = "Accounts ranked by room to grow" if sort == "growth" else "Accounts ranked by priority" %}
 <div id="results">
   {% if rows and view == "list" %}
   <div class="table-card">
   <table class="book{% if intro %} book--intro{% endif %}" role="table">
-    <caption class="visually-hidden">Accounts ranked by priority</caption>
+    <caption class="visually-hidden">{{ order_text }}</caption>
     <thead>
       <tr role="row">
         <th scope="col" role="columnheader">Account</th>
@@ -50,6 +55,7 @@
               {{ item.health.label }}
             </span>
             {% if item.account.id in blind_spots %}{{ blind_tag() }}{% endif %}
+            {{ growth_tag(radar_by_id.get(item.account.id)) }}
           </span>
         </td>
         <td role="cell" class="cell-priority num">
@@ -74,7 +80,7 @@
   </table>
   </div>
   {% elif rows %}
-  <h2 class="visually-hidden">Accounts ranked by priority</h2>
+  <h2 class="visually-hidden">{{ order_text }}</h2>
   <ol class="card-grid{% if intro %} book--intro{% endif %}">
     {% for rank, item in rows %}
     {% set others = item.reasons | length - 1 %}
@@ -92,6 +98,7 @@
               {{ item.health.label }}
             </span>
             {% if item.account.id in blind_spots %}{{ blind_tag() }}{% endif %}
+            {{ growth_tag(radar_by_id.get(item.account.id)) }}
           </span>
         </div>
         <h3 class="card-title" id="{{ card_id }}"><a class="account-link" href="/accounts/{{ item.account.id | idpath }}">{{ item.account.name }}</a></h3>
