@@ -871,3 +871,21 @@ Every screen follows one quiet, enterprise language, taken from a reference the 
 - **The mark:** an ink tile with a white W that dips twice and recovers, and a dot over it (the
   mind keeping watch). `static/favicon.svg` is the same mark for the browser tab.
 
+
+## AI summaries from a model on this computer (2026-11-12)
+
+On **Settings > Data & privacy**, the AI summaries form has a **Who writes them** choice under
+On/Off:
+- **A model online, through OpenRouter.** This shows the OpenRouter model field and the key
+  section, as before.
+- **A model on this computer.** This shows three things:
+  - **Address of your model app**, defaulting to Ollama's `http://127.0.0.1:11434/v1`, with LM
+    Studio's address in the help;
+  - **Model**, a free-text name with a datalist filled by the last Test connection;
+  - **Test connection**, a `formaction` button on the same form. It re-renders the page with
+    what was typed and the server's answer ("Connected. It has 2 models. llama3.2 is ready."),
+    then a list of the model names. Nothing is saved.
+
+`app.js` hides the fields of the choice that isn't selected. Without JavaScript both sets show,
+and the chosen one is used. A summary written locally is footed "Summarised by AI (llama3.2 on
+this computer)".

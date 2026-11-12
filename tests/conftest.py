@@ -107,6 +107,17 @@ def no_openrouter_calls(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 @pytest.fixture(autouse=True)
+def no_local_model_calls(monkeypatch: pytest.MonkeyPatch) -> None:
+    """No test can reach a model server on this computer by accident. Tests that use one give
+    service a LocalModelClient on an httpx.MockTransport (through service._local_factory)."""
+
+    def refuse(base_url: str) -> summaries.LocalModelClient:
+        pytest.fail(f"A test tried to call a local model at {base_url}. Give it a MockTransport.")
+
+    monkeypatch.setattr(service, "_local_factory", refuse)
+
+
+@pytest.fixture(autouse=True)
 def fresh_job_runner(monkeypatch: pytest.MonkeyPatch) -> Iterator[bulk.JobRunner]:
     """Every test gets its own runner for "Look up all websites", and waits for any job thread it
     started, so no background thread outlives its test."""

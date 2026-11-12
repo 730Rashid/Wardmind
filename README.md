@@ -32,7 +32,7 @@ decisions about what Wardmind should do.
 Rank a Customer Success book of business and explain, in plain English, why each account needs
 attention this week. It is reachable three ways, all backed by the same core code:
 
-![Wardmind: the ranked book, an account page, the weekly brief and onboarding prep](docs/demo.gif)
+![Wardmind: the ranked book, an account page with its risk trend, the weekly brief, onboarding prep, renewals, your own signals, and AI summaries from a model on your computer](docs/demo.gif)
 
 - **Web dashboard:** `wardmind ui` opens a local page at http://127.0.0.1:8000 with:
   - **Today:** follow-ups due, threads waiting on a reply, accounts that need attention, and
@@ -252,6 +252,20 @@ and My book then shows each account's news topics next to its name.
 highlights. The default model is `anthropic/claude-haiku-5.5`, and you can pick any OpenRouter
 model. Only the website text is sent, never anything from your book, and each summary is reused
 until the website changes, so a book of 40 accounts typically costs a cent or two.
+
+Or let **a model on your own computer** write them, so nothing leaves it and nothing is paid.
+Any app that serves the OpenAI chat API works, such as [Ollama](https://ollama.com) or
+[LM Studio](https://lmstudio.ai). In **Settings > Data & privacy > Who writes them**:
+
+1. Choose **A model on this computer**.
+2. Keep Ollama's address (`http://127.0.0.1:11434/v1`), or type LM Studio's
+   (`http://127.0.0.1:1234/v1`).
+3. Press **Test connection**. It lists the models your app has.
+4. Type the model's name, such as `llama3.2`, then press **Save**.
+
+Only an address on this computer is accepted (`127.0.0.1`, `localhost` or `[::1]`), so this
+setting can't send anything elsewhere. No key is needed. A model that follows instructions well
+gives the best summaries.
 
 [PRIVACY.md](PRIVACY.md) has the details.
 

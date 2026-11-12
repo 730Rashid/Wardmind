@@ -12542,7 +12542,7 @@ thead th {
   gap: var(--space-3);
 }
 
-.custom-signals .custom-signal-form .settings-part legend {
+.custom-signals .custom-signal-form .settings-part > legend {
   font-size: var(--t-md);
   line-height: var(--lh-md);
   font-weight: 600;
@@ -12564,4 +12564,48 @@ thead th {
 
 .custom-signal-page .settings-actions {
   margin-block-start: 0;
+}
+
+/* --- Data & privacy: who writes AI summaries ------------------------------------------------ */
+.settings-form .ai-provider-part {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+
+.settings-form .ai-provider-part[hidden] {
+  display: none;
+}
+
+.local-model-found {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.local-model-found .field-help {
+  margin: 0;
+}
+
+.local-model-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.local-model-list code {
+  display: inline-block;
+  padding: var(--space-1) var(--space-2);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--sunken);
+  color: var(--ink);
+  font-size: var(--t-sm);
+}
+
+.settings-card .privacy-key[hidden] {
+  display: none;
 }

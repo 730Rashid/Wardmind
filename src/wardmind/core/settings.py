@@ -11,6 +11,7 @@ import re
 from enum import StrEnum
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlsplit
 
 import yaml
 from pydantic import BaseModel, ValidationError, field_validator
@@ -20,6 +21,56 @@ from wardmind.core.config import config_dir, write_atomic
 # Fast and cheap, and good at short factual summaries. Any OpenRouter model id can be chosen.
 DEFAULT_AI_MODEL = "anthropic/claude-haiku-5.5"
 _MODEL_ID = re.compile(r"~?[a-z0-9][a-z0-9._-]*/[a-z0-9][a-z0-9._:-]{0,99}")
+
+# A model running on this computer (Ollama, LM Studio, llama.cpp's server and others that speak
+# the OpenAI chat API). Ollama's address is the default; LM Studio's is http://127.0.0.1:1234/v1.
+DEFAULT_LOCAL_AI_URL = "http://127.0.0.1:11434/v1"
+LM_STUDIO_URL = "http://127.0.0.1:1234/v1"  # shown in the help, as the other common address
+LOCAL_HOSTS = frozenset({"127.0.0.1", "localhost", "::1"})
+MAX_LOCAL_MODEL = 200  # characters
+LOCAL_URL_MESSAGE = (
+    "Use an address on this computer, such as http://127.0.0.1:11434/v1 (Ollama) or "
+    "http://127.0.0.1:1234/v1 (LM Studio)."
+)
+LOCAL_MODEL_MESSAGE = (
+    f"Use the model's name as your model app shows it, such as llama3.2, in at most "
+    f"{MAX_LOCAL_MODEL} characters."
+)
+
+
+def check_local_url(text: str) -> str:
+    """The address of a model server on this computer, trimmed and without a trailing "/".
+    Only http(s) on 127.0.0.1, localhost or [::1] is accepted, with no user name, password,
+    query or fragment, so summaries can never be sent off this computer by this setting.
+    ValueError(LOCAL_URL_MESSAGE) otherwise."""
+    value = text.strip()
+    try:
+        parts = urlsplit(value)
+        host = parts.hostname
+        _ = parts.port  # raises ValueError for a bad port
+    except ValueError:
+        raise ValueError(LOCAL_URL_MESSAGE) from None
+    if (
+        parts.scheme not in ("http", "https")
+        or host not in LOCAL_HOSTS
+        or parts.username is not None
+        or parts.password is not None
+        or parts.query
+        or parts.fragment
+        or any(char.isspace() for char in value)
+    ):
+        raise ValueError(LOCAL_URL_MESSAGE)
+    return value.rstrip("/")
+
+
+def check_local_model(text: str) -> str:
+    """A local model's name, trimmed ("" means none chosen yet). Any printable text up to
+    MAX_LOCAL_MODEL characters: Ollama names look like "llama3.2:3b", LM Studio's like
+    "qwen2.5-7b-instruct". ValueError(LOCAL_MODEL_MESSAGE) otherwise."""
+    value = text.strip()
+    if len(value) > MAX_LOCAL_MODEL or not value.isprintable():
+        raise ValueError(LOCAL_MODEL_MESSAGE)
+    return value
 
 
 class Theme(StrEnum):
@@ -52,6 +103,14 @@ class Landing(StrEnum):
     @property
     def path(self) -> str:
         return {"book": "/", "brief": "/brief", "today": "/today"}[self.value]
+
+
+class AIProvider(StrEnum):
+    """Who writes AI summaries: OpenRouter (a model online, with the CSM's own key) or a model
+    running on this computer, so nothing leaves it."""
+
+    OPENROUTER = "openrouter"
+    LOCAL = "local"
 
 
 class DataSource(StrEnum):
@@ -143,6 +202,10 @@ class Settings(BaseModel):
     # used while web_research is on too. ai_model is an OpenRouter model id.
     ai_summaries: bool = False
     ai_model: str = DEFAULT_AI_MODEL
+    # Or a model on this computer (AIProvider.LOCAL): its server's address and model name.
+    ai_provider: AIProvider = AIProvider.OPENROUTER
+    local_ai_url: str = DEFAULT_LOCAL_AI_URL
+    local_ai_model: str = ""
     # Encryption at rest (core/vault.py): lock after this many idle minutes; 0 never locks.
     auto_lock_minutes: int = 15
 
@@ -217,6 +280,16 @@ class Settings(BaseModel):
         if not _MODEL_ID.fullmatch(value):
             raise ValueError("That isn't an OpenRouter model id, like anthropic/claude-haiku-5.5.")
         return value
+
+    @field_validator("local_ai_url")
+    @classmethod
+    def _local_url(cls, value: str) -> str:
+        return check_local_url(value)
+
+    @field_validator("local_ai_model")
+    @classmethod
+    def _local_model(cls, value: str) -> str:
+        return check_local_model(value)
 
     @field_validator("source", mode="before")
     @classmethod

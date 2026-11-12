@@ -13,7 +13,7 @@ import os
 import re
 import sys
 import time
-from collections.abc import AsyncIterator, Awaitable, Callable, Mapping
+from collections.abc import AsyncIterator, Awaitable, Callable, Mapping, Sequence
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from dataclasses import field as dataclass_field
@@ -101,12 +101,17 @@ from wardmind.core.onboarding import OnboardingBrief
 from wardmind.core.onboarding import onboarding_brief as build_onboarding_brief
 from wardmind.core.scoring import latest_signals
 from wardmind.core.settings import (
+    DEFAULT_LOCAL_AI_URL,
+    LM_STUDIO_URL,
     Accent,
+    AIProvider,
     DataSource,
     Density,
     Landing,
     Settings,
     Theme,
+    check_local_model,
+    check_local_url,
     load_settings,
     save_settings,
 )
@@ -455,6 +460,7 @@ _env.filters["idpath"] = idpath
 _env.filters["money_short"] = money_short
 _env.filters["whole"] = whole
 _env.filters["day_label"] = formatting.day_label
+_env.filters["model_label"] = summaries.model_label
 _env.filters["ago"] = formatting.ago
 _env.filters["motion_fact"] = formatting.motion_fact
 _env.filters["number"] = formatting.number
@@ -2048,9 +2054,16 @@ _KEY_SAVE_FAILED = (
 _JOB_ID = re.compile(r"[0-9a-f]{16}")  # what bulk.JobRunner makes: secrets.token_hex(8)
 
 
+_LOCAL_MODEL_REQUIRED = "Enter the name of the model on this computer, such as llama3.2."
+_PROVIDER_ERROR = "Choose OpenRouter or a model on this computer, then save again."
+
+
 def _ai_status(settings: Settings) -> str:
     """The AI summaries status sentence on Data & privacy, with the web research note."""
-    if settings.ai_summaries:
+    if settings.ai_summaries and settings.ai_provider is AIProvider.LOCAL:
+        name = settings.local_ai_model or "a model you haven't named yet"
+        status = f"AI summaries are on, using {name} on this computer."
+    elif settings.ai_summaries:
         status = f"AI summaries are on, using {settings.ai_model}."
     else:
         status = "AI summaries are off."
@@ -2075,6 +2088,42 @@ def _key_line(status: secrets.TokenStatus, today: date) -> str:
         added = f", added {formatting.day_label(status.saved_at, today)}" if status.saved_at else ""
         return f"Saved key {tail}{added}."
     return "No key saved."
+
+
+def _local_errors(
+    url_text: str, model_text: str, provider: AIProvider | None, turning_on: bool
+) -> dict[str, str]:
+    """What is wrong with the local model fields ("url", "model"), checked whichever provider
+    is chosen since both are saved; the model name is only required while a local model is
+    chosen and AI summaries are on."""
+    errors: dict[str, str] = {}
+    try:
+        check_local_url(url_text)
+    except ValueError as error:
+        errors["url"] = str(error)
+    try:
+        name = check_local_model(model_text)
+    except ValueError as error:
+        errors["model"] = str(error)
+    else:
+        if not name and provider is AIProvider.LOCAL and turning_on:
+            errors["model"] = _LOCAL_MODEL_REQUIRED
+    return errors
+
+
+def _local_found_text(found: Sequence[str], chosen: str) -> str:
+    """What Test connection says when the server answered."""
+    if not found:
+        return "Connected, but it has no models yet. Download one in your model app first."
+    count = len(found)
+    text = f"Connected. It has {count} model{'' if count == 1 else 's'}."
+    if chosen and chosen not in found:
+        text += f" {chosen} isn't one of them: pick one below."
+    elif chosen:
+        text += f" {chosen} is ready."
+    else:
+        text += " Pick one below."
+    return text
 
 
 _DELETED_ALL_NOTICE = "All local data was deleted."
@@ -2107,12 +2156,20 @@ def _render_privacy(
     key_error: str = "",
     key_result: str = "",
     key_result_ok: bool = True,
+    ai_provider_value: str | None = None,
+    local_url_value: str | None = None,
+    local_model_value: str | None = None,
+    local_errors: Mapping[str, str] | None = None,
+    local_result: str = "",
+    local_result_ok: bool = True,
+    local_found: Sequence[str] = (),
     encryption_errors: Mapping[str, str] | None = None,
     encryption_method: str = "",
     status_code: int = 200,
 ) -> HTMLResponse:
-    """The Data & privacy page: web research, AI summaries and their key, and the local cache.
-    A refused form passes back what was typed (the model), never the key."""
+    """The Data & privacy page: web research, AI summaries (OpenRouter and its key, or a model on
+    this computer), and the local cache. A refused form passes back what was typed (the models,
+    the address), never the key."""
     current = load_settings()
     key_status = secrets.openrouter_key_status()
     return _render(
@@ -2138,6 +2195,15 @@ def _render_privacy(
         key_error=key_error,
         key_result=key_result,
         key_result_ok=key_result_ok,
+        ai_provider=current.ai_provider.value if ai_provider_value is None else ai_provider_value,
+        local_url=current.local_ai_url if local_url_value is None else local_url_value,
+        local_model=current.local_ai_model if local_model_value is None else local_model_value,
+        default_local_url=DEFAULT_LOCAL_AI_URL,
+        lm_studio_url=LM_STUDIO_URL,
+        local_errors=dict(local_errors or {}),
+        local_result=local_result,
+        local_result_ok=local_result_ok,
+        local_found=list(local_found),
         encryption=_encryption_view(encryption_errors, encryption_method),
         status_code=status_code,
     )
@@ -4404,27 +4470,86 @@ def create_app(gate: session.SessionGate | None = None) -> FastAPI:
         fields = await _posted_fields(request)
         choice = fields.get("ai_summaries", "")
         model_text = fields.get("ai_model", "")
+        current = await run_in_threadpool(load_settings)
+        # A form from before the provider choice existed posts none: keep what is saved.
+        provider_text = fields.get("ai_provider", current.ai_provider.value)
+        url_text = fields.get("local_ai_url", current.local_ai_url)
+        local_text = fields.get("local_ai_model", current.local_ai_model)
         choice_error = "" if choice in ("on", "off") else _AI_CHOICE_ERROR
+        try:
+            provider: AIProvider | None = AIProvider(provider_text)
+            provider_error = ""
+        except ValueError:
+            provider, provider_error = None, _PROVIDER_ERROR
         model = ""
         model_error = ""
         try:
             model = await run_in_threadpool(service.checked_ai_model, model_text)
         except ValueError as error:
-            model_error = str(error)
-        if choice_error or model_error:
+            if provider is not AIProvider.LOCAL:  # unused while a local model writes them
+                model_error = str(error)
+        local_errors = _local_errors(url_text, local_text, provider, choice == "on")
+        if choice_error or provider_error or model_error or local_errors:
             return await run_in_threadpool(
                 _render_privacy,
                 request,
                 ai_choice=None if choice_error else choice == "on",
-                ai_error=choice_error,
+                ai_error=choice_error or provider_error,
                 ai_model_value=model_text,
                 ai_model_error=model_error,
+                ai_provider_value=provider_text,
+                local_url_value=url_text,
+                local_model_value=local_text,
+                local_errors=local_errors,
                 status_code=422,
             )
-        await run_in_threadpool(service.set_ai_model, model)
+        assert provider is not None  # provider_error would have re-rendered the form
+        if model:
+            await run_in_threadpool(service.set_ai_model, model)
+        await run_in_threadpool(service.set_ai_provider, provider, url_text, local_text)
         await run_in_threadpool(service.set_ai_summaries, choice == "on")
         audit.record(audit.Event.SETTINGS_SAVED, detail="Data & privacy")
         return RedirectResponse(f"/settings/privacy?{urlencode({'ai': choice})}", status_code=303)
+
+    @app.post("/settings/privacy/ai/local/test")
+    async def test_local_model(request: Request) -> HTMLResponse:
+        """Ask the model server on this computer, at the address as typed, which models it has.
+        Nothing is saved; the form shows again with what was typed and the answer."""
+        fields = await _posted_fields(request)
+        url_text = fields.get("local_ai_url", "")
+        local_text = fields.get("local_ai_model", "")
+        typed: dict[str, Any] = {
+            "ai_choice": fields.get("ai_summaries") == "on" if "ai_summaries" in fields else None,
+            "ai_model_value": fields.get("ai_model"),
+            "ai_provider_value": fields.get("ai_provider", AIProvider.LOCAL.value),
+            "local_url_value": url_text,
+            "local_model_value": local_text,
+        }
+        try:
+            found = await run_in_threadpool(service.local_models, url_text)
+        except ValueError as error:
+            return await run_in_threadpool(
+                _render_privacy,
+                request,
+                local_errors={"url": str(error)},
+                status_code=422,
+                **typed,
+            )
+        except summaries.SummaryError as error:
+            return await run_in_threadpool(
+                _render_privacy,
+                request,
+                local_result=error.message,
+                local_result_ok=False,
+                **typed,
+            )
+        return await run_in_threadpool(
+            _render_privacy,
+            request,
+            local_result=_local_found_text(found, local_text.strip()),
+            local_found=found,
+            **typed,
+        )
 
     @app.post("/settings/privacy/ai/key")
     async def save_openrouter_key(request: Request) -> Response:

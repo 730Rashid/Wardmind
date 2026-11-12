@@ -13,6 +13,7 @@ Only these, and only when you set them up:
 | A HubSpot connection | `api.hubapi.com` | Read-only API calls with your access token, to read companies and tickets. Nothing is ever written to HubSpot. |
 | Web research, **off by default** | The customer's own website, and nowhere else | An ordinary visit to that website, when you press **Look up their website** on its account page or **Look up all websites**. Nothing about the account is sent. |
 | AI summaries, **off by default**, with your own OpenRouter key | `openrouter.ai`, and the company running the model you chose | Only the text web research read from the customer's public website. Nothing from your book. |
+| AI summaries from **a model on this computer** (Ollama, LM Studio and the like) | Nowhere: the model app on this computer (`127.0.0.1`, `localhost` or `[::1]` only) | The same website text, to that app only. Nothing leaves the computer. |
 | Data feeds you add (**Settings > Connections > Add a connection**) | Only the address or product you set up: your own file or SQLite database (nothing leaves), a link or API you typed, Google Sheets, Stripe, Chargebee, Zendesk, Freshdesk, PostHog or Airtable | Read requests with the key you gave that feed, on the schedule you chose. Nothing from your book is sent, and nothing is ever written to the source. |
 | Your mailbox, **off until you connect it** (**Settings > Mailbox**) | Only your own mail provider's IMAP server (Gmail, Outlook, iCloud, Yahoo, Fastmail or the server you typed), over TLS | Your username and app password, to read Inbox and Sent. Wardmind never sends, moves, deletes or marks mail as read, and nothing from your book is sent. |
 | Logos, with web research on | The customer's own website | An ordinary visit to its home page and the icon files it names, when you press **Find on website** or during **Look up all websites**. Nothing about the account is sent. |
@@ -56,8 +57,9 @@ Web research is off until you turn it on in **Settings > Data & privacy**. When 
 
 ## AI summaries in detail
 
-AI summaries are off until you turn them on in **Settings > Data & privacy** and add your own
-OpenRouter API key. Wardmind has no AI account or key of its own.
+AI summaries are off until you turn them on in **Settings > Data & privacy**. They are written
+either by a model online through OpenRouter, with your own API key, or by a model running on this
+computer. Wardmind has no AI account or key of its own.
 
 - **What it does.** It turns what web research read from a customer's website into a short
   About and up to three highlights: acquisitions, funding, leadership changes or restructuring.
@@ -80,6 +82,22 @@ OpenRouter API key. Wardmind has no AI account or key of its own.
 - **Safety.** Website text is treated as untrusted. The model is told it is data, not
   instructions, and it has no tools. Its answer must match a fixed format, and it is shown as
   plain text labelled as written by AI.
+
+### A model on this computer
+
+Choose **A model on this computer** under **Who writes them** to use Ollama, LM Studio or another
+app that serves the OpenAI chat API on this computer.
+
+- **Where it goes.** Only to the address you set, which must be `127.0.0.1`, `localhost` or
+  `[::1]`. Anything else is refused when you save it and again before each request. No
+  proxy from the environment is used, and redirects are not followed, so the text can't be
+  passed on to another host.
+- **What is sent.** The same website text as above, to that app only. No key is sent.
+- **Who sees it.** No one else. The free-model confirmation never shows, because no
+  provider sees the text.
+- **Test connection** asks that app for its list of models and nothing more.
+- **Cost.** Nothing. Your computer does the work, and a large model can take a minute per
+  summary on an ordinary laptop.
 
 ## Data feeds in detail
 

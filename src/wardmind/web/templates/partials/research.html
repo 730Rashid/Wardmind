@@ -56,7 +56,7 @@
       {% endfor %}
     </ul>
     {% endif %}
-    <p class="research-footer">{% if summary.sample %}Sample summary, invented like the demo accounts. Nothing was sent.{% else %}Summarised by AI ({{ summary.model }}) from their website.{% if summary.cost_usd is not none %} Cost ${{ "%.4f" | format(summary.cost_usd) }}.{% endif %}{% endif %}</p>
+    <p class="research-footer">{% if summary.sample %}Sample summary, invented like the demo accounts. Nothing was sent.{% else %}Summarised by AI ({{ summary.model | model_label }}) from their website.{% if summary.cost_usd is not none %} Cost ${{ "%.4f" | format(summary.cost_usd) }}.{% endif %}{% endif %}</p>
   </div>
   {% endif %}
 

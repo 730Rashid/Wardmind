@@ -234,15 +234,15 @@
   <section class="privacy-section settings-card" aria-labelledby="ai-summaries-title">
     <h2 class="section-title" id="ai-summaries-title">AI summaries</h2>
     <p class="privacy-status">{{ ai_status }}</p>
-    <p class="prose">When it's on, Wardmind can turn what web research read from a customer's website into a short About and up to three highlights a CSM should know: acquisitions, funding, leadership changes or restructuring. It uses your own OpenRouter account, so you choose the model and pay OpenRouter directly.</p>
+    <p class="prose">When it's on, Wardmind can turn what web research read from a customer's website into a short About and up to three highlights a CSM should know: acquisitions, funding, leadership changes or restructuring. It uses your own OpenRouter account, so you choose the model and pay OpenRouter directly. Or it can use a model running on this computer, so nothing leaves it.</p>
 
     <dl class="privacy-list">
       <dt>What is sent</dt>
       <dd>Only the text web research read from the customer's public website: its address, title, description and recent headlines. Nothing from your book: not your account name, ARR, owner, health, signals, notes or other accounts.</dd>
       <dt>Who sees it</dt>
-      <dd>OpenRouter, and the company that runs the model you chose. Wardmind asks OpenRouter to use only providers that don't store or train on the data. A free model is the exception: its providers may train on what they're sent, so Wardmind asks you to confirm every time you use one.</dd>
+      <dd>OpenRouter, and the company that runs the model you chose. Wardmind asks OpenRouter to use only providers that don't store or train on the data. A free model is the exception: its providers may train on what they're sent, so Wardmind asks you to confirm every time you use one. With a model on this computer, no one else sees it: the text never leaves this computer.</dd>
       <dt>Cost</dt>
-      <dd>A summary is a few thousand tokens. With the default model, a book of 40 accounts usually costs about a cent or two. A summary is reused until the website or the model changes, so running it again only pays for what changed.</dd>
+      <dd>A summary is a few thousand tokens. With the default model, a book of 40 accounts usually costs about a cent or two. A summary is reused until the website or the model changes, so running it again only pays for what changed. A model on this computer costs nothing.</dd>
       <dt>When</dt>
       <dd>Only when you press Summarise on an account, or tick Also summarise with AI when looking up all websites. Never in the background.</dd>
       <dt>What is kept</dt>
@@ -260,7 +260,7 @@
         <div class="choices">
           <div class="choice-option">
             <label class="choice"><input type="radio" name="ai_summaries" value="off" aria-describedby="ai-off-help"{% if not ai_on %} checked{% endif %}> Off</label>
-            <p class="field-help choice-help" id="ai-off-help">Nothing is sent to OpenRouter.</p>
+            <p class="field-help choice-help" id="ai-off-help">No summaries are made, and nothing is sent.</p>
           </div>
           <div class="choice-option">
             <label class="choice"><input type="radio" name="ai_summaries" value="on" aria-describedby="ai-on-help"{% if ai_on %} checked{% endif %}> On</label>
@@ -269,6 +269,21 @@
         </div>
       </fieldset>
 
+      <fieldset class="settings-part">
+        <legend>Who writes them</legend>
+        <div class="choices">
+          <div class="choice-option">
+            <label class="choice"><input type="radio" name="ai_provider" value="openrouter" aria-describedby="ai-provider-openrouter-help" data-ai-provider{% if ai_provider != 'local' %} checked{% endif %}> A model online, through OpenRouter</label>
+            <p class="field-help choice-help" id="ai-provider-openrouter-help">Your own OpenRouter key. You choose from hundreds of models and pay OpenRouter directly.</p>
+          </div>
+          <div class="choice-option">
+            <label class="choice"><input type="radio" name="ai_provider" value="local" aria-describedby="ai-provider-local-help" data-ai-provider{% if ai_provider == 'local' %} checked{% endif %}> A model on this computer</label>
+            <p class="field-help choice-help" id="ai-provider-local-help">Ollama, LM Studio or another app that runs models on this computer. Nothing leaves it, and it costs nothing.</p>
+          </div>
+        </div>
+      </fieldset>
+
+      <div class="ai-provider-part" data-ai-provider-part="openrouter">
       <div class="field">
         <label for="field-ai-model">Model</label>
         <input type="text" name="ai_model" id="field-ai-model" value="{{ ai_model }}" autocomplete="off" spellcheck="false" data-training-model-field{% if ai_model_error %} aria-invalid="true" aria-describedby="field-ai-model-error field-ai-model-training field-ai-model-help"{% else %} aria-describedby="field-ai-model-training field-ai-model-help"{% endif %}>
@@ -278,13 +293,58 @@
         <p class="field-warning" id="field-ai-model-training" data-training-warning{% if not ai_model_trains %} hidden{% endif %}><svg class="icon" aria-hidden="true" focusable="false"><use href="/static/icons.svg#health-watch"/></svg><span>Free models are served by providers that may keep what you send and train on it. Wardmind will ask you to confirm every time you use one.</span></p>
         <p class="field-help" id="field-ai-model-help">An OpenRouter model id. The default, anthropic/claude-haiku-5.5, is fast and cheap. <a href="https://openrouter.ai/models" rel="noopener noreferrer">Browse models</a></p>
       </div>
+      </div>
+
+      <div class="ai-provider-part local-model" data-ai-provider-part="local">
+        <div class="field">
+          <label for="field-local-url">Address of your model app</label>
+          <input type="text" name="local_ai_url" id="field-local-url" value="{{ local_url }}" autocomplete="off" spellcheck="false" inputmode="url"{% if local_errors.url %} aria-invalid="true" aria-describedby="field-local-url-error field-local-url-help"{% else %} aria-describedby="field-local-url-help"{% endif %}>
+          {% if local_errors.url %}
+          <p class="field-error" role="alert" id="field-local-url-error">{{ local_errors.url }}</p>
+          {% endif %}
+          <p class="field-help" id="field-local-url-help">Ollama uses {{ default_local_url }} and LM Studio {{ lm_studio_url }}. Only an address on this computer is accepted.</p>
+        </div>
+
+        <div class="field">
+          <label for="field-local-model">Model</label>
+          <input type="text" name="local_ai_model" id="field-local-model" value="{{ local_model }}" autocomplete="off" spellcheck="false"{% if local_found %} list="local-model-names"{% endif %}{% if local_errors.model %} aria-invalid="true" aria-describedby="field-local-model-error field-local-model-help"{% else %} aria-describedby="field-local-model-help"{% endif %}>
+          {% if local_found %}
+          <datalist id="local-model-names">
+            {% for name in local_found %}<option value="{{ name }}"></option>{% endfor %}
+          </datalist>
+          {% endif %}
+          {% if local_errors.model %}
+          <p class="field-error" role="alert" id="field-local-model-error">{{ local_errors.model }}</p>
+          {% endif %}
+          <p class="field-help" id="field-local-model-help">The model's name as your model app shows it, such as llama3.2 or qwen2.5-7b-instruct. A model that follows instructions well gives the best summaries.</p>
+        </div>
+
+        <div class="connection-test">
+          <button type="submit" class="button" formaction="/settings/privacy/ai/local/test">Test connection</button>
+          {% if local_result %}
+          {% if local_result_ok %}
+          <p class="connection-result" role="status">{{ local_result }}</p>
+          {% else %}
+          <p class="alert" role="alert">{{ local_result }}</p>
+          {% endif %}
+          {% endif %}
+        </div>
+        {% if local_found %}
+        <div class="local-model-found">
+          <p class="field-help">Models it has:</p>
+          <ul class="local-model-list">
+            {% for name in local_found %}<li><code>{{ name }}</code></li>{% endfor %}
+          </ul>
+        </div>
+        {% endif %}
+      </div>
 
       <div class="settings-actions">
         <button type="submit" class="button-primary">Save</button>
       </div>
     </form>
 
-    <section class="privacy-key settings-part" aria-labelledby="openrouter-key-title">
+    <section class="privacy-key settings-part" aria-labelledby="openrouter-key-title" data-ai-provider-part="openrouter">
       <h3 class="privacy-subtitle" id="openrouter-key-title">OpenRouter API key</h3>
       <div class="token-row">
         <p class="token-status">{{ key_line }}</p>

@@ -196,6 +196,22 @@ function showReadingInput(select) {
 }
 
 document.querySelectorAll("select[data-reading-kind]").forEach(showReadingInput);
+
+// Data & privacy: show the fields for whichever writes AI summaries, OpenRouter or a model on
+// this computer. Without JavaScript both sets show, and the chosen one is used.
+function showAIProvider() {
+  const chosen = document.querySelector("input[data-ai-provider]:checked");
+  if (!chosen) return;
+  document.querySelectorAll("[data-ai-provider-part]").forEach((part) => {
+    part.hidden = part.dataset.aiProviderPart !== chosen.value;
+  });
+}
+showAIProvider();
+document.addEventListener("change", (event) => {
+  if (event.target instanceof HTMLInputElement && event.target.hasAttribute("data-ai-provider")) {
+    showAIProvider();
+  }
+});
 document.addEventListener("change", (event) => {
   const select = event.target;
   if (select instanceof HTMLSelectElement && select.hasAttribute("data-reading-kind")) {

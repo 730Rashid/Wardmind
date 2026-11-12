@@ -1,8 +1,11 @@
-"""Optional AI summaries of what web research read from a customer's website, via OpenRouter.
+"""Optional AI summaries of what web research read from a customer's website, written by a model
+online through OpenRouter, or by a model running on this computer (LocalModelClient).
 
 Privacy rules (PRIVACY.md and the Data & privacy page repeat them in plain English):
 - Off unless Settings.ai_summaries is on, and only used while Settings.web_research is on too.
 - Needs the CSM's own OpenRouter API key (core/secrets.py). Wardmind has no key of its own.
+  Or a model on this computer (Ollama, LM Studio and the like): then nothing leaves the computer,
+  no key is needed, and the address is limited to 127.0.0.1, localhost or [::1].
 - Only when the CSM asks: one account's "Summarise" button, or "Look up all websites" with
   "Also summarise with AI" ticked. Never in the background.
 - Sends only text read from the customer's public website (host, title, description, feed
@@ -43,6 +46,7 @@ from pydantic import BaseModel
 from wardmind.core import vault
 from wardmind.core.models import Account
 from wardmind.core.research import Article, SiteResearch, Topic, account_file_name
+from wardmind.core.settings import check_local_url
 
 API_BASE = "https://openrouter.ai/api/v1"
 CHAT_PATH = "/chat/completions"
@@ -58,6 +62,10 @@ MAX_NOTE = 160  # characters per highlight note
 SUMMARIES_DIR = "summaries"  # under store.data_dir()
 # The model name of a demo summary: invented by sample_summary(), nothing was sent.
 SAMPLE_MODEL = "sample"
+# A model on this computer may be slow on an ordinary laptop, so it gets longer to answer.
+LOCAL_TIMEOUT_SECONDS = 180.0
+LOCAL_PREFIX = "local/"  # Summary.model for a local model: "local/llama3.2"
+MAX_LOCAL_MODELS = 50  # names read from a local server's model list
 # Test-only: WARDMIND_OPENROUTER_API_BASE may point the client at a local fake server. Any value
 # that isn't http(s)://127.0.0.1 or localhost is refused, like WARDMIND_HUBSPOT_API_BASE.
 ENV_API_BASE = "WARDMIND_OPENROUTER_API_BASE"
@@ -132,6 +140,20 @@ class Usage(BaseModel):
     cost_usd: float | None
 
 
+def local_model_id(name: str) -> str:
+    """Summary.model for a model on this computer, so a saved summary is never mistaken for one
+    an OpenRouter model of the same name wrote."""
+    return LOCAL_PREFIX + name
+
+
+def model_label(model: str) -> str:
+    """How a summary's model is named on the page: "llama3.2 on this computer", or the
+    OpenRouter id as it is."""
+    if model.startswith(LOCAL_PREFIX):
+        return f"{model.removeprefix(LOCAL_PREFIX)} on this computer"
+    return model
+
+
 class SummaryError(Exception):
     """A summary that couldn't be made. `message` is plain English for the page, and never
     contains the API key."""
@@ -147,6 +169,10 @@ class SummariesOff(SummaryError):
 
 class NoKey(SummaryError):
     """No OpenRouter API key is saved."""
+
+
+class NoLocalModel(SummaryError):
+    """A model on this computer was chosen, but no model name is saved."""
 
 
 class KeyRejected(SummaryError):
@@ -564,32 +590,163 @@ def _usage(raw: Any) -> Usage:
 def summarise(
     account_id: str,
     research: SiteResearch,
-    client: OpenRouterClient,
+    client: OpenRouterClient | LocalModelClient,
     model: str,
     now: datetime,
     *,
     allow_training: bool = False,
 ) -> Summary:
     """build_messages → client.complete → parse_answer → Summary (content_hash, usage, now).
-    A model that trains_on_data is refused (TrainingNotConfirmed, nothing sent) unless
-    allow_training says the CSM confirmed it."""
-    if trains_on_data(model) and not allow_training:
+    Through OpenRouter, a model that trains_on_data is refused (TrainingNotConfirmed, nothing
+    sent) unless allow_training says the CSM confirmed it. A model on this computer sends
+    nothing anywhere, so it never needs that; its Summary.model is local_model_id(model)."""
+    local = isinstance(client, LocalModelClient)
+    trains = not local and trains_on_data(model)
+    if trains and not allow_training:
         raise TrainingNotConfirmed(training_message(model))
-    content, usage = client.complete(
-        build_messages(research), model, allow_training=trains_on_data(model)
-    )
+    content, usage = client.complete(build_messages(research), model, allow_training=trains)
     about, highlights = parse_answer(content)
     return Summary(
         account_id=account_id,
         about=about,
         highlights=highlights,
-        model=model,
+        model=local_model_id(model) if local else model,
         content_hash=content_hash(research),
         created_at=_aware(now),
         input_tokens=usage.input_tokens,
         output_tokens=usage.output_tokens,
         cost_usd=usage.cost_usd,
     )
+
+
+_LOCAL_UNREACHABLE = (
+    "Couldn't reach the model on this computer at {url}. Check that Ollama, LM Studio or your "
+    "model app is running, and that the address in Settings > Data & privacy is right."
+)
+_LOCAL_TIMED_OUT = (
+    "The model on this computer didn't answer in time. A smaller model may be quicker; try again."
+)
+_LOCAL_UNREADABLE = "The model on this computer sent a reply Wardmind couldn't read."
+_LOCAL_NO_MODEL = (
+    "The model app at {url} doesn't have a model called {model}. Use Test connection in "
+    "Settings > Data & privacy to see the ones it has."
+)
+
+
+class LocalModelClient:
+    """A model server on this computer that speaks the OpenAI chat API (Ollama, LM Studio,
+    llama.cpp's server, vLLM and others). base_url must be http(s) on 127.0.0.1, localhost or
+    [::1] (settings.check_local_url; ValueError otherwise). No key and no proxy are used,
+    redirects are not followed, and there are no retries: a local server that fails says why
+    straight away. Tests pass a transport."""
+
+    def __init__(self, base_url: str, *, transport: httpx.BaseTransport | None = None) -> None:
+        self._base_url = check_local_url(base_url)
+        self._http = httpx.Client(
+            base_url=self._base_url,
+            transport=transport,
+            timeout=LOCAL_TIMEOUT_SECONDS,
+            trust_env=False,  # never through a proxy from the environment
+            follow_redirects=False,
+            headers={"Accept": "application/json", "User-Agent": "Wardmind"},
+        )
+
+    @property
+    def base_url(self) -> str:
+        return self._base_url
+
+    def complete(
+        self, messages: list[dict[str, str]], model: str, *, allow_training: bool = False
+    ) -> tuple[str, Usage]:
+        """POST CHAT_PATH with model, messages, max_tokens and a strict json_schema
+        response_format. A server that refuses response_format (400 or 422) is asked once more
+        without it; the system prompt asks for JSON and parse_answer copes. allow_training is
+        ignored: nothing leaves this computer. Returns (content, usage without a cost)."""
+        del allow_training
+        body: dict[str, Any] = {
+            "model": model,
+            "messages": messages,
+            "max_tokens": MAX_OUTPUT_TOKENS,
+            "stream": False,
+            "response_format": {
+                "type": "json_schema",
+                "json_schema": {
+                    "name": "account_summary",
+                    "strict": True,
+                    "schema": SUMMARY_SCHEMA,
+                },
+            },
+        }
+        response = self._send("POST", CHAT_PATH, body)
+        if response.status_code in (400, 422):
+            plain = {key: value for key, value in body.items() if key != "response_format"}
+            response = self._send("POST", CHAT_PATH, plain)
+        if response.status_code == 404:
+            raise AIUnavailable(_LOCAL_NO_MODEL.format(url=self._base_url, model=model))
+        data = self._check(response)
+        choices = data.get("choices")
+        if not isinstance(choices, list) or not choices or not isinstance(choices[0], dict):
+            raise AIUnavailable(_NO_ANSWER)
+        message = choices[0].get("message")
+        content = message.get("content") if isinstance(message, dict) else None
+        if not isinstance(content, str) or not content.strip():
+            raise AIUnavailable(_NO_ANSWER)
+        usage = _usage(data.get("usage"))
+        return content, usage.model_copy(update={"cost_usd": None})
+
+    def models(self) -> list[str]:
+        """GET /models: the names of the models the server has, sorted, at most
+        MAX_LOCAL_MODELS, each one line of at most 100 characters. For "Test connection"."""
+        data = self._check(self._send("GET", "/models"))
+        listed = data.get("data")
+        if not isinstance(listed, list):
+            raise AIUnavailable(_LOCAL_UNREADABLE)
+        names = {
+            _plain(item["id"], 100)
+            for item in listed
+            if isinstance(item, dict) and isinstance(item.get("id"), str) and item["id"].strip()
+        }
+        return sorted(names, key=str.casefold)[:MAX_LOCAL_MODELS]
+
+    def close(self) -> None:
+        self._http.close()
+
+    def __repr__(self) -> str:
+        return f"LocalModelClient(base_url={self._base_url!r})"
+
+    def _send(self, method: str, path: str, body: dict[str, Any] | None = None) -> httpx.Response:
+        try:
+            return self._http.request(method, path, json=body)
+        except httpx.TimeoutException as error:
+            raise AIUnavailable(_LOCAL_TIMED_OUT) from error
+        except httpx.HTTPError as error:
+            raise AIUnavailable(_LOCAL_UNREACHABLE.format(url=self._base_url)) from error
+
+    def _check(self, response: httpx.Response) -> dict[str, Any]:
+        status = response.status_code
+        if 200 <= status < 300:
+            try:
+                data = response.json()
+            except ValueError:
+                raise AIUnavailable(_LOCAL_UNREADABLE) from None
+            if not isinstance(data, dict):
+                raise AIUnavailable(_LOCAL_UNREADABLE)
+            return data
+        message = ""
+        try:
+            body = response.json()
+        except ValueError:
+            body = None
+        if isinstance(body, dict):
+            error = body.get("error")
+            raw = error.get("message") if isinstance(error, dict) else error
+            if isinstance(raw, str):
+                message = _plain(raw, _MAX_ERROR_MESSAGE)
+        raise AIUnavailable(
+            f"The model on this computer couldn't make this summary: {message}"
+            if message
+            else f"The model on this computer couldn't make this summary (error {status})."
+        )
 
 
 def sample_summary(account: Account, research: SiteResearch, now: datetime) -> Summary:

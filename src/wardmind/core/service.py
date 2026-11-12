@@ -50,7 +50,15 @@ from wardmind.core.feeds.providers import get_provider
 from wardmind.core.models import Account, Motion, ScoredAccount, Signal, SignalKind
 from wardmind.core.onboarding import OnboardingBrief, onboarding_brief
 from wardmind.core.scoring import latest_signals, score_book
-from wardmind.core.settings import DataSource, Settings, load_settings, save_settings
+from wardmind.core.settings import (
+    AIProvider,
+    DataSource,
+    Settings,
+    check_local_model,
+    check_local_url,
+    load_settings,
+    save_settings,
+)
 from wardmind.core.store import (
     WRITE_LOCK,
     ConnectionConfig,
@@ -449,6 +457,8 @@ def clear_local_cache(now: datetime | None = None) -> CacheCleared:
 # Test-only seam: tests replace this with a factory that builds a client on a MockTransport.
 # The real one reads secrets.get_openrouter_key() and summaries.ENV_API_BASE (localhost only).
 _openrouter_factory: Callable[[], summaries.OpenRouterClient] | None = None
+# The same for a model on this computer: tests build a LocalModelClient on a MockTransport.
+_local_factory: Callable[[str], summaries.LocalModelClient] | None = None
 
 # The one job runner for this process (the web app's "Look up all websites").
 _runner = bulk.JobRunner(clock=lambda: datetime.now(UTC))
@@ -456,6 +466,9 @@ _runner = bulk.JobRunner(clock=lambda: datetime.now(UTC))
 _RESEARCH_FIRST_MESSAGE = "Turn on web research first, in Settings > Data & privacy."
 _AI_OFF_MESSAGE = "AI summaries are off. Turn them on in Settings > Data & privacy."
 _NO_KEY_MESSAGE = "Add your OpenRouter API key in Settings > Data & privacy."
+_NO_LOCAL_MODEL_MESSAGE = (
+    "Choose which model on this computer writes summaries, in Settings > Data & privacy."
+)
 _MODEL_MESSAGE = "That isn't an OpenRouter model id, like anthropic/claude-haiku-5.5."
 # Topics next to My book come from articles no older than this many days.
 _FLAG_DAYS = 90
@@ -470,6 +483,10 @@ def _ai_problem() -> summaries.SummaryError | None:
     if not settings.ai_summaries:
         return summaries.SummariesOff(_AI_OFF_MESSAGE)
     if settings.source is DataSource.DEMO:
+        return None
+    if settings.ai_provider is AIProvider.LOCAL:
+        if not settings.local_ai_model:
+            return summaries.NoLocalModel(_NO_LOCAL_MODEL_MESSAGE)
         return None
     if secrets.get_openrouter_key() is None:
         return summaries.NoKey(_NO_KEY_MESSAGE)
@@ -486,9 +503,13 @@ def ai_ready() -> str | None:
 def ai_training_model() -> str | None:
     """The chosen model when its providers may train on what they're sent
     (summaries.trains_on_data) and using it would send something; None otherwise. Demo mode
-    sends nothing, so it is None there."""
+    sends nothing, so it is None there, and so does a model on this computer."""
     settings = load_settings()
-    if settings.source is DataSource.DEMO or not summaries.trains_on_data(settings.ai_model):
+    if (
+        settings.source is DataSource.DEMO
+        or settings.ai_provider is AIProvider.LOCAL
+        or not summaries.trains_on_data(settings.ai_model)
+    ):
         return None
     return settings.ai_model
 
@@ -514,9 +535,20 @@ def saved_summary(account_id: str) -> summaries.Summary | None:
     return summary_store().get(account_id)
 
 
-def _client() -> summaries.OpenRouterClient:
-    """A client for one call. Callers check _ai_problem() first, so a missing key is only
-    reported here as a guard for the real factory."""
+def _local_client(base_url: str) -> summaries.LocalModelClient:
+    """A client for the model server on this computer at `base_url`."""
+    if _local_factory is not None:
+        return _local_factory(base_url)
+    return summaries.LocalModelClient(base_url)
+
+
+def _client() -> summaries.OpenRouterClient | summaries.LocalModelClient:
+    """A client for one call: the model on this computer when that is chosen, else OpenRouter.
+    Callers check _ai_problem() first, so a missing key is only reported here as a guard for
+    the real factory."""
+    settings = load_settings()
+    if settings.ai_provider is AIProvider.LOCAL:
+        return _local_client(settings.local_ai_url)
     if _openrouter_factory is not None:
         return _openrouter_factory()
     key = secrets.get_openrouter_key()
@@ -538,9 +570,15 @@ def _summary_one(
     settings = load_settings()
     store = summary_store()
     demo = settings.source is DataSource.DEMO
-    model = summaries.SAMPLE_MODEL if demo else settings.ai_model
+    local = settings.ai_provider is AIProvider.LOCAL
+    model = settings.local_ai_model if local else settings.ai_model
+    # The name a saved summary carries: a local model's is "local/<name>" (summaries.summarise).
+    if demo:
+        saved_as = summaries.SAMPLE_MODEL
+    else:
+        saved_as = summaries.local_model_id(model) if local else model
     if not refresh:
-        saved = store.fresh(account.id, found, model)
+        saved = store.fresh(account.id, found, saved_as)
         if saved is not None:
             return saved, True
     now = datetime.now(UTC)
@@ -700,6 +738,39 @@ def set_ai_model(model: str) -> None:
     time each account is summarised, because a summary is only fresh for its own model."""
     value = checked_ai_model(model)
     save_settings(load_settings().model_copy(update={"ai_model": value}))
+
+
+def checked_local_ai(url: str, model: str) -> tuple[str, str]:
+    """The local model server's address and model name, cleaned, or ValueError with the reason
+    (settings.check_local_url / check_local_model). Saves nothing."""
+    return check_local_url(url), check_local_model(model)
+
+
+def set_ai_provider(provider: AIProvider, url: str, model: str) -> None:
+    """Save who writes AI summaries, and the local server's address and model name (kept even
+    while OpenRouter is chosen). Raises ValueError like checked_local_ai. Saved summaries are
+    kept; each is only reused for the model that wrote it."""
+    clean_url, clean_model = checked_local_ai(url, model)
+    save_settings(
+        load_settings().model_copy(
+            update={
+                "ai_provider": provider,
+                "local_ai_url": clean_url,
+                "local_ai_model": clean_model,
+            }
+        )
+    )
+
+
+def local_models(url: str) -> list[str]:
+    """The models the server at `url` (on this computer) has, for "Test connection". Raises
+    ValueError for an address off this computer, and summaries.AIUnavailable when it can't be
+    reached or read. Only that server is contacted."""
+    client = _local_client(check_local_url(url))
+    try:
+        return client.models()
+    finally:
+        client.close()
 
 
 def check_openrouter_key() -> summaries.KeyInfo:
