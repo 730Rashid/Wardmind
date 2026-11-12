@@ -41,7 +41,7 @@
               {% if logos is defined %}{{ account_logo(item.account.id, item.account.name, logos) }}{% endif %}
               <a class="account-link" href="/accounts/{{ item.account.id | idpath }}">{{ item.account.name }}</a>
               <span class="health health--{{ item.health.value }}"><svg class="icon" aria-hidden="true" focusable="false"><use href="/static/icons.svg#health-{{ item.health.value | replace('_', '-') }}"/></svg> {{ item.health.label }}</span>
-              <span class="top-motion">{{ motion_labels[item.motion] }}</span>
+              <span class="top-motion pill pill--{{ item.motion.value }}"><svg class="icon" aria-hidden="true" focusable="false"><use href="/static/icons.svg#motion-{{ item.motion.value }}"/></svg>{{ motion_labels[item.motion] }}</span>
               <span class="num">{{ item.account.arr | money }}</span>
             </p>
             <p class="top-reason">{{ item.top_reason }}</p>

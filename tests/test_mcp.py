@@ -9,6 +9,7 @@ from typing import Any
 
 import pytest
 from mcp import Client, StdioServerParameters
+from mcp.client.stdio import get_default_environment
 from mcp.types import CallToolResult
 
 from wardmind.core import books, briefs, contacts, service, summaries
@@ -225,7 +226,14 @@ async def test_weekly_brief_counts_the_whole_book_and_lists_ten_rows():
     reason="WARDMIND_SKIP_SUBPROCESS=1 skips the slow stdio smoke test",
 )
 async def test_stdio_subprocess_serves_the_tools():
-    params = StdioServerParameters(command=sys.executable, args=["-m", "wardmind", "mcp"], cwd=REPO)
+    # The SDK hands a stdio server only a short list of safe variables, so pass the test's own
+    # WARDMIND_* folders through; without them the server would read the real config/ folder.
+    env = get_default_environment() | {
+        key: value for key, value in os.environ.items() if key.startswith("WARDMIND_")
+    }
+    params = StdioServerParameters(
+        command=sys.executable, args=["-m", "wardmind", "mcp"], cwd=REPO, env=env
+    )
     async with asyncio.timeout(SUBPROCESS_TIMEOUT_S):
         async with Client(params) as client:
             tools = await client.list_tools()

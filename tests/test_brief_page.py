@@ -223,7 +223,12 @@ def test_top_list_has_ten_accounts_in_book_order(client: TestClient, brief: Week
         assert html.escape(scored.account.name) in item
         assert f'class="health health--{scored.health.value}"' in item
         assert scored.health.label in _plain(item)
-        assert f'<span class="top-motion">{motion_labels[scored.motion]}</span>' in item
+        motion = scored.motion.value
+        assert (
+            f'<span class="top-motion pill pill--{motion}"><svg class="icon" aria-hidden="true" '
+            f'focusable="false"><use href="/static/icons.svg#motion-{motion}"/></svg>'
+            f"{motion_labels[scored.motion]}</span>"
+        ) in item
         assert web.money(scored.account.arr) in item
         assert f'<p class="top-reason">{html.escape(scored.top_reason)}</p>' in item
         assert '<span class="top-next-label">Next step:</span>' in item

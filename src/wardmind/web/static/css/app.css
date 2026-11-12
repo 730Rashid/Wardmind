@@ -4926,7 +4926,6 @@ a.button-primary {
 
 .trend-frame {
   position: relative;
-  max-inline-size: 44rem;
 }
 
 .trend-chart {
@@ -9721,6 +9720,16 @@ thead th {
   padding-block-start: 0;
 }
 
+/* An older narrow-screen rule stacks the row's head centred; keep it at the start, like the rest. */
+.since-list.rows .since-head {
+  align-items: flex-start;
+}
+
+/* The header and its hairline run the full width of the page above the filter panel. */
+.book-screen .book-head .page-head {
+  inline-size: 100%;
+}
+
 .book-screen .since-row {
   gap: var(--space-1);
 }
@@ -11184,6 +11193,11 @@ thead th {
   inline-size: 100%;
 }
 
+/* A connection's mark is its short name, not a rank: no "#" from .account-card .rank-tile. */
+.provider-card .mark-tile::before {
+  content: none;
+}
+
 .provider-card .mark-tile {
   min-inline-size: 2.5rem;
   block-size: 2.25rem;
@@ -11860,13 +11874,8 @@ thead th {
     line-height: 1.35;
   }
 
+  /* The motion is the same coloured chip as on My book (.pill--<motion>). */
   .top-motion {
-    padding: 0.0625rem 0.5rem;
-    border: 1px solid var(--line-strong);
-    border-radius: var(--radius-tag);
-    color: var(--ink-muted);
-    font-size: var(--t-sm);
-    line-height: 1.25rem;
     white-space: nowrap;
   }
 
