@@ -1,0 +1,45 @@
+{# Your own signals, under the built-in sliders on Settings > Scoring: the list, then the add form (or
+   a sentence when the list is full). It sits outside the built-in form, so the two never nest. #}
+{% from "settings/partials/custom_signal_fields.html" import signal_fields %}
+
+<section class="settings-card custom-signals" id="custom-signals" aria-labelledby="custom-signals-title">
+  <h2 class="section-title" id="custom-signals-title">Your own signals</h2>
+  <p class="field-help">Signals you define for this book, such as API calls a week, reports exported or admins active. They score, explain and drive the questions and next steps the same way the built-in signals do.</p>
+
+  {% if custom_notice %}<p class="settings-status" role="status">{{ custom_notice }}</p>{% endif %}
+
+  {% if custom_rows %}
+  <ul class="rows custom-signal-list">
+    {% for row in custom_rows %}
+    <li class="custom-signal" id="custom-signal-{{ row.id }}">
+      <div class="custom-signal-head">
+        <p class="custom-signal-name">{{ row.name }}</p>
+        <div class="custom-signal-actions">
+          <a class="custom-action" href="/settings/scoring/custom/{{ row.id | idpath }}">Edit<span class="visually-hidden"> {{ row.name }}</span></a>
+          <a class="custom-action" href="/settings/scoring/custom/{{ row.id | idpath }}/remove">Remove<span class="visually-hidden"> {{ row.name }}</span></a>
+        </div>
+      </div>
+      <p class="custom-signal-rule">{{ row.rule }}</p>
+      <p class="custom-signal-meta">{{ row.meta }}</p>
+    </li>
+    {% endfor %}
+  </ul>
+  {% else %}
+  <p class="custom-signals-empty">You haven't added any signals yet. Custom signals are numbers you track for this book. Then map a column to it when you import a spreadsheet or add a connection, or type a reading on an account.</p>
+  {% endif %}
+
+  {% if custom_can_add %}
+  <form class="settings-form custom-signal-form" id="custom-signal-add" method="post" action="/settings/scoring/custom" novalidate>
+    <h3 class="custom-signal-form-title">Add a signal</h3>
+    {% if custom_errors %}<p class="field-error" role="alert">Nothing was saved. Fix the marked settings, then add the signal again.</p>{% endif %}
+    {% if custom_errors.form %}<p class="field-error">{{ custom_errors.form }}</p>{% endif %}
+    {{ signal_fields(custom_values, custom_errors, custom_limits) }}
+    <div class="settings-actions">
+      <button type="submit" class="button-primary">Add signal</button>
+    </div>
+  </form>
+  {% else %}
+  {# A full list says so, and hides the add form. A refused add (422) says it in the alert form. #}
+  <p class="{{ 'field-error' if custom_errors.form else 'field-help' }} custom-signals-full"{% if custom_errors.form %} role="alert"{% endif %}>You have {{ custom_max }} of your own signals, the most Wardmind keeps. Remove one to add another.</p>
+  {% endif %}
+</section>

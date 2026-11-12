@@ -36,7 +36,15 @@ from pydantic import BaseModel, Field
 
 from wardmind.core import vault
 from wardmind.core.config import ScoringConfig
-from wardmind.core.models import Account, Health, Motion, ScoredAccount, Signal, SignalKind
+from wardmind.core.models import (
+    Account,
+    Health,
+    Motion,
+    ScoredAccount,
+    Signal,
+    SignalKey,
+    SignalKind,
+)
 from wardmind.core.scoring import _whole, latest_signals, score_book
 from wardmind.core.store import HISTORY_DIR, WRITE_LOCK, LocalStore
 
@@ -57,7 +65,8 @@ class SnapshotEntry(BaseModel):
     health: Health
     motion: Motion
     arr: float
-    signals: dict[SignalKind, float] = Field(default_factory=dict)  # latest value of each signal
+    # Latest value of each signal: the built in, and the book's own ("custom:<id>" keys).
+    signals: dict[SignalKey, float] = Field(default_factory=dict)
 
 
 class BookSnapshot(BaseModel):
@@ -135,9 +144,24 @@ def snapshot_of(
             health=scored.health,
             motion=scored.motion,
             arr=account.arr,
-            signals={kind: readings[kind].value for kind in SignalKind if kind in readings},
+            signals={kind: readings[kind].value for kind in _in_book_order(readings)},
         )
     return BookSnapshot(day=day, taken_at=now, accounts=accounts)
+
+
+_BUILTIN_POSITION: dict[SignalKind, int] = {kind: index for index, kind in enumerate(SignalKind)}
+
+
+def _in_book_order(readings: Iterable[SignalKey]) -> list[SignalKey]:
+    """The kinds with readings: the built in in SignalKind order, then the book's own by id. A
+    snapshot keeps every kind that has a reading, including one the book has since removed."""
+
+    def position(kind: SignalKey) -> tuple[int, int, str]:
+        if isinstance(kind, SignalKind):
+            return (0, _BUILTIN_POSITION[kind], "")
+        return (1, 0, kind.value)
+
+    return sorted(readings, key=position)
 
 
 def rescored_snapshot(

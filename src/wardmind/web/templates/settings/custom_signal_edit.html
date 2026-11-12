@@ -1,0 +1,18 @@
+{% extends "settings/layout.html" %}
+{% from "settings/partials/custom_signal_fields.html" import signal_fields %}
+{% block settings %}
+<p class="page-lede">Changing the name keeps the readings already on accounts. The signal keeps its id.</p>
+
+<section class="settings-card custom-signals custom-signal-page" aria-labelledby="custom-signal-edit-title">
+  <h2 class="section-title" id="custom-signal-edit-title">Edit {{ name }}</h2>
+  <form class="settings-form custom-signal-form" method="post" action="/settings/scoring/custom/{{ signal_id | idpath }}" novalidate>
+    {% if errors %}<p class="field-error" role="alert">Nothing was saved. Fix the marked settings, then save again.</p>{% endif %}
+    {% if errors.form %}<p class="field-error">{{ errors.form }}</p>{% endif %}
+    {{ signal_fields(values, errors, limits) }}
+    <div class="settings-actions">
+      <a class="button" href="/settings/scoring#custom-signals">Cancel</a>
+      <button type="submit" class="button-primary">Save changes</button>
+    </div>
+  </form>
+</section>
+{% endblock %}

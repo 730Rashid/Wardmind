@@ -1,0 +1,15 @@
+{% extends "settings/layout.html" %}
+{% block settings %}
+<p class="page-lede">Removing a signal takes it off this book's list.</p>
+
+<section class="settings-card custom-signals custom-signal-page" aria-labelledby="custom-signal-remove-title">
+  <h2 class="section-title" id="custom-signal-remove-title">Remove {{ name }}?</h2>
+  <p class="prose">Its readings stay on accounts but stop counting toward their risk. Adding a signal with the same name later brings them back.</p>
+  <div class="settings-actions">
+    <a class="button" href="/settings/scoring#custom-signals">Keep it</a>
+    <form class="inline-form" method="post" action="/settings/scoring/custom/{{ signal_id | idpath }}/remove">
+      <button type="submit" class="button-primary">Remove signal</button>
+    </form>
+  </div>
+</section>
+{% endblock %}

@@ -1,0 +1,63 @@
+{# The fields of one of the book's own signals. The add form on Scoring and the edit page both use
+   this macro, so the two read the same. `values` is what each field shows and `errors` the message
+   by field name (custom.name and so on); `limits` is the maxlength and day limits (see
+   custom_signals_form.LIMITS). A field with a message is marked invalid and linked to it. #}
+{% import "settings/fields.html" as fields %}
+
+{% macro signal_fields(values, errors, limits) %}
+<fieldset class="settings-part">
+  <legend>The reading</legend>
+  <div class="field">
+    <label for="custom-name">Name</label>
+    <input type="text" id="custom-name" name="custom.name" value="{{ values.get('custom.name', '') }}" maxlength="{{ limits.name }}" required autocomplete="off"{% if errors.get('custom.name') %} aria-invalid="true" aria-describedby="custom-name-error"{% endif %}>
+    {% if errors.get('custom.name') %}<p class="field-error" id="custom-name-error">{{ errors.get('custom.name') }}</p>{% endif %}
+  </div>
+
+  <div class="field">
+    <label for="custom-unit">Unit</label>
+    <p class="field-help" id="custom-unit-help">Shown after each number, such as % or calls. Leave it empty for a plain number.</p>
+    <input type="text" id="custom-unit" name="custom.unit" value="{{ values.get('custom.unit', '') }}" maxlength="{{ limits.unit }}" autocomplete="off" aria-describedby="custom-unit-help{% if errors.get('custom.unit') %} custom-unit-error{% endif %}"{% if errors.get('custom.unit') %} aria-invalid="true"{% endif %}>
+    {% if errors.get('custom.unit') %}<p class="field-error" id="custom-unit-error">{{ errors.get('custom.unit') }}</p>{% endif %}
+  </div>
+
+  <fieldset class="field"{% if errors.get('custom.direction') %} aria-describedby="custom-direction-error"{% endif %}>
+    <legend>Which way is worse?</legend>
+    <div class="choices">
+      <label class="choice"><input type="radio" name="custom.direction" value="lower"{% if values.get('custom.direction') == 'lower' %} checked{% endif %}{% if errors.get('custom.direction') %} aria-invalid="true"{% endif %}> Lower numbers are worse</label>
+      <label class="choice"><input type="radio" name="custom.direction" value="higher"{% if values.get('custom.direction') == 'higher' %} checked{% endif %}{% if errors.get('custom.direction') %} aria-invalid="true"{% endif %}> Higher numbers are worse</label>
+    </div>
+    {% if errors.get('custom.direction') %}<p class="field-error" id="custom-direction-error">{{ errors.get('custom.direction') }}</p>{% endif %}
+  </fieldset>
+
+  <div class="signal-range">
+    {{ fields.number_field(name="custom.start", label="Risk starts at", value=values.get('custom.start', ''), error=errors.get('custom.start', ''), hint_id="custom-range-help") }}
+    {{ fields.number_field(name="custom.full", label="Risk is maxed at", value=values.get('custom.full', ''), error=errors.get('custom.full', ''), hint_id="custom-range-help") }}
+  </div>
+  <p class="field-help" id="custom-range-help">Risk rises in a straight line from the first number to the second, and stops at the second.</p>
+</fieldset>
+
+<fieldset class="settings-part">
+  <legend>Its weight in the score</legend>
+  {{ fields.slider(name="custom.weight", label="Weight", low=0, high=100, step=1, value=values.get('custom.weight', ''), error=errors.get('custom.weight', ''), suffix=" points", singular=" point") }}
+  <p class="field-help">The most risk points this signal can add to an account's score.</p>
+</fieldset>
+
+<fieldset class="settings-part">
+  <legend>On the account</legend>
+  <div class="field">
+    <label for="custom-question">What to ask on a call</label>
+    <p class="field-help" id="custom-question-help">Shown when this is an account's biggest risk. Leave it empty to use a question made from the name.</p>
+    <textarea id="custom-question" name="custom.question" rows="2" maxlength="{{ limits.text }}" aria-describedby="custom-question-help{% if errors.get('custom.question') %} custom-question-error{% endif %}"{% if errors.get('custom.question') %} aria-invalid="true"{% endif %}>{{ values.get('custom.question', '') }}</textarea>
+    {% if errors.get('custom.question') %}<p class="field-error" id="custom-question-error">{{ errors.get('custom.question') }}</p>{% endif %}
+  </div>
+
+  <div class="field">
+    <label for="custom-action">Next step when it's the biggest risk</label>
+    <p class="field-help" id="custom-action-help">Leave it empty to use a step made from the name.</p>
+    <textarea id="custom-action" name="custom.action" rows="2" maxlength="{{ limits.text }}" aria-describedby="custom-action-help{% if errors.get('custom.action') %} custom-action-error{% endif %}"{% if errors.get('custom.action') %} aria-invalid="true"{% endif %}>{{ values.get('custom.action', '') }}</textarea>
+    {% if errors.get('custom.action') %}<p class="field-error" id="custom-action-error">{{ errors.get('custom.action') }}</p>{% endif %}
+  </div>
+
+  {{ fields.number_field(name="custom.stale_days", label="A reading is out of date after", value=values.get('custom.stale_days', ''), error=errors.get('custom.stale_days', ''), step="1", unit="days") }}
+</fieldset>
+{% endmacro %}

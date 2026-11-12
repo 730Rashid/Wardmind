@@ -9,21 +9,22 @@ from datetime import date, datetime
 
 from pydantic import BaseModel
 
+from wardmind.core import signal_info
 from wardmind.core.config import ScoringConfig
-from wardmind.core.models import Health, Motion, Reason, ScoredAccount, Signal, SignalKind
-from wardmind.core.scoring import describe, latest_signals, normalise
+from wardmind.core.models import (
+    Health,
+    Motion,
+    Reason,
+    ScoredAccount,
+    Signal,
+    SignalKey,
+    SignalKind,
+)
+from wardmind.core.scoring import describe, format_number, latest_signals, normalise
 
-# Short names for each signal, used as row labels in the account view.
-SIGNAL_LABELS: dict[SignalKind, str] = {
-    SignalKind.USAGE_TREND_30D: "Usage trend",
-    SignalKind.DAYS_SINCE_LAST_LOGIN: "Last login",
-    SignalKind.OPEN_TICKETS_SEV1: "Severity-1 tickets",
-    SignalKind.NPS_LATEST: "NPS",
-    SignalKind.CHAMPION_LEFT: "Champion",
-    SignalKind.SEAT_UTILISATION: "Seats in use",
-    SignalKind.BILLING_OVERDUE_DAYS: "Billing",
-    SignalKind.ONBOARDING_OVERDUE_MILESTONES: "Onboarding milestones",
-}
+# Short names for the eight built-in signals, used as row labels in the account view. An alias of
+# signal_info.BUILTIN_LABELS; signal_info.label() also names the book's own signals.
+SIGNAL_LABELS: dict[SignalKind, str] = signal_info.BUILTIN_LABELS
 
 
 class WeeklyBrief(BaseModel):
@@ -51,10 +52,11 @@ class Explanation(BaseModel):
 
 
 class BreakdownRow(BaseModel):
-    """One signal's part in the score. The account view shows a row for every signal kind."""
+    """One signal's part in the score. The account view shows a row for every kind the book
+    scores: the eight built in and the book's own."""
 
-    kind: SignalKind
-    label: str  # SIGNAL_LABELS[kind]
+    kind: SignalKey
+    label: str  # signal_info.label(kind, config)
     value_text: str  # describe(kind, latest value), or "No reading" when there is none
     contribution: float  # risk points from the latest reading (0 when none or not triggered)
     max_points: float  # the rule's weight: what this signal adds when fully triggered
@@ -65,10 +67,10 @@ class TimelineEntry(BaseModel):
     """One reading in the account's signal history."""
 
     observed_at: datetime
-    kind: SignalKind
-    label: str  # SIGNAL_LABELS[kind]
+    kind: SignalKey
+    label: str  # signal_info.label(kind, config)
     value: float
-    plain_english: str  # describe(kind, value)
+    plain_english: str  # describe(kind, value), see _describe
     contribution: float  # risk points this reading adds under the current config
     is_latest: bool  # True for the reading the score uses (one per kind)
 
@@ -80,7 +82,7 @@ class AccountDetail(BaseModel):
     book_size: int
     days_since_start: int | None  # None when the account's start date isn't known
     days_to_renewal: int  # negative once the renewal date has passed
-    # Every SignalKind: contribution desc, then kind value asc (the same tie-break as
+    # Every kind the book scores: contribution desc, then kind value asc (the same tie-break as
     # ScoredAccount.reasons, so the non-zero rows match the reasons exactly).
     breakdown: list[BreakdownRow]
     timeline: list[TimelineEntry]  # every reading for the account, newest first
@@ -142,7 +144,7 @@ def account_detail(
     """Everything the account view needs. `signals` is that account's full history.
 
     Returns None when the account isn't in the book. Ties in the timeline (same observed_at)
-    sort by SignalKind order so the output is deterministic.
+    sort by the kind's order in the book (signal_info.order), so the output is deterministic.
     """
     position = next(
         (index for index, item in enumerate(book) if item.account.id == account_id), None
@@ -168,20 +170,23 @@ def account_detail(
 
 
 _NO_READING = "No reading"
-# Declaration position of each kind, the timeline's tie-break on equal observed_at.
-_KIND_ORDER: dict[SignalKind, int] = {kind: index for index, kind in enumerate(SignalKind)}
 
 
-def _breakdown(latest: dict[SignalKind, Signal], config: ScoringConfig) -> list[BreakdownRow]:
+def _breakdown(latest: dict[SignalKey, Signal], config: ScoringConfig) -> list[BreakdownRow]:
+    """A row for every kind the book scores. A kind with no reading reads "No reading" and adds
+    nothing, whether it is built in or the book's own."""
     rows: list[BreakdownRow] = []
-    for kind in SignalKind:
-        rule = config.signals[kind]
+    for kind in config.kinds():
+        rule = config.rule_for(kind)
+        if rule is None:  # kinds() only lists kinds that have a rule; kept for the type checker
+            continue
+        label = signal_info.label(kind, config)
         reading = latest.get(kind)
         if reading is None:
             rows.append(
                 BreakdownRow(
                     kind=kind,
-                    label=SIGNAL_LABELS[kind],
+                    label=label,
                     value_text=_NO_READING,
                     contribution=0.0,
                     max_points=rule.weight,
@@ -192,8 +197,8 @@ def _breakdown(latest: dict[SignalKind, Signal], config: ScoringConfig) -> list[
             rows.append(
                 BreakdownRow(
                     kind=kind,
-                    label=SIGNAL_LABELS[kind],
-                    value_text=describe(kind, reading.value),
+                    label=label,
+                    value_text=describe(kind, reading.value, config.custom_signal(kind)),
                     contribution=_contribution(reading, config),
                     max_points=rule.weight,
                     observed_at=reading.observed_at,
@@ -204,16 +209,20 @@ def _breakdown(latest: dict[SignalKind, Signal], config: ScoringConfig) -> list[
 
 
 def _timeline(
-    readings: list[Signal], latest: dict[SignalKind, Signal], config: ScoringConfig
+    readings: list[Signal], latest: dict[SignalKey, Signal], config: ScoringConfig
 ) -> list[TimelineEntry]:
-    # Newest first. Equal timestamps go by SignalKind order, then by the larger value.
+    # Newest first. Equal timestamps go by the kind's order in the book, then by the larger value.
     ordered = sorted(
         readings,
-        key=lambda signal: (signal.observed_at, -_KIND_ORDER[signal.kind], signal.value),
+        key=lambda signal: (
+            signal.observed_at,
+            -signal_info.order(signal.kind, config),
+            signal.value,
+        ),
         reverse=True,
     )
     entries: list[TimelineEntry] = []
-    flagged: set[SignalKind] = set()
+    flagged: set[SignalKey] = set()
     for signal in ordered:
         # Only the one reading latest_signals picked for each kind is flagged.
         is_latest = signal is latest.get(signal.kind) and signal.kind not in flagged
@@ -223,9 +232,9 @@ def _timeline(
             TimelineEntry(
                 observed_at=signal.observed_at,
                 kind=signal.kind,
-                label=SIGNAL_LABELS[signal.kind],
+                label=signal_info.label(signal.kind, config),
                 value=signal.value,
-                plain_english=describe(signal.kind, signal.value),
+                plain_english=_describe(signal.kind, signal.value, config),
                 contribution=_contribution(signal, config),
                 is_latest=is_latest,
             )
@@ -233,9 +242,20 @@ def _timeline(
     return entries
 
 
+def _describe(kind: SignalKey, value: float, config: ScoringConfig) -> str:
+    """scoring.describe, except that a reading of a custom signal the book has since removed
+    reads "<label>: <value>" (its readable label), not its raw id."""
+    if not isinstance(kind, SignalKind) and config.custom_signal(kind) is None:
+        return f"{signal_info.label(kind, config)}: {format_number(value)}"
+    return describe(kind, value, config.custom_signal(kind))
+
+
 def _contribution(signal: Signal, config: ScoringConfig) -> float:
-    """Risk points one reading adds. Same formula and rounding as scoring.score_account."""
-    rule = config.signals[signal.kind]
+    """Risk points one reading adds. Same formula and rounding as scoring.score_account. A
+    reading of a custom signal the book no longer has adds nothing, as scoring ignores it."""
+    rule = config.rule_for(signal.kind)
+    if rule is None:
+        return 0.0
     return round(rule.weight * normalise(signal.value, rule), 1)
 
 
@@ -330,11 +350,22 @@ _FALLBACK_ACTIONS: dict[Motion, str] = {
 }
 
 
-def suggest_action(motion: Motion, reasons: list[Reason]) -> str:
-    """Next best action from a rule table keyed by (motion, top reason kind), with fallbacks."""
+def suggest_action(
+    motion: Motion, reasons: list[Reason], config: ScoringConfig | None = None
+) -> str:
+    """Next best action from a rule table keyed by (motion, top reason kind), with fallbacks.
+
+    When the top reason is one of the book's own signals and `config` is given, that signal's
+    own action answers (signal_info.custom_action). Without a config, a custom top reason gets
+    the fallback for the motion, as every kind not in the table does."""
     if not reasons:
         return _NO_ACTION
-    return _ACTIONS.get((motion, reasons[0].kind), _FALLBACK_ACTIONS[motion])
+    top = reasons[0].kind
+    if isinstance(top, SignalKind):
+        return _ACTIONS.get((motion, top), _FALLBACK_ACTIONS[motion])
+    if config is not None:
+        return signal_info.custom_action(top, config) or _FALLBACK_ACTIONS[motion]
+    return _FALLBACK_ACTIONS[motion]
 
 
 def weekly_brief(book: list[ScoredAccount], as_of: date, top_n: int = 10) -> WeeklyBrief:

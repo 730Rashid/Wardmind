@@ -351,13 +351,14 @@ def match_options(chosen: str) -> list[dict[str, object]]:
 class MatchRow:
     """One Wardmind field on the matching page."""
 
-    index: int  # its position in importing.IMPORT_FIELDS: the select is column-<index>
+    index: int  # its position in importing.import_fields(): the select is column-<index>
     key: str
     label: str
     help: str
     required: bool
     selected: str  # the chosen column header, or ""
     example: str  # the first data row's cell in that column, or ""
+    custom: bool = False  # one of the open book's own signals
 
 
 def _update_rows(mapping: Mapping[str, str], table: importing.Table) -> list[MatchRow]:
@@ -392,7 +393,7 @@ def match_rows(
     feed maps the client update questions."""
     if role is FeedRole.CLIENT_UPDATES:
         return _update_rows(mapping, table)
-    indexed = list(enumerate(importing.IMPORT_FIELDS))
+    indexed = list(enumerate(importing.import_fields()))
     if role is FeedRole.SIGNALS:
         key_order = {key: position for position, key in enumerate(signals.KEY_FIELDS)}
         indexed = [
@@ -417,6 +418,7 @@ def match_rows(
                 required=role is FeedRole.ACCOUNTS and spec.required,
                 selected=header,
                 example=example,
+                custom=importing.is_custom_field(spec.key),
             )
         )
     return rows

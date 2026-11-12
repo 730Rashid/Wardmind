@@ -35,7 +35,8 @@ SAVED_NOTICE = (
     "Scoring saved. Every screen and Claude now use it.</p>"
 )
 DEFAULTS_NOTICE = (
-    '<p class="settings-status" role="status">Showing the defaults. Save changes to use them.</p>'
+    '<p class="settings-status" role="status">Showing the defaults. Your own signals are kept. '
+    "Save changes to use them.</p>"
 )
 VOID = {"area", "base", "br", "col", "embed", "hr", "img", "input", "link", "meta", "use", "wbr"}
 
@@ -293,11 +294,17 @@ def test_a_cross_site_post_is_refused_and_writes_nothing(
 def test_the_save_button_is_a_plain_submit_outside_the_htmx_wrapper(client: TestClient) -> None:
     text = client.get("/settings/scoring").text
     walk = _walk(text)
-    # The header's book switcher has forms of its own; only the page's forms are counted here.
+    # The header's book switcher has forms of its own; only the page's forms are counted here. Your
+    # own signals (Settings > Scoring, below the form) have an add form of their own, in their card;
+    # test_custom_signals_settings.py checks that one.
     forms = [
         (attrs, ancestors)
         for tag, attrs, ancestors in walk
-        if tag == "form" and attrs.get("action") != "/books/switch"
+        if tag == "form"
+        and attrs.get("action") != "/books/switch"
+        and not any(
+            name == "section" and found.get("id") == "custom-signals" for name, found in ancestors
+        )
     ]
     assert len(forms) == 1
     form, _ = forms[0]

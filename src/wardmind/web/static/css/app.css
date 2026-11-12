@@ -12403,3 +12403,165 @@ thead th {
     margin: 0;
   }
 }
+
+/* ===== Settings > Scoring: your own signals (custom signals) ===== */
+/* =================================================================================================
+   The book's own signals, under the built-in sliders on Settings > Scoring, and their edit and
+   remove pages. A white hairline card with its list (ul.rows, a hairline between signals), the
+   add form below it, and the save actions at the bottom right. Every rule is scoped to the
+   .custom-signals classes and uses tokens only, so dark mode and every accent follow.
+   ================================================================================================= */
+
+/* The built-in card and this one stack in the left column; the preview stays beside them. */
+.scoring-main {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+  min-inline-size: 0;
+}
+
+.custom-signals {
+  gap: var(--space-4);
+  scroll-margin-block-start: var(--space-6);
+}
+
+.custom-signals > .section-title {
+  margin: 0;
+}
+
+.custom-signals > .field-help,
+.custom-signals > .custom-signals-empty,
+.custom-signals > .custom-signals-full {
+  margin: 0;
+  font-size: var(--t-sm);
+  line-height: var(--lh-sm);
+  color: var(--ink-muted);
+}
+
+.custom-signals > .custom-signals-empty {
+  font-size: var(--t-body);
+  line-height: var(--lh-body);
+  color: var(--ink);
+}
+
+.custom-signals > .custom-signals-full.field-error {
+  font-size: var(--t-body);
+  line-height: var(--lh-body);
+}
+
+.custom-signals > .settings-status {
+  margin: 0;
+}
+
+/* Each signal: its name over the action links, then the range in a sentence and the rule in grey. */
+.custom-signals .custom-signal-list > .custom-signal {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.custom-signals .custom-signal-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2) var(--space-3);
+}
+
+.custom-signals .custom-signal-name {
+  margin: 0;
+  font-size: var(--t-body);
+  line-height: var(--lh-body);
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.custom-signals .custom-signal-rule {
+  margin: 0;
+  font-size: var(--t-body);
+  line-height: var(--lh-body);
+  color: var(--ink);
+}
+
+.custom-signals .custom-signal-meta {
+  margin: 0;
+  font-size: var(--t-sm);
+  line-height: var(--lh-sm);
+  color: var(--ink-muted);
+}
+
+.custom-signals .custom-signal-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+/* Edit and Remove are secondary actions: a white box with a soft border, as the buttons are. */
+.custom-signals .custom-action {
+  display: inline-flex;
+  align-items: center;
+  min-block-size: 2rem;
+  padding: 0.25rem 0.75rem;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-control);
+  background: var(--surface);
+  color: var(--ink);
+  font-size: var(--t-ui);
+  line-height: 1.35;
+  font-weight: 500;
+  text-decoration: none;
+}
+
+.custom-signals .custom-action:hover {
+  background: var(--sunken);
+  border-color: var(--control);
+  text-decoration: none;
+}
+
+/* The add form (and the edit page's form) sits under a hairline, one column of at most 40rem. */
+.custom-signals .custom-signal-form {
+  gap: var(--space-4);
+  max-inline-size: 40rem;
+}
+
+.custom-signals .custom-signal-list + .custom-signal-form,
+.custom-signals .custom-signals-empty + .custom-signal-form {
+  padding-block-start: var(--space-4);
+  border-block-start: 1px solid var(--line);
+}
+
+.custom-signals .custom-signal-form-title {
+  margin: 0;
+  font-size: var(--t-card);
+  line-height: 1.35;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.custom-signals .custom-signal-form .settings-part {
+  gap: var(--space-3);
+}
+
+.custom-signals .custom-signal-form .settings-part legend {
+  font-size: var(--t-md);
+  line-height: var(--lh-md);
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.custom-signals .custom-signal-form .choices {
+  align-items: flex-start;
+}
+
+/* The edit and remove pages are one card each; their actions sit at the bottom right. */
+.custom-signal-page {
+  max-inline-size: 40rem;
+}
+
+.custom-signal-page > .prose {
+  margin: 0;
+}
+
+.custom-signal-page .settings-actions {
+  margin-block-start: 0;
+}

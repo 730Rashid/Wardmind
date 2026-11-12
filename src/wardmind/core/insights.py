@@ -16,16 +16,25 @@ from __future__ import annotations
 
 import itertools
 import math
-from collections.abc import Iterator
+from collections.abc import Callable
 from datetime import date, timedelta
 from enum import StrEnum
+from functools import partial
 
 from pydantic import BaseModel
 
-from wardmind.core.briefs import SIGNAL_LABELS
+from wardmind.core import signal_info
 from wardmind.core.config import MotionWindows, ScoringConfig, SignalRule
-from wardmind.core.models import Account, Health, Motion, ScoredAccount, Signal, SignalKind
-from wardmind.core.scoring import _whole, describe, score_account
+from wardmind.core.models import (
+    Account,
+    Health,
+    Motion,
+    ScoredAccount,
+    Signal,
+    SignalKey,
+    SignalKind,
+)
+from wardmind.core.scoring import _spaced, _whole, describe, format_number, score_account
 
 # --- What would it take ----------------------------------------------------------------------
 
@@ -33,8 +42,8 @@ from wardmind.core.scoring import _whole, describe, score_account
 class Fix(BaseModel):
     """One change to one signal's reading."""
 
-    kind: SignalKind
-    label: str  # briefs.SIGNAL_LABELS[kind]
+    kind: SignalKey
+    label: str  # signal_info.label(kind, config)
     now_text: str  # scoring.describe(kind, current value)
     # What to do: sentence case, no full stop, e.g. "Close 1 of the 2 severity-1 tickets".
     goal_text: str
@@ -57,7 +66,7 @@ class PathDown(BaseModel):
 
 def path_down(
     scored: ScoredAccount,
-    latest: dict[SignalKind, Signal],
+    latest: dict[SignalKey, Signal],
     config: ScoringConfig,
     as_of: date,
 ) -> PathDown | None:
@@ -74,12 +83,12 @@ def path_down(
     value towards rule.start (the first step is the nearest whole number strictly closer to
     rule.start; the last step is rule.start itself), and keep the first step that is enough. That
     step is `target_value`. Order: the share of the rule's range moved,
-    abs(target - current) / abs(rule.full - rule.start), ascending; then SignalKind order.
+    abs(target - current) / abs(rule.full - rule.start), ascending; then the kind's book order.
 
     together: only when no single change is enough. The smallest set of candidate kinds whose
     readings, all set to rule.start, are enough together. Ties: smallest total share moved, then
-    the set whose kinds come first in SignalKind order. Each Fix has target_value = rule.start.
-    Listed in SignalKind order.
+    the set whose kinds come first in book order. Each Fix has target_value = rule.start.
+    Listed in book order (signal_info.order).
 
     not_enough: labels of candidate kinds that are not in `single`, in `scored.reasons` order.
     When `single` is empty this is every candidate (together still lists what works).
@@ -101,6 +110,9 @@ def path_down(
                          "Complete the overdue milestone" / "Complete both overdue milestones"
                          / f"Complete all {n} overdue milestones"
                          / f"Complete {n - t} of the {n} overdue milestones"
+      a custom signal (the book's own): f"Get {name} to {t} or more"; f"Get {name} down to {t}
+                         or less" when its start is below its full (_custom_goal_text), with the
+                         unit after the number
 
     summary:
       single -> f"{single[0].goal_text} and this drops to {target.label}."
@@ -116,25 +128,35 @@ def path_down(
     threshold = config.thresholds.at_risk if current is Health.AT_RISK else config.thresholds.watch
     risk = scored.risk
     points_needed = round(round(risk - threshold, 1) + 0.1, 1)
-    candidates = [reason.kind for reason in scored.reasons]
-    order = {kind: index for index, kind in enumerate(SignalKind)}
+    # Each contributing kind with its rule: the built in and the book's own. A kind the book no
+    # longer has has no rule and can't be changed, so it is not a candidate.
+    rules: dict[SignalKey, SignalRule] = {}
+    for reason in scored.reasons:
+        rule = config.rule_for(reason.kind)
+        if rule is not None:
+            rules[reason.kind] = rule
+    candidates = list(rules)
+    order = {kind: signal_info.order(kind, config) for kind in candidates}
 
-    def rescore(changes: dict[SignalKind, float]) -> ScoredAccount:
+    def rescore(changes: dict[SignalKey, float]) -> ScoredAccount:
         readings = dict(latest)
         for kind, value in changes.items():
             readings[kind] = latest[kind].model_copy(update={"value": value})
         return score_account(scored.account, readings, config, as_of)
 
+    def clears(kind: SignalKey, reading: float) -> bool:
+        """True when this one reading alone brings the account to `target` or better."""
+        return _enough(rescore({kind: reading}).health, target)
+
     found: list[tuple[float, int, Fix]] = []
     for kind in candidates:
-        rule = config.signals[kind]
+        rule = rules[kind]
         value = latest[kind].value
-        for step in _steps(value, rule.start):
+        step = _first_enough(value, rule.start, partial(clears, kind))
+        if step is not None:
             after = rescore({kind: step})
-            if _enough(after.health, target):
-                fix = _fix(kind, value, step, round(risk - after.risk, 1))
-                found.append((_share(rule, value, step), order[kind], fix))
-                break
+            fix = _fix(kind, value, step, round(risk - after.risk, 1), config)
+            found.append((_share(rule, value, step), order[kind], fix))
     found.sort(key=lambda item: (item[0], item[1]))
     single = [fix for _, _, fix in found]
 
@@ -142,13 +164,12 @@ def path_down(
     if not single:
         ordered = sorted(candidates, key=lambda kind: order[kind])
         for size in range(1, len(ordered) + 1):
-            options: list[tuple[float, list[int], tuple[SignalKind, ...], ScoredAccount]] = []
+            options: list[tuple[float, list[int], tuple[SignalKey, ...], ScoredAccount]] = []
             for combo in itertools.combinations(ordered, size):
-                after = rescore({kind: config.signals[kind].start for kind in combo})
+                after = rescore({kind: rules[kind].start for kind in combo})
                 if _enough(after.health, target):
                     moved = sum(
-                        _share(config.signals[kind], latest[kind].value, config.signals[kind].start)
-                        for kind in combo
+                        _share(rules[kind], latest[kind].value, rules[kind].start) for kind in combo
                     )
                     options.append((round(moved, 9), [order[kind] for kind in combo], combo, after))
             if options:
@@ -157,15 +178,18 @@ def path_down(
                     _fix(
                         kind,
                         latest[kind].value,
-                        config.signals[kind].start,
+                        rules[kind].start,
                         round(risk - after.risk, 1),
+                        config,
                     )
                     for kind in combo
                 ]
                 break
 
     single_kinds = {fix.kind for fix in single}
-    not_enough = [SIGNAL_LABELS[kind] for kind in candidates if kind not in single_kinds]
+    not_enough = [
+        signal_info.label(kind, config) for kind in candidates if kind not in single_kinds
+    ]
     if single:
         summary = f"{single[0].goal_text} and this drops to {target.label}."
     elif together:
@@ -191,17 +215,9 @@ def path_down(
 # --- How sure is this score ------------------------------------------------------------------
 
 # A reading older than this many days (as_of minus observed_at's date) is out of date. NPS
-# surveys and champion checks are naturally less frequent than product data.
-STALE_AFTER_DAYS: dict[SignalKind, int] = {
-    SignalKind.USAGE_TREND_30D: 30,
-    SignalKind.DAYS_SINCE_LAST_LOGIN: 30,
-    SignalKind.OPEN_TICKETS_SEV1: 30,
-    SignalKind.NPS_LATEST: 180,
-    SignalKind.CHAMPION_LEFT: 90,
-    SignalKind.SEAT_UTILISATION: 30,
-    SignalKind.BILLING_OVERDUE_DAYS: 30,
-    SignalKind.ONBOARDING_OVERDUE_MILESTONES: 30,
-}
+# surveys and champion checks are naturally less frequent than product data. An alias of
+# signal_info.BUILTIN_STALE_DAYS; a custom signal sets its own (signal_info.stale_days).
+STALE_AFTER_DAYS: dict[SignalKind, int] = signal_info.BUILTIN_STALE_DAYS
 
 
 class Confidence(StrEnum):
@@ -215,28 +231,35 @@ class Confidence(StrEnum):
 
 
 class ReadingAge(BaseModel):
-    kind: SignalKind
-    label: str  # briefs.SIGNAL_LABELS[kind]
+    kind: SignalKey
+    label: str  # signal_info.label(kind, config)
     age_days: int | None  # max(0, (as_of - observed_at.date()).days); None when no reading
-    stale: bool  # age_days > STALE_AFTER_DAYS[kind]; False when there is no reading
+    stale: bool  # age_days > signal_info.stale_days(kind, config); False when there is no reading
 
 
 class ScoreConfidence(BaseModel):
     level: Confidence
-    relevant: int  # kinds that count: all 8 in onboarding, else all but onboarding milestones
+    relevant: int  # kinds that count: all in onboarding, else all but onboarding milestones
     fresh: int  # relevant kinds with a reading that isn't stale
-    missing: list[str]  # labels of relevant kinds with no reading, SignalKind order
-    stale: list[str]  # labels of relevant kinds whose latest reading is stale, SignalKind order
+    missing: list[str]  # labels of relevant kinds with no reading, in the book's kind order
+    stale: list[str]  # labels of relevant kinds whose latest reading is stale, same order
     oldest_age_days: int | None  # oldest relevant reading present; None when none are present
-    ages: list[ReadingAge]  # every SignalKind, in SignalKind order (relevant or not)
+    ages: list[ReadingAge]  # every kind the book scores, in that order (relevant or not)
     blind_spot: bool  # health is HEALTHY and level is THIN: it may only look healthy
     sentence: str  # see score_confidence
 
 
 def score_confidence(
-    scored: ScoredAccount, latest: dict[SignalKind, Signal], as_of: date
+    scored: ScoredAccount,
+    latest: dict[SignalKey, Signal],
+    as_of: date,
+    config: ScoringConfig | None = None,
 ) -> ScoreConfidence:
     """How much data the score rests on.
+
+    The kinds counted are config.kinds(): the built in and the book's own, each relevant like a
+    built-in. Without `config`, the built-in kinds and any custom reading in `latest` count (a
+    custom reading then reads by its id, as one the book has removed).
 
     Level: FULL when fresh == relevant; THIN when fresh * 2 <= relevant; else PARTIAL.
 
@@ -248,16 +271,18 @@ def score_confidence(
         Lists join labels with ", " and a final " and "; labels keep their own case.
     """
     onboarding = scored.motion is Motion.ONBOARDING
+    scoring = config if config is not None else ScoringConfig()
+    kinds = scoring.kinds() if config is not None else _kinds_read(latest)
     ages: list[ReadingAge] = []
-    for kind in SignalKind:
+    for kind in kinds:
         signal = latest.get(kind)
         age_days = None if signal is None else max(0, (as_of - signal.observed_at.date()).days)
         ages.append(
             ReadingAge(
                 kind=kind,
-                label=SIGNAL_LABELS[kind],
+                label=signal_info.label(kind, scoring),
                 age_days=age_days,
-                stale=age_days is not None and age_days > STALE_AFTER_DAYS[kind],
+                stale=age_days is not None and age_days > signal_info.stale_days(kind, scoring),
             )
         )
     relevant_ages = [
@@ -309,13 +334,16 @@ def score_confidence(
 
 def book_confidence(
     book: list[ScoredAccount],
-    latest_by_account: dict[str, dict[SignalKind, Signal]],
+    latest_by_account: dict[str, dict[SignalKey, Signal]],
     as_of: date,
+    config: ScoringConfig | None = None,
 ) -> dict[str, ScoreConfidence]:
     """score_confidence for every account in the book, keyed by account id. An account missing
-    from `latest_by_account` has no readings."""
+    from `latest_by_account` has no readings. `config` is as for score_confidence."""
     return {
-        item.account.id: score_confidence(item, latest_by_account.get(item.account.id, {}), as_of)
+        item.account.id: score_confidence(
+            item, latest_by_account.get(item.account.id, {}), as_of, config
+        )
         for item in book
     }
 
@@ -446,7 +474,7 @@ class Shelfware(BaseModel):
 
 def shelfware(
     account: Account,
-    latest: dict[SignalKind, Signal],
+    latest: dict[SignalKey, Signal],
     as_of: date,
     windows: MotionWindows,
 ) -> Shelfware | None:
@@ -510,7 +538,7 @@ class ShelfwareSummary(BaseModel):
 
 def renewal_shelfware(
     book: list[ScoredAccount],
-    latest_by_account: dict[str, dict[SignalKind, Signal]],
+    latest_by_account: dict[str, dict[SignalKey, Signal]],
     as_of: date,
     windows: MotionWindows,
     limit: int = 5,
@@ -548,20 +576,33 @@ def _enough(health: Health, target: Health) -> bool:
     return _RANK[health] <= _RANK[target]
 
 
-def _steps(value: float, start: float) -> Iterator[float]:
-    """Whole-number readings from `value` toward `start`, one unit at a time. The first is the
-    nearest whole number strictly closer to start; the last is `start` itself."""
-    if start > value:
-        whole = math.floor(value) + 1
-        while whole < start:
-            yield float(whole)
-            whole += 1
-    else:
-        whole = math.ceil(value) - 1
-        while whole > start:
-            yield float(whole)
-            whole -= 1
-    yield start
+def _first_enough(value: float, start: float, clears: Callable[[float], bool]) -> float | None:
+    """The first reading on the way from `value` to `start` that `clears` accepts, or None.
+
+    The way is the whole numbers strictly between them, one unit at a time (the first is the
+    nearest whole number strictly closer to start), then `start` itself. Moving toward start only
+    lowers the risk, so `clears` turns from False to True once along the way: the first True is
+    found by bisection. A range of 1,000,000 units then takes about 20 checks, not a million."""
+    rising = start > value
+    edge = math.floor(value) + 1 if rising else math.ceil(value) - 1  # the first whole step
+    # The whole steps run from edge toward start, stopping short of it.
+    count = max(0, (math.ceil(start) - edge) if rising else (edge - math.floor(start)))
+
+    def step(index: int) -> float:
+        if index >= count:
+            return start
+        return float(edge + index if rising else edge - index)
+
+    low, high = 0, count
+    if not clears(step(high)):
+        return None
+    while low < high:
+        middle = (low + high) // 2
+        if clears(step(middle)):
+            high = middle
+        else:
+            low = middle + 1
+    return step(low)
 
 
 def _share(rule: SignalRule, value: float, target: float) -> float:
@@ -569,15 +610,45 @@ def _share(rule: SignalRule, value: float, target: float) -> float:
     return round(abs(target - value) / abs(rule.full - rule.start), 9)
 
 
-def _fix(kind: SignalKind, value: float, target_value: float, points_off: float) -> Fix:
+def _kinds_read(latest: dict[SignalKey, Signal]) -> list[SignalKey]:
+    """Without a config: the built-in kinds, then each custom kind with a reading, by id."""
+    custom = sorted((kind for kind in latest if not isinstance(kind, SignalKind)), key=str)
+    return [*SignalKind, *custom]
+
+
+def _fix(
+    kind: SignalKey,
+    value: float,
+    target_value: float,
+    points_off: float,
+    config: ScoringConfig,
+) -> Fix:
+    if isinstance(kind, SignalKind):
+        goal = _goal_text(kind, _whole(value), _whole(target_value))
+    else:
+        goal = _custom_goal_text(kind, target_value, config)
     return Fix(
         kind=kind,
-        label=SIGNAL_LABELS[kind],
-        now_text=describe(kind, value),
-        goal_text=_goal_text(kind, _whole(value), _whole(target_value)),
+        label=signal_info.label(kind, config),
+        now_text=describe(kind, value, config.custom_signal(kind)),
+        goal_text=goal,
         target_value=target_value,
         points_off=points_off,
     )
+
+
+def _custom_goal_text(kind: SignalKey, target: float, config: ScoringConfig) -> str:
+    """What to do for one of the book's own signals: reach the target reading. A higher reading
+    is the safer one when the rule's start is above its full (so "or more"), else a lower one
+    ("or less"). The name is the CSM's own, so it is kept as written."""
+    signal = config.custom_signal(kind)
+    rule = config.rule_for(kind)
+    name = signal.name if signal is not None else signal_info.label(kind, config)
+    unit = signal.unit if signal is not None else ""
+    number = f"{format_number(target)}{_spaced(unit)}"
+    if rule is not None and rule.start < rule.full:
+        return f"Get {name} down to {number} or less"
+    return f"Get {name} to {number} or more"
 
 
 def _goal_text(kind: SignalKind, n: int, t: int) -> str:

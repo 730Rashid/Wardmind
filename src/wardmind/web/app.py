@@ -57,12 +57,19 @@ from wardmind.core import (
     rules,
     secrets,
     service,
+    signal_info,
     summaries,
     vault,
 )
 from wardmind.core import forecast as renewal_forecast
 from wardmind.core.client_updates import ClientUpdate, UpdateKind, UpdateStatus
-from wardmind.core.config import ScoringConfig, load_scoring_config, save_scoring_config
+from wardmind.core.config import (
+    MAX_CUSTOM_SIGNALS,
+    CustomSignal,
+    ScoringConfig,
+    load_scoring_config,
+    save_scoring_config,
+)
 from wardmind.core.connectors.combined import CombinedConnector, ConnectionProblem, Provenance
 from wardmind.core.connectors.errors import ConnectorError
 from wardmind.core.connectors.hubspot import (
@@ -89,7 +96,7 @@ from wardmind.core.feeds.models import (
 from wardmind.core.feeds.setup import FeedDraft
 from wardmind.core.import_flow import Draft
 from wardmind.core.importing import DateOrder
-from wardmind.core.models import Account, Health, Motion, ScoredAccount, SignalKind
+from wardmind.core.models import Account, Health, Motion, ScoredAccount, SignalKind, signal_key
 from wardmind.core.onboarding import OnboardingBrief
 from wardmind.core.onboarding import onboarding_brief as build_onboarding_brief
 from wardmind.core.scoring import latest_signals
@@ -113,6 +120,7 @@ from wardmind.core.store import (
 )
 from wardmind.web import (
     contact_pages,
+    custom_signals_form,
     feed_pages,
     formatting,
     journal_pages,
@@ -662,8 +670,14 @@ _BRAND_NOTICES = {
 
 
 SCORING_PREVIEW_TOP_N = 10  # the preview lists this many accounts
-_SCORING_DEFAULTS_NOTICE = "Showing the defaults. Save changes to use them."
+_SCORING_DEFAULTS_NOTICE = (
+    "Showing the defaults. Your own signals are kept. Save changes to use them."
+)
 _SCORING_SAVED_NOTICE = "Scoring saved. Every screen and Claude now use it."
+# Your own signals (Settings > Scoring): the notice for each code the redirects carry in ?custom=.
+_CUSTOM_NOTICES = {"added": "Signal added.", "saved": "Signal saved.", "removed": "Signal removed."}
+_CUSTOM_DETAIL = "Your own signals"  # the Activity log's detail for every change to them
+_NO_CUSTOM_SIGNAL = "That signal isn't in your list."
 
 
 @dataclass(frozen=True)
@@ -694,10 +708,16 @@ def _render_scoring(
     values: Mapping[str, str],
     errors: Mapping[str, str],
     preview: _Preview,
+    custom: list[CustomSignal],
     notice: str = "",
+    custom_notice: str = "",
+    custom_add: Mapping[str, str] | None = None,
+    custom_add_errors: Mapping[str, str] | None = None,
     status_code: int = 200,
 ) -> HTMLResponse:
-    """The Scoring page. `values` is what each form field shows; `errors` is keyed by field."""
+    """The Scoring page. `values` is what each built-in field shows; `errors` is keyed by field.
+    `custom` is the book's own signals, listed under the form; `custom_add` is what the add form
+    shows (None for a blank form) and `custom_add_errors` its messages, keyed by field."""
     return _render(
         request,
         "settings/scoring.html",
@@ -711,7 +731,52 @@ def _render_scoring(
         kinds=list(SignalKind),
         signal_labels=briefs.SIGNAL_LABELS,
         signal_hints=UNIT_HINTS,
+        custom_rows=custom_signals_form.listing(custom),
+        custom_can_add=len(custom) < MAX_CUSTOM_SIGNALS,
+        custom_max=MAX_CUSTOM_SIGNALS,
+        custom_notice=custom_notice,
+        custom_values=dict(custom_add)
+        if custom_add is not None
+        else custom_signals_form.form_values(None),
+        custom_errors=dict(custom_add_errors or {}),
+        custom_limits=custom_signals_form.LIMITS,
         status_code=status_code,
+    )
+
+
+def _render_custom_signal(
+    request: Request,
+    signal: CustomSignal,
+    *,
+    values: Mapping[str, str] | None = None,
+    errors: Mapping[str, str] | None = None,
+    status_code: int = 200,
+) -> HTMLResponse:
+    """The edit page for one of the book's own signals: the form, with `values` (what was typed,
+    after a refusal) or the signal's own values, and the messages by field."""
+    return _render(
+        request,
+        "settings/custom_signal_edit.html",
+        page="Edit signal",
+        active="settings",
+        section="scoring",
+        signal_id=signal.id,
+        name=signal.name,
+        values=dict(values) if values is not None else custom_signals_form.form_values(signal),
+        errors=dict(errors or {}),
+        limits=custom_signals_form.LIMITS,
+        status_code=status_code,
+    )
+
+
+def _missing_custom_signal(request: Request) -> HTMLResponse:
+    """The plain 404 page for a signal id this book doesn't have, with the way back to Scoring."""
+    return _missing(
+        request,
+        "Signal not found",
+        _NO_CUSTOM_SIGNAL,
+        back_href="/settings/scoring#custom-signals",
+        back_label="Back to Scoring",
     )
 
 
@@ -1308,7 +1373,7 @@ def _submitted_mapping(
         }
     return {
         spec.key: fields.get(f"column-{index}", "")
-        for index, spec in enumerate(importing.IMPORT_FIELDS)
+        for index, spec in enumerate(importing.import_fields())
     }
 
 
@@ -1332,17 +1397,7 @@ def _mapping_view(
     chosen = _as_order(submitted_order) or import_flow.date_order_choice(draft, store)
     if chosen is DateOrder.YMD:  # the radios only offer day or month first
         chosen = DateOrder.DMY
-    rows = [
-        {
-            "index": index,
-            "label": spec.label,
-            "help": spec.help,
-            "required": spec.required,
-            "selected": cleaned.get(spec.key, ""),
-            "example": result.examples.get(spec.key, ""),
-        }
-        for index, spec in enumerate(importing.IMPORT_FIELDS)
-    ]
+    rows = import_flow.match_rows(cleaned, result.examples)
     return {
         "rows": rows,
         "headers": draft.table.headers,
@@ -1567,6 +1622,7 @@ def _render_edit(
     status_code: int = 200,
 ) -> HTMLResponse:
     """The edit page for one account. `values` is what each field shows; `errors` by field."""
+    scoring = load_scoring_config()
     return _render(
         request,
         "accounts/edit.html",
@@ -1580,8 +1636,9 @@ def _render_edit(
         refused=refused,
         notice=notice,
         source_line=_source_line(prov),
-        kinds=list(SignalKind),
-        signal_labels=briefs.SIGNAL_LABELS,
+        kinds=scoring.kinds(),
+        signal_labels={kind: signal_info.label(kind, scoring) for kind in scoring.kinds()},
+        signal_units={signal.kind: signal.unit for signal in scoring.custom},
         reading=dict(reading or _NEW_READING),
         reading_error=reading_error,
         status_code=status_code,
@@ -2292,7 +2349,7 @@ def _render_account(
     config = load_scoring_config()
 
     latest = latest_signals(signals).get(account_id, {})
-    confidence = insights.score_confidence(detail.scored, latest, today)
+    confidence = insights.score_confidence(detail.scored, latest, today, config)
     path = insights.path_down(detail.scored, latest, config, today)
     forecast = insights.golive_forecast(detail.scored.account, today, config.motion)
     # Unused seats are expected while onboarding is still rolling out, so they aren't flagged then.
@@ -3315,7 +3372,7 @@ def create_app(gate: session.SessionGate | None = None) -> FastAPI:
         brief = briefs.weekly_brief(book, as_of=today)
 
         latest = service.latest_book_signals(connector)
-        confidence = insights.book_confidence(book, latest, today)
+        confidence = insights.book_confidence(book, latest, today, load_scoring_config())
         blind = {account_id for account_id, found in confidence.items() if found.blind_spot}
         params = request.query_params
         motions = _chosen(params.getlist("motion"), Motion)
@@ -3518,12 +3575,13 @@ def create_app(gate: session.SessionGate | None = None) -> FastAPI:
                 book=True,
             )
         # The same brief service.get_onboarding_brief builds, from the detail already loaded.
-        brief = build_onboarding_brief(detail, config.motion)
+        brief = build_onboarding_brief(detail, config.motion, config)
         # How old each reading is, read the way the account page reads it, so the signals table
         # is the same table on both pages.
         latest = latest_signals(connector.list_signals(account_id)).get(account_id, {})
         reading_ages = {
-            age.kind: age for age in insights.score_confidence(detail.scored, latest, as_of).ages
+            age.kind: age
+            for age in insights.score_confidence(detail.scored, latest, as_of, config).ages
         }
         # The signals table scales its bars to the largest weight in the scoring config, as the
         # account page does, so the same signal is drawn the same width on both pages.
@@ -4089,12 +4147,18 @@ def create_app(gate: session.SessionGate | None = None) -> FastAPI:
         return RedirectResponse("/settings/appearance?saved=1", status_code=303)
 
     @app.get("/settings/scoring")
-    def scoring(request: Request, saved: str = "", defaults: str = "") -> HTMLResponse:
-        """The scoring form, with its preview. ?defaults=1 shows the built-in defaults, unsaved."""
+    def scoring(
+        request: Request, saved: str = "", defaults: str = "", custom: str = ""
+    ) -> HTMLResponse:
+        """The scoring form, with its preview and the book's own signals. ?defaults=1 shows the
+        built-in defaults, unsaved; the book's own signals are kept either way (they aren't part of
+        the defaults). ?custom= is one code from _CUSTOM_NOTICES; any other value shows nothing."""
+        saved_config = load_scoring_config()
         if defaults == "1":
-            draft, notice = ScoringConfig(), _SCORING_DEFAULTS_NOTICE
+            draft = ScoringConfig(custom=saved_config.custom)
+            notice = _SCORING_DEFAULTS_NOTICE
         else:
-            draft = load_scoring_config()
+            draft = saved_config
             notice = _SCORING_SAVED_NOTICE if saved == "1" else ""
         return _render_scoring(
             request,
@@ -4102,6 +4166,8 @@ def create_app(gate: session.SessionGate | None = None) -> FastAPI:
             errors={},
             preview=_scoring_preview(draft),
             notice=notice,
+            custom=draft.custom,
+            custom_notice=_CUSTOM_NOTICES.get(custom, ""),
         )
 
     @app.post("/settings/scoring/preview")
@@ -4135,11 +4201,120 @@ def create_app(gate: session.SessionGate | None = None) -> FastAPI:
                 values={**form_values(base), **typed},
                 errors=errors,
                 preview=_preview_alerts(errors),
+                custom=base.custom,
                 status_code=422,
             )
         await run_in_threadpool(save_scoring_config, draft)
         audit.record(audit.Event.SETTINGS_SAVED, detail="Scoring")
         return RedirectResponse("/settings/scoring?saved=1", status_code=303)
+
+    # Your own signals (core/config.py CustomSignal), listed under the built-in sliders. They live
+    # in the same scoring file, so saving the sliders keeps them (scoring_form), and saving them
+    # never touches the built-in rules. The id is made from the name when a signal is added and then
+    # never changes. A refused form writes nothing; an id this book doesn't have is a 404.
+
+    async def _refuse_custom_add(
+        request: Request,
+        current: ScoringConfig,
+        fields: Mapping[str, str],
+        errors: Mapping[str, str],
+    ) -> HTMLResponse:
+        """The Scoring page again (422) for a refused add: the add form keeps what was typed."""
+        preview = await run_in_threadpool(_scoring_preview, current)
+        return await run_in_threadpool(
+            _render_scoring,
+            request,
+            values=form_values(current),
+            errors={},
+            preview=preview,
+            custom=current.custom,
+            custom_add=custom_signals_form.typed(fields),
+            custom_add_errors=errors,
+            status_code=422,
+        )
+
+    @app.post("/settings/scoring/custom")
+    async def add_custom_signal(request: Request) -> Response:
+        """Add one of the book's own signals to the end of the list. A full list (12) or a refused
+        form re-shows the page with a 422 and writes nothing."""
+        fields = await _posted_fields(request)
+        current = await run_in_threadpool(load_scoring_config)
+        if len(current.custom) >= MAX_CUSTOM_SIGNALS:
+            full = {custom_signals_form.FORM_ERROR: custom_signals_form.FULL_MESSAGE}
+            return await _refuse_custom_add(request, current, fields, full)
+        signal, errors = custom_signals_form.parse_signal(fields, current.custom)
+        if signal is None:
+            return await _refuse_custom_add(request, current, fields, errors)
+        updated = current.model_copy(update={"custom": [*current.custom, signal]})
+        await run_in_threadpool(save_scoring_config, updated)
+        audit.record(audit.Event.SETTINGS_SAVED, detail=_CUSTOM_DETAIL)
+        return RedirectResponse("/settings/scoring?custom=added#custom-signals", status_code=303)
+
+    @app.get("/settings/scoring/custom/{signal_id}")
+    def edit_custom_signal(request: Request, signal_id: str) -> HTMLResponse:
+        """The edit form for one of the book's own signals."""
+        config = load_scoring_config()
+        index = custom_signals_form.index_of(config.custom, signal_id)
+        if index is None:
+            return _missing_custom_signal(request)
+        return _render_custom_signal(request, config.custom[index])
+
+    @app.post("/settings/scoring/custom/{signal_id}")
+    async def save_custom_signal(request: Request, signal_id: str) -> Response:
+        """Save a signal's name, unit, range, weight and text. The id stays as it was, so its
+        readings stay with it. A refused form re-shows the edit page (422) and writes nothing."""
+        config = await run_in_threadpool(load_scoring_config)
+        index = custom_signals_form.index_of(config.custom, signal_id)
+        if index is None:
+            return await run_in_threadpool(_missing_custom_signal, request)
+        fields = await _posted_fields(request)
+        current = config.custom[index]
+        others = [signal for signal in config.custom if signal.id != signal_id]
+        signal, errors = custom_signals_form.parse_signal(fields, others, current=current)
+        if signal is None:
+            return await run_in_threadpool(
+                _render_custom_signal,
+                request,
+                current,
+                values=custom_signals_form.typed(fields),
+                errors=errors,
+                status_code=422,
+            )
+        listed = [signal if item.id == signal_id else item for item in config.custom]
+        await run_in_threadpool(save_scoring_config, config.model_copy(update={"custom": listed}))
+        audit.record(audit.Event.SETTINGS_SAVED, detail=_CUSTOM_DETAIL)
+        return RedirectResponse("/settings/scoring?custom=saved#custom-signals", status_code=303)
+
+    @app.get("/settings/scoring/custom/{signal_id}/remove")
+    def remove_custom_signal_page(request: Request, signal_id: str) -> HTMLResponse:
+        """The confirmation page for removing one of the book's own signals. It says what happens
+        to its readings, so nothing is removed until the person presses the button there."""
+        config = load_scoring_config()
+        index = custom_signals_form.index_of(config.custom, signal_id)
+        if index is None:
+            return _missing_custom_signal(request)
+        return _render(
+            request,
+            "settings/custom_signal_remove.html",
+            page="Remove signal",
+            active="settings",
+            section="scoring",
+            signal_id=signal_id,
+            name=config.custom[index].name,
+        )
+
+    @app.post("/settings/scoring/custom/{signal_id}/remove")
+    async def remove_custom_signal(request: Request, signal_id: str) -> Response:
+        """Remove one of the book's own signals. Its readings stay on accounts but stop counting;
+        a signal with the same name added later gets the same id, so they count again."""
+        config = await run_in_threadpool(load_scoring_config)
+        if custom_signals_form.index_of(config.custom, signal_id) is None:
+            return await run_in_threadpool(_missing_custom_signal, request)
+        remaining = [signal for signal in config.custom if signal.id != signal_id]
+        updated = config.model_copy(update={"custom": remaining})
+        await run_in_threadpool(save_scoring_config, updated)
+        audit.record(audit.Event.SETTINGS_SAVED, detail=_CUSTOM_DETAIL)
+        return RedirectResponse("/settings/scoring?custom=removed#custom-signals", status_code=303)
 
     # Data & privacy: web research on or off, and clearing the local cache. The notices are
     # fixed words chosen by the server, never text from the URL.
@@ -5008,7 +5183,7 @@ def create_app(gate: session.SessionGate | None = None) -> FastAPI:
             )
 
         try:
-            kind = SignalKind(reading["kind"])
+            kind = signal_key(reading["kind"])
         except ValueError:
             return await run_in_threadpool(refuse, _UNKNOWN_SIGNAL)
         typed = reading["yes_no"] if kind is SignalKind.CHAMPION_LEFT else reading["value"]

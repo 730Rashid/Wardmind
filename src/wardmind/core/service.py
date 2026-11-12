@@ -234,7 +234,9 @@ def get_book(
             return list(cached)
     scored = score_book(connector.list_accounts(), connector.list_signals(), config, as_of)
     book = [
-        item.model_copy(update={"suggested_action": suggest_action(item.motion, item.reasons)})
+        item.model_copy(
+            update={"suggested_action": suggest_action(item.motion, item.reasons, config)}
+        )
         for item in scored
     ]
     if key is not None:
@@ -305,7 +307,7 @@ def get_onboarding_brief(
     detail = get_account_detail(account_id, connector, config, as_of)
     if detail is None:
         return None
-    return onboarding_brief(detail, config.motion)
+    return onboarding_brief(detail, config.motion, config)
 
 
 def find_account(book: list[ScoredAccount], account_id: str) -> ScoredAccount | None:

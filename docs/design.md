@@ -631,6 +631,24 @@ Motion windows                                       |
   plain message next to the field ("Watch has to be below At risk.") and in the preview
   (`role="alert"`). Saving an invalid form re-renders with the messages and a 422, and writes
   nothing.
+- **Your own signals** (`#custom-signals`, a card under the built-in sliders): the list of the
+  book's own signals. Each line gives the name, a rule sentence ("Risk starts at 500 calls, maxed
+  at 50 calls, up to 30 points.") and a meta line ("Lower numbers are worse. A reading is out of
+  date after 30 days."), with **Edit** and **Remove** (a confirm page). Below the list is the add
+  form:
+  - name and unit;
+  - "Which way is worse?" as radios, with start and maximum;
+  - the weight slider;
+  - the call question and the next step, both optional;
+  - the days a reading stays current.
+
+  All messages show at once. At 12 signals the form is replaced by a sentence saying so. Saving
+  the sliders, or resetting to the defaults, keeps the book's own signals.
+- **Where they show:**
+  - after the built-ins in the account breakdown, the signal history, the reading form (with
+    its unit beside the number) and the match pages;
+  - on the match pages, under a "Your own signals" row heading;
+  - a removed signal's old readings show under a name made from its id, and count for nothing.
 
 ### Empty and error states (copy)
 - **Search with no match:** `No accounts match "{q}".` followed by a **Clear search** button.

@@ -10,7 +10,14 @@ import math
 from collections.abc import Iterable
 from datetime import date, datetime
 
-from wardmind.core.config import ArrScaling, MotionWindows, ScoringConfig, SignalRule, Thresholds
+from wardmind.core.config import (
+    ArrScaling,
+    CustomSignal,
+    MotionWindows,
+    ScoringConfig,
+    SignalRule,
+    Thresholds,
+)
 from wardmind.core.models import (
     Account,
     Health,
@@ -18,14 +25,15 @@ from wardmind.core.models import (
     Reason,
     ScoredAccount,
     Signal,
+    SignalKey,
     SignalKind,
 )
 
 
-def latest_signals(signals: Iterable[Signal]) -> dict[str, dict[SignalKind, Signal]]:
+def latest_signals(signals: Iterable[Signal]) -> dict[str, dict[SignalKey, Signal]]:
     """Group by account id, keeping only the most recent signal of each kind."""
     # Ties on observed_at go to the larger value, so the result does not depend on input order.
-    latest: dict[str, dict[SignalKind, Signal]] = {}
+    latest: dict[str, dict[SignalKey, Signal]] = {}
     for signal in signals:
         per_kind = latest.setdefault(signal.account_id, {})
         current = per_kind.get(signal.kind)
@@ -80,8 +88,13 @@ def arr_factor(arr: float, scaling: ArrScaling) -> float:
     return (1 - scaling.weight) + scaling.weight * arr_norm
 
 
-def describe(kind: SignalKind, value: float) -> str:
-    """Plain-English sentence for a signal value, e.g. 'Active users down 38% in 30 days'."""
+def describe(kind: SignalKey, value: float, custom: CustomSignal | None = None) -> str:
+    """Plain-English sentence for a signal value, e.g. 'Active users down 38% in 30 days'. A
+    custom signal reads "<name>: <value><unit>" ("API calls per week: 120"), from `custom`."""
+    if not isinstance(kind, SignalKind):
+        name = custom.name if custom is not None else kind.value.removeprefix("custom:")
+        unit = custom.unit if custom is not None else ""
+        return f"{name}: {format_number(value)}{_spaced(unit)}"
     # Wording is decided on the rounded number, so the sentence always matches what it prints.
     n = _whole(value)
     match kind:
@@ -120,15 +133,17 @@ def describe(kind: SignalKind, value: float) -> str:
 
 def score_account(
     account: Account,
-    signals: dict[SignalKind, Signal],
+    signals: dict[SignalKey, Signal],
     config: ScoringConfig,
     as_of: date,
 ) -> ScoredAccount:
     reasons: list[Reason] = []
     total = 0.0
-    for kind in SignalKind:  # fixed order, so the float sum is identical on every run
+    # Fixed order (built-ins, then the book's own), so the float sum is identical on every run.
+    # A reading of a custom signal the book no longer has is left out.
+    for kind in config.kinds():
         signal = signals.get(kind)
-        rule = config.signals.get(kind)
+        rule = config.rule_for(kind)
         if signal is None or rule is None:
             continue
         contribution = round(rule.weight * normalise(signal.value, rule), 1)
@@ -138,7 +153,7 @@ def score_account(
                 Reason(
                     kind=kind,
                     contribution=contribution,
-                    plain_english=describe(kind, signal.value),
+                    plain_english=describe(kind, signal.value, config.custom_signal(kind)),
                 )
             )
     reasons.sort(key=lambda reason: (-reason.contribution, reason.kind.value))
@@ -192,3 +207,18 @@ def _whole(value: float) -> int:
 
 def _unit(count: int, singular: str, plural: str) -> str:
     return singular if count == 1 else plural
+
+
+def format_number(value: float) -> str:
+    """A reading as people write it: whole numbers without decimals and with separators
+    (1,200), others to at most two places (2.5, 0.25)."""
+    if value == int(value):
+        return f"{int(value):,}"
+    return f"{value:,.2f}".rstrip("0").rstrip(".")
+
+
+def _spaced(unit: str) -> str:
+    """A unit after a number: "%" sticks to it ("12%"), a word gets a space ("12 calls")."""
+    if not unit:
+        return ""
+    return unit if unit[0] in "%$£€" or not unit[0].isalnum() else f" {unit}"

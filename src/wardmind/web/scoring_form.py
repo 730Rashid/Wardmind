@@ -111,6 +111,8 @@ def parse_scoring_form(
             ),
         },
         "arr": {"weight": arr_weight(), "floor": base.arr.floor, "ceiling": base.arr.ceiling},
+        # The book's own signals are not on this form: saving the sliders keeps them as they are.
+        "custom": list(base.custom),
     }
     if errors:
         return None, errors

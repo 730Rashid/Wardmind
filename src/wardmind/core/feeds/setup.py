@@ -375,7 +375,7 @@ def suggested_mapping(draft: FeedDraft) -> dict[str, str]:
     else:
         chosen = importing.auto_map(draft.table.headers)
     kept = _keep_for_role(draft.role, chosen)
-    return {spec.key: kept[spec.key] for spec in importing.IMPORT_FIELDS if spec.key in kept}
+    return {spec.key: kept[spec.key] for spec in importing.import_fields() if spec.key in kept}
 
 
 def _resolved_order(table: Table, mapping: dict[str, str], chosen: str | None) -> DateOrder:
@@ -477,7 +477,7 @@ def preview(
     if draft.role is FeedRole.ACCOUNTS:
         missing = [
             spec.label
-            for spec in importing.IMPORT_FIELDS
+            for spec in importing.import_fields()
             if spec.required and spec.key not in cleaned
         ]
         if missing:

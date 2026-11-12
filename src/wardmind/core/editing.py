@@ -10,16 +10,34 @@ CONTRACT FILE: signatures and docstrings are fixed; implementers escalate before
 
 from __future__ import annotations
 
+import math
 import re
 import secrets
 from collections.abc import Mapping
 from datetime import UTC, date, datetime
 from typing import Any
 
-from wardmind.core import client_updates, contacts, history, importing, journal, logos
+from wardmind.core import (
+    client_updates,
+    contacts,
+    history,
+    importing,
+    journal,
+    logos,
+    signal_info,
+)
+from wardmind.core.config import ScoringConfig, load_scoring_config
 from wardmind.core.connectors.combined import CombinedConnector, Provenance, _key
 from wardmind.core.matching import normalize_domain
-from wardmind.core.models import Account, Milestones, Signal, SignalKind
+from wardmind.core.models import (
+    Account,
+    CustomKind,
+    Milestones,
+    Signal,
+    SignalKey,
+    SignalKind,
+    signal_key,
+)
 from wardmind.core.store import (
     EDITABLE_FIELDS,
     FIELD_LABELS,
@@ -270,24 +288,30 @@ def add_reading(
     store: LocalStore,
     connector: CombinedConnector,
     account_id: str,
-    kind: SignalKind,
+    kind: SignalKey | str,
     raw_value: str,
     *,
     now: datetime,
+    scoring: ScoringConfig | None = None,
 ) -> None:
     """Record a hand-entered signal reading (source="manual", observed_at=now as naive UTC).
     It becomes the latest reading for that kind until a connection reports a newer one.
-    Values are parsed like the matching import field type; CHAMPION_LEFT takes yes/no.
-    Raises EditError for an unknown account or an invalid value."""
+    `kind` is a SignalKind, or one of the open book's own signals written "custom:<id>" (a
+    CustomKind, read from `scoring`, else the open book's). Values are parsed like the matching
+    import field type; CHAMPION_LEFT takes yes/no; a custom signal takes any finite number.
+    Raises EditError for an unknown account, a kind the book doesn't have, or an invalid value."""
     _book_entry(connector, account_id)
+    config = scoring if scoring is not None else load_scoring_config()
     try:
-        signal_kind = SignalKind(kind)
+        signal_kind = signal_key(kind)
     except ValueError:
         raise EditError("That signal isn't one Wardmind knows.") from None
+    if isinstance(signal_kind, CustomKind) and config.custom_signal(signal_kind) is None:
+        raise EditError("That signal isn't one Wardmind knows.")
     reading = Signal(
         account_id=account_id,
         kind=signal_kind,
-        value=_reading_value(signal_kind, raw_value),
+        value=_reading_value(signal_kind, raw_value, config),
         observed_at=_naive_utc(now),
         source="manual",
     )
@@ -470,9 +494,12 @@ def _save_manual_fields(
     store.save_manual(manual.model_copy(update={"accounts": accounts}))
 
 
-def _reading_value(kind: SignalKind, raw: str) -> float:
+def _reading_value(kind: SignalKey, raw: str, config: ScoringConfig) -> float:
     """A hand-entered reading as the number the signal is stored with. Raises EditError."""
-    label = _READING_LABELS[kind]
+    if isinstance(kind, SignalKind):
+        label = _READING_LABELS[kind]
+    else:
+        label = signal_info.label(kind, config)
     text = raw.strip()
     if kind is SignalKind.CHAMPION_LEFT:
         try:
@@ -482,6 +509,12 @@ def _reading_value(kind: SignalKind, raw: str) -> float:
     if not text:
         raise EditError(f"{label} can't be empty.")
     number = _number(text, label)
+    if isinstance(kind, CustomKind):
+        # Any plain number will do, but it must be a real one: a run of digits too long for a
+        # float reads as infinity.
+        if not math.isfinite(number):
+            raise EditError(f"{label} {_quoted(text)} isn't a number.")
+        return number
     if kind is SignalKind.NPS_LATEST and not 0 <= number <= 10:
         raise EditError(f"{label} should be between 0 and 10.")
     if kind in _COUNT_KINDS and (number < 0 or not number.is_integer()):

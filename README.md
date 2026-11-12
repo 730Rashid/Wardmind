@@ -66,6 +66,7 @@ attention this week. It is reachable three ways, all backed by the same core cod
       form.
     - Scoring: sliders for every weight and threshold, with a live preview of how your top 10
       would reorder. These are saved to `config/scoring.yaml` (a second book keeps its own).
+      Below them, add up to 12 of your own signals (see "Your own signals" below).
     - Books: keep separate books on one computer, each with its own accounts, connections,
       notes, scoring and keys. Switch between them, or to the demo data, from the header.
     - Connections: demo data or your data, HubSpot, spreadsheets and accounts added by hand.
@@ -271,6 +272,33 @@ champion left, seat utilisation, overdue billing and overdue onboarding mileston
   3. **Churn:** everything else.
 
 All weights, thresholds and windows live in [`config/scoring.yaml`](config/scoring.yaml).
+
+### Your own signals
+
+The eight signals above suit most books, but the number that tells you a customer is drifting is
+often your own: API calls a week, reports exported, admins active. Add it on **Settings > Scoring
+> Your own signals**:
+
+- **Name and unit**, such as "API calls per week" and "calls".
+- **Which way is worse**, where risk starts and where it is maxed, and its weight in the score.
+  "Risk starts at 500 calls, maxed at 50 calls, up to 30 points" means 500 or more adds nothing,
+  50 or fewer adds all 30, and anything between adds its share.
+- **What to ask on a call** and **the next step** when it is an account's biggest risk. Leave
+  them empty and Wardmind writes them from the name.
+- **How long a reading stays current** (30 days unless you change it).
+
+Readings come in like the built-in ones:
+
+- **Spreadsheet import:** a column with the signal's exact name matches it. Any other column can
+  be matched by hand under "Your own signals" on the match page. The CSV template has a column
+  for each.
+- **Data feeds:** a signals feed can map a column to it.
+- **By hand:** pick it in the reading form on the account's edit page.
+
+From then on, the signal scores, explains ("API calls per week: 40 calls"), sets "What would it
+take", and drives the questions and next steps the same way the built-in signals do. Removing a
+signal stops it counting but keeps its readings. Adding a signal with the same name later brings
+them back. Each book keeps its own signals, in its `scoring.yaml`.
 
 ## Privacy and security
 

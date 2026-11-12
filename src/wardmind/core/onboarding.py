@@ -13,9 +13,10 @@ from enum import StrEnum
 
 from pydantic import BaseModel
 
-from wardmind.core.briefs import SIGNAL_LABELS, AccountDetail, BreakdownRow
-from wardmind.core.config import MotionWindows
-from wardmind.core.models import Account, Health, Motion, Reason, SignalKind
+from wardmind.core import signal_info
+from wardmind.core.briefs import AccountDetail, BreakdownRow
+from wardmind.core.config import MotionWindows, ScoringConfig
+from wardmind.core.models import Account, Health, Motion, Reason, SignalKey, SignalKind
 
 # The standard onboarding plan, in order. Accounts only record how many milestones they have
 # (milestones.total), so an account with N milestones follows the first N-1 steps of this plan
@@ -111,9 +112,15 @@ def _status(index: int, done: int, overdue: int) -> MilestoneStatus:
     return MilestoneStatus.UPCOMING
 
 
-def onboarding_brief(detail: AccountDetail, windows: MotionWindows) -> OnboardingBrief:
-    """Build the call brief from an account's detail (see briefs.account_detail)."""
+def onboarding_brief(
+    detail: AccountDetail, windows: MotionWindows, config: ScoringConfig | None = None
+) -> OnboardingBrief:
+    """Build the call brief from an account's detail (see briefs.account_detail).
+
+    `config` is the book's scoring: it gives the question and talking point of each of the
+    book's own signals. Without it, those read from the signal's name."""
     scored = detail.scored
+    scoring = config if config is not None else ScoringConfig()
     window_days = windows.onboarding_days
     # Without a start date there is no day, and the account can't be in onboarding either.
     day = None if detail.days_since_start is None else detail.days_since_start + 1
@@ -133,8 +140,8 @@ def onboarding_brief(detail: AccountDetail, windows: MotionWindows) -> Onboardin
         signals=[rows[kind] for kind in ONBOARDING_SIGNALS if kind in rows],
         risks=risks,
         summary=_summary(in_onboarding, days_left, window_days, milestones, risks),
-        agenda=_agenda(in_onboarding, window_days, milestones, risks),
-        questions=_questions(in_onboarding, milestones, risks),
+        agenda=_agenda(in_onboarding, window_days, milestones, risks, scoring),
+        questions=_questions(in_onboarding, milestones, risks, scoring),
         suggested_action=scored.suggested_action,
     )
 
@@ -148,6 +155,9 @@ _MAX_QUESTIONS = 5
 _NO_OTHER_RISKS = "No other risk signals so far."
 _WINS_TALKING_POINT = "Ask what has gone well so the team can share it more widely."
 _WINS_QUESTION = "What has gone well so far?"
+# Typing only: signal_info always answers for a custom kind, so these never reach a page.
+_NO_TALKING_POINT = "Agree the next step on this risk with the customer."
+_NO_QUESTION = "What is behind this change?"
 _CLOSING_QUESTION_ONBOARDING = "What would make the onboarding review a success for you?"
 _CLOSING_QUESTION_NEXT = "What do you want to achieve next quarter?"
 
@@ -213,12 +223,13 @@ def _agenda(
     window_days: int,
     milestones: list[PlanMilestone],
     risks: list[Reason],
+    config: ScoringConfig,
 ) -> list[AgendaItem]:
     progress = AgendaItem(topic="Progress on the plan", detail=_progress_detail(milestones))
     risk_items = [
         AgendaItem(
-            topic=SIGNAL_LABELS[risk.kind],
-            detail=f"{risk.plain_english}. {_TALKING_POINTS[risk.kind]}",
+            topic=signal_info.label(risk.kind, config),
+            detail=f"{risk.plain_english}. {_talking_point(risk.kind, config)}",
         )
         for risk in risks
         if risk.kind is not SignalKind.ONBOARDING_OVERDUE_MILESTONES
@@ -260,10 +271,27 @@ def _progress_detail(milestones: list[PlanMilestone]) -> str:
     return f"{head} Next up is {next_steps[0].name}. Agree who owns it and when."
 
 
+def _talking_point(kind: SignalKey, config: ScoringConfig) -> str:
+    """One imperative sentence for a risk on the call: the built-in's, or the book's own action."""
+    if isinstance(kind, SignalKind):
+        return _TALKING_POINTS[kind]
+    return signal_info.custom_action(kind, config) or _NO_TALKING_POINT
+
+
+def _question(kind: SignalKey, config: ScoringConfig) -> str:
+    """The question for a risk: the built-in's, or the book's own. A question always ends in "?",
+    so a custom one typed without it gets one."""
+    if isinstance(kind, SignalKind):
+        return _QUESTIONS[kind]
+    text = signal_info.custom_question(kind, config) or _NO_QUESTION
+    return text if text.endswith("?") else f"{text.rstrip('.')}?"
+
+
 def _questions(
     in_onboarding: bool,
     milestones: list[PlanMilestone],
     risks: list[Reason],
+    config: ScoringConfig,
 ) -> list[str]:
     body: list[str] = []
     overdue = _with_status(milestones, MilestoneStatus.OVERDUE)
@@ -273,7 +301,7 @@ def _questions(
     elif next_steps:
         body.append(f"Who owns {next_steps[0].name}, and when will it be done?")
     body.extend(
-        _QUESTIONS[risk.kind]
+        _question(risk.kind, config)
         for risk in risks
         if risk.kind is not SignalKind.ONBOARDING_OVERDUE_MILESTONES
     )

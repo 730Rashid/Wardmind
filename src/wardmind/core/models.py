@@ -5,10 +5,13 @@ CONTRACT FILE: changes here affect every module. Implementers escalate before ed
 
 from __future__ import annotations
 
+import re
 from datetime import date, datetime
 from enum import StrEnum
+from typing import Any
 
-from pydantic import BaseModel, Field, computed_field, model_validator
+from pydantic import BaseModel, Field, GetCoreSchemaHandler, computed_field, model_validator
+from pydantic_core import core_schema
 
 
 class Motion(StrEnum):
@@ -46,6 +49,63 @@ class SignalKind(StrEnum):
     ONBOARDING_OVERDUE_MILESTONES = "onboarding_overdue_milestones"  # count of late milestones
 
 
+CUSTOM_PREFIX = "custom:"
+# A custom signal's id: lower-case letters, digits and underscores, starting with a letter.
+CUSTOM_ID = re.compile(r"[a-z][a-z0-9_]{0,39}")
+
+
+class CustomKind(str):
+    """A signal the CSM defined for their book (config.CustomSignal), written "custom:<id>".
+
+    It stands wherever a SignalKind does: `.value` is the string itself, so code that reads
+    `kind.value` (sorting, form names, templates) needs no change. Its value is whatever
+    unit the CSM chose; config.CustomSignal says how to read it."""
+
+    __slots__ = ()
+
+    def __new__(cls, value: str) -> CustomKind:
+        text = str(value)
+        if not text.startswith(CUSTOM_PREFIX) or not CUSTOM_ID.fullmatch(
+            text[len(CUSTOM_PREFIX) :]
+        ):
+            raise ValueError(f"not a custom signal kind: {text!r}")
+        return super().__new__(cls, text)
+
+    @classmethod
+    def of(cls, custom_id: str) -> CustomKind:
+        return cls(CUSTOM_PREFIX + custom_id)
+
+    @property
+    def value(self) -> str:
+        return str(self)
+
+    @property
+    def id(self) -> str:
+        return self[len(CUSTOM_PREFIX) :]
+
+    @classmethod
+    def __get_pydantic_core_schema__(
+        cls, source: Any, handler: GetCoreSchemaHandler
+    ) -> core_schema.CoreSchema:
+        return core_schema.no_info_after_validator_function(
+            cls,
+            core_schema.str_schema(),
+            serialization=core_schema.plain_serializer_function_ser_schema(str),
+        )
+
+
+# A signal's kind: one of the eight built in, or one the CSM defined.
+SignalKey = SignalKind | CustomKind
+
+
+def signal_key(value: str) -> SignalKey:
+    """The kind written as `value`: a SignalKind, else a CustomKind (ValueError for neither)."""
+    try:
+        return SignalKind(value)
+    except ValueError:
+        return CustomKind(value)
+
+
 class Milestones(BaseModel):
     done: int = Field(ge=0)
     total: int = Field(ge=0)
@@ -80,14 +140,14 @@ class Account(BaseModel):
 
 class Signal(BaseModel):
     account_id: str
-    kind: SignalKind
+    kind: SignalKey
     value: float
     observed_at: datetime
     source: str = "demo"
 
 
 class Reason(BaseModel):
-    kind: SignalKind
+    kind: SignalKey
     contribution: float = Field(ge=0)  # risk points this signal added (before the 100 cap)
     plain_english: str  # e.g. "Active users down 38% in 30 days"
 

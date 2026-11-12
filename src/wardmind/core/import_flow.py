@@ -16,11 +16,12 @@ import secrets
 from collections.abc import Mapping
 from datetime import UTC, date, datetime, timedelta
 from pathlib import Path, PureWindowsPath
+from typing import Any
 
 from pydantic import BaseModel
 
 from wardmind.core import importing, vault
-from wardmind.core.importing import IMPORT_FIELDS, DateOrder, FieldType, ImportIssue, Table
+from wardmind.core.importing import DateOrder, FieldType, ImportIssue, Table
 from wardmind.core.store import (
     WRITE_LOCK,
     ConnectionConfig,
@@ -353,10 +354,11 @@ def default_name(source_name: str) -> str:
 
 
 def clean_mapping(table: Table, submitted: Mapping[str, str]) -> dict[str, str]:
-    """Keep the choices that are real: a known field, mapped to a header this table has. Anything
-    else (a stale header, a blank choice) is "Not in my file"."""
+    """Keep the choices that are real: a known field (the open book's, see importing.import_fields),
+    mapped to a header this table has. Anything else (a stale header, a blank choice, a field for
+    a signal the book has since removed) is "Not in my file"."""
     mapping: dict[str, str] = {}
-    for spec in IMPORT_FIELDS:
+    for spec in importing.import_fields():
         header = submitted.get(spec.key, "")
         if header and header in table.headers:
             mapping[spec.key] = header
@@ -380,12 +382,32 @@ def suggested_mapping(draft: Draft, store: LocalStore) -> dict[str, str]:
         if key not in chosen and header not in taken:
             chosen[key] = header
             taken.add(header)
-    return {spec.key: chosen[spec.key] for spec in IMPORT_FIELDS if spec.key in chosen}
+    return {spec.key: chosen[spec.key] for spec in importing.import_fields() if spec.key in chosen}
+
+
+def match_rows(mapping: Mapping[str, str], examples: Mapping[str, str]) -> list[dict[str, Any]]:
+    """One row per import field for the spreadsheet matching page: the built-in fields in order,
+    then the open book's own signals (custom is True for those). `mapping` is the cleaned mapping
+    (clean_mapping) and `examples` the first data row's cell per field (Preview.examples). The
+    select for a row is column-<index>, as the page posts it."""
+    return [
+        {
+            "index": index,
+            "key": spec.key,
+            "label": spec.label,
+            "help": spec.help,
+            "required": spec.required,
+            "custom": importing.is_custom_field(spec.key),
+            "selected": mapping.get(spec.key, ""),
+            "example": examples.get(spec.key, ""),
+        }
+        for index, spec in enumerate(importing.import_fields())
+    ]
 
 
 def date_columns(draft: Draft, mapping: Mapping[str, str]) -> list[str]:
     """The headers mapped to a date field, in field order, each once."""
-    keys = [spec.key for spec in IMPORT_FIELDS if spec.type is FieldType.DATE]
+    keys = [spec.key for spec in importing.import_fields() if spec.type is FieldType.DATE]
     return list(dict.fromkeys(mapping[key] for key in keys if key in mapping))
 
 
@@ -524,7 +546,11 @@ def preview(
     snapshot = None if draft.target == NEW_TARGET else store.snapshot(draft.target)
     ready = {account.id for account in result.accounts}
     removed = [] if snapshot is None else [a.id for a in snapshot.accounts if a.id not in ready]
-    missing = [spec.label for spec in IMPORT_FIELDS if spec.required and spec.key not in cleaned]
+    missing = [
+        spec.label
+        for spec in importing.import_fields()
+        if spec.required and spec.key not in cleaned
+    ]
     return Preview(
         ready_rows=result.ready_rows,
         skipped_rows=result.skipped_rows,

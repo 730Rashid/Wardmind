@@ -29,13 +29,15 @@
           <label for="reading-kind">Signal</label>
           <select id="reading-kind" name="kind" data-reading-kind>
             {% for kind in kinds %}
-            <option value="{{ kind.value }}" data-reading-input="{{ 'yes_no' if kind.value == 'champion_left' else 'value' }}"{% if kind.value == reading.kind %} selected{% endif %}>{{ signal_labels[kind] }}</option>
+            <option value="{{ kind.value }}" data-reading-input="{{ 'yes_no' if kind.value == 'champion_left' else 'value' }}" data-reading-unit="{{ signal_units.get(kind, '') }}"{% if kind.value == reading.kind %} selected{% endif %}>{{ signal_labels[kind] }}</option>
             {% endfor %}
           </select>
         </div>
         <div class="field" data-reading-field="value">
           <label for="reading-value">Value</label>
           <input type="text" id="reading-value" name="value" value="{{ reading.value }}" autocomplete="off">
+          {# The chosen signal's unit (its option's data-reading-unit) shows here once the page script fills it. #}
+          <span data-reading-unit-text></span>
         </div>
         <div class="field" data-reading-field="yes_no">
           <label for="reading-yes-no">Value</label>

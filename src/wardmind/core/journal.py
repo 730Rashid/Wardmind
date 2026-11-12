@@ -43,7 +43,7 @@ from typing import TypeVar
 from pydantic import BaseModel, Field
 
 from wardmind.core import vault
-from wardmind.core.models import Account, Health, Motion, ScoredAccount, SignalKind
+from wardmind.core.models import Account, Health, Motion, ScoredAccount, SignalKey
 from wardmind.core.store import DEMO_JOURNAL_FILE, JOURNAL_FILE, WRITE_LOCK, LocalStore
 
 MAX_NOTE = 4000  # characters in one note
@@ -201,7 +201,8 @@ class Outcome(BaseModel):
     priority: float
     health: Health
     motion: Motion
-    signals: dict[SignalKind, float] = Field(default_factory=dict)  # latest value of each signal
+    # Latest value of each signal: the built in, and the book's own (custom:<id> keys).
+    signals: dict[SignalKey, float] = Field(default_factory=dict)
     recorded_at: datetime
 
 
@@ -1077,7 +1078,7 @@ class Journal:
         account_id: str,
         values: OutcomeInput,
         scored: ScoredAccount,
-        latest: dict[SignalKind, float],
+        latest: dict[SignalKey, float],
         *,
         now: datetime,
         today: date,

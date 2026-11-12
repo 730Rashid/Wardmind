@@ -17,9 +17,9 @@ import tempfile
 from pathlib import Path
 
 import yaml
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
-from wardmind.core.models import SignalKind
+from wardmind.core.models import CUSTOM_ID, CustomKind, SignalKey, SignalKind
 
 
 class SignalRule(BaseModel):
@@ -76,6 +76,49 @@ DEFAULT_SIGNAL_RULES: dict[SignalKind, SignalRule] = {
 }
 
 
+MAX_CUSTOM_SIGNALS = 12
+MAX_CUSTOM_NAME = 40
+MAX_CUSTOM_UNIT = 12
+MAX_CUSTOM_TEXT = 160
+DEFAULT_CUSTOM_STALE_DAYS = 30
+
+
+class CustomSignal(BaseModel):
+    """A signal the CSM defines for their book: any number a connection, a spreadsheet or a
+    hand-typed reading can supply (API calls a week, reports exported, admins active).
+
+    It scores like a built-in signal: `rule` turns the number into risk points (start = where
+    risk begins, full = where it is maxed; either direction). The other fields are what the
+    pages say about it."""
+
+    id: str  # stable, lower case: "api_calls"; readings are stored under "custom:<id>"
+    name: str = Field(min_length=1, max_length=MAX_CUSTOM_NAME)  # "API calls per week"
+    unit: str = Field(default="", max_length=MAX_CUSTOM_UNIT)  # shown after the number: "%"
+    rule: SignalRule
+    # What to ask on a call when this is the account's biggest risk, and the next step. Empty
+    # means a plain sentence made from the name.
+    question: str = Field(default="", max_length=MAX_CUSTOM_TEXT)
+    action: str = Field(default="", max_length=MAX_CUSTOM_TEXT)
+    # A reading older than this is flagged as out of date on the account page.
+    stale_days: int = Field(default=DEFAULT_CUSTOM_STALE_DAYS, ge=1, le=365)
+
+    @field_validator("id")
+    @classmethod
+    def _id(cls, value: str) -> str:
+        if not CUSTOM_ID.fullmatch(value):
+            raise ValueError("a custom signal id is lower-case letters, digits and underscores")
+        return value
+
+    @field_validator("name", "unit", "question", "action")
+    @classmethod
+    def _one_line(cls, value: str) -> str:
+        return " ".join(value.split())
+
+    @property
+    def kind(self) -> CustomKind:
+        return CustomKind.of(self.id)
+
+
 class ScoringConfig(BaseModel):
     signals: dict[SignalKind, SignalRule] = Field(
         default_factory=lambda: dict(DEFAULT_SIGNAL_RULES)
@@ -83,12 +126,45 @@ class ScoringConfig(BaseModel):
     thresholds: Thresholds = Field(default_factory=Thresholds)
     motion: MotionWindows = Field(default_factory=MotionWindows)
     arr: ArrScaling = Field(default_factory=ArrScaling)
+    # The book's own signals, in the order the CSM added them.
+    custom: list[CustomSignal] = Field(default_factory=list, max_length=MAX_CUSTOM_SIGNALS)
 
     @model_validator(mode="after")
     def _fill_missing_signals(self) -> ScoringConfig:
         for kind, rule in DEFAULT_SIGNAL_RULES.items():
             self.signals.setdefault(kind, rule)
         return self
+
+    @model_validator(mode="after")
+    def _unique_custom(self) -> ScoringConfig:
+        ids = [signal.id for signal in self.custom]
+        if len(ids) != len(set(ids)):
+            raise ValueError("two custom signals have the same id")
+        names = [signal.name.casefold() for signal in self.custom]
+        if len(names) != len(set(names)):
+            raise ValueError("two custom signals have the same name")
+        return self
+
+    def kinds(self) -> list[SignalKey]:
+        """Every signal this book scores: the eight built in (in SignalKind order), then its
+        own in the order they were added."""
+        return [*SignalKind, *(signal.kind for signal in self.custom)]
+
+    def custom_signal(self, kind: SignalKey | str) -> CustomSignal | None:
+        """The definition of a custom kind, or None (a built-in kind, or one since removed)."""
+        if isinstance(kind, SignalKind):
+            return None
+        for signal in self.custom:
+            if signal.kind == kind:
+                return signal
+        return None
+
+    def rule_for(self, kind: SignalKey | str) -> SignalRule | None:
+        """The scoring rule for any kind; None for a custom kind this book no longer has."""
+        if isinstance(kind, SignalKind):
+            return self.signals.get(kind)
+        custom = self.custom_signal(kind)
+        return None if custom is None else custom.rule
 
 
 def config_dir() -> Path:

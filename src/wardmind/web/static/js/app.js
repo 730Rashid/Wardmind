@@ -183,10 +183,15 @@ document.querySelectorAll("[data-dropzone]").forEach((zone) => {
 // left takes Yes or No, every other signal takes a number. Each option names its box in a data
 // attribute. Without JavaScript both boxes stay on the page, and the server reads the matching one.
 function showReadingInput(select) {
-  const wanted = select.selectedOptions[0]?.dataset.readingInput;
+  const option = select.selectedOptions[0];
+  const wanted = option?.dataset.readingInput;
   if (!wanted || !select.form) return;
   select.form.querySelectorAll("[data-reading-field]").forEach((field) => {
     field.hidden = field.dataset.readingField !== wanted;
+  });
+  // One of the book's own signals names its unit beside the number box ("calls", "%").
+  select.form.querySelectorAll("[data-reading-unit-text]").forEach((unit) => {
+    unit.textContent = option.dataset.readingUnit || "";
   });
 }
 

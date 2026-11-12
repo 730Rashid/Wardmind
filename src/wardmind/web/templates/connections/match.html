@@ -29,6 +29,11 @@
         </thead>
         <tbody>
           {% for row in rows %}
+          {% if row.custom and not (loop.previtem is defined and loop.previtem.custom) %}
+          <tr>
+            <th scope="colgroup" colspan="3">Your own signals</th>
+          </tr>
+          {% endif %}
           <tr>
             <th scope="row" class="cell-field">
               <label for="column-{{ row.index }}">{{ row.label }}</label>

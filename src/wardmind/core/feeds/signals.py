@@ -14,7 +14,7 @@ from wardmind.core import importing
 from wardmind.core.feeds.models import MatchBy, UnmatchedRow
 from wardmind.core.importing import DateOrder, ImportIssue, Table
 from wardmind.core.matching import normalize_domain, normalize_name
-from wardmind.core.models import Account, Signal, SignalKind
+from wardmind.core.models import Account, Signal, SignalKey
 
 MAX_UNMATCHED = 200  # unmatched rows kept for the status; the count is always exact
 
@@ -148,19 +148,23 @@ def build_signal_readings(
     called Acme."), and a row with no key at all is unmatched with "This row has no ID, website or
     name.". When two rows match the same account, the later row's readings win for that kind.
 
+    A signal column is any "signal:*" field: a built-in one, or one of the book's own (its
+    CustomKind). A mapped field for an own signal the book has since removed is ignored.
+
     Raises ValueError (plain message) when the mapping has no key column, or no signal column."""
     # importing's own helpers (the column lookup, cell reading, value conversion and row
     # numbering build_import uses), so a feed reads a value exactly as an import does.
-    columns = importing._mapped_columns(table, mapping)
+    fields = importing.import_fields()
+    columns = importing._mapped_columns(table, mapping, fields)
     methods = _AUTO_ORDER if match_by is MatchBy.AUTO else (match_by,)
     if not any(_KEY_FIELD[method] in columns for method in methods):
         if match_by is MatchBy.AUTO:
             raise ValueError("Match a column to ID, Website or Account name.")
         raise ValueError(f"Match a column to {_LABEL[match_by]}.")
     specs = [
-        spec
-        for spec in importing.IMPORT_FIELDS
-        if spec.key.startswith("signal:") and spec.key in columns
+        (spec, kind)
+        for spec in fields
+        if spec.key in columns and (kind := importing.signal_kind_for_field(spec.key)) is not None
     ]
     if not specs:
         raise ValueError("Match at least one signal column, such as Usage trend.")
@@ -177,7 +181,7 @@ def build_signal_readings(
                 index[method].setdefault(key, []).append(account.id)
 
     observed = _naive_utc(observed_at)
-    readings: dict[tuple[str, SignalKind], Signal] = {}  # the later row replaces an earlier one
+    readings: dict[tuple[str, SignalKey], Signal] = {}  # the later row replaces an earlier one
     issues: list[ImportIssue] = []
     unmatched: list[UnmatchedRow] = []
     unmatched_count = 0
@@ -188,7 +192,7 @@ def build_signal_readings(
             if problem is not None and len(unmatched) < MAX_UNMATCHED:
                 unmatched.append(problem)
             continue
-        for spec in specs:
+        for spec, kind in specs:
             text = importing._cell(row, columns, spec.key)
             if not text:
                 continue
@@ -199,7 +203,6 @@ def build_signal_readings(
                     ImportIssue(row=number, field=spec.key, message=f"{spec.label} {exc}")
                 )
                 continue
-            kind = importing.SIGNAL_FIELD_KINDS[spec.key]
             readings[(account_id, kind)] = Signal(
                 account_id=account_id,
                 kind=kind,

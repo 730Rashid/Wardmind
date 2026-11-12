@@ -16,6 +16,7 @@ import codecs
 import csv
 import hashlib
 import io
+import math
 import re
 import unicodedata
 import zipfile
@@ -31,7 +32,16 @@ from typing import Any
 from openpyxl import load_workbook
 from pydantic import BaseModel
 
-from wardmind.core.models import Account, Milestones, Signal, SignalKind
+from wardmind.core.config import CustomSignal, ScoringConfig, load_scoring_config
+from wardmind.core.models import (
+    CUSTOM_PREFIX,
+    Account,
+    CustomKind,
+    Milestones,
+    Signal,
+    SignalKey,
+    SignalKind,
+)
 
 MAX_BYTES = 5 * 1024 * 1024  # larger files are refused with a plain message
 MAX_ROWS = 5000  # data rows; more are refused with a plain message
@@ -545,6 +555,52 @@ IMPORT_FIELDS: tuple[ImportField, ...] = (
 )
 
 
+# The import field for each signal the book defines (config.CustomSignal) is keyed
+# "signal:custom:<id>", the same text as "signal:" followed by the signal's kind.
+_CUSTOM_FIELD_PREFIX = "signal:" + CUSTOM_PREFIX
+
+
+def _custom_field(signal: CustomSignal) -> ImportField:
+    """The import field for one of the book's own signals. Its label is the signal's name, so a
+    column with that header (any case and spacing) matches it through auto_map's exact match."""
+    help_text = "One of your own signals"
+    if signal.unit:
+        help_text += f", in {signal.unit}"
+    return ImportField(
+        key=f"signal:{signal.kind.value}",
+        label=signal.name,
+        required=False,
+        type=FieldType.NUMBER,
+        help=help_text,
+        synonyms=(),
+    )
+
+
+def import_fields(config: ScoringConfig | None = None) -> tuple[ImportField, ...]:
+    """The import fields for a book: the built-in IMPORT_FIELDS in their order, then one field per
+    signal the book defines (config.custom), in the order they were added. Without a config, the
+    open book's own is read (config.load_scoring_config)."""
+    scoring = config if config is not None else load_scoring_config()
+    return (*IMPORT_FIELDS, *(_custom_field(signal) for signal in scoring.custom))
+
+
+def is_custom_field(key: str) -> bool:
+    """True for the import field of one of the book's own signals ("signal:custom:<id>")."""
+    return key.startswith(_CUSTOM_FIELD_PREFIX)
+
+
+def signal_kind_for_field(key: str) -> SignalKey | None:
+    """The signal a "signal:*" import field reads: a SignalKind for a built-in field, a CustomKind
+    for one of the book's own, and None for any other field."""
+    kind = SIGNAL_FIELD_KINDS.get(key)
+    if kind is not None or not is_custom_field(key):
+        return kind
+    try:
+        return CustomKind(key.removeprefix("signal:"))
+    except ValueError:
+        return None
+
+
 class DateOrder(StrEnum):
     DMY = "dmy"
     MDY = "mdy"
@@ -650,8 +706,7 @@ _RANGES: dict[str, tuple[int, int]] = {
     "signal:seat_utilisation": (0, 200),
     "signal:usage_trend_30d": (-100, 1000),
 }
-_FIELD_INDEX = {spec.key: index for index, spec in enumerate(IMPORT_FIELDS)}
-_FIELDS = {spec.key: spec for spec in IMPORT_FIELDS}
+_FIELD_INDEX = {spec.key: index for index, spec in enumerate(IMPORT_FIELDS)}  # built-in fields only
 # Done and overdue only count when the row has a milestones total (the total comes first in
 # IMPORT_FIELDS, so it has been read by the time these are).
 _NEEDS_TOTAL = frozenset({"milestones_done", "milestones_overdue"})
@@ -857,7 +912,13 @@ def _parse_count(text: str) -> int:
 
 def _in_range(key: str, text: str, value: float) -> float:
     bounds = _RANGES.get(key)
-    if bounds is not None and not bounds[0] <= value <= bounds[1]:
+    if bounds is None:
+        # A number with no range of its own (one of the book's signals) only has to be finite:
+        # a run of digits too long for a float reads as infinity.
+        if not math.isfinite(value):
+            raise ValueError(f"{_quote(text)} isn't a number.")
+        return value
+    if not bounds[0] <= value <= bounds[1]:
         raise ValueError(
             f"{_quote(text)} should be between {bounds[0]} and {bounds[1]}, so it was left out."
         )
@@ -887,11 +948,17 @@ def _convert(spec: ImportField, text: str, date_order: DateOrder) -> Any:
             return 1.0 if parse_bool(text) else 0.0
 
 
-def _mapped_columns(table: Table, mapping: dict[str, str]) -> dict[str, int]:
-    """Field key to the column index of the header it's mapped to."""
+def _mapped_columns(
+    table: Table, mapping: dict[str, str], fields: tuple[ImportField, ...] = IMPORT_FIELDS
+) -> dict[str, int]:
+    """Field key to the column index of the header it's mapped to. A key for one of the book's own
+    signals that the book no longer has is left out: a saved mapping gone out of date, not wrong."""
+    known = {spec.key for spec in fields}
     columns: dict[str, int] = {}
     for key, header in mapping.items():
-        if key not in _FIELDS:
+        if key not in known:
+            if is_custom_field(key):
+                continue
             raise ValueError(f"{_quote(key)} isn't an import field.")
         if header not in table.headers:
             raise ValueError(f"{_quote(header)} isn't a column in this file.")
@@ -919,22 +986,27 @@ def _row_numbers(table: Table) -> list[int]:
 
 @dataclass
 class _ParsedRow:
+    fields: tuple[ImportField, ...] = IMPORT_FIELDS  # the fields the index in a problem refers to
     values: dict[str, Any] = dc_field(default_factory=dict)  # usable values, by field key
     problems: list[tuple[int, ImportIssue]] = dc_field(default_factory=list)  # (field index, issue)
     blocked: bool = False  # a required field is missing or invalid, or the id is taken
     milestones: Milestones = dc_field(default_factory=lambda: Milestones(done=0, total=0))
 
     def problem(self, number: int, index: int, message: str, *, blocks: bool) -> None:
-        issue = ImportIssue(row=number, field=IMPORT_FIELDS[index].key, message=message)
+        issue = ImportIssue(row=number, field=self.fields[index].key, message=message)
         self.problems.append((index, issue))
         self.blocked = self.blocked or blocks
 
 
 def _parse_row(
-    row: list[str], columns: dict[str, int], number: int, date_order: DateOrder
+    row: list[str],
+    columns: dict[str, int],
+    number: int,
+    date_order: DateOrder,
+    fields: tuple[ImportField, ...] = IMPORT_FIELDS,
 ) -> _ParsedRow:
-    parsed = _ParsedRow()
-    for index, spec in enumerate(IMPORT_FIELDS):
+    parsed = _ParsedRow(fields=fields)
+    for index, spec in enumerate(fields):
         cell = _cell(row, columns, spec.key)
         if spec.key in _NEEDS_TOTAL and "milestones_total" not in parsed.values:
             continue  # no total for this row: done and overdue are ignored, with no issue
@@ -1395,10 +1467,12 @@ def read_upload(data: bytes, filename: str, sheet: str | None = None) -> Table:
 def auto_map(headers: list[str]) -> dict[str, str]:
     """Import field key -> header. Normalize headers (casefold, punctuation to spaces, collapse
     spaces) and match exact synonyms first, then a header that contains a synonym as whole
-    words. Each header maps to at most one field; required fields get first pick."""
+    words. Each header maps to at most one field; required fields get first pick. The fields are
+    import_fields() for the open book, so one of its own signals matches a header of its name."""
+    fields = import_fields()
     normalised = [_normalise_header(header) for header in headers]
     # Required fields first. A tie between two fields goes to the earlier one in this order.
-    ranked = sorted(IMPORT_FIELDS, key=lambda spec: not spec.required)
+    ranked = sorted(fields, key=lambda spec: not spec.required)
     claimed: dict[str, str] = {}  # field key -> header
     taken: set[int] = set()  # header positions already used
 
@@ -1434,7 +1508,7 @@ def auto_map(headers: list[str]) -> dict[str, str]:
         claimed[key] = headers[position]
         taken.add(position)
 
-    return {spec.key: claimed[spec.key] for spec in IMPORT_FIELDS if spec.key in claimed}
+    return {spec.key: claimed[spec.key] for spec in fields if spec.key in claimed}
 
 
 def detect_date_order(values: list[str]) -> DateOrder | None:
@@ -1493,12 +1567,14 @@ def build_import(
     - Milestones are clamped to a valid Milestones with an issue when they don't add up.
     - Each mapped signal with a value becomes Signal(source="spreadsheet",
       observed_at=imported_at as naive UTC). The import field "signal:open_tickets_sev1"
-      becomes SignalKind.OPEN_TICKETS_SEV1, and so on (see SIGNAL_FIELD_KINDS).
+      becomes SignalKind.OPEN_TICKETS_SEV1, and so on (see SIGNAL_FIELD_KINDS); one of the
+      book's own, "signal:custom:<id>", becomes its CustomKind (see signal_kind_for_field).
     - A mapped milestones_overdue value also becomes an ONBOARDING_OVERDUE_MILESTONES reading,
       as with HubSpot.
     """
+    fields = import_fields()
     prefix = _connection_prefix(connection_id)
-    columns = _mapped_columns(table, mapping)
+    columns = _mapped_columns(table, mapping, fields)
     observed_at = _naive_utc(imported_at)
     accounts: list[Account] = []
     signals: list[Signal] = []
@@ -1507,7 +1583,7 @@ def build_import(
     skipped = 0
 
     for number, row in zip(_row_numbers(table), table.rows, strict=True):
-        parsed = _parse_row(row, columns, number, date_order)
+        parsed = _parse_row(row, columns, number, date_order, fields)
         _apply_milestones(parsed, number)
         if parsed.blocked:
             skipped += 1
@@ -1549,8 +1625,8 @@ def build_import(
         )
         accounts.append(account)
 
-        for spec in IMPORT_FIELDS:
-            kind = SIGNAL_FIELD_KINDS.get(spec.key)
+        for spec in fields:
+            kind = signal_kind_for_field(spec.key)
             if kind is not None and spec.key in parsed.values:
                 signals.append(
                     Signal(
@@ -1589,7 +1665,7 @@ def merge_into_snapshot_signals(
     and append a new reading only when its value differs from that account's latest reading of
     the same kind (so re-importing an unchanged file adds nothing)."""
     kept = [signal for signal in previous if signal.account_id in kept_ids]
-    latest: dict[tuple[str, SignalKind], Signal] = {}
+    latest: dict[tuple[str, SignalKey], Signal] = {}
     for signal in kept:
         key = (signal.account_id, signal.kind)
         current = latest.get(key)
@@ -1608,14 +1684,16 @@ def merge_into_snapshot_signals(
     return merged
 
 
-def template_csv() -> str:
-    """A CSV with every IMPORT_FIELDS label as the header row and two example rows, ready to
-    fill in. Example names are clearly invented."""
+def template_csv(config: ScoringConfig | None = None) -> str:
+    """A CSV with every import field's label as the header row (the open book's own signals last)
+    and two example rows, ready to fill in. Example names are clearly invented; an own signal's
+    column is left blank. A label the CSM typed is made formula-safe, as in issues_csv."""
+    fields = import_fields(config)
     buffer = io.StringIO()
     writer = csv.writer(buffer)
-    writer.writerow([spec.label for spec in IMPORT_FIELDS])
+    writer.writerow([_formula_safe(spec.label) for spec in fields])
     for example in _TEMPLATE_EXAMPLES:
-        writer.writerow([example.get(spec.key, "") for spec in IMPORT_FIELDS])
+        writer.writerow([example.get(spec.key, "") for spec in fields])
     return buffer.getvalue()
 
 
