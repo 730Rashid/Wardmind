@@ -66,7 +66,10 @@ OpenRouter API key. Wardmind has no AI account or key of its own.
   signals, notes or other accounts.
 - **Who sees it.** OpenRouter, and the company that runs the model you chose (by default
   `anthropic/claude-haiku-5.5`). Every request asks OpenRouter to use only providers that don't
-  store or train on the data.
+  store or train on the data. The one exception is a free model (an id ending in `:free`): no
+  provider of those runs without training on what it is sent. Wardmind warns you beside the
+  model field, and asks you to confirm every time you use one (Proceed unlocks after five
+  seconds); only a confirmed request lets those providers keep the website text.
 - **When.** Only when you press **Summarise with AI** on an account, or tick **Also summarise
   with AI** when looking up all websites. Never in the background.
 - **Cost.** You pay OpenRouter directly. A summary is a few thousand tokens; each one is reused
@@ -180,6 +183,7 @@ worked out from its sample readings.
 | What | Where |
 |---|---|
 | Appearance and other UI settings | `config/settings.yaml` in the folder you run Wardmind from. The desktop app (Wardmind.exe) uses `%LOCALAPPDATA%\wardmind\config\settings.yaml` instead. |
+| Your own logo, if you add one (Settings > Appearance). It is your company's mark, not customer data, so it isn't encrypted | `brand-logo.<ext>` beside `settings.yaml` |
 | Scoring weights and thresholds | `config/scoring.yaml` in the same folder (desktop app: `%LOCALAPPDATA%\wardmind\config\scoring.yaml`) |
 | HubSpot access token | `%LOCALAPPDATA%\wardmind\hubspot-token`, or the `WARDMIND_HUBSPOT_TOKEN` environment variable. The dashboard shows only its last 4 characters. |
 | Your connections, imported sheets, hand-added accounts, edits, readings, links, hidden accounts and notices | `%LOCALAPPDATA%\wardmind\data` |

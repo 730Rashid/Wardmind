@@ -426,3 +426,171 @@ function setupStack(chart) {
 }
 
 document.querySelectorAll("[data-stack]").forEach(setupStack);
+
+// A model whose providers may train on what they're sent (an OpenRouter ":free" model). The model
+// field says so as it is typed, and every use asks first: a form marked data-training-confirm
+// (with the name of a checkbox that must be ticked, when it has one) opens this dialog instead of
+// submitting. Proceed stays disabled for five seconds, its cover drawing back from right to left,
+// so it can't be clicked through by reflex. Proceed adds allow_training=1, which the server
+// requires; without JavaScript the server's refusal offers the same choice.
+const TRAINING_WAIT_SECONDS = 5;
+const FREE_MODEL = /:free\s*$/i;
+
+document.addEventListener("input", (event) => {
+  const field = event.target;
+  if (!(field instanceof HTMLInputElement) || !field.hasAttribute("data-training-model-field")) {
+    return;
+  }
+  const warning = document.querySelector("[data-training-warning]");
+  if (warning) warning.hidden = !FREE_MODEL.test(field.value);
+});
+
+function svgIcon(name) {
+  const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+  svg.setAttribute("class", "icon");
+  svg.setAttribute("aria-hidden", "true");
+  svg.setAttribute("focusable", "false");
+  const use = document.createElementNS("http://www.w3.org/2000/svg", "use");
+  use.setAttribute("href", `/static/icons.svg#${name}`);
+  svg.append(use);
+  return svg;
+}
+
+function makeTrainingDialog() {
+  const dialog = document.createElement("dialog");
+  dialog.className = "confirm-dialog";
+  dialog.setAttribute("aria-labelledby", "training-dialog-title");
+  dialog.setAttribute("aria-describedby", "training-dialog-text");
+
+  const head = document.createElement("div");
+  head.className = "confirm-dialog-head";
+  const mark = document.createElement("span");
+  mark.className = "confirm-dialog-mark";
+  mark.append(svgIcon("health-watch"));
+  const title = document.createElement("h2");
+  title.className = "confirm-dialog-title";
+  title.id = "training-dialog-title";
+  title.textContent = "Use a model that may train on your data?";
+  head.append(mark, title);
+
+  const text = document.createElement("p");
+  text.className = "confirm-dialog-text";
+  text.id = "training-dialog-text";
+
+  const wait = document.createElement("p");
+  wait.className = "confirm-dialog-wait";
+
+  const actions = document.createElement("div");
+  actions.className = "confirm-dialog-actions";
+  const cancel = document.createElement("button");
+  cancel.type = "button";
+  cancel.className = "button";
+  cancel.textContent = "Cancel";
+  cancel.addEventListener("click", () => finishTraining(false));
+  const proceed = document.createElement("button");
+  proceed.type = "button";
+  proceed.className = "button-primary proceed-wait";
+  const label = document.createElement("span");
+  label.className = "proceed-wait-label";
+  label.textContent = "Proceed";
+  const cover = document.createElement("span");
+  cover.className = "proceed-wait-cover";
+  cover.setAttribute("aria-hidden", "true");
+  proceed.append(label, cover);
+  proceed.addEventListener("click", () => finishTraining(true));
+  actions.append(cancel, proceed);
+
+  dialog.append(head, text, wait, actions);
+  // Escape, or the dialog closing any other way, is a Cancel.
+  dialog.addEventListener("cancel", () => finishTraining(false));
+  dialog.addEventListener("close", () => finishTraining(false));
+  document.body.append(dialog);
+  return { dialog, text, wait, cancel, proceed };
+}
+
+let trainingDialog = null;
+let pendingTraining = null; // the form waiting on the dialog, and the dialog's clock
+
+// Proceed or Cancel. The buttons call this directly rather than through the dialog's close
+// event, which a page that isn't painting can hold back.
+function finishTraining(go) {
+  if (!pendingTraining) return;
+  const { form, submitter, tick, animation } = pendingTraining;
+  pendingTraining = null;
+  window.clearInterval(tick);
+  animation.cancel();
+  if (trainingDialog.dialog.open) trainingDialog.dialog.close();
+  if (!go || trainingDialog.proceed.disabled) return;
+  const field = document.createElement("input");
+  field.type = "hidden";
+  field.name = "allow_training";
+  field.value = "1";
+  form.append(field);
+  form.dataset.trainingOk = "1";
+  if (submitter && submitter.form === form) form.requestSubmit(submitter);
+  else form.requestSubmit();
+}
+
+function confirmTraining(form, submitter) {
+  if (!trainingDialog) trainingDialog = makeTrainingDialog();
+  const { dialog, text, wait, cancel, proceed } = trainingDialog;
+  const model = form.dataset.trainingModel || "This model";
+  const what = form.dataset.trainingWhat || "the customer's website";
+  text.textContent =
+    `${model} is a free model. Its providers may keep what Wardmind sends, the text from ` +
+    `${what}, and train on it. Wardmind otherwise only uses providers that don't.`;
+
+  // Proceed unlocks once five seconds have passed and the cover has gone. The cover can start a
+  // frame late; a window that isn't painting at all never draws it, and then the clock alone
+  // decides (nobody can be looking at it).
+  const cover = proceed.querySelector(".proceed-wait-cover");
+  const total = TRAINING_WAIT_SECONDS * 1000;
+  const animation = cover.animate([{ transform: "scaleX(1)" }, { transform: "scaleX(0)" }], {
+    duration: total,
+    easing: "linear",
+    fill: "forwards",
+  });
+  const opened = performance.now();
+  proceed.disabled = true;
+  const check = () => {
+    const elapsed = performance.now() - opened;
+    const drawn = Number(animation.currentTime) || 0;
+    if (elapsed >= total && (animation.playState === "finished" || drawn === 0)) {
+      window.clearInterval(tick);
+      animation.finish();
+      wait.textContent = "";
+      proceed.disabled = false;
+      return;
+    }
+    const left = Math.max(1, Math.ceil((total - Math.min(elapsed, drawn || elapsed)) / 1000));
+    wait.textContent = `You can proceed in ${left} second${left === 1 ? "" : "s"}.`;
+  };
+  const tick = window.setInterval(check, 200);
+  pendingTraining = { form, submitter, tick, animation };
+  check();
+  dialog.showModal();
+  cancel.focus();
+}
+
+// Capture runs before htmx's own submit handler on the form, so stopping here stops htmx too.
+document.addEventListener(
+  "submit",
+  (event) => {
+    const form = event.target;
+    if (!(form instanceof HTMLFormElement) || !form.hasAttribute("data-training-confirm")) return;
+    if (form.dataset.trainingOk === "1") {
+      delete form.dataset.trainingOk; // this once: the next use asks again
+      return;
+    }
+    form.querySelectorAll('input[name="allow_training"]').forEach((field) => field.remove());
+    const needs = form.dataset.trainingConfirm;
+    if (needs) {
+      const box = form.elements.namedItem(needs);
+      if (!(box instanceof HTMLInputElement) || !box.checked) return;
+    }
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    confirmTraining(form, event.submitter);
+  },
+  true,
+);

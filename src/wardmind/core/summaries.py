@@ -10,6 +10,8 @@ Privacy rules (PRIVACY.md and the Data & privacy page repeat them in plain Engli
   ARR, owner, health, signals, notes, edits or other accounts.
 - Every request asks OpenRouter to use only providers that don't store or train on the data
   (provider.data_collection = "deny") and that support the response format (require_parameters).
+  The one exception is a free model (trains_on_data): none of its providers accepts "deny", so
+  each use needs the CSM's confirmation (TrainingNotConfirmed until then) and is sent "allow".
 - Results are saved on this computer and reused until the website text or the model changes,
   so a re-run only pays for what changed. Clear local cache removes them.
 - Demo mode: sample_summary() invents one; nothing is sent.
@@ -158,6 +160,26 @@ class OutOfCredit(SummaryError):
 class AIUnavailable(SummaryError):
     """Timeout, network error, 429/5xx after retries, no provider for the model under these
     rules, an unknown model, or an answer that doesn't match SUMMARY_SCHEMA."""
+
+
+class TrainingNotConfirmed(SummaryError):
+    """The chosen model is only served by providers that may train on what they're sent
+    (trains_on_data), and this use wasn't confirmed. Nothing was sent."""
+
+
+def trains_on_data(model: str) -> bool:
+    """True for a model whose providers may train on what they're sent: OpenRouter's free
+    variants ("<author>/<model>:free"). None of their providers runs under data_collection
+    "deny", so using one means allowing it, and Wardmind asks the CSM first, every time."""
+    return model.strip().lower().endswith(":free")
+
+
+def training_message(model: str) -> str:
+    """What the page says when such a model was asked for without confirming it."""
+    return (
+        f"{model} is a free model: its providers may train on what you send them. "
+        "Confirm before using it, or choose another model in Data & privacy."
+    )
 
 
 # --- Messages -----------------------------------------------------------------------------
@@ -399,12 +421,17 @@ class OpenRouterClient:
             },
         )
 
-    def complete(self, messages: list[dict[str, str]], model: str) -> tuple[str, Usage]:
+    def complete(
+        self, messages: list[dict[str, str]], model: str, *, allow_training: bool = False
+    ) -> tuple[str, Usage]:
         """POST CHAT_PATH with model, messages, max_tokens=MAX_OUTPUT_TOKENS, response_format
         {"type": "json_schema", "json_schema": {"name": "account_summary", "strict": true,
         "schema": SUMMARY_SCHEMA}}, provider {"data_collection": "deny", "require_parameters":
         true}. No sampling parameters are sent: some models' providers don't accept them, and
         require_parameters would then rule every provider out.
+
+        allow_training (only after the CSM confirmed a model that trains_on_data) sends
+        data_collection "allow" instead, since no provider of such a model accepts "deny".
 
         If OpenRouter finds no provider for those parameters (a model without structured
         output), it is asked once more without response_format and require_parameters, still
@@ -414,6 +441,7 @@ class OpenRouterClient:
         OutOfCredit, 429/5xx → retry up to MAX_ATTEMPTS then AIUnavailable, other 4xx →
         AIUnavailable with OpenRouter's error message (scrubbed of the key), timeouts and
         transport errors → AIUnavailable."""
+        collection = "allow" if allow_training else "deny"
         body: dict[str, Any] = {
             "model": model,
             "messages": messages,
@@ -426,12 +454,12 @@ class OpenRouterClient:
                     "schema": SUMMARY_SCHEMA,
                 },
             },
-            "provider": {"data_collection": "deny", "require_parameters": True},
+            "provider": {"data_collection": collection, "require_parameters": True},
         }
         response = self._send("POST", CHAT_PATH, body)
         if _no_endpoints(response):
             plain = {key: value for key, value in body.items() if key != "response_format"}
-            plain["provider"] = {"data_collection": "deny"}
+            plain["provider"] = {"data_collection": collection}
             response = self._send("POST", CHAT_PATH, plain)
         data = self._check(response)
         error = data.get("error")
@@ -534,10 +562,22 @@ def _usage(raw: Any) -> Usage:
 
 
 def summarise(
-    account_id: str, research: SiteResearch, client: OpenRouterClient, model: str, now: datetime
+    account_id: str,
+    research: SiteResearch,
+    client: OpenRouterClient,
+    model: str,
+    now: datetime,
+    *,
+    allow_training: bool = False,
 ) -> Summary:
-    """build_messages → client.complete → parse_answer → Summary (content_hash, usage, now)."""
-    content, usage = client.complete(build_messages(research), model)
+    """build_messages → client.complete → parse_answer → Summary (content_hash, usage, now).
+    A model that trains_on_data is refused (TrainingNotConfirmed, nothing sent) unless
+    allow_training says the CSM confirmed it."""
+    if trains_on_data(model) and not allow_training:
+        raise TrainingNotConfirmed(training_message(model))
+    content, usage = client.complete(
+        build_messages(research), model, allow_training=trains_on_data(model)
+    )
     about, highlights = parse_answer(content)
     return Summary(
         account_id=account_id,

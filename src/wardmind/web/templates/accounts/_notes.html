@@ -2,7 +2,7 @@
    meetings, emails and other contact). A note can be pinned; its Edit and Remove sit in a disclosure.
    Edit can move a note to the activity history (its kind changes), and back. The macros are in
    _entry.html. #}
-{% from "accounts/_entry.html" import pin_form, entry_text, entry_edit %}
+{% from "accounts/_entry.html" import kind_chip, pin_form, entry_text, entry_edit %}
 {% from "partials/edited.html" import edited_marker %}
 
 <section class="account-section journal-section" id="notes" aria-labelledby="notes-heading">
@@ -52,7 +52,7 @@
     {% for note in journal.notes %}
     <article class="note{% if note.pinned %} note--pinned{% endif %}" id="note-{{ note.id }}">
       <p class="note-meta">
-        <span class="note-kind note-kind--{{ note.kind }}">{{ note.kind_label }}</span>
+        {{ kind_chip(note.kind, note.kind_label) }}
         <span class="note-day">{{ note.day }}</span>
         {% if note.pinned %}<span class="entry-pinned"><svg class="icon" aria-hidden="true" focusable="false"><use href="/static/icons.svg#star"/></svg>Pinned</span>{% endif %}
         {% if note.edited %}{{ edited_marker() }}{% endif %}

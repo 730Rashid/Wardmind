@@ -1,35 +1,36 @@
 {% extends "base.html" %}
 {% from "partials/breakdown_table.html" import breakdown_table %}
 {% from "partials/golive_tag.html" import golive_tag %}
+{% from "partials/page_head.html" import page_head %}
 {% block content %}
 {% set account = brief.account %}
 <div class="onboarding-brief">
   <p class="brief-back no-print"><a href="/onboarding">Back to onboarding prep</a></p>
 
-  <header class="onboarding-head">
-    <h1 class="page-title">{{ account.name }} onboarding brief</h1>
-    <ul class="facts">
-      <li>{% if brief.day is none %}Start date not known{% else %}Day {{ brief.day }} of {{ brief.window_days }}{% endif %}</li>
-      <li><span class="health health--{{ brief.health.value }}"><svg class="icon" aria-hidden="true" focusable="false"><use href="/static/icons.svg#health-{{ brief.health.value | replace('_', '-') }}"/></svg> {{ brief.health.label }}</span></li>
-      <li>{{ account.arr | money }} ARR</li>
-      <li>{{ account.owner }}</li>
-    </ul>
-    {% if not brief.in_onboarding %}
-    <p class="brief-note" role="note">{{ account.name }} isn't in onboarding right now. This brief shows its plan for reference.</p>
-    {% endif %}
-    <div class="brief-actions no-print">
-      <button type="button" class="button js-only" data-print>Print or save as PDF</button>
-      <button type="button" class="button js-only" data-copy-target="#brief-text">Copy as text</button>
-      <p class="copy-status" role="status" aria-live="polite"></p>
-    </div>
-    {# Shown only when the browser won't copy for us, pre-selected so Ctrl+C copies it. #}
-    <textarea id="brief-text-fallback" class="copy-fallback no-print" rows="12" readonly hidden
-              aria-label="Brief as plain text"></textarea>
-  </header>
+  {% call page_head(account.name ~ " onboarding brief", "motion-onboarding") %}
+  <div class="brief-actions no-print">
+    <button type="button" class="button js-only" data-print>Print or save as PDF</button>
+    <button type="button" class="button js-only" data-copy-target="#brief-text">Copy as text</button>
+    <p class="copy-status" role="status" aria-live="polite"></p>
+  </div>
+  {% endcall %}
 
   {# The brief prints on one A4 page, so on paper the forecast is a sentence of the summary and
      its own block below stays on screen. #}
-  <p class="brief-summary">{{ brief.summary }}{% if forecast is not none %}<span class="print-only"> {{ forecast.sentence }}</span>{% endif %}</p>
+  <p class="page-lede brief-summary">{{ brief.summary }}{% if forecast is not none %}<span class="print-only"> {{ forecast.sentence }}</span>{% endif %}</p>
+
+  <ul class="facts">
+    <li>{% if brief.day is none %}Start date not known{% else %}Day {{ brief.day }} of {{ brief.window_days }}{% endif %}</li>
+    <li><span class="health health--{{ brief.health.value }}"><svg class="icon" aria-hidden="true" focusable="false"><use href="/static/icons.svg#health-{{ brief.health.value | replace('_', '-') }}"/></svg> {{ brief.health.label }}</span></li>
+    <li>{{ account.arr | money }} ARR</li>
+    <li>{{ account.owner }}</li>
+  </ul>
+  {% if not brief.in_onboarding %}
+  <p class="brief-note" role="note">{{ account.name }} isn't in onboarding right now. This brief shows its plan for reference.</p>
+  {% endif %}
+  {# Shown only when the browser won't copy for us, pre-selected so Ctrl+C copies it. #}
+  <textarea id="brief-text-fallback" class="copy-fallback no-print" rows="12" readonly hidden
+            aria-label="Brief as plain text"></textarea>
 
   {% if forecast is not none %}
   <section class="onboarding-section golive-section no-print" aria-labelledby="golive-heading">

@@ -1,15 +1,13 @@
 {% extends "base.html" %}
 {% from "partials/logo.html" import account_logo %}
+{% from "partials/page_head.html" import page_head %}
 {# Renewals: the honest forecast (core/forecast.py). `screen` is built by renewal_pages.renewals_page.
    Each call button is its own small form: it saves at once and comes back here at the row. The
    calibration at the foot is the same whether or not any renewal is in the window. #}
 {% block content %}
 <div class="renewals">
-  <header class="renewals-head">
-    <h1 class="page-title">Renewals</h1>
-    <p class="date-line">{{ today }}</p>
-    <p class="summary"><span class="summary-line">{{ screen.summary }}</span></p>
-  </header>
+  {{ page_head("Renewals", "motion-renewal", meta=today) }}
+  <p class="page-lede">{{ screen.summary }}</p>
 
   {% if screen.notice %}
   <p class="status-line" role="status">{{ screen.notice }}</p>
@@ -23,7 +21,7 @@
   {% else %}
   <section class="account-section renewal-section" aria-labelledby="calls-heading">
     <h2 class="section-title" id="calls-heading">Your calls</h2>
-    <div class="stack" data-stack>
+    <div class="chart-stack" data-stack>
     {% if screen.segments %}
     <svg class="renewal-bar" viewBox="0 0 100 24" preserveAspectRatio="none" width="100%" height="24" role="img" aria-label="{{ screen.bar_label }}">
       {% for seg in screen.segments %}

@@ -1,26 +1,39 @@
 {% extends "base.html" %}
+{% from "partials/page_head.html" import page_head %}
 {% block content %}
-<div class="stack research-page">
-  <h1 class="page-title">{{ page }}</h1>
+<div class="research-page">
+  {{ page_head(page, "search") }}
   {% if not web_on %}
-  <p class="prose">Website lookups need web research, and it's off. Turn it on in <a href="/settings/privacy">Data &amp; privacy</a> to let Wardmind read each account's own website.</p>
+  <p class="page-lede">Website lookups need web research, and it's off. Turn it on in <a href="/settings/privacy">Data &amp; privacy</a> to let Wardmind read each account's own website.</p>
   {% if error %}
   <p class="alert" role="alert">{{ error }}</p>
   {% endif %}
   {% else %}
-  <p class="prose">Looks up every account's own website in the background, so you don't have to press each account's button. Each website is visited once, unless it was looked up in the last 24 hours. Nothing about the account is sent, only what its website says.</p>
+  <p class="page-lede">Looks up every account's own website in the background, so you don't have to press each account's button. Each website is visited once, unless it was looked up in the last 24 hours. Nothing about the account is sent, only what its website says.</p>
 
-  <form class="lookup-form" method="post" action="/research/all" hx-post="/research/all" hx-target="#bulk-job" hx-swap="outerHTML" hx-disabled-elt="find button">
-    <div class="field-check">
-      <label class="choice"><input type="checkbox" name="summarise" value="1" aria-describedby="summarise-help"{% if ai_reason %} disabled{% endif %}> Also summarise with AI</label>
-      <p class="field-help" id="summarise-help">{% if ai_reason %}{{ ai_reason }}{% else %}Uses your own OpenRouter credit. Only the text each website shows is sent.{% endif %}</p>
-    </div>
-    <div class="field-check">
-      <label class="choice"><input type="checkbox" name="refresh" value="1" aria-describedby="refresh-help"> Look up again, even if looked up in the last 24 hours</label>
-      <p class="field-help" id="refresh-help">Visits each website now, instead of using a lookup from the last day.</p>
-    </div>
-    <button type="submit" class="button-primary"{% if not count %} disabled{% endif %}>Look up all {{ count }} {{ 'account' if count == 1 else 'accounts' }}</button>
-  </form>
+  <section class="account-section lookup-start">
+    <form class="lookup-form" method="post" action="/research/all" hx-post="/research/all" hx-target="#bulk-job" hx-swap="outerHTML" hx-disabled-elt="find button"{% if ai_training_model %} data-training-confirm="summarise" data-training-model="{{ ai_training_model }}" data-training-what="every account's website"{% endif %}>
+      <div class="field-check">
+        <label class="choice"><input type="checkbox" name="summarise" value="1" aria-describedby="summarise-help"{% if ai_reason %} disabled{% endif %}> Also summarise with AI</label>
+        <p class="field-help" id="summarise-help">{% if ai_reason %}{{ ai_reason }}{% else %}Uses your own OpenRouter credit. Only the text each website shows is sent.{% endif %}</p>
+      </div>
+      <div class="field-check">
+        <label class="choice"><input type="checkbox" name="refresh" value="1" aria-describedby="refresh-help"> Look up again, even if looked up in the last 24 hours</label>
+        <p class="field-help" id="refresh-help">Visits each website now, instead of using a lookup from the last day.</p>
+      </div>
+      <button type="submit" class="button-primary"{% if not count %} disabled{% endif %}>Look up all {{ count }} {{ 'account' if count == 1 else 'accounts' }}</button>
+    </form>
+    {% if confirm_training %}
+    {# Without JavaScript there is no dialog: the refusal is the question, and this answers it. #}
+    <form class="lookup-form" method="post" action="/research/all">
+      <input type="hidden" name="summarise" value="1">
+      <input type="hidden" name="allow_training" value="1">
+      {% if confirm_refresh %}<input type="hidden" name="refresh" value="1">{% endif %}
+      <p class="field-warning"><svg class="icon" aria-hidden="true" focusable="false"><use href="/static/icons.svg#health-watch"/></svg><span>Proceeding lets this model's providers keep the text from every account's website and train on it.</span></p>
+      <button type="submit" class="button">Proceed with {{ ai_training_model }}</button>
+    </form>
+    {% endif %}
+  </section>
 
   {% include "partials/bulk_job.html" %}
 

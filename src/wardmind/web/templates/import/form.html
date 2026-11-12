@@ -1,14 +1,17 @@
 {% extends "base.html" %}
+{% from "partials/page_head.html" import page_head %}
 {% block content %}
 {% macro file_section() %}
-    <section class="import-part" aria-labelledby="file-title">
+    <section class="import-part settings-card" aria-labelledby="file-title">
       <h2 class="section-title" id="file-title">Your file</h2>
       <p class="field-help">CSV, TSV or Excel (.xlsx). Old .xls files need saving as .xlsx first.</p>
-      <label class="button file-button">Choose a file<input class="visually-hidden" type="file" name="file" accept=".csv,.tsv,.txt,.xlsx" data-fill-name></label>
+      <div class="settings-actions settings-actions--start">
+        <label class="button file-button">Choose a file<input class="visually-hidden" type="file" name="file" accept=".csv,.tsv,.txt,.xlsx" data-fill-name></label>
+      </div>
     </section>
 {% endmacro %}
 {% macro paste_section() %}
-    <section class="import-part" aria-labelledby="paste-title">
+    <section class="import-part settings-card" aria-labelledby="paste-title">
       <h2 class="section-title" id="paste-title">Paste cells</h2>
       <div class="field">
         <label for="pasted">Paste cells here</label>
@@ -18,8 +21,8 @@
     </section>
 {% endmacro %}
 <div class="import-page">
-  <h1 class="page-title">Import a spreadsheet</h1>
-  <p class="prose field-help">Choose a file, or paste cells from a spreadsheet. You match the columns on the next page.</p>
+  {{ page_head("Import a spreadsheet", "database") }}
+  <p class="page-lede">Choose a file, or paste cells from a spreadsheet. You match the columns on the next page.</p>
   {% if error %}<p class="field-error" role="alert">{{ error }}</p>{% endif %}
 
   <form class="import-form settings-form" method="post" action="/import" enctype="multipart/form-data">
@@ -32,19 +35,23 @@
     {{ paste_section() }}
     {% endif %}
 
-    <fieldset class="import-target">
-      <legend>Import into</legend>
-      {% for option in options %}
-      <label class="choice"><input type="radio" name="target" value="{{ option.value }}"{% if option.checked %} checked{% endif %}> {{ option.label }}</label>
-      {% endfor %}
-      <div class="field">
-        <label for="new-name">Name</label>
-        <input type="text" id="new-name" name="new_name" value="{{ new_name }}" maxlength="60" autocomplete="off">
-        <p class="field-help">For a new sheet. Leave it blank to use the file name.</p>
-      </div>
-    </fieldset>
+    <section class="import-part settings-card">
+      <fieldset class="import-target">
+        <legend>Import into</legend>
+        <div class="choices">
+          {% for option in options %}
+          <label class="choice"><input type="radio" name="target" value="{{ option.value }}"{% if option.checked %} checked{% endif %}> {{ option.label }}</label>
+          {% endfor %}
+        </div>
+        <div class="field">
+          <label for="new-name">Name</label>
+          <input type="text" id="new-name" name="new_name" value="{{ new_name }}" maxlength="60" autocomplete="off">
+          <p class="field-help">For a new sheet. Leave it blank to use the file name.</p>
+        </div>
+      </fieldset>
+    </section>
 
-    <div class="form-actions">
+    <div class="form-actions settings-actions">
       <button type="submit" class="button-primary">Match columns</button>
     </div>
   </form>

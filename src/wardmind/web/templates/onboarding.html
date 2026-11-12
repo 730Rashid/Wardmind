@@ -1,12 +1,11 @@
 {% extends "base.html" %}
 {% from "partials/golive_tag.html" import golive_tag %}
 {% from "partials/logo.html" import account_logo %}
+{% from "partials/page_head.html" import page_head %}
 {% block content %}
 <div class="onboarding-page">
-  <header class="onboarding-head">
-    <h1 class="page-title">Onboarding prep</h1>
-    <p class="summary">{{ summary }}</p>
-  </header>
+  {{ page_head("Onboarding prep", "motion-onboarding") }}
+  <p class="page-lede">{{ summary }}</p>
 
   {% if rows %}
   <h2 class="visually-hidden">Accounts in onboarding, by priority</h2>
@@ -16,10 +15,10 @@
     {# The runway's words: the same text is the chart's label, so a screen reader gets it once from
        the image and the page shows it under the bar. #}
     {% set words %}{% if brief.day is none %}Start date not known.{% else %}Day {{ brief.day }} of {{ brief.window_days }}.{% endif %}{% if projected is not none %} Projected finish: day {{ projected }}.{% endif %}{% endset %}
-    <li class="prep-card">
-      <div class="prep-head">
+    <li class="card prep-card">
+      <div class="prep-head card-head">
         {% if logos is defined %}{{ account_logo(item.account.id, item.account.name, logos) }}{% endif %}
-        <h3 class="prep-name"><a class="account-link" href="/onboarding/{{ item.account.id | idpath }}">{{ item.account.name }}</a></h3>
+        <h3 class="prep-name card-name"><a class="account-link" href="/onboarding/{{ item.account.id | idpath }}">{{ item.account.name }}</a></h3>
         <span class="health health--{{ item.health.value }}"><svg class="icon" aria-hidden="true" focusable="false"><use href="/static/icons.svg#health-{{ item.health.value | replace('_', '-') }}"/></svg> {{ item.health.label }}</span>
       </div>
 
@@ -37,12 +36,12 @@
         <p class="runway-words">{{ words | trim }}</p>
       </div>
 
-      <div class="prep-meta">
+      {# The foot: the plan and the forecast, then the one action, at the end of the row. #}
+      <div class="prep-meta card-foot">
         <p class="prep-plan"><span class="plan-dots">{% for state in plan_dots(brief.milestones) %}<span class="plan-dot plan-dot--{{ state }}" aria-hidden="true"></span>{% endfor %}</span> <span class="plan-words">{{ plan_summary(brief.milestones) }}</span></p>
         <p class="prep-forecast">{% if forecast is none %}<span class="forecast-unknown">Not known</span>{% else %}{{ golive_tag(forecast) }}{% endif %}</p>
+        <p class="prep-action no-print"><a href="/onboarding/{{ item.account.id | idpath }}" aria-label="Prepare brief for {{ item.account.name }}">Prepare brief</a></p>
       </div>
-
-      <p class="prep-action no-print"><a href="/onboarding/{{ item.account.id | idpath }}" aria-label="Prepare brief for {{ item.account.name }}">Prepare brief</a></p>
     </li>
     {% endfor %}
   </ul>

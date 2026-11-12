@@ -68,7 +68,7 @@ def _block(markup: str, pattern: str) -> str:
 def _rows(markup: str) -> list[str]:
     """The picker's account cards, as HTML, in order."""
     body = _block(markup, r'<ul class="prep-list">(.*?)</ul>')
-    return re.findall(r'<li class="prep-card">(.*?)</li>', body, re.S)
+    return re.findall(r'<li class="card prep-card">(.*?)</li>', body, re.S)
 
 
 def _book_onboarding() -> list[ScoredAccount]:
@@ -159,7 +159,7 @@ def test_picker_sentence_counts_the_accounts_and_the_ones_behind(client: TestCli
     expected = formatting.onboarding_summary(len(items), behind)
     assert len(items) == 8
     assert expected.startswith("8 accounts are in onboarding.")
-    assert f'<p class="summary">{expected}</p>' in client.get("/onboarding").text
+    assert f'<p class="page-lede">{expected}</p>' in client.get("/onboarding").text
 
 
 def test_picker_rows_follow_the_book_order(client: TestClient) -> None:
@@ -228,7 +228,7 @@ def test_picker_with_nobody_in_onboarding_says_so(monkeypatch: pytest.MonkeyPatc
     client = TestClient(web.create_app(), base_url="http://127.0.0.1")
     response = client.get("/onboarding")
     assert response.status_code == 200
-    assert '<p class="summary">No accounts are in onboarding right now.</p>' in response.text
+    assert '<p class="page-lede">No accounts are in onboarding right now.</p>' in response.text
     assert '<table class="onboarding-table">' not in response.text
     assert '<optgroup label="In onboarding">' not in response.text
     assert '<optgroup label="Other accounts">' in response.text
@@ -284,7 +284,7 @@ def test_brief_page_shows_the_call_brief(client: TestClient) -> None:
         top.account.owner,
     ]
 
-    summary = _block(markup, r'<p class="brief-summary">(.*?)</p>')
+    summary = _block(markup, r'<p class="page-lede brief-summary">(.*?)</p>')
     # On paper the go-live forecast is one more sentence of the summary, in a print-only span.
     summary = re.sub(r'<span class="print-only">.*?</span>', "", summary, flags=re.S)
     assert _plain(summary) == brief.summary

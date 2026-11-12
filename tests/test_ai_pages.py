@@ -219,7 +219,10 @@ def test_an_invalid_model_is_refused_next_to_the_field_and_nothing_is_saved(
     text = _text(response)
     assert "That isn't an OpenRouter model id, like anthropic/claude-haiku-5.5." in text
     assert 'aria-invalid="true"' in text
-    assert 'aria-describedby="field-ai-model-error field-ai-model-help"' in text
+    assert (
+        'aria-describedby="field-ai-model-error field-ai-model-training field-ai-model-help"'
+        in text
+    )
     assert 'value="not a model"' in text
     assert load_settings().ai_summaries is False
     assert load_settings().ai_model == "anthropic/claude-haiku-5.5"

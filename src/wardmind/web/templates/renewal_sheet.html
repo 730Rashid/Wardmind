@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% from "partials/logo.html" import account_logo %}
+{% from "partials/page_head.html" import page_head %}
 {% block content %}
 {% set days = sheet.days_to_renewal %}
 {% set renews = sheet.renewal_date | long_date %}
@@ -7,21 +8,24 @@
 <div class="renewal-sheet">
   <p class="brief-back no-print"><a href="/accounts/{{ sheet.account_id | idpath }}">Back to the account</a></p>
 
+  {% call page_head("Renewal call prep", "motion-renewal") %}
+  <div class="brief-actions no-print">
+    <button type="button" class="button js-only" data-print>Print or save as PDF</button>
+  </div>
+  {% endcall %}
+
   <header class="sheet-head">
+    {# The call is the sheet's one sentence, so it leads the page under the header. #}
+    <p class="sheet-call">{% if sheet.call is none %}You haven't called this renewal.{% else %}Your call: {{ sheet.call.label }}.{% endif %}</p>
+    {% if sheet.disagreement is not none %}<p class="sheet-disagreement">{{ sheet.disagreement.text }}</p>{% endif %}
     <p class="sheet-account">{{ account_logo(sheet.account_id, sheet.name, logos, "lg") }}<span class="sheet-name">{{ sheet.name }}</span></p>
-    <h1 class="page-title">Renewal call prep</h1>
     <ul class="facts sheet-facts">
       <li>{% if days > 1 %}Renews on {{ renews }}, in {{ days }} days{% elif days == 1 %}Renews on {{ renews }}, tomorrow{% elif days == 0 %}Renews on {{ renews }}, today{% else %}Renewal date passed {{ -days }} {{ "day" if days == -1 else "days" }} ago, {{ renews }}{% endif %}</li>
       <li>{{ sheet.arr | money }} ARR</li>
       <li>{{ sheet.owner }}</li>
       <li>Wardmind's health <span class="health health--{{ sheet.health.value }}"><svg class="icon" aria-hidden="true" focusable="false"><use href="/static/icons.svg#health-{{ sheet.health.value | replace('_', '-') }}"/></svg> {{ sheet.health.label }}</span></li>
     </ul>
-    <p class="sheet-call">{% if sheet.call is none %}You haven't called this renewal.{% else %}Your call: {{ sheet.call.label }}.{% endif %}</p>
-    {% if sheet.disagreement is not none %}<p class="sheet-disagreement">{{ sheet.disagreement.text }}</p>{% endif %}
     {% if settings.your_name %}<p class="date-line">Prepared by {{ settings.your_name }}</p>{% endif %}
-    <div class="brief-actions no-print">
-      <button type="button" class="button js-only" data-print>Print or save as PDF</button>
-    </div>
   </header>
 
   <section class="sheet-section" aria-labelledby="contract-heading">

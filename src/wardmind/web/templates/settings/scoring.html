@@ -1,10 +1,10 @@
 {% extends "settings/layout.html" %}
 {% import "settings/fields.html" as fields %}
 {% block settings %}
-<div class="scoring-page">
-  <p class="prose">Changes apply to every screen and to Claude once you save them.</p>
+<p class="page-lede">Changes apply to every screen and to Claude once you save them.</p>
 
-  <div class="scoring-layout">
+<div class="scoring-layout">
+  <section class="settings-card scoring-card">
     <form id="scoring-form" class="settings-form scoring-form" method="post" action="/settings/scoring" novalidate>
       {% if errors %}
       <p class="field-error" role="alert">Nothing was saved. Fix the marked settings, then save again.</p>
@@ -22,7 +22,7 @@
            hx-target="#scoring-preview-body"
            hx-swap="innerHTML">
 
-        <fieldset class="signals">
+        <fieldset class="signals settings-part">
           <legend>Signals</legend>
           {% for kind in kinds %}
           {% set key = kind.value %}
@@ -42,37 +42,37 @@
           {% endfor %}
         </fieldset>
 
-        <fieldset>
+        <fieldset class="settings-part">
           <legend>Health bands</legend>
           {{ fields.slider(name="thresholds.at_risk", label="At risk from", low=0, high=100, step=1, value=values["thresholds.at_risk"], error=errors.get("thresholds.at_risk", "")) }}
           {{ fields.slider(name="thresholds.watch", label="Watch from", low=0, high=100, step=1, value=values["thresholds.watch"], error=errors.get("thresholds.watch", "")) }}
         </fieldset>
 
-        <fieldset>
+        <fieldset class="settings-part">
           <legend>Priority</legend>
           {{ fields.slider(name="arr.weight_pct", label="How much ARR lifts priority", low=0, high=100, step=5, value=values["arr.weight_pct"], error=errors.get("arr.weight_pct", ""), suffix="%") }}
         </fieldset>
 
-        <fieldset>
+        <fieldset class="settings-part">
           <legend>Motion windows</legend>
           {{ fields.number_field(name="motion.onboarding_days", label="Onboarding lasts", value=values["motion.onboarding_days"], error=errors.get("motion.onboarding_days", ""), step="1", unit="days") }}
           {{ fields.number_field(name="motion.renewal_window_days", label="Renewal window", value=values["motion.renewal_window_days"], error=errors.get("motion.renewal_window_days", ""), step="1", unit="days") }}
         </fieldset>
       </div>
 
-      <div class="scoring-actions">
-        <button type="submit" class="button-primary">Save changes</button>
+      <div class="scoring-actions settings-actions">
         <a class="button" href="/settings/scoring?defaults=1">Reset to defaults</a>
+        <button type="submit" class="button-primary">Save changes</button>
       </div>
     </form>
+  </section>
 
-    <section id="scoring-preview" class="scoring-preview" aria-live="polite" aria-labelledby="preview-title">
-      <h2 class="section-title" id="preview-title">What would change</h2>
-      {# Only the body is swapped, so the heading (and aria-labelledby) survive every refresh. #}
-      <div id="scoring-preview-body">
-        {% include "settings/partials/scoring_preview.html" %}
-      </div>
-    </section>
-  </div>
+  <section id="scoring-preview" class="settings-card scoring-preview" aria-live="polite" aria-labelledby="preview-title">
+    <h2 class="section-title" id="preview-title">What would change</h2>
+    {# Only the body is swapped, so the heading (and aria-labelledby) survive every refresh. #}
+    <div id="scoring-preview-body">
+      {% include "settings/partials/scoring_preview.html" %}
+    </div>
+  </section>
 </div>
 {% endblock %}

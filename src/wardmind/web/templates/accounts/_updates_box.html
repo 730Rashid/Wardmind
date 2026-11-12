@@ -3,7 +3,7 @@
    a new link, what is waiting, and Turn off. Demo mode has no box. #}
 {% if updates_box %}
 <section class="updates-box" aria-labelledby="updates-heading">
-  <h3 class="section-title" id="updates-heading">Client updates</h3>
+  <h2 class="section-title" id="updates-heading">Client updates</h2>
   {% if updates_box.errors.form %}<p class="field-error" role="alert">{{ updates_box.errors.form }}</p>{% endif %}
   {% if updates_box.on %}
     <p>{{ updates_box.agreed }}</p>
@@ -51,7 +51,7 @@
 </section>
 {% else %}
 <section class="updates-box" aria-labelledby="updates-heading">
-  <h3 class="section-title" id="updates-heading">Client updates</h3>
+  <h2 class="section-title" id="updates-heading">Client updates</h2>
   <p class="field-help">Client updates belong to Your data.</p>
 </section>
 {% endif %}

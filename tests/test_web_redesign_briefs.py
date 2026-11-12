@@ -62,7 +62,7 @@ def _block(markup: str, pattern: str) -> str:
 def _cards(markup: str) -> list[str]:
     """The picker's account cards, as HTML, in order."""
     body = _block(markup, r'<ul class="prep-list">(.*?)</ul>')
-    return re.findall(r'<li class="prep-card">(.*?)</li>', body, re.S)
+    return re.findall(r'<li class="card prep-card">(.*?)</li>', body, re.S)
 
 
 def _top_items(markup: str) -> list[str]:

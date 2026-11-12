@@ -561,7 +561,7 @@ What Wardmind reads                                                 (h2, <detail
 ```
 Settings
 Appearance        Theme
-Scoring             (•) Match my computer   ( ) Light   ( ) Dark
+Scoring             (•) Light   ( ) Dark   ( ) Match my computer
                   Accent colour
                     (•) ● Plum   ( ) ● Blue   ( ) ● Petrol   ( ) ● Graphite
                   Density
@@ -586,7 +586,11 @@ Scoring             (•) Match my computer   ( ) Light   ( ) Dark
   | graphite | `#3B4452` | `#C5CCD7` |
 
 - **How settings reach the page:** `<html>` gets `data-theme="light|dark"` (left out for
-  "Match my computer"), `data-accent`, and `data-density`.
+  "Match my computer"), `data-accent`, and `data-density`. Light is the default.
+- **Your logo:** an image (PNG, JPEG, GIF, WebP or ICO, at most 200 KB; never SVG, which can carry
+  script) replaces Wardmind's mark in the top bar. It is kept beside `settings.yaml` as
+  `brand-logo.<ext>`, served at `/brand-logo` with its checked type, `nosniff` and
+  `default-src 'none'`, and removed with one button.
 - **Compact density** tightens table cell padding from 12px to 6px and the gaps between list items.
   Type sizes don't change.
 
@@ -828,3 +832,24 @@ model (`core/growth.py`, `core/forecast.py`, `core/negotiation.py`).
   contact and open follow-ups.
 - Seat counts and price per seat aren't in the data, so the sheet says it works from ARR and the
   share of seats in use. The unused-seat line is left out when the score already names seat use.
+
+## The reference look (2026-11-11)
+
+Every screen follows one quiet, enterprise language, taken from a reference the user chose (an
+"Add connector" catalog):
+
+- **Surfaces:** white, hairline borders (`--line`), one level of 14px-radius cards, no shadows, no
+  boxes inside cards (rows inside a card are divided by hairlines: `ul.rows`).
+- **Type:** the system's neutral sans (Inter where installed, Segoe UI Variable on Windows), 13px
+  chips and meta, 14px controls, 15px running text, 16px names, 20px page titles; weights 400, 500
+  and 600 only.
+- **Page header** (`partials/page_head.html`): a line icon, the title, optional meta and actions,
+  a hairline; then one plain sentence (`.page-lede`). No two-tone headlines.
+- **Chips:** pastel fill, a border in the chip's own ink, a 13px line icon, then the word. Each hue
+  names a kind of thing. **Badges** (`.badge`, lavender) name a state.
+- **Cards:** mark top left, badge top right, name, a grey "by" line, a grey description, a
+  hairline, chips.
+- **Colour:** health colours mean health only; plum marks something the CSM did or can do.
+- **The mark:** an ink tile with a white W that dips twice and recovers, and a dot over it (the
+  mind keeping watch). `static/favicon.svg` is the same mark for the browser tab.
+

@@ -1,8 +1,9 @@
 {% extends "base.html" %}
+{% from "partials/page_head.html" import page_head %}
 {% block content %}
-<div class="stack">
-  <h1 class="page-title">{{ page }}</h1>
-  <p class="prose">{{ message }}</p>
+<div class="quiet-page">
+  {{ page_head(page) }}
+  <p class="page-lede page-lede-quiet">{{ message }}</p>
   {% if back_href %}
   <p><a href="{{ back_href }}">{{ back_label }}</a></p>
   {% else %}

@@ -1,13 +1,16 @@
 {% extends "base.html" %}
+{% from "partials/page_head.html" import page_head %}
 {% block content %}
-<div class="stack confirm">
-  <h1 class="page-title">Delete {{ account.name }}?</h1>
-  <p class="prose">It leaves your book, along with readings you added. This can't be undone.</p>
-  <div class="error-actions">
-    <form class="inline-form" method="post" action="/accounts/{{ account.id | idpath }}/delete">
-      <button type="submit" class="button-primary">Delete account</button>
-    </form>
-    <a class="button" href="/accounts/{{ account.id | idpath }}">Keep it</a>
-  </div>
+<div class="account-confirm">
+  {{ page_head("Delete " ~ account.name ~ "?", "building") }}
+  <p class="page-lede">It leaves your book, along with readings you added. This can't be undone.</p>
+  <section class="account-section confirm-card">
+    <div class="error-actions">
+      <a class="button" href="/accounts/{{ account.id | idpath }}">Keep it</a>
+      <form class="inline-form" method="post" action="/accounts/{{ account.id | idpath }}/delete">
+        <button type="submit" class="button-primary">Delete account</button>
+      </form>
+    </div>
+  </section>
 </div>
 {% endblock %}

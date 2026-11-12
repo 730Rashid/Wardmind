@@ -1,13 +1,12 @@
 {% extends "base.html" %}
+{% from "partials/page_head.html" import page_head %}
 {% block content %}
 {# Set the client update form up once, in three steps, in the centred card of the feed set-up page.
    Step 3 saves the form's pre-filled link; without JavaScript every step works as a plain form. #}
 <div class="connection-setup updates-setup">
-  <header class="import-head">
-    <p class="date-line"><a href="/client-updates">Client updates</a> / Set up your update form</p>
-    <h1 class="page-title">Set up your update form</h1>
-    <p class="prose">Clients who agreed can tell you about new or departing contacts through one form you make. You review every change before it is applied.</p>
-  </header>
+  <p class="brief-back"><a href="/client-updates">Client updates</a></p>
+  {{ page_head("Set up your update form", "inbox") }}
+  <p class="page-lede">Clients who agreed can tell you about new or departing contacts through one form you make. You review every change before it is applied.</p>
 
   {% if notice %}<p class="status-line" role="status">{{ notice }}</p>{% endif %}
 

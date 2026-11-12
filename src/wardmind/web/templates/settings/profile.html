@@ -1,45 +1,51 @@
 {% extends "settings/layout.html" %}
 {% block settings %}
-<form class="settings-form" method="post" action="/settings/profile">
-  {% if errors %}
-  <p class="field-error" role="alert">Nothing was saved. Fix the marked settings, then save again.</p>
-  {% endif %}
+<p class="page-lede">How Wardmind names you, and how it writes money and dates.</p>
 
-  <div class="field profile-name">
-    <label for="field-your-name">Your name</label>
-    <input type="text" name="your_name" id="field-your-name" value="{{ values.your_name }}" maxlength="60" autocomplete="name" spellcheck="false" aria-describedby="field-your-name-help{% if errors.your_name %} your-name-error{% endif %}"{% if errors.your_name %} aria-invalid="true"{% endif %}>
-    {% if errors.your_name %}
-    <p class="field-error" role="alert" id="your-name-error">{{ errors.your_name }}</p>
+<section class="settings-card">
+  <form class="settings-form" method="post" action="/settings/profile">
+    {% if errors %}
+    <p class="field-error" role="alert">Nothing was saved. Fix the marked settings, then save again.</p>
     {% endif %}
-    <p class="field-help" id="field-your-name-help">Shown as “Prepared by” on renewal sheets and the weekly brief.</p>
-  </div>
 
-  <fieldset aria-describedby="currency-help{% if errors.currency %} currency-error{% endif %}"{% if errors.currency %} aria-invalid="true"{% endif %}>
-    <legend>Currency</legend>
-    <div class="choices">
-      {% for code, label, symbol in currencies %}
-      <label class="choice"><input type="radio" name="currency" value="{{ code }}"{% if values.currency == code %} checked{% endif %}> {{ label }} ({{ symbol }})</label>
-      {% endfor %}
+    <div class="settings-part field profile-name">
+      <label for="field-your-name">Your name</label>
+      <input type="text" name="your_name" id="field-your-name" value="{{ values.your_name }}" maxlength="60" autocomplete="name" spellcheck="false" aria-describedby="field-your-name-help{% if errors.your_name %} your-name-error{% endif %}"{% if errors.your_name %} aria-invalid="true"{% endif %}>
+      {% if errors.your_name %}
+      <p class="field-error" role="alert" id="your-name-error">{{ errors.your_name }}</p>
+      {% endif %}
+      <p class="field-help" id="field-your-name-help">Shown as “Prepared by” on renewal sheets and the weekly brief.</p>
     </div>
-    <p class="field-help" id="currency-help">Changes the symbol only. Wardmind never converts amounts.</p>
-    {% if errors.currency %}
-    <p class="field-error" role="alert" id="currency-error">{{ errors.currency }}</p>
-    {% endif %}
-  </fieldset>
 
-  <fieldset aria-describedby="date-style-help{% if errors.date_style %} date-style-error{% endif %}"{% if errors.date_style %} aria-invalid="true"{% endif %}>
-    <legend>Date style</legend>
-    <div class="choices">
-      {% for code, sample in date_styles %}
-      <label class="choice"><input type="radio" name="date_style" value="{{ code }}"{% if values.date_style == code %} checked{% endif %}> {{ sample }}</label>
-      {% endfor %}
+    <fieldset class="settings-part" aria-describedby="currency-help{% if errors.currency %} currency-error{% endif %}"{% if errors.currency %} aria-invalid="true"{% endif %}>
+      <legend>Currency</legend>
+      <div class="choices">
+        {% for code, label, symbol in currencies %}
+        <label class="choice"><input type="radio" name="currency" value="{{ code }}"{% if values.currency == code %} checked{% endif %}> {{ label }} ({{ symbol }})</label>
+        {% endfor %}
+      </div>
+      <p class="field-help" id="currency-help">Changes the symbol only. Wardmind never converts amounts.</p>
+      {% if errors.currency %}
+      <p class="field-error" role="alert" id="currency-error">{{ errors.currency }}</p>
+      {% endif %}
+    </fieldset>
+
+    <fieldset class="settings-part" aria-describedby="date-style-help{% if errors.date_style %} date-style-error{% endif %}"{% if errors.date_style %} aria-invalid="true"{% endif %}>
+      <legend>Date style</legend>
+      <div class="choices">
+        {% for code, sample in date_styles %}
+        <label class="choice"><input type="radio" name="date_style" value="{{ code }}"{% if values.date_style == code %} checked{% endif %}> {{ sample }}</label>
+        {% endfor %}
+      </div>
+      <p class="field-help" id="date-style-help">Today's date, written each way. Every date in Wardmind follows the one you choose.</p>
+      {% if errors.date_style %}
+      <p class="field-error" role="alert" id="date-style-error">{{ errors.date_style }}</p>
+      {% endif %}
+    </fieldset>
+
+    <div class="settings-actions">
+      <button type="submit" class="button-primary">Save changes</button>
     </div>
-    <p class="field-help" id="date-style-help">Today's date, written each way. Every date in Wardmind follows the one you choose.</p>
-    {% if errors.date_style %}
-    <p class="field-error" role="alert" id="date-style-error">{{ errors.date_style }}</p>
-    {% endif %}
-  </fieldset>
-
-  <button type="submit" class="button-primary">Save changes</button>
-</form>
+  </form>
+</section>
 {% endblock %}

@@ -1,29 +1,32 @@
 {% extends "base.html" %}
+{% from "partials/page_head.html" import page_head %}
 {% block content %}
 <div class="import-map">
-  <header class="import-head">
-    <h1 class="page-title">Match your columns</h1>
-    <p class="date-line">
-      <span>{{ draft.source_name }}{% if draft.table.sheet %}, sheet "{{ draft.table.sheet }}"{% endif %}</span>
-      <span class="file-rows">{{ row_count }} {{ 'row' if row_count == 1 else 'rows' }}</span>
-    </p>
-  </header>
+  {{ page_head("Match your columns", "layers") }}
+  <p class="page-lede page-lede-quiet">
+    <span>{{ draft.source_name }}{% if draft.table.sheet %}, sheet "{{ draft.table.sheet }}"{% endif %}</span>,
+    <span class="file-rows">{{ row_count }} {{ 'row' if row_count == 1 else 'rows' }}</span>
+  </p>
 
   {% if sheet_names %}
-  <form class="sheet-form" method="post" action="/import/{{ draft_id | idpath }}/sheet">
-    <label for="sheet">Sheet</label>
-    <select id="sheet" name="sheet" data-autosubmit>
-      {% for name in sheet_names %}
-      <option value="{{ name }}"{% if name == draft.table.sheet %} selected{% endif %}>{{ name }}</option>
-      {% endfor %}
-    </select>
-    <button type="submit" class="button no-js-only">Use this sheet</button>
+  <form class="sheet-form settings-card" method="post" action="/import/{{ draft_id | idpath }}/sheet">
+    <div class="field sheet-field">
+      <label for="sheet">Sheet</label>
+      <select id="sheet" name="sheet" data-autosubmit>
+        {% for name in sheet_names %}
+        <option value="{{ name }}"{% if name == draft.table.sheet %} selected{% endif %}>{{ name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="settings-actions">
+      <button type="submit" class="button no-js-only">Use this sheet</button>
+    </div>
   </form>
   {% endif %}
 
   {% if error %}<p class="field-error" role="alert">{{ error }}</p>{% endif %}
 
-  <form id="import-mapping" class="import-mapping" method="post" action="/import/{{ draft_id | idpath }}/commit">
+  <form id="import-mapping" class="import-mapping settings-card" method="post" action="/import/{{ draft_id | idpath }}/commit">
     {# Changing a choice refreshes the examples and the preview, and nothing else on the page. #}
     <div class="mapping-fields" hx-post="/import/{{ draft_id | idpath }}/preview" hx-trigger="change" hx-include="#import-mapping" hx-swap="none">
       <table class="match-table">
@@ -58,10 +61,12 @@
       </table>
 
       {% if show_date_order %}
-      <fieldset class="date-order">
+      <fieldset class="date-order settings-part">
         <legend>Dates in your file are</legend>
-        <label class="choice"><input type="radio" name="date_order" value="dmy"{% if date_choice == 'dmy' %} checked{% endif %}> Day first (31/12/2026)</label>
-        <label class="choice"><input type="radio" name="date_order" value="mdy"{% if date_choice == 'mdy' %} checked{% endif %}> Month first (12/31/2026)</label>
+        <div class="choices">
+          <label class="choice"><input type="radio" name="date_order" value="dmy"{% if date_choice == 'dmy' %} checked{% endif %}> Day first (31/12/2026)</label>
+          <label class="choice"><input type="radio" name="date_order" value="mdy"{% if date_choice == 'mdy' %} checked{% endif %}> Month first (12/31/2026)</label>
+        </div>
       </fieldset>
       {% endif %}
     </div>
@@ -69,12 +74,12 @@
 
   {% include "import/partials/what_happens.html" %}
 
-  <div class="import-actions">
-    {% include "import/partials/action.html" %}
-    <button type="submit" form="import-mapping" formaction="/import/{{ draft_id | idpath }}" class="button no-js-only">Update preview</button>
+  <div class="import-actions settings-actions">
     <form class="inline-form" method="post" action="/import/{{ draft_id | idpath }}/cancel">
       <button type="submit" class="button">Cancel</button>
     </form>
+    <button type="submit" form="import-mapping" formaction="/import/{{ draft_id | idpath }}" class="button no-js-only">Update preview</button>
+    {% include "import/partials/action.html" %}
   </div>
 </div>
 {% endblock %}

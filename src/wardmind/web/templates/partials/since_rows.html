@@ -1,13 +1,14 @@
 {# "Since last week": each change with its kind and its sentence, linked to its account when the account is
    still in the book. When there are none, the message says why (no snapshot yet, or no changes). #}
+{% set kind_icons = {"worse": "arrow-down", "rising": "arrow-up", "better": "check", "new": "person-plus", "gone": "person-minus"} %}
 {% if since.message %}
-<p>{{ since.message }}</p>
+<p class="field-help">{{ since.message }}</p>
 {% else %}
-<ul class="since-list">
+<ul class="rows since-list">
   {% for row in since.rows %}
   <li class="since-row">
     <p class="since-head">
-      <span class="tag since-tag since-tag--{{ row.kind }}">{{ row.label }}</span>
+      <span class="tag since-tag since-tag--{{ row.kind }}">{% if kind_icons.get(row.kind) %}<svg class="icon" aria-hidden="true" focusable="false"><use href="/static/icons.svg#{{ kind_icons.get(row.kind) }}"/></svg>{% endif %}{{ row.label }}</span>
       {% if row.account_id %}
       <a class="account-link" href="/accounts/{{ row.account_id | idpath }}">{{ row.name }}</a>
       {% else %}

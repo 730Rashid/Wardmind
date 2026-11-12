@@ -4,7 +4,7 @@
 {% set add = journal.add_follow_up %}
 <section class="account-section next-step" id="next-step" aria-labelledby="next-step-heading">
   <h2 class="section-title" id="next-step-heading">Next step</h2>
-  <p>{{ detail.explanation.suggested_action }}</p>
+  <p class="next-step-text">{{ detail.explanation.suggested_action }}</p>
 
   <div class="step-actions">
     <form class="step-form" method="post" action="/accounts/{{ account.id | idpath }}/follow-ups">

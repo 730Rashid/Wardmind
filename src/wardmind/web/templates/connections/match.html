@@ -1,23 +1,22 @@
 {% extends "base.html" %}
+{% from "partials/page_head.html" import page_head %}
 {% block content %}
 {# Matching for a feed being set up: each Wardmind field gets a column of the source. Every change
    refreshes the examples and the preview (htmx), and without JavaScript Update preview does it.
    The whole mapping is posted with each request, so the preview and the save always agree. #}
 <div class="import-map">
-  <header class="import-head">
-    <h1 class="page-title">Match your columns</h1>
-    <p class="date-line">
-      <span>{% if name == provider_name %}{{ name }}{% else %}{{ name }} from {{ provider_name }}{% endif %}</span>
-      <span class="file-rows">{{ row_count }} {{ 'row' if row_count == 1 else 'rows' }}</span>
-    </p>
-    {% if match_label %}
-    <p class="field-help">Matches accounts by {{ match_label }}.</p>
-    {% endif %}
-  </header>
+  {{ page_head("Match your columns", "layers") }}
+  <p class="page-lede page-lede-quiet">
+    <span>{% if name == provider_name %}{{ name }}{% else %}{{ name }} from {{ provider_name }}{% endif %}</span>,
+    <span class="file-rows">{{ row_count }} {{ 'row' if row_count == 1 else 'rows' }}</span>
+  </p>
 
   {% if error %}<p class="field-error" role="alert">{{ error }}</p>{% endif %}
 
-  <form id="feed-mapping" class="import-mapping" method="post" action="/connections/feeds/{{ draft_id | idpath }}/commit">
+  <form id="feed-mapping" class="import-mapping settings-card" method="post" action="/connections/feeds/{{ draft_id | idpath }}/commit">
+    {% if match_label %}
+    <p class="field-help">Matches accounts by {{ match_label }}.</p>
+    {% endif %}
     <div class="mapping-fields" hx-post="/connections/feeds/{{ draft_id | idpath }}/preview" hx-trigger="change" hx-include="#feed-mapping" hx-swap="none">
       <table class="match-table">
         <caption class="visually-hidden">Match each Wardmind field to a column in the source</caption>
@@ -51,10 +50,12 @@
       </table>
 
       {% if show_date_order %}
-      <fieldset class="date-order">
+      <fieldset class="date-order settings-part">
         <legend>Dates in your file are</legend>
-        <label class="choice"><input type="radio" name="date_order" value="dmy"{% if date_choice == 'dmy' %} checked{% endif %}> Day first (31/12/2026)</label>
-        <label class="choice"><input type="radio" name="date_order" value="mdy"{% if date_choice == 'mdy' %} checked{% endif %}> Month first (12/31/2026)</label>
+        <div class="choices">
+          <label class="choice"><input type="radio" name="date_order" value="dmy"{% if date_choice == 'dmy' %} checked{% endif %}> Day first (31/12/2026)</label>
+          <label class="choice"><input type="radio" name="date_order" value="mdy"{% if date_choice == 'mdy' %} checked{% endif %}> Month first (12/31/2026)</label>
+        </div>
       </fieldset>
       {% endif %}
     </div>
@@ -62,12 +63,12 @@
 
   {% include "connections/partials/what_happens.html" %}
 
-  <div class="import-actions">
-    {% include "connections/partials/action.html" %}
-    <button type="submit" form="feed-mapping" formaction="/connections/feeds/{{ draft_id | idpath }}/match" class="button no-js-only">Update preview</button>
+  <div class="import-actions settings-actions">
     <form class="inline-form" method="post" action="/connections/feeds/{{ draft_id | idpath }}/cancel">
       <button type="submit" class="button">Cancel</button>
     </form>
+    <button type="submit" form="feed-mapping" formaction="/connections/feeds/{{ draft_id | idpath }}/match" class="button no-js-only">Update preview</button>
+    {% include "connections/partials/action.html" %}
   </div>
 </div>
 {% endblock %}

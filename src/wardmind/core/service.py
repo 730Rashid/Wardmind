@@ -459,6 +459,23 @@ def ai_ready() -> str | None:
     return None if problem is None else problem.message
 
 
+def ai_training_model() -> str | None:
+    """The chosen model when its providers may train on what they're sent
+    (summaries.trains_on_data) and using it would send something; None otherwise. Demo mode
+    sends nothing, so it is None there."""
+    settings = load_settings()
+    if settings.source is DataSource.DEMO or not summaries.trains_on_data(settings.ai_model):
+        return None
+    return settings.ai_model
+
+
+def _training_problem(allow_training: bool) -> summaries.TrainingNotConfirmed | None:
+    model = ai_training_model()
+    if model is None or allow_training:
+        return None
+    return summaries.TrainingNotConfirmed(summaries.training_message(model))
+
+
 def summary_store() -> summaries.SummaryStore:
     """Saved summaries under store.data_dir() / summaries.SUMMARIES_DIR."""
     return summaries.SummaryStore(get_store().root / summaries.SUMMARIES_DIR)
@@ -486,7 +503,7 @@ def _client() -> summaries.OpenRouterClient:
 
 
 def _summary_one(
-    account: Account, found: research.SiteResearch, refresh: bool
+    account: Account, found: research.SiteResearch, refresh: bool, allow_training: bool = False
 ) -> tuple[summaries.Summary, bool]:
     """The summary for one account's lookup: (the summary, whether a saved one was reused). The
     saved summary is used while it matches this website text and model, unless `refresh`.
@@ -508,27 +525,33 @@ def _summary_one(
     else:
         client = _client()
         try:
-            summary = summaries.summarise(account.id, found, client, model, now)
+            summary = summaries.summarise(
+                account.id, found, client, model, now, allow_training=allow_training
+            )
         finally:
             client.close()
     store.put(summary)
     return summary, False
 
 
-def summarise_account(account_id: str, *, refresh: bool = False) -> summaries.Summary:
+def summarise_account(
+    account_id: str, *, refresh: bool = False, allow_training: bool = False
+) -> summaries.Summary:
     """Summarise one account (the CSM asked). Raises summaries.SummariesOff / NoKey (see
-    ai_ready), LookupError for an unknown id, research.ResearchError when the website can't be
-    looked up, and the other summaries.SummaryError types. Uses research_account() (so its
-    cache), then the saved summary if it is fresh for this text and model, unless `refresh`;
-    else summaries.summarise() (demo: summaries.sample_summary(), nothing sent), saved."""
-    problem = _ai_problem()
+    ai_ready), summaries.TrainingNotConfirmed for a model that trains on what it's sent unless
+    `allow_training` (the CSM confirmed it), LookupError for an unknown id,
+    research.ResearchError when the website can't be looked up, and the other
+    summaries.SummaryError types. Uses research_account() (so its cache), then the saved summary
+    if it is fresh for this text and model, unless `refresh`; else summaries.summarise() (demo:
+    summaries.sample_summary(), nothing sent), saved."""
+    problem = _ai_problem() or _training_problem(allow_training)
     if problem is not None:
         raise problem
     account = _book_account(account_id)
     if account is None:
         raise LookupError(f"No account with id {account_id}.")
     found, _ = _research_one(account, False, datetime.now(UTC))
-    summary, _ = _summary_one(account, found, refresh)
+    summary, _ = _summary_one(account, found, refresh, allow_training)
     return summary
 
 
@@ -583,19 +606,24 @@ def _bulk_research(account: Account, refresh: bool) -> tuple[research.SiteResear
     return found
 
 
-def _bulk_summary(account: Account, found: research.SiteResearch) -> tuple[summaries.Summary, bool]:
-    return _summary_one(account, found, refresh=False)
+def _bulk_summary(
+    account: Account, found: research.SiteResearch, allow_training: bool = False
+) -> tuple[summaries.Summary, bool]:
+    return _summary_one(account, found, False, allow_training)
 
 
-def start_bulk_research(*, summarise: bool, refresh: bool) -> bulk.Job:
+def start_bulk_research(
+    *, summarise: bool, refresh: bool, allow_training: bool = False
+) -> bulk.Job:
     """Start (or return the running) job over every account in the current book, in book
     order. Raises research.ResearchOff when web research is off, and summaries.SummariesOff /
-    NoKey (from ai_ready) when `summarise` is asked for but can't be done. Each account reuses
-    the same caches as research_account() and summarise_account()."""
+    NoKey (from ai_ready) when `summarise` is asked for but can't be done, or
+    TrainingNotConfirmed for a model that trains on what it's sent unless `allow_training`.
+    Each account reuses the same caches as research_account() and summarise_account()."""
     if not load_settings().web_research:
         raise research.ResearchOff(_RESEARCH_OFF)
     if summarise:
-        problem = _ai_problem()
+        problem = _ai_problem() or _training_problem(allow_training)
         if problem is not None:
             raise problem
     accounts = [item.account for item in get_book()]
@@ -610,7 +638,7 @@ def start_bulk_research(*, summarise: bool, refresh: bool) -> bulk.Job:
         account: Account, found: research.SiteResearch
     ) -> tuple[summaries.Summary, bool]:
         with books.bound(book_id):
-            return _bulk_summary(account, found)
+            return _bulk_summary(account, found, allow_training)
 
     return _runner.start(
         accounts,

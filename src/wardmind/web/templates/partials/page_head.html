@@ -1,0 +1,15 @@
+{# The page header every screen opens with: a line icon from icons.svg, the title, an optional
+   meta line beside it (a date, a count), and optional actions at the far end, over a hairline.
+   Use it as {{ page_head("Today", "calendar", meta=today) }}, or with actions:
+   {% call page_head("Renewals", "motion-renewal") %}<a class="button" href="...">...</a>{% endcall %}
+   The one sentence about the page goes under it in <p class="page-lede">. #}
+{% macro page_head(title, icon="", meta="") -%}
+<header class="page-head">
+  <div class="page-head-title">
+    {% if icon %}<svg class="icon page-head-icon" aria-hidden="true" focusable="false"><use href="/static/icons.svg#{{ icon }}"/></svg>{% endif %}
+    <h1 class="page-title">{{ title }}</h1>
+    {% if meta %}<span class="page-head-meta">{{ meta }}</span>{% endif %}
+  </div>
+  {% if caller is defined %}<div class="page-head-actions">{{ caller() }}</div>{% endif %}
+</header>
+{%- endmacro %}

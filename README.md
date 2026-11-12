@@ -54,7 +54,8 @@ attention this week. It is reachable three ways, all backed by the same core cod
       rest) that puts what's worth doing first, and a box to find any setting by name.
     - Profile & region: your name (shown as "Prepared by" on renewal sheets and the brief), the
       currency symbol and how dates are written.
-    - Appearance: theme, accent colour, density, and which screen it opens on. These are saved
+    - Appearance: theme (Light unless you choose otherwise), accent colour, density, which
+      screen it opens on, and your own logo in place of Wardmind's in the top bar. These are saved
       to `config/settings.yaml`.
     - Follow-ups: when new follow-ups are due, skipping weekends, how Today decides who needs
       attention, and automatic follow-ups when an account turns At risk, a renewal is near or

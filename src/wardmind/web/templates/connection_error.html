@@ -1,8 +1,14 @@
 {% extends "base.html" %}
 {% block content %}
-<div class="stack">
-  <h1 class="page-title">Couldn't load your book</h1>
-  <p class="prose">Couldn't load your book. {{ message }}</p>
+<div class="quiet-page">
+  {# The page-head markup, written out: the macro would escape the apostrophe in the title. #}
+  <header class="page-head">
+    <div class="page-head-title">
+      <svg class="icon page-head-icon" aria-hidden="true" focusable="false"><use href="/static/icons.svg#plug"/></svg>
+      <h1 class="page-title">Couldn't load your book</h1>
+    </div>
+  </header>
+  <p class="page-lede page-lede-quiet">Couldn't load your book. {{ message }}</p>
   <div class="error-actions">
     <a class="button" href="/settings/connections">Check Connections</a>
     <form class="inline-form" method="post" action="/settings/connections/use-demo">

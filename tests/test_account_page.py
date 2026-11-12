@@ -77,7 +77,7 @@ def test_rank_one_page_has_the_name_nav_and_summary(client: TestClient, detail: 
 
     name = detail.scored.account.name
     assert f"<title>{html.escape(name)} - Wardmind</title>" in markup
-    heading = _block(markup, r'<h1 class="account-name">(.*?)</h1>')
+    heading = _block(markup, r'<h1 class="page-title account-name">(.*?)</h1>')
     assert html.unescape(heading) == name
     assert '<a class="nav-link" href="/" aria-current="page">My book</a>' in markup
     assert "Back to My book" in text

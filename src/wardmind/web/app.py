@@ -36,6 +36,7 @@ from starlette.middleware.trustedhost import TrustedHostMiddleware
 from wardmind.core import (
     audit,
     books,
+    brand,
     briefs,
     bulk,
     client_updates,
@@ -506,6 +507,8 @@ def _render(
         "can_lock": vault.state() is not vault.State.PLAIN,
         # Account id -> LogoInfo, for partials/logo.html (a monogram stands in for the rest).
         "logos": service.all_logos(),
+        # Your own logo in the top bar in place of Wardmind's (core/brand.py), or None.
+        "brand_logo": brand.current(),
         **context,
     }
     return templates.TemplateResponse(request, template, values, status_code=status_code)
@@ -621,9 +624,11 @@ def _render_appearance(
     saved: bool = False,
     errors: Mapping[str, str] | None = None,
     status_code: int = 200,
+    logo: str = "",
 ) -> HTMLResponse:
     """The Appearance page. `current` is what the form shows: the saved values, or the choices
-    the person just made where they are valid."""
+    the person just made where they are valid. `logo` is a code from _BRAND_NOTICES (?logo=)."""
+    notice, logo_error = _BRAND_NOTICES.get(logo, ("", False))
     return _render(
         request,
         "settings/appearance.html",
@@ -633,8 +638,21 @@ def _render_appearance(
         current=current,
         errors=dict(errors or {}),
         notice="Appearance saved." if saved else "",
+        logo_notice=notice,
+        logo_error=logo_error,
         status_code=status_code,
     )
+
+
+# Your logo on Appearance: the line after an upload or removal, by the code its redirect carries,
+# and whether it is a refusal (shown as an error by the file box) or a confirmation.
+_BRAND_NOTICES = {
+    "saved": ("Your logo is in the top bar now.", False),
+    "removed": ("Wardmind's own mark is back in the top bar.", False),
+    "no-file": ("Choose an image first.", True),
+    "too-big": ("That image is larger than 200 KB. Try a smaller one.", True),
+    "refused": ("Use a PNG, JPEG, GIF, WebP or ICO image at least 16 pixels wide.", True),
+}
 
 
 SCORING_PREVIEW_TOP_N = 10  # the preview lists this many accounts
@@ -1871,6 +1889,10 @@ class _ResearchPanel:
     summary: summaries.Summary | None = None  # the saved AI summary of this website, if any
     ai_error: str = ""  # what the last summary attempt said
     ai_error_link: bool = False  # the problem is the key or its credit: link to Data & privacy
+    # The chosen model when its providers may train on what they're sent: the summarise button
+    # then asks first (app.js), and without JavaScript the refusal offers ai_confirm's button.
+    ai_training_model: str = ""
+    ai_confirm: bool = False  # the last attempt was refused for want of that confirmation
 
 
 def _research_panel(
@@ -1881,6 +1903,7 @@ def _research_panel(
     error: str = "",
     ai_error: str = "",
     ai_error_link: bool = False,
+    ai_confirm: bool = False,
 ) -> _ResearchPanel:
     """The section's state for one account. Nothing here reaches the network: a saved summary is
     a file read, and a new summary is only asked for by the summarise button."""
@@ -1912,6 +1935,8 @@ def _research_panel(
         "summary": service.saved_summary(account.id) if ai_ok and result is not None else None,
         "ai_error": ai_error,
         "ai_error_link": ai_error_link,
+        "ai_training_model": (service.ai_training_model() or "") if ai_ok else "",
+        "ai_confirm": ai_confirm,
     }
     if error:
         return _ResearchPanel(state="error", message=error, **shared)
@@ -2040,6 +2065,9 @@ def _render_privacy(
         ai_on=current.ai_summaries if ai_choice is None else ai_choice,
         ai_status=_ai_status(current),
         ai_model=current.ai_model if ai_model_value is None else ai_model_value,
+        ai_model_trains=summaries.trains_on_data(
+            current.ai_model if ai_model_value is None else ai_model_value
+        ),
         ai_error=ai_error,
         ai_model_error=ai_model_error,
         key_line=_key_line(key_status, date.today()),
@@ -2153,7 +2181,13 @@ def _job_panel(
 
 
 def _render_research(
-    request: Request, *, job_id: str = "", error: str = "", status_code: int = 200
+    request: Request,
+    *,
+    job_id: str = "",
+    error: str = "",
+    confirm_training: bool = False,
+    refresh: bool = False,
+    status_code: int = 200,
 ) -> HTMLResponse:
     """The Website lookups page: the form, the progress panel, and what is saved for every account.
     A job named in the URL is shown; otherwise the current or last job. Nothing here reaches the
@@ -2173,6 +2207,11 @@ def _render_research(
         web_on=settings.web_research,
         count=len(book),
         ai_reason=service.ai_ready() or "",
+        # The chosen model when its providers may train on what they're sent: ticking "Also
+        # summarise" then asks first (app.js); confirm_training is the no-JavaScript fallback.
+        ai_training_model=service.ai_training_model() or "",
+        confirm_training=confirm_training,
+        confirm_refresh=refresh,
         rows=_lookup_rows(book, flags) if settings.web_research else [],
         job=job,
         error=error,
@@ -3974,8 +4013,51 @@ def create_app(gate: session.SessionGate | None = None) -> FastAPI:
         )
 
     @app.get("/settings/appearance")
-    def appearance(request: Request, saved: str = "") -> HTMLResponse:
-        return _render_appearance(request, load_settings(), saved=saved == "1")
+    def appearance(request: Request, saved: str = "", logo: str = "") -> HTMLResponse:
+        return _render_appearance(request, load_settings(), saved=saved == "1", logo=logo)
+
+    # Your logo in place of Wardmind's (core/brand.py). The image is served only to this app, with
+    # its checked type and a policy that lets it run nothing.
+
+    @app.get("/brand-logo")
+    def brand_logo_image() -> Response:
+        saved = brand.read()
+        if saved is None:
+            return PlainTextResponse("No logo.", status_code=404)
+        data, kind = saved
+        return Response(
+            content=data,
+            media_type=kind.value,
+            headers={
+                "X-Content-Type-Options": "nosniff",
+                "Content-Security-Policy": "default-src 'none'",
+                "Cache-Control": "private, max-age=86400",
+            },
+        )
+
+    @app.post("/settings/appearance/logo")
+    async def upload_brand_logo(request: Request) -> Response:
+        """Save the image posted as "logo" as the top bar's logo. At most one byte past the
+        limit is read, so a larger file is refused without being kept."""
+        form = await request.form()
+        upload = form.get("logo")
+        if not (isinstance(upload, UploadFile) and upload.filename):
+            return RedirectResponse("/settings/appearance?logo=no-file#logo", status_code=303)
+        data = await upload.read(logos.MAX_LOGO_BYTES + 1)
+        if len(data) > logos.MAX_LOGO_BYTES:
+            return RedirectResponse("/settings/appearance?logo=too-big#logo", status_code=303)
+        try:
+            await run_in_threadpool(brand.save, data)
+        except logos.LogoError:
+            return RedirectResponse("/settings/appearance?logo=refused#logo", status_code=303)
+        audit.record(audit.Event.SETTINGS_SAVED, detail="Your logo")
+        return RedirectResponse("/settings/appearance?logo=saved#logo", status_code=303)
+
+    @app.post("/settings/appearance/logo/remove")
+    async def remove_brand_logo() -> Response:
+        await run_in_threadpool(brand.remove)
+        audit.record(audit.Event.SETTINGS_SAVED, detail="Your logo")
+        return RedirectResponse("/settings/appearance?logo=removed#logo", status_code=303)
 
     @app.post("/settings/appearance")
     async def save_appearance(request: Request) -> Response:
@@ -4222,11 +4304,18 @@ def create_app(gate: session.SessionGate | None = None) -> FastAPI:
                 service.start_bulk_research,
                 summarise=fields.get("summarise") == "1",
                 refresh=fields.get("refresh") == "1",
+                allow_training=fields.get("allow_training") == "1",
             )
         except (research.ResearchOff, summaries.SummaryError) as problem:
             if _is_htmx(request):
                 return await run_in_threadpool(_job_panel, request, None, error=problem.message)
-            return await run_in_threadpool(_render_research, request, error=problem.message)
+            return await run_in_threadpool(
+                _render_research,
+                request,
+                error=problem.message,
+                confirm_training=isinstance(problem, summaries.TrainingNotConfirmed),
+                refresh=fields.get("refresh") == "1",
+            )
         if _is_htmx(request):
             return await run_in_threadpool(_job_panel, request, job)
         return RedirectResponse(f"/research?{urlencode({'job': job.id})}", status_code=303)
@@ -4255,9 +4344,13 @@ def create_app(gate: session.SessionGate | None = None) -> FastAPI:
         lookup_error = ""
         ai_error = ""
         ai_error_link = False
+        ai_confirm = False
         try:
             await run_in_threadpool(
-                service.summarise_account, account_id, refresh=fields.get("refresh") == "1"
+                service.summarise_account,
+                account_id,
+                refresh=fields.get("refresh") == "1",
+                allow_training=fields.get("allow_training") == "1",
             )
         except LookupError:
             return await run_in_threadpool(
@@ -4270,6 +4363,7 @@ def create_app(gate: session.SessionGate | None = None) -> FastAPI:
             ai_error_link = isinstance(
                 problem, summaries.NoKey | summaries.KeyRejected | summaries.OutOfCredit
             )
+            ai_confirm = isinstance(problem, summaries.TrainingNotConfirmed)
         editable = await run_in_threadpool(_research_editable, account_id)
         result = await run_in_threadpool(service.cached_research, account_id)
         panel = await run_in_threadpool(
@@ -4280,6 +4374,7 @@ def create_app(gate: session.SessionGate | None = None) -> FastAPI:
             error=lookup_error,
             ai_error=ai_error,
             ai_error_link=ai_error_link,
+            ai_confirm=ai_confirm,
         )
         if _is_htmx(request):
             response = templates.TemplateResponse(

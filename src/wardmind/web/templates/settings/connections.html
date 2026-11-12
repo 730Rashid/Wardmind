@@ -1,27 +1,33 @@
 {% extends "settings/layout.html" %}
 {% block settings %}
+<p class="page-lede">Connections bring accounts and signals into your book.</p>
+
 <div class="connections">
-  <form class="settings-form" method="post" action="/settings/connections/source">
-    {% if source_error %}
-    <p class="field-error" role="alert">{{ source_error }}</p>
-    {% endif %}
+  <section class="settings-card">
+    <form class="settings-form" method="post" action="/settings/connections/source">
+      {% if source_error %}
+      <p class="field-error" role="alert">{{ source_error }}</p>
+      {% endif %}
 
-    <fieldset>
-      <legend>Data source</legend>
-      <div class="choices">
-        {% for option in source_options %}
-        <div class="choice-option">
-          <label class="choice"><input type="radio" name="source" value="{{ option.value }}" aria-describedby="source-{{ option.value }}-help"{% if option.checked %} checked{% endif %}> {{ option.label }}</label>
-          <p class="field-help choice-help" id="source-{{ option.value }}-help">{{ option.help }}</p>
+      <fieldset class="settings-part">
+        <legend>Data source</legend>
+        <div class="choices">
+          {% for option in source_options %}
+          <div class="choice-option">
+            <label class="choice"><input type="radio" name="source" value="{{ option.value }}" aria-describedby="source-{{ option.value }}-help"{% if option.checked %} checked{% endif %}> {{ option.label }}</label>
+            <p class="field-help choice-help" id="source-{{ option.value }}-help">{{ option.help }}</p>
+          </div>
+          {% endfor %}
         </div>
-        {% endfor %}
+      </fieldset>
+
+      <div class="settings-actions">
+        <button type="submit" class="button-primary">Save changes</button>
       </div>
-    </fieldset>
+    </form>
+  </section>
 
-    <button type="submit" class="button-primary">Save changes</button>
-  </form>
-
-  <section class="connections-section" aria-labelledby="your-connections-title">
+  <section class="connections-section settings-card" aria-labelledby="your-connections-title">
     <h2 class="section-title" id="your-connections-title">Your connections</h2>
     {% for message in rename_errors.values() %}
     <p class="field-error" role="alert">{{ message }}</p>
@@ -121,20 +127,24 @@
   </details>
   {% endif %}
 
-  <section class="connections-section" aria-labelledby="add-connection-title">
+  <section class="connections-section settings-card" aria-labelledby="add-connection-title">
     <h2 class="section-title" id="add-connection-title">Add a connection</h2>
     <p class="field-help">Bring in accounts or signals from a file, a web address, a database or a product you already use.</p>
-    <a class="button-primary" href="/connections/add">Add a connection</a>
-    <p class="field-help">Or go straight to one:</p>
-    <ul class="add-list">
-      <li><a class="button button--small" href="/import?back=connections">Import a spreadsheet</a></li>
-      <li><a class="button button--small" href="/import?paste=1&amp;back=connections">Paste cells</a></li>
-      <li><a class="button button--small" href="#hubspot-access">Connect HubSpot</a></li>
-      <li><a class="button button--small" href="/accounts/new">Add an account</a></li>
-    </ul>
+    <div class="settings-actions settings-actions--start">
+      <a class="button-primary" href="/connections/add">Add a connection</a>
+    </div>
+    <div class="settings-part">
+      <p class="field-help">Or go straight to one:</p>
+      <ul class="add-list">
+        <li><a class="button button--small" href="/import?back=connections">Import a spreadsheet</a></li>
+        <li><a class="button button--small" href="/import?paste=1&amp;back=connections">Paste cells</a></li>
+        <li><a class="button button--small" href="#hubspot-access">Connect HubSpot</a></li>
+        <li><a class="button button--small" href="/accounts/new">Add an account</a></li>
+      </ul>
+    </div>
   </section>
 
-  <section class="connections-section" id="hubspot-access" aria-labelledby="hubspot-access-title">
+  <section class="connections-section settings-card" id="hubspot-access" aria-labelledby="hubspot-access-title">
     <h2 class="section-title" id="hubspot-access-title">HubSpot access</h2>
 
     <div class="token-row">
@@ -146,7 +156,7 @@
       {% endif %}
     </div>
 
-    <form class="token-form" method="post" action="/settings/connections/token">
+    <form class="token-form settings-part" method="post" action="/settings/connections/token">
       <div class="field">
         <label for="token">Access token</label>
         <div class="token-input">
@@ -160,7 +170,7 @@
       </div>
     </form>
 
-    <div class="connection-test">
+    <div class="connection-test settings-part">
       <form class="inline-form" method="post" action="/settings/connections/test">
         <button type="submit" class="button" hx-post="/settings/connections/test" hx-target="#connection-test" hx-swap="innerHTML">Test connection</button>
       </form>
@@ -172,7 +182,7 @@
     </div>
 
     {% if show_refresh %}
-    <div class="token-row">
+    <div class="token-row settings-part">
       <p class="field-help">{{ fetched }}</p>
       <form class="inline-form" method="post" action="/settings/connections/refresh">
         <button type="submit" class="button">Refresh data now</button>
@@ -181,29 +191,31 @@
     {% endif %}
   </section>
 
-  <details class="mapping">
-    <summary><h2 class="section-title">What Wardmind reads</h2></summary>
-    {% if mapping_error %}
-    <p class="alert" role="alert">{{ mapping_error }}</p>
-    {% else %}
-    <table class="mapping-table">
-      <caption class="visually-hidden">The HubSpot properties Wardmind reads</caption>
-      <thead>
-        <tr>
-          <th scope="col">Wardmind field</th>
-          <th scope="col">HubSpot property</th>
-        </tr>
-      </thead>
-      <tbody>
-        {% for field, property in mapping_rows %}
-        <tr>
-          <th scope="row">{{ field }}</th>
-          <td>{{ property }}</td>
-        </tr>
-        {% endfor %}
-      </tbody>
-    </table>
-    {% endif %}
-  </details>
+  <section class="settings-card mapping-card">
+    <details class="mapping">
+      <summary><h2 class="section-title">What Wardmind reads</h2></summary>
+      {% if mapping_error %}
+      <p class="alert" role="alert">{{ mapping_error }}</p>
+      {% else %}
+      <table class="mapping-table">
+        <caption class="visually-hidden">The HubSpot properties Wardmind reads</caption>
+        <thead>
+          <tr>
+            <th scope="col">Wardmind field</th>
+            <th scope="col">HubSpot property</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for field, property in mapping_rows %}
+          <tr>
+            <th scope="row">{{ field }}</th>
+            <td>{{ property }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      {% endif %}
+    </details>
+  </section>
 </div>
 {% endblock %}

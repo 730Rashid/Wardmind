@@ -1,26 +1,25 @@
 {% extends "base.html" %}
 {% from "connections/_fields.html" import setup_field %}
+{% from "partials/page_head.html" import page_head %}
 {% block content %}
 {# The setup card for one provider. Test and continue fetches the source once and moves on to the
    matching page. Every value the person typed comes back on a refusal, except the key. #}
 <div class="connection-setup">
-  <header class="import-head">
-    <p class="date-line"><a href="/connections/add">Add a connection</a> / {{ info.name }}</p>
-    <h1 class="page-title">{{ heading }}</h1>
-    <p class="field-help">{{ info.by }}</p>
-    <p class="prose">{{ info.description }}</p>
-  </header>
+  <p class="date-line"><a href="/connections/add">Add a connection</a> / {{ info.name }}</p>
+  {{ page_head(heading, "plug") }}
+  <p class="field-help card-by">{{ info.by }}</p>
+  <p class="page-lede">{{ info.description }}</p>
 
   {% if top_error %}
   <p class="field-error" role="alert">{{ top_error }}</p>
   {% endif %}
 
-  <form id="connection-setup" class="connections-section connection-form" method="post" action="/connections/add/{{ info.id | idpath }}">
+  <form id="connection-setup" class="connections-section connection-form settings-card" method="post" action="/connections/add/{{ info.id | idpath }}">
     {% if connection %}
     <input type="hidden" name="connection" value="{{ connection }}">
     {% endif %}
 
-    <div class="field connection-field">
+    <div class="settings-part connection-field">
       <label for="field-name">Name</label>
       <input type="text" id="field-name" name="name" value="{{ name }}" maxlength="60" autocomplete="off" aria-describedby="field-name-help{% if errors.get('name') %} field-name-error{% endif %}"{% if errors.get('name') %} aria-invalid="true"{% endif %}>
       <p class="field-help" id="field-name-help">What this connection is called on your list.</p>
@@ -28,7 +27,7 @@
     </div>
 
     {% if role_choices|length > 1 %}
-    <fieldset class="connection-choice">
+    <fieldset class="connection-choice settings-part">
       <legend>What does it add?</legend>
       <div class="choices">
         {% for option in role_choices %}
@@ -42,11 +41,15 @@
     <input type="hidden" name="role" value="{{ role_choices[0].value }}">
     {% endif %}
 
-    {% for f in fields %}
-    {{ setup_field(f) }}
-    {% endfor %}
+    {% if fields %}
+    <div class="settings-part connection-fields">
+      {% for f in fields %}
+      {{ setup_field(f) }}
+      {% endfor %}
+    </div>
+    {% endif %}
 
-    <div class="field connection-field">
+    <div class="settings-part connection-field">
       <label for="schedule">Schedule</label>
       <select id="schedule" name="schedule"{% if errors.get('schedule') %} aria-invalid="true" aria-describedby="schedule-error"{% endif %}>
         {% for option in schedule_choices %}
@@ -56,7 +59,7 @@
       {% if errors.get('schedule') %}<p class="field-error" id="schedule-error">{{ errors.get('schedule') }}</p>{% endif %}
     </div>
 
-    <fieldset class="connection-choice">
+    <fieldset class="connection-choice settings-part">
       <legend>Match accounts by</legend>
       <div class="choices">
         {% for option in match_choices %}
@@ -68,12 +71,12 @@
     </fieldset>
 
     {% if info.docs_hint %}
-    <p class="field-help">{{ info.docs_hint }}</p>
+    <p class="field-help settings-part">{{ info.docs_hint }}</p>
     {% endif %}
 
-    <div class="form-actions">
-      <button type="submit" class="button-primary">Test and continue</button>
+    <div class="settings-actions">
       <a class="button" href="/connections/add">Cancel</a>
+      <button type="submit" class="button-primary">Test and continue</button>
     </div>
   </form>
 </div>

@@ -1,7 +1,9 @@
 {% extends "settings/layout.html" %}
 {% block settings %}
+<p class="page-lede">What Wardmind keeps on this computer, and what it sends out, is yours to control.</p>
+
 <div class="privacy">
-  <section class="privacy-section" aria-labelledby="encryption-title">
+  <section class="privacy-section settings-card" aria-labelledby="encryption-title">
     <h2 class="section-title" id="encryption-title">Encryption</h2>
     <p class="prose">Encrypt your Wardmind data on this computer, so a copy of the files (a backup, OneDrive, a stolen laptop) can't be read without your key.</p>
     <p class="field-help">This covers the files Wardmind saves. Pieces of older, unencrypted copies can stay on the disk until they are written over, so turn on Windows device encryption (BitLocker) as well, if your computer has it.</p>
@@ -19,7 +21,7 @@
       {% if encryption.errors.method %}
       <p class="field-error" role="alert" id="encryption-method-error">{{ encryption.errors.method }}</p>
       {% endif %}
-      <fieldset{% if encryption.errors.method %} aria-describedby="encryption-method-error"{% endif %}>
+      <fieldset class="settings-part"{% if encryption.errors.method %} aria-describedby="encryption-method-error"{% endif %}>
         <legend>How Wardmind unlocks</legend>
         <div class="choices">
           {% if encryption.dpapi %}
@@ -51,12 +53,14 @@
         {% endif %}
       </div>
 
-      <button type="submit" class="button-primary">Continue</button>
+      <div class="settings-actions">
+        <button type="submit" class="button-primary">Continue</button>
+      </div>
     </form>
     {% endif %}
 
     {% if encryption.on %}
-    <section class="privacy-key" aria-labelledby="encryption-password-title">
+    <section class="privacy-key settings-part" aria-labelledby="encryption-password-title">
       <h3 class="privacy-subtitle" id="encryption-password-title">Password</h3>
       <form class="settings-form" method="post" action="/settings/privacy/encryption/password">
         <div class="field">
@@ -74,12 +78,14 @@
           <p class="field-error" role="alert" id="field-enc-confirm-error">{{ encryption.errors.confirm }}</p>
           {% endif %}
         </div>
-        <button type="submit" class="button">{% if encryption.has_password %}Change password{% else %}Set a password{% endif %}</button>
+        <div class="settings-actions">
+          <button type="submit" class="button">{% if encryption.has_password %}Change password{% else %}Set a password{% endif %}</button>
+        </div>
       </form>
     </section>
 
     {% if encryption.has_password and encryption.dpapi %}
-    <section class="privacy-key" aria-labelledby="encryption-remove-title">
+    <section class="privacy-key settings-part" aria-labelledby="encryption-remove-title">
       <h3 class="privacy-subtitle" id="encryption-remove-title">Windows sign-in</h3>
       <p class="field-help">Remove the password and let Windows unlock Wardmind again. Anyone signed in to this Windows account can then open it.</p>
       <form class="settings-form" method="post" action="/settings/privacy/encryption/password/remove">
@@ -89,12 +95,14 @@
           <p class="field-error" role="alert" id="confirm-remove-error">{{ encryption.errors.remove }}</p>
           {% endif %}
         </div>
-        <button type="submit" class="button">Remove password</button>
+        <div class="settings-actions">
+          <button type="submit" class="button">Remove password</button>
+        </div>
       </form>
     </section>
     {% endif %}
 
-    <section class="privacy-key" aria-labelledby="encryption-recovery-title">
+    <section class="privacy-key settings-part" aria-labelledby="encryption-recovery-title">
       <h3 class="privacy-subtitle" id="encryption-recovery-title">Recovery key</h3>
       <p class="field-help">If you forget your password, or Windows can't unlock Wardmind on a new computer, this key is the way back in. A new key replaces the old one in Wardmind's key file. To be sure no older copy of that file opens with an old key, replace all keys below.</p>
       <form class="settings-form" method="post" action="/settings/privacy/encryption/recovery">
@@ -104,11 +112,13 @@
           <p class="field-error" role="alert" id="confirm-recovery-error">{{ encryption.errors.recovery }}</p>
           {% endif %}
         </div>
-        <button type="submit" class="button">Make a new recovery key</button>
+        <div class="settings-actions">
+          <button type="submit" class="button">Make a new recovery key</button>
+        </div>
       </form>
     </section>
 
-    <section class="privacy-key" aria-labelledby="encryption-rekey-title">
+    <section class="privacy-key settings-part" aria-labelledby="encryption-rekey-title">
       <h3 class="privacy-subtitle" id="encryption-rekey-title">Replace all keys</h3>
       <p class="field-help" id="rekey-help">Changing the password or the recovery key keeps the key that encrypts your files, so an old copy of Wardmind's key file (in a backup, for example) still opens with the old password or recovery key. Replacing all keys encrypts every file again with new keys and gives you a new recovery key. Do this if you think an old password or recovery key got out.</p>
       <form class="settings-form" method="post" action="/settings/privacy/encryption/rekey" aria-describedby="rekey-help">
@@ -135,13 +145,15 @@
           <p class="field-error" role="alert" id="confirm-rekey-error">{{ encryption.errors.rekey }}</p>
           {% endif %}
         </div>
-        <button type="submit" class="button">Replace all keys</button>
+        <div class="settings-actions">
+          <button type="submit" class="button">Replace all keys</button>
+        </div>
       </form>
     </section>
 
-    <section class="privacy-key" aria-labelledby="encryption-locking-title">
+    <section class="privacy-key settings-part" aria-labelledby="encryption-locking-title">
       <h3 class="privacy-subtitle" id="encryption-locking-title">Locking</h3>
-      <form class="inline-form" method="post" action="/settings/privacy/auto-lock">
+      <form class="inline-form settings-inline" method="post" action="/settings/privacy/auto-lock">
         <div class="field">
           <label for="field-auto-lock">Lock after</label>
           <select name="minutes" id="field-auto-lock"{% if encryption.errors.auto_lock %} aria-invalid="true" aria-describedby="field-auto-lock-error"{% endif %}>
@@ -157,7 +169,7 @@
       </form>
     </section>
 
-    <section class="privacy-key" aria-labelledby="encryption-off-title">
+    <section class="privacy-key settings-part" aria-labelledby="encryption-off-title">
       <h3 class="privacy-subtitle" id="encryption-off-title">Turn off encryption</h3>
       <p class="field-help">Wardmind decrypts every file, then deletes the keys.</p>
       <form class="settings-form" method="post" action="/settings/privacy/encryption/off">
@@ -167,13 +179,15 @@
           <p class="field-error" role="alert" id="confirm-off-error">{{ encryption.errors.off }}</p>
           {% endif %}
         </div>
-        <button type="submit" class="button">Turn off encryption</button>
+        <div class="settings-actions">
+          <button type="submit" class="button">Turn off encryption</button>
+        </div>
       </form>
     </section>
     {% endif %}
   </section>
 
-  <section class="privacy-section" aria-labelledby="web-research-title">
+  <section class="privacy-section settings-card" aria-labelledby="web-research-title">
     <h2 class="section-title" id="web-research-title">Web research</h2>
     <p class="privacy-status">{% if web_on %}Web research is on.{% else %}Web research is off.{% endif %}</p>
     <p class="prose">When it's on, each account page gets a Look up their website button. Pressing it visits that account's own website (its Website field), the way your browser would, and reads three things: the home page title, its description, and the news or blog feed the site publishes.</p>
@@ -197,7 +211,7 @@
       {% if research_error %}
       <p class="field-error" role="alert" id="research-error">{{ research_error }}</p>
       {% endif %}
-      <fieldset{% if research_error %} aria-describedby="research-error"{% endif %}>
+      <fieldset class="settings-part"{% if research_error %} aria-describedby="research-error"{% endif %}>
         <legend>Web research</legend>
         <div class="choices">
           <div class="choice-option">
@@ -210,12 +224,14 @@
           </div>
         </div>
       </fieldset>
-      <button type="submit" class="button-primary">Save</button>
+      <div class="settings-actions">
+        <a class="button" href="/research">Look up all websites</a>
+        <button type="submit" class="button-primary">Save</button>
+      </div>
     </form>
-    <p><a href="/research">Look up all websites</a></p>
   </section>
 
-  <section class="privacy-section" aria-labelledby="ai-summaries-title">
+  <section class="privacy-section settings-card" aria-labelledby="ai-summaries-title">
     <h2 class="section-title" id="ai-summaries-title">AI summaries</h2>
     <p class="privacy-status">{{ ai_status }}</p>
     <p class="prose">When it's on, Wardmind can turn what web research read from a customer's website into a short About and up to three highlights a CSM should know: acquisitions, funding, leadership changes or restructuring. It uses your own OpenRouter account, so you choose the model and pay OpenRouter directly.</p>
@@ -224,7 +240,7 @@
       <dt>What is sent</dt>
       <dd>Only the text web research read from the customer's public website: its address, title, description and recent headlines. Nothing from your book: not your account name, ARR, owner, health, signals, notes or other accounts.</dd>
       <dt>Who sees it</dt>
-      <dd>OpenRouter, and the company that runs the model you chose. Wardmind asks OpenRouter to use only providers that don't store or train on the data.</dd>
+      <dd>OpenRouter, and the company that runs the model you chose. Wardmind asks OpenRouter to use only providers that don't store or train on the data. A free model is the exception: its providers may train on what they're sent, so Wardmind asks you to confirm every time you use one.</dd>
       <dt>Cost</dt>
       <dd>A summary is a few thousand tokens. With the default model, a book of 40 accounts usually costs about a cent or two. A summary is reused until the website or the model changes, so running it again only pays for what changed.</dd>
       <dt>When</dt>
@@ -239,7 +255,7 @@
       {% if ai_error %}
       <p class="field-error" role="alert" id="ai-error">{{ ai_error }}</p>
       {% endif %}
-      <fieldset{% if ai_error %} aria-describedby="ai-error"{% endif %}>
+      <fieldset class="settings-part"{% if ai_error %} aria-describedby="ai-error"{% endif %}>
         <legend>AI summaries</legend>
         <div class="choices">
           <div class="choice-option">
@@ -255,17 +271,20 @@
 
       <div class="field">
         <label for="field-ai-model">Model</label>
-        <input type="text" name="ai_model" id="field-ai-model" value="{{ ai_model }}" autocomplete="off" spellcheck="false"{% if ai_model_error %} aria-invalid="true" aria-describedby="field-ai-model-error field-ai-model-help"{% else %} aria-describedby="field-ai-model-help"{% endif %}>
+        <input type="text" name="ai_model" id="field-ai-model" value="{{ ai_model }}" autocomplete="off" spellcheck="false" data-training-model-field{% if ai_model_error %} aria-invalid="true" aria-describedby="field-ai-model-error field-ai-model-training field-ai-model-help"{% else %} aria-describedby="field-ai-model-training field-ai-model-help"{% endif %}>
         {% if ai_model_error %}
         <p class="field-error" role="alert" id="field-ai-model-error">{{ ai_model_error }}</p>
         {% endif %}
+        <p class="field-warning" id="field-ai-model-training" data-training-warning{% if not ai_model_trains %} hidden{% endif %}><svg class="icon" aria-hidden="true" focusable="false"><use href="/static/icons.svg#health-watch"/></svg><span>Free models are served by providers that may keep what you send and train on it. Wardmind will ask you to confirm every time you use one.</span></p>
         <p class="field-help" id="field-ai-model-help">An OpenRouter model id. The default, anthropic/claude-haiku-5.5, is fast and cheap. <a href="https://openrouter.ai/models" rel="noopener noreferrer">Browse models</a></p>
       </div>
 
-      <button type="submit" class="button-primary">Save</button>
+      <div class="settings-actions">
+        <button type="submit" class="button-primary">Save</button>
+      </div>
     </form>
 
-    <section class="privacy-key" aria-labelledby="openrouter-key-title">
+    <section class="privacy-key settings-part" aria-labelledby="openrouter-key-title">
       <h3 class="privacy-subtitle" id="openrouter-key-title">OpenRouter API key</h3>
       <div class="token-row">
         <p class="token-status">{{ key_line }}</p>
@@ -305,7 +324,7 @@
     </section>
   </section>
 
-  <section class="privacy-section" aria-labelledby="local-cache-title">
+  <section class="privacy-section settings-card" aria-labelledby="local-cache-title">
     <h2 class="section-title" id="local-cache-title">Local cache</h2>
     <p class="prose">Wardmind saves some things only to save time: website lookups, AI summaries and imports you started but didn't finish. Clearing them is safe. It doesn't touch your connections, imported or hand-added accounts, edits or settings.</p>
     <p>Your data is kept in <code class="data-path">{{ data_folder }}</code></p>
@@ -314,7 +333,7 @@
     </form>
   </section>
 
-  <section class="privacy-section" aria-labelledby="delete-all-title">
+  <section class="privacy-section settings-card" aria-labelledby="delete-all-title">
     <h2 class="section-title" id="delete-all-title">Delete all local data</h2>
     <p class="prose">Removes everything Wardmind keeps on this computer: your connections and the data they brought in, the accounts you added by hand, your edits, contacts, client updates, links, hidden accounts, saved lookups and summaries, and the saved HubSpot token, OpenRouter key and feed keys.</p>
     <p class="prose">Your settings (settings.yaml) and scoring (scoring.yaml) stay, and so does the program. Environment variables are not touched.</p>

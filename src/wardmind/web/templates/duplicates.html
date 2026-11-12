@@ -1,12 +1,15 @@
 {% extends "base.html" %}
+{% from "partials/page_head.html" import page_head %}
 {% block content %}
 <div class="duplicates-page">
-  <h1 class="page-title">Possible duplicates</h1>
+  {{ page_head("Possible duplicates", "accounts") }}
+  {% if pairs %}
+  <p class="page-lede">These accounts come from different connections and look like the same customer. Link them to keep one account, or mark them as not the same.</p>
+  {% endif %}
   {% if status %}<p class="status-line" role="status">{{ status }}</p>{% endif %}
   {% if error %}<p class="field-error" role="alert">{{ error }}</p>{% endif %}
 
   {% if pairs %}
-  <p class="prose field-help">These accounts come from different connections and look like the same customer. Link them to keep one account, or mark them as not the same.</p>
   <div class="duplicate-list">
     {% for pair in pairs %}
     {% set first, second = pair.sides %}
@@ -49,8 +52,8 @@
           <p class="field-help">The one you keep supplies the name, ARR, dates and owner. The other fills in anything it's missing, and both keep their signal history.</p>
         </fieldset>
         <div class="duplicate-actions">
-          <button type="submit" class="button">Link these</button>
           <button type="submit" class="button" form="dismiss-{{ loop.index }}">Not the same</button>
+          <button type="submit" class="button button-primary">Link these</button>
         </div>
       </form>
       <form id="dismiss-{{ loop.index }}" class="visually-hidden" method="post" action="/duplicates/dismiss">

@@ -1,40 +1,5 @@
-/* Wardmind shell. Colour tokens follow docs/design.md; tests/test_contrast.py reads them from here. */
-
-@font-face {
-  font-family: "Atkinson Hyperlegible Next";
-  src: url("/static/fonts/atkinson-hyperlegible-next-latin-wght-normal.woff2") format("woff2");
-  font-style: normal;
-  font-weight: 200 800;
-  font-display: swap;
-  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
-}
-
-@font-face {
-  font-family: "Atkinson Hyperlegible Next";
-  src: url("/static/fonts/atkinson-hyperlegible-next-latin-ext-wght-normal.woff2") format("woff2");
-  font-style: normal;
-  font-weight: 200 800;
-  font-display: swap;
-  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
-}
-
-@font-face {
-  font-family: "Atkinson Hyperlegible Next";
-  src: url("/static/fonts/atkinson-hyperlegible-next-latin-wght-italic.woff2") format("woff2");
-  font-style: italic;
-  font-weight: 200 800;
-  font-display: swap;
-  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
-}
-
-@font-face {
-  font-family: "Atkinson Hyperlegible Next";
-  src: url("/static/fonts/atkinson-hyperlegible-next-latin-ext-wght-italic.woff2") format("woff2");
-  font-style: italic;
-  font-weight: 200 800;
-  font-display: swap;
-  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
-}
+/* Wardmind shell. Colour tokens follow docs/design.md; tests/test_contrast.py reads them from here.
+   Type is the system's neutral sans: Inter where installed, Segoe UI Variable on Windows 11. */
 
 /* Light is the base. Dark applies with no user choice (prefers-color-scheme) or when
    <html data-theme="dark"> is set. data-theme="light" pins the light values. */
@@ -42,11 +7,11 @@
   color-scheme: light dark;
   --paper: #FFFFFF;
   --surface: #FFFFFF;
-  --sunken: #F8F8FA;
-  --ink: #1D1E24;
-  --ink-muted: #62636E;
-  --line: #E6E6EB;
-  --line-strong: #D5D6DD;
+  --sunken: #FAFAFB;
+  --ink: #23252B;
+  --ink-muted: #676A75;
+  --line: #E8E9ED;
+  --line-strong: #D8DAE0;
   --control: #8C8D97;
   --accent-plum: #6A4BD6;
   --accent-blue: #2C4FB0;
@@ -57,28 +22,31 @@
   --watch: #9A4A05;
   --healthy: #067647;
   --bar: #8C8D97;
-  --tag-violet-bg: #EEEAFC;
-  --tag-violet-ink: #5B3FC4;
-  --tag-blue-bg: #E8EFFB;
-  --tag-blue-ink: #2F55A8;
-  --tag-green-bg: #E7F4E1;
-  --tag-green-ink: #3A6620;
-  --tag-pink-bg: #FBE8F1;
-  --tag-pink-ink: #A02F68;
-  --tag-orange-bg: #FCEEE1;
-  --tag-orange-ink: #94480A;
-  --tag-red-bg: #FCE9E8;
-  --tag-red-ink: #AE2E27;
-  --tag-slate-bg: #EFF0F3;
-  --tag-slate-ink: #484B57;
+  --tag-violet-bg: #F1EEFC;
+  --tag-violet-ink: #5B45B8;
+  --tag-blue-bg: #EEF3FC;
+  --tag-blue-ink: #3A5BA6;
+  --tag-green-bg: #F0F7EB;
+  --tag-green-ink: #436E2A;
+  --tag-pink-bg: #FCEFF5;
+  --tag-pink-ink: #AD326C;
+  --tag-orange-bg: #FDF3EA;
+  --tag-orange-ink: #9A4C14;
+  --tag-red-bg: #FCEEEE;
+  --tag-red-ink: #B1352D;
+  --tag-slate-bg: #F3F4F6;
+  --tag-slate-ink: #4A4E5A;
   --accent: var(--accent-plum);
 
-  --font-ui: "Atkinson Hyperlegible Next", system-ui, sans-serif;
-  --t-sm: 0.875rem;
-  --t-body: 1rem;
-  --t-md: 1.1875rem;
-  --t-lg: 1.4375rem;
-  --t-xl: 1.75rem;
+  --font-ui: "Inter", "Segoe UI Variable Text", "Segoe UI", system-ui, -apple-system,
+    "Helvetica Neue", Arial, sans-serif;
+  --t-sm: 0.8125rem;  /* 13px: chips, meta lines, table headers */
+  --t-ui: 0.875rem;  /* 14px: buttons, navigation, badges */
+  --t-body: 0.9375rem;  /* 15px: running text and descriptions */
+  --t-card: 1rem;  /* 16px: card and section names */
+  --t-md: 1.0625rem;
+  --t-lg: 1.25rem;  /* 20px: page titles */
+  --t-xl: 1.5rem;
   --lh-sm: 1.45;
   --lh-body: 1.5;
   --lh-md: 1.4;
@@ -3730,11 +3698,11 @@ a.button-primary {
     color-scheme: light !important;
     --paper: #FFFFFF !important;
     --surface: #FFFFFF !important;
-    --sunken: #F8F8FA !important;
-    --ink: #1D1E24 !important;
-    --ink-muted: #62636E !important;
-    --line: #E6E6EB !important;
-    --line-strong: #D5D6DD !important;
+    --sunken: #FAFAFB !important;
+    --ink: #23252B !important;
+    --ink-muted: #676A75 !important;
+    --line: #E8E9ED !important;
+    --line-strong: #D8DAE0 !important;
     --control: #8C8D97 !important;
     --accent-plum: #6A4BD6 !important;
     --accent-blue: #2C4FB0 !important;
@@ -3745,20 +3713,20 @@ a.button-primary {
     --watch: #9A4A05 !important;
     --healthy: #067647 !important;
     --bar: #8C8D97 !important;
-    --tag-violet-bg: #EEEAFC !important;
-    --tag-violet-ink: #5B3FC4 !important;
-    --tag-blue-bg: #E8EFFB !important;
-    --tag-blue-ink: #2F55A8 !important;
-    --tag-green-bg: #E7F4E1 !important;
-    --tag-green-ink: #3A6620 !important;
-    --tag-pink-bg: #FBE8F1 !important;
-    --tag-pink-ink: #A02F68 !important;
-    --tag-orange-bg: #FCEEE1 !important;
-    --tag-orange-ink: #94480A !important;
-    --tag-red-bg: #FCE9E8 !important;
-    --tag-red-ink: #AE2E27 !important;
-    --tag-slate-bg: #EFF0F3 !important;
-    --tag-slate-ink: #484B57 !important;
+    --tag-violet-bg: #F1EEFC !important;
+    --tag-violet-ink: #5B45B8 !important;
+    --tag-blue-bg: #EEF3FC !important;
+    --tag-blue-ink: #3A5BA6 !important;
+    --tag-green-bg: #F0F7EB !important;
+    --tag-green-ink: #436E2A !important;
+    --tag-pink-bg: #FCEFF5 !important;
+    --tag-pink-ink: #AD326C !important;
+    --tag-orange-bg: #FDF3EA !important;
+    --tag-orange-ink: #9A4C14 !important;
+    --tag-red-bg: #FCEEEE !important;
+    --tag-red-ink: #B1352D !important;
+    --tag-slate-bg: #F3F4F6 !important;
+    --tag-slate-ink: #4A4E5A !important;
   }
 
   .column {
@@ -5257,7 +5225,7 @@ a.button-primary {
 
 /* Stacked bars (the brief's ARR by health, the renewals page's ARR by call): rounded ends, a thin
    gap between bands, and on hover the other bands and their legend entries fade back. */
-.stack {
+.chart-stack {
   position: relative;
   display: flex;
   flex-direction: column;
@@ -5278,11 +5246,11 @@ a.button-primary {
   transition: opacity 120ms ease-out;
 }
 
-.stack [data-key] {
+.chart-stack [data-key] {
   transition: opacity 120ms ease-out;
 }
 
-.stack.is-picking [data-key]:not(.is-picked) {
+.chart-stack.is-picking [data-key]:not(.is-picked) {
   opacity: 0.3;
 }
 
@@ -8254,4 +8222,4175 @@ a.button-primary {
   border: 1px solid var(--control);
   border-radius: var(--radius-control);
   font: inherit;
+}
+
+/* =================================================================================================
+   The reference look (2026-11-11). One quiet, enterprise language for every screen: white
+   surfaces, hairline borders, one level of rounded cards, a page header of icon, title and a
+   hairline, a single grey sentence under it, pastel chips with line icons and a tinted border,
+   and a lavender badge for a state. Health colours mean health only; plum means something the
+   CSM did or can do. The page rules after this block (one per screen) build on these pieces.
+   ================================================================================================= */
+
+body {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+/* --- The top bar ------------------------------------------------------------------------------ */
+.top-bar {
+  background: var(--surface);
+  border-block-end: 1px solid var(--line);
+}
+
+.top-bar-inner {
+  min-block-size: 3.5rem;
+  padding-block: var(--space-2);
+}
+
+.brand {
+  font-size: var(--t-body);
+  line-height: 1.25;
+  font-weight: 600;
+  letter-spacing: -0.005em;
+}
+
+.brand .icon {
+  width: 1.125rem;
+  height: 1.125rem;
+}
+
+.nav-link {
+  padding: 0.375rem 0.75rem;
+  font-size: var(--t-ui);
+  line-height: 1.25rem;
+  font-weight: 500;
+  color: var(--ink-muted);
+}
+
+.nav-link[aria-current="page"] {
+  color: var(--ink);
+  background: var(--sunken);
+  box-shadow: inset 0 0 0 1px var(--line);
+  font-weight: 500;
+}
+
+/* --- The page header: an icon, the title, actions at the far end, and a hairline -------------- */
+.page-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3) var(--space-4);
+  margin-block-end: var(--space-4);
+  padding-block-end: var(--space-4);
+  border-block-end: 1px solid var(--line);
+}
+
+.page-head-title {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-inline-size: 0;
+}
+
+.page-head-icon {
+  flex: none;
+  width: 1.25rem;
+  height: 1.25rem;
+  color: var(--ink);
+}
+
+.page-title {
+  font-size: var(--t-lg);
+  line-height: var(--lh-lg);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.page-head-meta {
+  font-size: var(--t-sm);
+  line-height: var(--lh-sm);
+  color: var(--ink-muted);
+}
+
+.page-head-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+/* One sentence under the header that says what the page is for, or what it found. */
+.page-lede {
+  max-inline-size: 72ch;
+  margin: 0 0 var(--space-5);
+  font-size: var(--t-body);
+  line-height: var(--lh-body);
+  color: var(--ink);
+}
+
+.page-lede-quiet {
+  color: var(--ink-muted);
+}
+
+/* The old two-line headline reads as one quiet sentence until each screen moves to .page-lede. */
+.summary {
+  font-size: var(--t-body);
+  line-height: var(--lh-body);
+  font-weight: 400;
+}
+
+.summary-line {
+  display: inline;
+}
+
+.summary-line + .summary-line::before {
+  content: " ";
+}
+
+/* --- Chips: a pastel fill, a border in the chip's own ink, a line icon, then the word ---------- */
+.pill,
+.tag,
+.health,
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3125rem;
+  min-block-size: 1.5rem;
+  padding: 0.0625rem 0.5rem;
+  border: 1px solid color-mix(in srgb, currentColor 26%, transparent);
+  border-radius: var(--radius-tag);
+  font-size: var(--t-sm);
+  line-height: 1.25rem;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.chip {
+  background: var(--tag-slate-bg);
+  color: var(--tag-slate-ink);
+}
+
+.pill .icon,
+.tag .icon,
+.health .icon,
+.chip .icon {
+  width: 0.8125rem;
+  height: 0.8125rem;
+}
+
+.chip--violet {
+  background: var(--tag-violet-bg);
+  color: var(--tag-violet-ink);
+}
+
+.chip--blue {
+  background: var(--tag-blue-bg);
+  color: var(--tag-blue-ink);
+}
+
+.chip--green {
+  background: var(--tag-green-bg);
+  color: var(--tag-green-ink);
+}
+
+.chip--pink {
+  background: var(--tag-pink-bg);
+  color: var(--tag-pink-ink);
+}
+
+.chip--orange {
+  background: var(--tag-orange-bg);
+  color: var(--tag-orange-ink);
+}
+
+.chip--red {
+  background: var(--tag-red-bg);
+  color: var(--tag-red-ink);
+}
+
+/* A state badge, like "Connected" or "Snoozed": lavender, no border, a touch larger than a chip. */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0.25rem 0.625rem;
+  border-radius: var(--radius-tag);
+  background: var(--tag-violet-bg);
+  color: var(--tag-violet-ink);
+  font-size: var(--t-ui);
+  line-height: 1.25rem;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.badge .icon {
+  width: 0.875rem;
+  height: 0.875rem;
+}
+
+.badge--quiet {
+  background: var(--tag-slate-bg);
+  color: var(--tag-slate-ink);
+}
+
+/* --- Cards: one level only. Head (mark and badge), name, a "by" line, a grey description, a
+   hairline, then the chips. ------------------------------------------------------------------- */
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: 1.25rem 1.25rem 1rem;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-card);
+}
+
+.card-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin-block-end: var(--space-3);
+}
+
+.card-name {
+  margin: 0;
+  font-size: var(--t-card);
+  line-height: 1.35;
+  font-weight: 600;
+  letter-spacing: -0.005em;
+}
+
+.card-by {
+  margin: 0;
+  font-size: var(--t-sm);
+  line-height: var(--lh-sm);
+  color: var(--ink-muted);
+}
+
+.card-desc {
+  margin: var(--space-2) 0 0;
+  font-size: var(--t-body);
+  line-height: 1.55;
+  color: var(--ink-muted);
+}
+
+.card-foot {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-block-start: auto;
+  padding-block-start: var(--space-3);
+  border-block-start: 1px solid var(--line);
+}
+
+.card-desc + .card-foot,
+.card-by + .card-foot {
+  margin-block-start: var(--space-4);
+}
+
+/* Sections on every screen are the same card: a hairline, the card radius, no shadow. */
+.account-section,
+.account-aside,
+.brief-section,
+.onboarding-section,
+.privacy-section,
+.connections-section,
+.import-part,
+.duplicate-pair,
+.lookup-everyone {
+  padding: 1.25rem 1.5rem;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-card);
+  box-shadow: none;
+}
+
+.section-title {
+  font-size: var(--t-card);
+  line-height: 1.35;
+  font-weight: 600;
+  letter-spacing: -0.005em;
+}
+
+/* Rows inside a card are divided by hairlines, never boxed again. */
+.rows {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.rows > li {
+  padding-block: var(--space-3);
+}
+
+.rows > li + li {
+  border-block-start: 1px solid var(--line);
+}
+
+.rows > li:first-child {
+  padding-block-start: 0;
+}
+
+.rows > li:last-child {
+  padding-block-end: 0;
+}
+
+/* --- Controls ------------------------------------------------------------------------------- */
+.button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  min-block-size: 2.25rem;
+  padding: 0.375rem 0.875rem;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-control);
+  background: var(--surface);
+  color: var(--ink);
+  font-size: var(--t-ui);
+  line-height: 1.25rem;
+  font-weight: 500;
+  box-shadow: 0 1px 0 rgb(16 24 40 / 0.03);
+}
+
+.button:hover {
+  background: var(--sunken);
+  border-color: var(--control);
+}
+
+.button-primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--on-accent);
+  font-weight: 500;
+}
+
+.button-primary:hover {
+  background: color-mix(in srgb, var(--accent) 88%, var(--ink));
+  border-color: color-mix(in srgb, var(--accent) 88%, var(--ink));
+  color: var(--on-accent);
+}
+
+.button:disabled,
+.button-primary:disabled {
+  background: var(--sunken);
+  border-color: var(--line);
+  color: var(--ink-muted);
+  box-shadow: none;
+}
+
+input[type="text"],
+input[type="search"],
+input[type="email"],
+input[type="url"],
+input[type="number"],
+input[type="password"],
+input[type="date"],
+select,
+textarea {
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-control);
+  background: var(--surface);
+  color: var(--ink);
+  font-size: var(--t-body);
+}
+
+input[type="text"]::placeholder,
+input[type="search"]::placeholder,
+textarea::placeholder {
+  color: var(--ink-muted);
+}
+
+/* The search box: the full width of its row, the magnifier inside on the left. */
+.search-field input {
+  min-block-size: 2.5rem;
+  border-radius: var(--radius-control);
+}
+
+/* --- The filter sidebar (My book; the same shape as Settings' sidebar) ------------------------ */
+.filters {
+  background: var(--sunken);
+  border-inline-end: 1px solid var(--line);
+}
+
+.filters-title {
+  font-size: var(--t-body);
+  line-height: var(--lh-body);
+  font-weight: 500;
+  color: var(--ink);
+}
+
+.filter-group legend {
+  font-size: var(--t-sm);
+  color: var(--ink-muted);
+}
+
+.filter-option {
+  gap: var(--space-3);
+  padding-block: 0.375rem;
+}
+
+/* --- Tables: quiet header, hairline rows ------------------------------------------------------ */
+th {
+  font-weight: 500;
+}
+
+thead th {
+  font-size: var(--t-sm);
+  color: var(--ink-muted);
+}
+
+/* The Wardmind mark: an ink tile with a W that dips twice and recovers, and a dot over it, the
+   mind keeping watch, in the accent. In dark mode the tile turns light and the W dark. */
+.brand {
+  gap: 0.625rem;
+  color: var(--ink);
+  text-decoration: none;
+}
+
+.brand-mark {
+  flex: none;
+  inline-size: 1.5rem;
+  block-size: 1.5rem;
+}
+
+.brand-tile {
+  fill: var(--ink);
+}
+
+.brand-glyph {
+  fill: none;
+  stroke: var(--surface);
+  stroke-width: 2.1;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.brand-dot {
+  fill: color-mix(in srgb, var(--accent-plum) 50%, #FFFFFF);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .brand-dot {
+    fill: var(--tag-violet-bg);
+  }
+}
+
+:root[data-theme="dark"] .brand-dot {
+  fill: var(--tag-violet-bg);
+}
+
+/* Your own logo in place of Wardmind's: at most 28px tall and 12rem wide, its own colours. */
+.brand-custom {
+  display: block;
+  block-size: 1.75rem;
+  inline-size: auto;
+  max-inline-size: 12rem;
+  object-fit: contain;
+}
+
+
+/* ===== Account pages (reference look) ===== */
+/* The account pages: the account page with its facts column, the edit and add pages, and the
+   confirm pages (delete, remove a contact, turn off client updates). Every rule sits under one of
+   their own wrappers or classes, so no other screen moves. Colours and sizes come only from the
+   tokens in app.css, so both themes follow them. This file loads after the foundation and wins
+   ties. */
+
+/* --- Layout: the main column, with the facts column beside it from 1100px ----------------------- */
+
+.account-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-5);
+}
+
+.account-layout > .account-main,
+.account-layout > .account-aside {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  min-inline-size: 0;
+}
+
+@media (min-width: 1100px) {
+  .account-layout {
+    grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+    gap: var(--space-6);
+    align-items: start;
+  }
+}
+
+/* --- Cards: every section is one white hairline card. Rows inside are hairlines, never boxes. --- */
+
+.account-layout .account-section,
+.account-layout > .account-aside > section,
+.account-edit .account-section,
+.account-confirm .account-section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: 1.25rem 1.5rem;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-card);
+  box-shadow: none;
+}
+
+@media (max-width: 559px) {
+  .account-layout .account-section,
+  .account-layout > .account-aside > section,
+  .account-edit .account-section,
+  .account-confirm .account-section {
+    padding: 1rem 1.125rem;
+  }
+}
+
+/* --- The header: the logo and the name, Edit account at the far end, the facts as one quiet meta
+   line, then the source and any notices, all over the page-head hairline. ---------------------- */
+
+.account-layout .account-head {
+  margin: 0;
+  align-items: center;
+}
+
+.account-layout .account-head > .facts,
+.account-layout .account-head > .source-row,
+.account-layout .account-head > .notice-list,
+.account-layout .account-head > .field-help {
+  flex-basis: 100%;
+}
+
+.account-layout .account-title {
+  position: relative;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+  min-inline-size: 0;
+}
+
+.account-layout .account-name {
+  margin: 0;
+  font-size: var(--t-lg);
+  line-height: var(--lh-lg);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  overflow-wrap: anywhere;
+}
+
+.account-layout .account-title .logo--lg {
+  inline-size: 2.5rem;
+  block-size: 2.5rem;
+  border-radius: var(--radius-control);
+  font-size: var(--t-ui);
+}
+
+.account-layout .facts {
+  gap: var(--space-1) var(--space-5);
+  font-size: var(--t-sm);
+  line-height: var(--lh-sm);
+  color: var(--ink-muted);
+}
+
+.account-layout .notice-list {
+  gap: var(--space-2);
+}
+
+.account-layout .notice {
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-card);
+  background: var(--surface);
+  font-size: var(--t-body);
+  line-height: var(--lh-body);
+}
+
+.account-layout .page-lede {
+  margin: 0;
+}
+
+/* --- Next step --------------------------------------------------------------------------------- */
+
+.account-layout .next-step-text {
+  margin: 0;
+}
+
+.account-layout .step-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: var(--space-4) var(--space-6);
+}
+
+.account-layout .step-form {
+  gap: var(--space-3);
+  align-items: flex-end;
+}
+
+.account-layout .step-form > .form-actions {
+  margin: 0;
+}
+
+.account-layout .step-link {
+  flex-basis: 100%;
+  margin: 0;
+  font-size: var(--t-sm);
+  line-height: var(--lh-sm);
+}
+
+/* --- Fields: labels are small and muted, and the inputs keep the foundation's look ------------ */
+
+.account-layout .field > label,
+.account-edit .field > label,
+.account-edit .milestone > label {
+  font-size: var(--t-sm);
+  line-height: var(--lh-sm);
+  font-weight: 500;
+  color: var(--ink-muted);
+}
+
+.account-layout .journal-form {
+  gap: var(--space-3);
+}
+
+.account-layout .journal-form textarea {
+  font-size: var(--t-body);
+}
+
+.account-layout .activity-form-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
+  gap: var(--space-3);
+  align-items: start;
+}
+
+.account-layout .activity-form-row > .field {
+  min-inline-size: 0;
+}
+
+.account-layout .journal-subhead {
+  margin: 0;
+  font-size: var(--t-body);
+  line-height: var(--lh-body);
+  font-weight: 500;
+}
+
+.account-layout .journal-kinds {
+  gap: var(--space-1) var(--space-4);
+}
+
+.account-layout .journal-kinds legend {
+  margin-block-end: 0;
+  font-size: var(--t-sm);
+  line-height: var(--lh-sm);
+  font-weight: 500;
+  color: var(--ink-muted);
+}
+
+.account-layout .choice {
+  gap: var(--space-2);
+}
+
+.account-layout .form-actions {
+  gap: var(--space-2);
+}
+
+/* --- Activity history, Notes and the pinned strip: one row per entry, a hairline between --------- */
+
+.account-layout .journal-list,
+.account-layout .pinned-list,
+.account-layout .outcome-list,
+.account-layout .team-list,
+.account-layout .contact-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  background: none;
+  border: 0;
+  border-radius: 0;
+}
+
+.account-layout .journal-item,
+.account-layout .note,
+.account-layout .pinned-item,
+.account-layout .contact,
+.account-layout .outcome,
+.account-layout .team-member {
+  padding: var(--space-3) 0;
+  background: none;
+  border: 0;
+  border-block-start: 1px solid var(--line);
+  border-radius: 0;
+}
+
+.account-layout .journal-item:first-child,
+.account-layout .note:first-child,
+.account-layout .pinned-item:first-child,
+.account-layout .contact:first-child,
+.account-layout .outcome:first-child,
+.account-layout .team-member:first-child {
+  padding-block-start: 0;
+  border-block-start: 0;
+}
+
+.account-layout .activity-filter {
+  margin: 0;
+  padding-block-start: var(--space-3);
+  border-block-start: 1px solid var(--line);
+}
+
+.account-layout .activity-list,
+.account-layout .notes-list {
+  margin: 0;
+}
+
+.account-layout .filter-list {
+  gap: var(--space-2);
+}
+
+.account-layout .filter-chip {
+  padding: 0.25rem 0.625rem;
+  color: var(--ink-muted);
+  background: var(--surface);
+  border-color: var(--line-strong);
+  font-size: var(--t-sm);
+  line-height: var(--lh-sm);
+}
+
+.account-layout .filter-chip:hover {
+  color: var(--ink);
+  border-color: var(--control);
+}
+
+.account-layout .filter-chip.is-current {
+  color: var(--ink);
+  background: var(--sunken);
+  border-color: var(--control);
+  font-weight: 500;
+  text-decoration: none;
+}
+
+.account-layout .filter-chip.is-current .filter-count {
+  color: var(--ink);
+}
+
+.account-layout .reply-list {
+  gap: var(--space-2);
+}
+
+.account-layout .journal-item {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.account-layout .journal-meta {
+  font-size: var(--t-sm);
+  line-height: var(--lh-sm);
+  color: var(--ink-muted);
+}
+
+.account-layout .journal-text {
+  margin: 0;
+  font-size: var(--t-body);
+  line-height: var(--lh-body);
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+
+.account-layout .journal-item--done .journal-text {
+  color: var(--ink-muted);
+}
+
+.account-layout .journal-actions {
+  gap: var(--space-2) var(--space-3);
+  margin-block-start: var(--space-1);
+}
+
+.account-layout .journal-done {
+  gap: var(--space-2);
+  padding-block-start: var(--space-3);
+  border-block-start: 1px solid var(--line);
+}
+
+.account-layout .journal-done > .field-help {
+  margin: 0;
+}
+
+.account-layout .note {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.account-layout .note-meta {
+  gap: var(--space-1) var(--space-2);
+  margin: 0;
+  font-size: var(--t-sm);
+  line-height: var(--lh-sm);
+  color: var(--ink-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.account-layout .note-kind {
+  gap: 0.3125rem;
+  font-size: var(--t-sm);
+  font-weight: 500;
+}
+
+.account-layout .entry-source {
+  color: var(--ink-muted);
+}
+
+.account-layout .entry-pinned {
+  font-weight: 500;
+  color: var(--ink);
+}
+
+.account-layout .entry-subject {
+  margin: 0;
+  font-size: var(--t-body);
+  font-weight: 500;
+  overflow-wrap: anywhere;
+}
+
+.account-layout .entry-who {
+  margin: 0;
+  font-size: var(--t-sm);
+  line-height: var(--lh-sm);
+  color: var(--ink-muted);
+  overflow-wrap: anywhere;
+}
+
+.account-layout .note-text {
+  margin: 0;
+  font-size: var(--t-body);
+  line-height: var(--lh-body);
+  color: var(--ink);
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+}
+
+.account-layout .note--pinned,
+.account-layout .activity-item--pinned {
+  border-inline-start: 0;
+}
+
+.account-layout .entry-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: var(--space-2) var(--space-3);
+  margin: 0;
+}
+
+.account-layout .entry-actions .inline-form {
+  margin: 0;
+}
+
+.account-layout .note-disclosure[open] {
+  flex-basis: 100%;
+}
+
+.account-layout .activity-more {
+  margin: 0;
+  font-size: var(--t-sm);
+  line-height: var(--lh-sm);
+}
+
+/* The pinned strip: its own card above Activity history, with a row per pinned entry. */
+
+.account-layout .pinned-section {
+  gap: var(--space-2);
+}
+
+.account-layout .pinned-item {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.account-layout .pinned-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1) var(--space-2);
+  margin: 0;
+  font-size: var(--t-sm);
+  line-height: var(--lh-sm);
+  color: var(--ink-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.account-layout .pinned-text {
+  margin: 0;
+  font-size: var(--t-body);
+  line-height: var(--lh-body);
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+
+.account-layout .pinned-item .entry-actions {
+  margin: 0;
+}
+
+/* --- Contacts ---------------------------------------------------------------------------------- */
+
+.account-layout .contact {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.account-layout .contact-head {
+  gap: var(--space-1) var(--space-2);
+}
+
+.account-layout .contact-name {
+  margin: 0;
+  font-size: var(--t-body);
+  font-weight: 600;
+}
+
+.account-layout .contact-title,
+.account-layout .contact-email {
+  font-size: var(--t-sm);
+  line-height: var(--lh-sm);
+  color: var(--ink-muted);
+  overflow-wrap: anywhere;
+}
+
+.account-layout .contact-actions {
+  gap: var(--space-2) var(--space-3);
+  margin-block-start: 0;
+}
+
+.account-layout .contact-actions > .contact-disclosure[open] {
+  flex-basis: 100%;
+}
+
+.account-layout .contact-form {
+  gap: var(--space-3);
+  padding-block-end: 0;
+}
+
+.account-layout .contact-add {
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+/* --- Why it's ranked: the confidence line, the breakdown table, the risk sentence ------------- */
+
+.account-layout .confidence {
+  margin: 0;
+  font-size: var(--t-sm);
+  line-height: var(--lh-sm);
+  color: var(--ink-muted);
+}
+
+.account-layout .risk-sentence {
+  margin: 0;
+  font-size: var(--t-sm);
+  line-height: var(--lh-sm);
+  color: var(--ink-muted);
+}
+
+.account-layout .breakdown {
+  inline-size: 100%;
+  border-collapse: collapse;
+  background: none;
+  font-size: var(--t-body);
+}
+
+.account-layout .breakdown th,
+.account-layout .breakdown td {
+  padding: var(--space-2) var(--space-3) var(--space-2) 0;
+  border: 0;
+  vertical-align: middle;
+  text-align: start;
+}
+
+.account-layout .breakdown thead th {
+  padding-block-start: 0;
+  padding-block-end: var(--space-2);
+  font-size: var(--t-sm);
+  font-weight: 500;
+  color: var(--ink-muted);
+  border-block-end: 1px solid var(--line-strong);
+}
+
+.account-layout .breakdown tbody tr {
+  border-block-end: 1px solid var(--line);
+}
+
+.account-layout .breakdown tbody th {
+  font-weight: 400;
+  color: var(--ink);
+}
+
+.account-layout .breakdown .cell-reading {
+  font-size: var(--t-sm);
+  line-height: var(--lh-sm);
+  color: var(--ink-muted);
+}
+
+.account-layout .breakdown .points-text {
+  font-variant-numeric: tabular-nums;
+}
+
+.account-layout .breakdown-row--muted th,
+.account-layout .breakdown-row--muted td {
+  color: var(--ink-muted);
+}
+
+@media (max-width: 767px) {
+  .account-layout .breakdown tbody th,
+  .account-layout .breakdown tbody td {
+    padding: 0;
+  }
+
+  .account-layout .breakdown tbody tr {
+    padding-block: var(--space-2);
+    row-gap: 0.125rem;
+  }
+}
+
+.account-layout .path-down {
+  gap: var(--space-2);
+  margin-block-start: var(--space-2);
+  padding-block-start: var(--space-4);
+  border-block-start: 1px solid var(--line);
+}
+
+.account-layout .path-title {
+  margin: 0;
+  font-size: var(--t-body);
+  line-height: var(--lh-body);
+  font-weight: 600;
+}
+
+.account-layout .path-summary {
+  margin: 0;
+  font-size: var(--t-body);
+  line-height: var(--lh-body);
+}
+
+.account-layout .path-list .journal-item {
+  gap: 0.125rem;
+}
+
+/* --- Signal history: each day a date over a hairline row per reading; no rail, no boxes -------- */
+
+.account-layout .timeline {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  margin: 0;
+  padding: 0;
+}
+
+.account-layout .timeline::before {
+  content: none;
+  display: none;
+}
+
+.account-layout .timeline-day {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.account-layout .timeline dt {
+  margin: 0 0 var(--space-1);
+  padding: 0;
+  font-size: var(--t-sm);
+  line-height: var(--lh-sm);
+  font-weight: 500;
+  color: var(--ink-muted);
+}
+
+.account-layout .timeline dt::before {
+  content: none;
+  display: none;
+}
+
+.account-layout .timeline dd {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-1) var(--space-4);
+  margin: 0;
+  padding: var(--space-2) 0;
+  background: none;
+  border: 0;
+  border-block-start: 1px solid var(--line);
+  border-radius: 0;
+}
+
+.account-layout .timeline-label {
+  flex: 0 0 auto;
+  min-inline-size: 7rem;
+  font-size: var(--t-sm);
+  line-height: var(--lh-sm);
+  color: var(--ink-muted);
+}
+
+.account-layout .timeline-sentence {
+  flex: 1 1 14rem;
+  min-inline-size: 0;
+  font-size: var(--t-ui);
+  line-height: 1.45;
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+
+.account-layout .timeline-sentence--older {
+  color: var(--ink-muted);
+}
+
+/* "Current" is the state the score uses: a lavender badge. Where a reading came from is plain. */
+.account-layout .timeline-current {
+  margin-inline-start: auto;
+  padding: 0.0625rem 0.5rem;
+  border-radius: var(--radius-tag);
+  background: var(--tag-violet-bg);
+  color: var(--tag-violet-ink);
+  font-size: var(--t-sm);
+  line-height: var(--lh-sm);
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.account-layout .timeline-current--origin {
+  margin-inline-start: 0;
+  padding: 0;
+  background: none;
+  color: var(--ink-muted);
+  font-weight: 400;
+}
+
+/* --- The facts column: each section a card of its own, one after another ---------------------- */
+
+.account-layout .facts-list {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  align-items: baseline;
+  column-gap: var(--space-4);
+  margin: 0;
+}
+
+.account-layout .facts-list dt,
+.account-layout .facts-list dd {
+  margin: 0;
+  padding-block: var(--space-2);
+  border-block-start: 1px solid var(--line);
+}
+
+.account-layout .facts-list > :nth-child(-n + 2) {
+  padding-block-start: 0;
+  border-block-start: 0;
+}
+
+.account-layout .facts-list dt {
+  font-size: var(--t-sm);
+  line-height: var(--lh-sm);
+  color: var(--ink-muted);
+}
+
+.account-layout .facts-list dd {
+  font-size: var(--t-ui);
+  line-height: 1.45;
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+
+.account-layout .team-member {
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+}
+
+.account-layout .team-name {
+  margin: 0;
+  font-size: var(--t-body);
+  font-weight: 600;
+}
+
+.account-layout .team-role,
+.account-layout .team-email {
+  margin: 0;
+  font-size: var(--t-sm);
+  line-height: var(--lh-sm);
+  color: var(--ink-muted);
+  overflow-wrap: anywhere;
+}
+
+.account-layout .team-member .inline-form {
+  margin-block-start: var(--space-1);
+}
+
+.account-layout .team-add {
+  margin: 0;
+}
+
+.account-layout .team-form {
+  gap: var(--space-3);
+}
+
+.account-layout .shelfware > p,
+.account-layout .growth > p,
+.account-layout .sheet-link > p {
+  margin: 0;
+}
+
+.account-layout .call-box > p {
+  margin: 0;
+}
+
+.account-layout .call-box .journal-form {
+  gap: var(--space-3);
+}
+
+.account-layout .call-box .journal-kinds {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-2);
+}
+
+.account-layout .call-box .journal-kinds legend {
+  flex-basis: auto;
+}
+
+.account-layout .call-box > .inline-form {
+  margin: 0;
+}
+
+.account-layout .renewal-disagree {
+  margin: 0;
+  font-size: var(--t-sm);
+  line-height: var(--lh-sm);
+}
+
+.account-layout .outcome {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.account-layout .outcome > p {
+  margin: 0;
+}
+
+.account-layout .outcome-box .outcome-add > .journal-form {
+  margin-block-start: var(--space-2);
+}
+
+.account-layout .updates-box > p {
+  margin: 0;
+}
+
+.account-layout .updates-form {
+  gap: var(--space-2);
+}
+
+.account-layout .client-link {
+  gap: var(--space-1);
+}
+
+/* --- The edit and add pages: a page head, a lede, the form as one card, actions at the end ----- */
+
+.account-edit {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  max-inline-size: 44rem;
+}
+
+.account-edit .account-back {
+  margin: 0;
+}
+
+.account-edit .page-head {
+  margin-block-end: 0;
+}
+
+.account-edit .page-lede {
+  margin: 0;
+}
+
+.account-edit .account-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  margin: 0;
+  padding: 1.25rem 1.5rem;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-card);
+}
+
+@media (max-width: 559px) {
+  .account-edit .account-form {
+    padding: 1rem 1.125rem;
+  }
+}
+
+.account-edit .account-form .form-actions {
+  justify-content: flex-end;
+  margin-block-start: 0;
+  padding-block-start: var(--space-4);
+  border-block-start: 1px solid var(--line);
+}
+
+.account-edit .milestones legend {
+  margin-block-end: var(--space-2);
+  font-size: var(--t-sm);
+  line-height: var(--lh-sm);
+  font-weight: 500;
+  color: var(--ink-muted);
+}
+
+.account-edit .milestone > label {
+  font-size: var(--t-sm);
+  line-height: var(--lh-sm);
+  font-weight: 500;
+  color: var(--ink-muted);
+}
+
+.account-edit .edit-note {
+  font-size: var(--t-sm);
+  line-height: var(--lh-sm);
+  color: var(--ink-muted);
+}
+
+.account-edit .reading-form {
+  gap: var(--space-3);
+}
+
+.account-edit .reading-row {
+  gap: var(--space-3);
+}
+
+.account-edit .action-row {
+  padding: 1rem 1.5rem;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-card);
+}
+
+.account-edit .action-row p {
+  color: var(--ink-muted);
+}
+
+@media (max-width: 559px) {
+  .account-edit .action-row {
+    padding: 1rem 1.125rem;
+  }
+}
+
+/* --- The confirm pages: a page head, one sentence, and a card holding the two actions ---------- */
+
+.account-confirm {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  max-inline-size: 44rem;
+}
+
+.account-confirm .account-back {
+  margin: 0;
+}
+
+.account-confirm .page-head {
+  margin-block-end: 0;
+}
+
+.account-confirm .page-lede {
+  margin: 0;
+}
+
+.account-confirm .confirm-card {
+  padding: 1rem 1.5rem;
+}
+
+.account-confirm .error-actions {
+  justify-content: flex-end;
+}
+
+.account-confirm .inline-form {
+  margin: 0;
+}
+
+/* The account header reads left to right like every page head: mark and name, then Edit at the
+   far end; the facts and source line wrap onto their own full-width rows under it. */
+.account-layout .account-head {
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  text-align: start;
+}
+
+.account-layout .account-head .facts,
+.account-layout .account-head .source-row {
+  justify-content: flex-start;
+}
+
+/* ===== My book, Today, duplicates, website lookups (reference look) ===== */
+/* My book, Today, Possible duplicates, Website lookups, and the "From their website" section on an
+   account. Every rule is scoped to one of those screens (.book-screen, .today, .duplicates-page,
+   .research-page, .research), because the catalog and card classes are shared with other screens.
+   Colours are tokens only, so dark mode and every accent follow the foundation. */
+
+/* --- My book: the header runs the full width; the filter panel and the results sit below it --- */
+.book-screen .book-head .page-head {
+  margin: 0;
+  padding: var(--space-5) var(--space-6) var(--space-4);
+}
+
+.book-screen .catalog-main .page-lede {
+  margin: 0 0 var(--space-4);
+}
+
+/* The search takes the whole row; the sort and the view switch sit on the row beneath it. */
+.book-screen .toolbar {
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}
+
+.book-screen .toolbar .search {
+  flex: 1 1 100%;
+}
+
+.book-screen .toolbar .search-field input {
+  inline-size: 100%;
+  min-block-size: 2.5rem;
+  padding-block: var(--space-2);
+  padding-inline: calc(var(--space-3) + 1rem + var(--space-2)) var(--space-3);
+  border-color: var(--line-strong);
+  border-radius: var(--radius-control);
+  font-size: var(--t-body);
+}
+
+.book-screen .toolbar .search-field input:hover {
+  border-color: var(--control);
+}
+
+.book-screen .toolbar .view-switch--view {
+  margin-inline-start: auto;
+}
+
+/* "Since last week": a white card whose changes are hairline rows, not boxes inside it. */
+.book-screen .since-panel {
+  gap: var(--space-3);
+  padding: var(--space-5);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-card);
+}
+
+.book-screen .since-panel > .section-title {
+  margin: 0;
+}
+
+.book-screen .since-list {
+  margin: 0;
+}
+
+/* since_rows is a ul.rows now (here and in the brief): hairline rows, not a grey box. */
+.since-list.rows {
+  background: none;
+  border: 0;
+  border-radius: 0;
+}
+
+.since-list.rows > .since-row {
+  padding-inline: 0;
+}
+
+.since-list.rows > .since-row:first-child {
+  border-block-start: 0;
+  padding-block-start: 0;
+}
+
+.book-screen .since-row {
+  gap: var(--space-1);
+}
+
+.book-screen .since-head {
+  align-items: center;
+}
+
+.book-screen .since-sentence {
+  font-size: var(--t-body);
+  line-height: var(--lh-body);
+  color: var(--ink-muted);
+}
+
+.book-screen .since-more {
+  margin: 0;
+  padding-block-start: var(--space-1);
+}
+
+/* --- My book: the account card, in the reference's order ----------------------------------- */
+.book-screen .card-grid {
+  gap: var(--space-4);
+}
+
+.book-screen .account-card {
+  padding: 1.25rem 1.25rem 1rem;
+  box-shadow: none;
+}
+
+.book-screen .account-card:hover {
+  border-color: var(--line);
+}
+
+/* The mark top left, the badge top right, both on one line. */
+.book-screen .card-head {
+  align-items: center;
+  margin-block-end: var(--space-3);
+}
+
+.book-screen .card-id {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-inline-size: 0;
+}
+
+/* The rank is a quiet number beside the mark, not a box of its own. */
+.book-screen .rank-tile {
+  display: inline-block;
+  min-inline-size: 0;
+  block-size: auto;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  color: var(--ink-muted);
+  font-size: var(--t-sm);
+  line-height: var(--lh-sm);
+  font-weight: 500;
+}
+
+.book-screen .card-name {
+  margin: 0;
+}
+
+.book-screen .card-name .account-link::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+}
+
+.book-screen .card-by {
+  margin: 2px 0 0;
+  font-size: var(--t-sm);
+  line-height: var(--lh-sm);
+  color: var(--ink-muted);
+}
+
+.book-screen .card-contact {
+  display: block;
+  margin-block-start: 0;
+}
+
+.book-screen .card-desc {
+  margin: var(--space-3) 0 0;
+  font-size: var(--t-body);
+  line-height: 1.55;
+  color: var(--ink-muted);
+}
+
+/* Priority and ARR: one quiet figures line, above the hairline. */
+.book-screen .card-figures {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2) var(--space-4);
+  margin: var(--space-4) 0;
+  font-size: var(--t-sm);
+  line-height: var(--lh-sm);
+  color: var(--ink-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.book-screen .card-figures strong {
+  color: var(--ink);
+  font-weight: 500;
+}
+
+.book-screen .card-priority {
+  gap: var(--space-2);
+}
+
+/* The foot: the follow-up and snooze labels, then the motion and the topics as chips. */
+.book-screen .card-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  margin-block-start: auto;
+  padding-block-start: var(--space-3);
+  border-block-start: 1px solid var(--line);
+}
+
+.book-screen .card-foot .chip-list,
+.book-screen .card-foot .card-tags {
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.book-screen .card-foot .card-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+/* --- My book: the list view, a table with a quiet header and hairline rows ------------------ */
+.book-screen .table-card {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-card);
+  overflow-x: auto;
+}
+
+.book-screen .book {
+  background: var(--surface);
+}
+
+.book-screen .book thead th {
+  padding-block: var(--space-3) var(--space-2);
+  background: none;
+  font-size: var(--t-sm);
+  line-height: var(--lh-sm);
+  font-weight: 500;
+  color: var(--ink-muted);
+  border-block-end: 1px solid var(--line);
+}
+
+.book-screen .book tbody tr {
+  border-block-end: 1px solid var(--line);
+}
+
+.book-screen .book tbody tr:hover {
+  background: var(--sunken);
+}
+
+.book-screen .table-card tbody tr:last-child {
+  border-block-end: 0;
+}
+
+/* --- My book: empty states, as a plain card rather than a dashed box ------------------------ */
+.book-screen .empty-card,
+.today .empty-card {
+  padding: var(--space-6);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-card);
+  background: var(--surface);
+  text-align: center;
+  color: var(--ink-muted);
+}
+
+.book-screen .empty-card p + p,
+.today .empty-card p + p {
+  margin-block-start: var(--space-2);
+}
+
+@media (max-width: 899px) {
+  .book-screen .book-head .page-head {
+    padding: var(--space-5) var(--space-4) var(--space-4);
+  }
+}
+
+@media (max-width: 559px) {
+  .book-screen .book-head .page-head {
+    padding: var(--space-4) var(--space-4) var(--space-3);
+  }
+
+  .book-screen .card-grid {
+    gap: var(--space-3);
+  }
+}
+
+/* --- Today: the header, one lede, the find box, and sections of hairline rows -------------- */
+.today .page-lede {
+  margin: 0 0 var(--space-5);
+}
+
+/* The section index: the count is a number, not a grey chip. */
+.today .today-index-count {
+  min-inline-size: 0;
+  padding: 0;
+  border-radius: 0;
+  background: none;
+  color: var(--ink-muted);
+  font-weight: 500;
+}
+
+.today .today-find-field .search-field input {
+  inline-size: 100%;
+  min-block-size: 2.5rem;
+  padding-block: var(--space-2);
+  padding-inline: calc(var(--space-3) + 1rem + var(--space-2)) var(--space-3);
+  border-color: var(--line-strong);
+  border-radius: var(--radius-control);
+}
+
+.today .today-section {
+  gap: var(--space-3);
+}
+
+/* The rows sit inside the white section card with hairlines between them, and no box of their own. */
+.today .today-list {
+  gap: 0;
+  background: none;
+  border: 0;
+  border-radius: 0;
+}
+
+.today .today-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: start;
+  gap: var(--space-3) var(--space-4);
+  padding-inline: 0;
+  background: none;
+}
+
+.today .today-row-head {
+  gap: var(--space-2) var(--space-3);
+}
+
+.today .today-row .field-help {
+  margin: 0;
+}
+
+.today .today-row .chip,
+.today .today-row .due {
+  font-size: var(--t-sm);
+}
+
+@media (max-width: 599px) {
+  .today .today-row {
+    padding-inline: 0;
+  }
+}
+
+/* --- Possible duplicates: each pair is a white card with its two sides and its choice --------- */
+.duplicates-page .duplicate-list {
+  gap: var(--space-4);
+}
+
+.duplicates-page .duplicate-pair {
+  gap: var(--space-4);
+  padding: var(--space-5);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-card);
+}
+
+.duplicates-page .duplicate-reason {
+  margin: 0;
+  font-size: var(--t-card);
+  line-height: 1.35;
+  font-weight: 600;
+}
+
+.duplicates-page .duplicate-name {
+  font-size: var(--t-card);
+  line-height: 1.35;
+  font-weight: 600;
+}
+
+.duplicates-page .duplicate-differs {
+  font-weight: 500;
+}
+
+.duplicates-page .duplicate-actions {
+  justify-content: flex-end;
+}
+
+@media (max-width: 767px) {
+  .duplicates-page .duplicate-pair {
+    padding: var(--space-4);
+  }
+
+  .duplicates-page .duplicate-actions {
+    justify-content: flex-start;
+  }
+}
+
+/* --- Website lookups: the form card, the progress, and the saved table ---------------------- */
+.research-page .lookup-start {
+  padding: var(--space-5);
+}
+
+.research-page .bulk-job {
+  max-inline-size: 40rem;
+}
+
+.research-page .lookup-count,
+.research-page .lookup-done {
+  font-weight: 500;
+}
+
+.research-page .lookup-everyone .field-help {
+  margin: 0 0 var(--space-3);
+}
+
+.research-page .lookups thead th {
+  font-weight: 500;
+}
+
+.research-page .lookups tbody tr:last-child {
+  border-block-end: 0;
+}
+
+.research-page .lookups tbody tr:hover {
+  background: var(--sunken);
+}
+
+/* --- From their website, on an account: hairline rows and no accent bars ------------------- */
+.research .research-site,
+.research .research-summary-title {
+  font-size: var(--t-card);
+  line-height: 1.35;
+  font-weight: 600;
+}
+
+.research .research-sample {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  color: var(--ink-muted);
+}
+
+.research .research-articles {
+  gap: 0;
+}
+
+.research .research-article + .research-article {
+  padding-block-start: var(--space-3);
+  border-block-start: 1px solid var(--line);
+}
+
+.research .research-article a {
+  color: var(--ink);
+  font-weight: 500;
+  text-decoration: underline;
+  text-decoration-color: var(--line-strong);
+  text-underline-offset: 0.2em;
+}
+
+.research .research-article a:hover {
+  text-decoration-color: var(--ink);
+}
+
+.research .research-summary {
+  gap: var(--space-2);
+  padding: var(--space-4) 0 0;
+  border: 0;
+  border-block-start: 1px solid var(--line);
+}
+
+.research .research-about {
+  font-size: var(--t-body);
+  line-height: var(--lh-body);
+}
+
+/* ===== Settings, connections, import, set up, unlock (reference look) ===== */
+/* =================================================================================================
+   Settings, Connections, Import, Set up and Unlock: the reference look for these screens. Each
+   screen is a page header (page_head), one sentence under it, then white hairline cards. The
+   cards hold forms with quiet 13px labels, a hairline between parts, and the save action at the
+   bottom right. Every rule is scoped to these screens' own classes, and uses tokens only, so dark
+   mode follows. Appended after the foundation in app.css, so it wins ties.
+   ================================================================================================= */
+
+/* --- The frame: the sidebar is My book's filter panel, with quiet group labels ---------------- */
+.settings-sidebar {
+  padding: var(--space-5) var(--space-3) var(--space-6);
+}
+
+.settings-sidebar-title {
+  margin: 0 0 var(--space-4);
+  padding-inline: var(--space-3);
+  font-size: var(--t-body);
+  line-height: var(--lh-body);
+  font-weight: 500;
+  color: var(--ink);
+}
+
+.settings-sidebar .settings-nav-list {
+  flex-direction: column;
+  gap: 2px;
+}
+
+.settings-sidebar .settings-link {
+  padding: 0.375rem var(--space-3);
+  border: 1px solid transparent;
+  border-radius: var(--radius-control);
+  color: var(--ink);
+  font-size: var(--t-ui);
+  line-height: 1.35;
+  font-weight: 400;
+}
+
+.settings-sidebar .settings-link:hover {
+  background: var(--surface);
+  border-color: var(--line);
+  text-decoration: none;
+}
+
+/* The current section is a white tile with a hairline: highlighted, but not loud. */
+.settings-sidebar .settings-link[aria-current="page"] {
+  background: var(--surface);
+  border-color: var(--line);
+  box-shadow: none;
+  font-weight: 500;
+}
+
+.settings-main {
+  min-inline-size: 0;
+  padding: var(--space-6) var(--space-6) var(--space-7);
+}
+
+.settings-main .settings-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+  max-inline-size: 46rem;
+}
+
+.settings-main--wide .settings-body {
+  max-inline-size: 72rem;
+}
+
+.settings-body > .page-lede,
+.lock-wrap > .page-lede {
+  margin: 0;
+}
+
+/* Status after a save: a lavender state badge, since it reports something that happened. */
+.settings-status {
+  display: inline-block;
+  margin: 0 0 var(--space-4);
+  padding: 0.25rem 0.625rem;
+  border-radius: var(--radius-tag);
+  background: var(--tag-violet-bg);
+  color: var(--tag-violet-ink);
+  font-size: var(--t-ui);
+  line-height: 1.25rem;
+  font-weight: 500;
+}
+
+/* Wrappers that stack their cards. */
+.overview,
+.privacy,
+.backup,
+.books,
+.mailbox,
+.note-templates,
+.activity-log,
+.connections,
+.followups-form,
+.import-page,
+.import-map,
+.setup,
+.confirm,
+.recovery-page,
+.connection-setup {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+
+/* --- Cards: one level only. A hairline, the card radius, no shadow. ---------------------------- */
+.settings-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  min-inline-size: 0;
+  margin: 0;
+  padding: 1.25rem 1.5rem;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-card);
+  box-shadow: none;
+}
+
+.settings-card > .section-title {
+  margin: 0;
+}
+
+.settings-card .settings-form {
+  gap: var(--space-4);
+  margin: 0;
+}
+
+/* A part is a block inside a card, separated from the one above by a hairline, never boxed. */
+.settings-card .settings-part {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  min-inline-size: 0;
+  margin: 0;
+  padding: var(--space-4) 0 0;
+  border: 0;
+  border-block-start: 1px solid var(--line);
+}
+
+.settings-card .settings-part:first-child {
+  padding-block-start: 0;
+  border-block-start: 0;
+}
+
+/* The save action sits at the bottom right of its card, after a hairline. */
+.settings-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-2);
+  margin: 0;
+  padding-block-start: var(--space-4);
+  border-block-start: 1px solid var(--line);
+}
+
+.settings-actions--start {
+  justify-content: flex-start;
+}
+
+.settings-card > .settings-actions:first-child,
+.settings-card > .settings-form > .settings-actions:first-child {
+  padding-block-start: 0;
+  border-block-start: 0;
+}
+
+.settings-inline {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--space-3);
+}
+
+/* --- Forms: labels are quiet and small, the words typed are the body size ------------------- */
+.settings-card .field > label,
+.settings-card .connection-field > label,
+.settings-card legend {
+  display: block;
+  padding: 0;
+  font-size: var(--t-sm);
+  line-height: var(--lh-sm);
+  font-weight: 500;
+  color: var(--ink-muted);
+}
+
+.settings-card fieldset {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  min-inline-size: 0;
+}
+
+.settings-card .choice {
+  gap: var(--space-2);
+  font-size: var(--t-ui);
+  line-height: 1.45;
+  color: var(--ink);
+}
+
+.settings-card .choice-option {
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+}
+
+.settings-card .choice-help {
+  padding-inline-start: 1.75rem;
+}
+
+.settings-card .choices {
+  gap: var(--space-2);
+}
+
+.settings-card .field {
+  gap: var(--space-2);
+}
+
+.settings-card .field-help {
+  margin: 0;
+}
+
+.settings-card .field-check {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+/* A problem is said in words, with a rule at its start, never by colour alone. */
+.settings-card .field-error {
+  margin: 0;
+  padding-inline-start: var(--space-3);
+  border-inline-start: 2px solid var(--ink);
+  color: var(--ink);
+  font-weight: 500;
+}
+
+/* A text field fills the card's width up to a comfortable length. */
+.settings-card .field > input:not([type="radio"]):not([type="checkbox"]):not([type="file"]),
+.settings-card .field > select {
+  inline-size: 100%;
+  max-inline-size: 28rem;
+}
+
+.settings-card .field > textarea {
+  inline-size: 100%;
+  max-inline-size: 36rem;
+}
+
+.settings-card .field > input[type="number"] {
+  max-inline-size: 8rem;
+}
+
+.settings-card .number-control {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.settings-card .prose {
+  max-inline-size: 68ch;
+  margin: 0;
+  font-size: var(--t-body);
+  line-height: var(--lh-body);
+  color: var(--ink);
+}
+
+.settings-card .privacy-status {
+  margin: 0;
+  font-size: var(--t-body);
+  line-height: var(--lh-body);
+  font-weight: 500;
+  color: var(--ink);
+}
+
+.settings-card .privacy-subtitle {
+  margin: 0;
+  font-size: var(--t-body);
+  line-height: var(--lh-body);
+  font-weight: 600;
+}
+
+.settings-card .privacy-key {
+  margin: 0;
+  gap: var(--space-3);
+  padding-block-start: var(--space-4);
+  border-block-start: 1px solid var(--line);
+}
+
+.settings-card .privacy-key:first-child {
+  padding-block-start: 0;
+  border-block-start: 0;
+}
+
+.settings-card .privacy-key .settings-actions,
+.settings-card .privacy-key .field-check {
+  margin-block-start: 0;
+}
+
+/* Facts as a two-column list with a hairline between rows. */
+.settings-card .privacy-list {
+  display: grid;
+  grid-template-columns: minmax(8rem, 11rem) minmax(0, 1fr);
+  margin: 0;
+}
+
+.settings-card .privacy-list dt,
+.settings-card .privacy-list dd {
+  margin: 0;
+  padding-block: var(--space-3);
+  border-block-start: 1px solid var(--line);
+}
+
+.settings-card .privacy-list dt {
+  padding-inline-end: var(--space-4);
+  font-size: var(--t-sm);
+  line-height: var(--lh-sm);
+  font-weight: 500;
+  color: var(--ink-muted);
+}
+
+.settings-card .privacy-list dd {
+  font-size: var(--t-body);
+  line-height: var(--lh-body);
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+
+.settings-card .privacy-list > dt:first-of-type,
+.settings-card .privacy-list > dd:first-of-type {
+  border-block-start: 0;
+  padding-block-start: 0;
+}
+
+.settings-card code {
+  font-size: var(--t-sm);
+  overflow-wrap: anywhere;
+}
+
+/* The token field and its buttons share a row; the input takes the room it needs. */
+.settings-card .token-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2) var(--space-3);
+}
+
+.settings-card .token-status {
+  margin: 0;
+}
+
+.settings-card .token-input {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.settings-card .token-input input {
+  flex: 1 1 14rem;
+  inline-size: auto;
+  max-inline-size: 28rem;
+}
+
+.settings-card .connection-test {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-2);
+}
+
+.settings-card .connection-result {
+  margin: 0;
+}
+
+/* --- Tables: a quiet header, a hairline between rows -------------------------------------------- */
+.settings-card table {
+  inline-size: 100%;
+  border-collapse: collapse;
+}
+
+.settings-card th,
+.settings-card td {
+  padding: var(--space-3) var(--space-4) var(--space-3) 0;
+  border-block-start: 1px solid var(--line);
+  text-align: start;
+  vertical-align: top;
+  font-size: var(--t-ui);
+  line-height: 1.45;
+}
+
+.settings-card thead th {
+  border-block-start: 0;
+  border-block-end: 1px solid var(--line);
+  font-size: var(--t-sm);
+  font-weight: 500;
+  color: var(--ink-muted);
+}
+
+.settings-card .table-card {
+  overflow-x: auto;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+
+.settings-card .table-card thead th {
+  padding-block-start: var(--space-3);
+}
+
+.settings-card .table-card tbody tr:hover {
+  background: transparent;
+}
+
+.settings-card .empty-card {
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  text-align: start;
+  color: var(--ink-muted);
+}
+
+/* On a phone a table becomes a stack of rows, so no column scrolls sideways. */
+@media (max-width: 639px) {
+  .settings-card .connection-table,
+  .settings-card .activity-log-table,
+  .settings-card .match-table,
+  .settings-card .mapping-table {
+    display: block;
+  }
+
+  .settings-card .connection-table thead,
+  .settings-card .activity-log-table thead,
+  .settings-card .match-table thead,
+  .settings-card .mapping-table thead {
+    position: absolute;
+    inline-size: 1px;
+    block-size: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+  }
+
+  .settings-card .connection-table tbody,
+  .settings-card .activity-log-table tbody,
+  .settings-card .match-table tbody,
+  .settings-card .mapping-table tbody,
+  .settings-card .connection-table tr,
+  .settings-card .activity-log-table tr,
+  .settings-card .match-table tr,
+  .settings-card .mapping-table tr {
+    display: block;
+  }
+
+  .settings-card .connection-table th,
+  .settings-card .connection-table td,
+  .settings-card .activity-log-table th,
+  .settings-card .activity-log-table td,
+  .settings-card .match-table th,
+  .settings-card .match-table td,
+  .settings-card .mapping-table th,
+  .settings-card .mapping-table td {
+    display: block;
+    inline-size: 100%;
+    padding: var(--space-1) 0;
+    border: 0;
+  }
+
+  .settings-card .connection-table tr,
+  .settings-card .activity-log-table tr,
+  .settings-card .match-table tr,
+  .settings-card .mapping-table tr {
+    padding-block: var(--space-3);
+    border-block-start: 1px solid var(--line);
+  }
+
+  .settings-card .connection-table tr:first-child,
+  .settings-card .activity-log-table tr:first-child,
+  .settings-card .match-table tr:first-child,
+  .settings-card .mapping-table tr:first-child {
+    border-block-start: 0;
+  }
+}
+
+/* --- Overview: a setup check as a list; the state is a badge, lavender when it is done ------- */
+.overview-list {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.overview-item {
+  gap: var(--space-2);
+  padding-block: var(--space-4);
+}
+
+.overview-item:first-child {
+  padding-block-start: 0;
+  border-block-start: 0;
+}
+
+.overview-item:last-child {
+  padding-block-end: 0;
+}
+
+.overview-head {
+  justify-content: space-between;
+  gap: var(--space-2) var(--space-3);
+}
+
+.overview-title {
+  margin: 0;
+  font-size: var(--t-body);
+  line-height: var(--lh-body);
+  font-weight: 600;
+}
+
+.overview-mark {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  margin: 0;
+  padding: 0.125rem 0.625rem;
+  border-radius: var(--radius-tag);
+  background: var(--tag-slate-bg);
+  color: var(--tag-slate-ink);
+  font-size: var(--t-sm);
+  line-height: var(--lh-sm);
+  font-weight: 500;
+}
+
+.overview-item--done .overview-mark {
+  background: var(--tag-violet-bg);
+  color: var(--tag-violet-ink);
+}
+
+.overview-icon {
+  width: 0.8125rem;
+  height: 0.8125rem;
+}
+
+.overview-state {
+  margin: 0;
+  font-size: var(--t-body);
+  line-height: var(--lh-body);
+  color: var(--ink-muted);
+}
+
+.overview-link {
+  margin: 0;
+  font-size: var(--t-sm);
+  line-height: var(--lh-sm);
+}
+
+.overview-find {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0;
+}
+
+.overview-find-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.overview-find-row input[type="search"] {
+  flex: 1 1 14rem;
+  max-inline-size: 28rem;
+}
+
+.overview-results {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.overview-result {
+  padding-block: var(--space-2);
+  border-block-start: 1px solid var(--line);
+}
+
+.overview-result:first-child {
+  border-block-start: 0;
+}
+
+.overview-result-where {
+  font-size: var(--t-sm);
+  color: var(--ink-muted);
+}
+
+.overview-none {
+  margin: 0;
+}
+
+/* --- Activity log: the filter is quiet chips; the current kind is inverted ---------------------- */
+.settings-card .filter-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.settings-card .filter-chip {
+  display: inline-flex;
+  align-items: center;
+  min-block-size: 1.75rem;
+  padding: 0 0.625rem;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-tag);
+  background: var(--surface);
+  color: var(--ink);
+  font-size: var(--t-sm);
+  font-weight: 500;
+  text-decoration: none;
+}
+
+.settings-card .filter-chip:hover {
+  background: var(--sunken);
+  text-decoration: none;
+}
+
+.settings-card .filter-chip.is-current {
+  background: var(--ink);
+  border-color: var(--ink);
+  color: var(--surface);
+}
+
+.settings-card .activity-log-when {
+  white-space: nowrap;
+}
+
+.activity-log-download {
+  margin: 0;
+}
+
+/* --- Backup and export: each export is a row with its button and its one line -------------------- */
+.backup-export-list {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.backup-export-list > li {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-2);
+  padding-block: var(--space-4);
+  border-block-start: 1px solid var(--line);
+}
+
+.backup-export-list > li:first-child {
+  padding-block-start: 0;
+  border-block-start: 0;
+}
+
+.backup-status {
+  margin: 0;
+  font-size: var(--t-body);
+  line-height: var(--lh-body);
+  color: var(--ink);
+}
+
+/* --- Books: each book is a part of the card; its actions sit in a row beneath --------------------- */
+.books-add {
+  margin: 0;
+}
+
+.books .book-list {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.books .book-list > .book-item:first-child {
+  padding-block-start: 0;
+  border-block-start: 0;
+}
+
+.books .book-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2) var(--space-3);
+}
+
+.books .book-name {
+  margin: 0;
+  font-size: var(--t-body);
+  line-height: var(--lh-body);
+  font-weight: 600;
+}
+
+.books .book-open-mark {
+  display: inline-flex;
+  margin: 0;
+  padding: 0.125rem 0.625rem;
+  border-radius: var(--radius-tag);
+  background: var(--tag-violet-bg);
+  color: var(--tag-violet-ink);
+  font-size: var(--t-sm);
+  line-height: var(--lh-sm);
+  font-weight: 500;
+}
+
+.books .book-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: var(--space-2);
+}
+
+.books .book-actions > details[open] {
+  flex-basis: 100%;
+}
+
+.settings-card .book-form {
+  gap: var(--space-2);
+  margin-block-start: 0;
+}
+
+.settings-card .book-form .field > input[type="text"] {
+  max-inline-size: 20rem;
+}
+
+/* --- Mailbox: the facts, then the actions in a row ----------------------------------------------- */
+.mailbox-providers {
+  margin: 0;
+  padding-inline-start: 1.25rem;
+  font-size: var(--t-body);
+  line-height: var(--lh-body);
+  color: var(--ink);
+}
+
+.mailbox-checked {
+  margin: 0;
+  color: var(--ink-muted);
+}
+
+.mailbox-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.mailbox-actions .inline-form {
+  margin: 0;
+}
+
+.mailbox-disconnect {
+  gap: var(--space-2);
+}
+
+.mailbox-disconnect .settings-actions {
+  padding-block-start: 0;
+  border-block-start: 0;
+}
+
+/* --- Privacy: the controls are the same as elsewhere; the keys are parts of the encryption card -- */
+.privacy-section > .privacy-status {
+  margin: 0;
+}
+
+.privacy-section .prose + .privacy-list {
+  margin-block-start: 0;
+}
+
+/* --- Connections (Settings): the table is a list of connections, actions in a row -------------- */
+.connection-table .connection-name {
+  font-weight: 600;
+}
+
+.connection-table .connection-source {
+  display: block;
+  margin-block-start: 0.125rem;
+}
+
+.settings-card .include-form {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  margin-block-start: var(--space-2);
+}
+
+.settings-card .cell-status p {
+  margin: 0;
+}
+
+.settings-card .cell-status .field-help {
+  margin-block-start: var(--space-1);
+}
+
+.settings-card .cell-actions > .button,
+.settings-card .cell-actions > form,
+.settings-card .cell-actions > details {
+  display: inline-block;
+  margin: 0 var(--space-2) var(--space-2) 0;
+  vertical-align: top;
+}
+
+.settings-card .cell-actions > details[open] {
+  display: block;
+  margin-block-end: var(--space-2);
+}
+
+.settings-card .cell-actions > details > summary {
+  list-style: none;
+}
+
+.settings-card .cell-actions > details > summary::-webkit-details-marker {
+  display: none;
+}
+
+.settings-card .add-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.hidden-accounts {
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-card);
+  background: var(--surface);
+}
+
+.hidden-accounts > summary {
+  font-size: var(--t-ui);
+  color: var(--ink-muted);
+}
+
+.hidden-list {
+  display: flex;
+  flex-direction: column;
+  margin: var(--space-3) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.hidden-list li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  padding-block: var(--space-2);
+  border-block-start: 1px solid var(--line);
+}
+
+.settings-card .mapping > summary {
+  list-style: none;
+}
+
+.settings-card .mapping > summary::-webkit-details-marker {
+  display: none;
+}
+
+.settings-card .mapping[open] > summary {
+  margin-block-end: var(--space-3);
+}
+
+/* Connection test results: a list with a hairline, the icon in the text colour. */
+.settings-card .check-list {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.settings-card .check-item {
+  padding-block: var(--space-2);
+  border-block-start: 1px solid var(--line);
+}
+
+.settings-card .check-item:first-child {
+  border-block-start: 0;
+  padding-block-start: 0;
+}
+
+.settings-card .check-item p {
+  margin: 0;
+}
+
+/* --- Matching (Import and feeds): the mapping table, the preview and the actions ---------------- */
+.import-map .cell-field > label {
+  font-size: var(--t-body);
+  line-height: var(--lh-body);
+  font-weight: 500;
+  color: var(--ink);
+}
+
+.import-map .cell-field .field-help {
+  display: block;
+  margin-block-start: 0.125rem;
+}
+
+.import-map .cell-field .required-word {
+  margin-inline-start: var(--space-1);
+}
+
+.settings-card .cell-column select {
+  inline-size: 100%;
+  max-inline-size: 18rem;
+}
+
+.settings-card .cell-example {
+  font-size: var(--t-sm);
+  line-height: var(--lh-sm);
+  color: var(--ink-muted);
+  overflow-wrap: anywhere;
+}
+
+.what-happens {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  max-inline-size: none;
+  padding: 1.25rem 1.5rem;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-card);
+}
+
+.what-happens > .section-title {
+  margin: 0;
+}
+
+.what-happens .happens-count {
+  margin: 0;
+  font-size: var(--t-body);
+  line-height: var(--lh-body);
+  color: var(--ink);
+}
+
+.what-happens .field-help,
+.what-happens p {
+  margin: 0;
+}
+
+.import-actions {
+  padding-block-start: 0;
+  border-block-start: 0;
+}
+
+.import-action {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-2) var(--space-3);
+}
+
+.import-action .field-help {
+  margin: 0;
+}
+
+.import-map .sheet-form {
+  gap: var(--space-3);
+}
+
+.import-map .sheet-form .field {
+  max-inline-size: 18rem;
+}
+
+/* --- Import: each step is a card; the file and the paste are the two ways in --------------------- */
+.import-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+  margin: 0;
+}
+
+.import-part .file-button {
+  align-self: flex-start;
+}
+
+.import-target .choices {
+  gap: var(--space-2);
+}
+
+/* --- Set up: four ways in, as rows in one card, each with its one button on the right ----------- */
+.setup {
+  max-inline-size: 52rem;
+}
+
+.settings-card.setup-card {
+  padding: 0 var(--space-5);
+}
+
+.setup-card .setup-options {
+  border-block-start: 0;
+}
+
+.setup-card .setup-option {
+  padding-block: var(--space-4);
+  border-block-end: 1px solid var(--line);
+}
+
+.setup-card .setup-option:first-child {
+  padding-block-start: var(--space-5);
+}
+
+.setup-card .setup-option:last-child {
+  padding-block-end: var(--space-5);
+  border-block-end: 0;
+}
+
+.setup-card .setup-title {
+  font-size: var(--t-body);
+  font-weight: 600;
+}
+
+.setup-aside,
+.setup-demo {
+  color: var(--ink-muted);
+}
+
+/* --- Connection setup: one card for the provider's form, its parts divided by hairlines ---------- */
+.connection-setup {
+  max-inline-size: 44rem;
+}
+
+.connection-form {
+  gap: var(--space-4);
+}
+
+.connection-form .connection-choice {
+  gap: var(--space-3);
+}
+
+/* --- The Add a connection catalog: the reference cards, the search across the full width -------- */
+.catalog-results > .page-lede {
+  margin: 0 0 var(--space-4);
+}
+
+.catalog-results .toolbar {
+  display: flex;
+  align-items: stretch;
+  gap: var(--space-2);
+}
+
+.catalog-results .toolbar .search {
+  flex: 1 1 auto;
+  min-inline-size: 0;
+}
+
+.catalog-results .toolbar .search-field {
+  inline-size: 100%;
+}
+
+.provider-card .mark-tile {
+  min-inline-size: 2.5rem;
+  block-size: 2.25rem;
+  padding-inline: var(--space-2);
+  border-color: var(--line);
+  background: var(--surface);
+  color: var(--ink);
+  font-size: var(--t-sm);
+  font-weight: 600;
+}
+
+.provider-card .card-title {
+  font-size: var(--t-card);
+  line-height: 1.35;
+  font-weight: 600;
+  letter-spacing: -0.005em;
+}
+
+.provider-card .card-by {
+  margin: 0;
+  font-size: var(--t-sm);
+  line-height: var(--lh-sm);
+  color: var(--ink-muted);
+}
+
+.provider-card .card-desc {
+  margin: var(--space-2) 0 0;
+  font-size: var(--t-body);
+  line-height: 1.55;
+  color: var(--ink-muted);
+}
+
+.provider-card .card-foot {
+  margin-block-start: var(--space-4);
+  padding-block-start: var(--space-3);
+}
+
+.provider-card .badge {
+  flex: none;
+}
+
+/* --- Settings: the Scoring preview and its movers ------------------------------------------------ */
+.scoring-layout {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+
+.settings-card .signal {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding-block: var(--space-3);
+}
+
+.settings-card .signal + .signal {
+  padding-block-start: var(--space-4);
+  border-block-start: 1px solid var(--line);
+}
+
+.settings-card .signal-title {
+  margin: 0;
+  font-size: var(--t-body);
+  line-height: var(--lh-body);
+  font-weight: 600;
+}
+
+.settings-card .preview-sentence {
+  margin: 0;
+  font-size: var(--t-body);
+  line-height: var(--lh-body);
+  color: var(--ink);
+}
+
+.settings-card .movers {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.settings-card .mover {
+  padding-block: var(--space-3);
+  border-block-start: 1px solid var(--line);
+}
+
+.settings-card .mover:first-child {
+  padding-block-start: 0;
+  border-block-start: 0;
+}
+
+.settings-card .mover-rank {
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-muted);
+}
+
+.settings-card .mover-move {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  color: var(--ink-muted);
+  font-size: var(--t-sm);
+}
+
+.settings-card .preview-alert {
+  padding-inline-start: var(--space-3);
+  border-inline-start: 2px solid var(--ink);
+}
+
+.settings-card .preview-alert p,
+.settings-card .preview-alert-list {
+  margin: 0;
+}
+
+@media (min-width: 1100px) {
+  .scoring-layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 20rem);
+    align-items: start;
+  }
+}
+
+/* --- Notes templates: each template is a part of the card; its text is quiet, not boxed ------------ */
+.note-templates-section .note-template-list {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.settings-card .note-template {
+  padding-block: var(--space-4);
+  padding-inline: 0;
+  background: transparent;
+  border: 0;
+  border-block-start: 1px solid var(--line);
+  border-radius: 0;
+}
+
+.settings-card .note-template:first-child {
+  padding-block-start: 0;
+  border-block-start: 0;
+}
+
+.settings-card .note-template-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2) var(--space-3);
+}
+
+.settings-card .note-template-name {
+  margin: 0;
+  font-size: var(--t-body);
+  line-height: var(--lh-body);
+  font-weight: 600;
+}
+
+.settings-card .note-template-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.settings-card .note-template-actions .inline-form {
+  margin: 0;
+}
+
+.settings-card .note-template-text > summary {
+  font-size: var(--t-sm);
+  color: var(--ink-muted);
+}
+
+.settings-card .note-template-body {
+  margin-block-start: var(--space-2);
+  padding: 0;
+  max-block-size: none;
+  background: transparent;
+  color: var(--ink);
+  font-size: var(--t-body);
+  line-height: var(--lh-body);
+  white-space: pre-wrap;
+}
+
+.settings-card .note-templates-starters {
+  margin: 0;
+}
+
+.settings-card .note-template-form {
+  gap: var(--space-4);
+}
+
+.settings-card .note-template-form textarea {
+  max-inline-size: 40rem;
+}
+
+/* --- Confirm pages (remove, delete all, the recovery key): one card and its actions ------------ */
+.confirm > .settings-card,
+.recovery-card {
+  gap: var(--space-4);
+}
+
+.recovery-key .recovery-group {
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-control);
+  background: var(--surface);
+  color: var(--ink);
+}
+
+.recovery-card .settings-actions {
+  justify-content: flex-start;
+}
+
+/* --- Unlock: a narrow column of steps, each a card; the lede and the header lead ---------------- */
+.lock-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  inline-size: 100%;
+  max-inline-size: 30rem;
+}
+
+.lock-wrap > .page-head {
+  margin-block-end: 0;
+}
+
+.lock-step {
+  gap: var(--space-3);
+}
+
+.lock-step .lock-section {
+  gap: var(--space-2);
+  inline-size: 100%;
+}
+
+.lock-step .lock-section > label {
+  font-size: var(--t-sm);
+  line-height: var(--lh-sm);
+  font-weight: 500;
+  color: var(--ink-muted);
+}
+
+.lock-step .lock-input {
+  max-inline-size: 100%;
+}
+
+.lock-step .lock-disclosure > summary {
+  color: var(--ink);
+  text-decoration: underline;
+  text-underline-offset: 0.25em;
+}
+
+.lock-step .lock-disclosure[open] > summary {
+  margin-block-end: var(--space-3);
+}
+
+/* --- Phone width: a single column, a 16px gutter, cards that fit --------------------------------- */
+@media (max-width: 899px) {
+  .settings-sidebar .settings-nav-list {
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: var(--space-1) var(--space-2);
+  }
+
+  .settings-sidebar .settings-nav-heading {
+    flex-basis: 100%;
+    margin-block-start: var(--space-3);
+  }
+
+  .settings-main {
+    padding: var(--space-4) var(--space-4) var(--space-6);
+  }
+
+  .settings-main .settings-body {
+    max-inline-size: none;
+  }
+}
+
+@media (max-width: 559px) {
+  .settings-card {
+    padding: 1rem;
+  }
+
+  .settings-card .privacy-list {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .settings-card .privacy-list dt {
+    padding-block-end: 0;
+    padding-inline-end: 0;
+    border-block-start: 1px solid var(--line);
+  }
+
+  .settings-card .privacy-list dd {
+    padding-block-start: var(--space-1);
+    border-block-start: 0;
+  }
+
+  .settings-card .privacy-list > dt:first-of-type {
+    border-block-start: 0;
+    padding-block-start: 0;
+  }
+
+  .settings-card .token-input input {
+    flex-basis: 100%;
+  }
+
+  .settings-actions {
+    justify-content: flex-start;
+  }
+
+  .settings-inline {
+    align-items: stretch;
+  }
+
+  .what-happens {
+    padding: 1rem;
+  }
+
+  .setup-card {
+    padding: 0 1rem;
+  }
+}
+
+/* ===== A model that may train on your data: the warning and the confirm dialog ===== */
+.field-warning {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  margin: var(--space-2) 0 0;
+  padding: var(--space-2) var(--space-3);
+  font-size: var(--t-sm);
+  line-height: 1.45;
+  color: var(--tag-orange-ink);
+  background: var(--tag-orange-bg);
+  border: 1px solid color-mix(in srgb, var(--tag-orange-ink) 26%, transparent);
+  border-radius: 8px;
+}
+
+.field-warning[hidden] {
+  display: none;
+}
+
+.field-warning .icon {
+  flex: none;
+  inline-size: 0.875rem;
+  block-size: 0.875rem;
+  margin-block-start: 0.125rem;
+}
+
+.confirm-dialog {
+  inline-size: min(28rem, calc(100vw - 2rem));
+  padding: var(--space-5);
+  color: var(--ink);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+}
+
+.confirm-dialog::backdrop {
+  background: color-mix(in srgb, var(--ink) 30%, transparent);
+}
+
+.confirm-dialog-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.confirm-dialog-mark {
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  inline-size: 2rem;
+  block-size: 2rem;
+  color: var(--tag-orange-ink);
+  background: var(--tag-orange-bg);
+  border: 1px solid color-mix(in srgb, var(--tag-orange-ink) 26%, transparent);
+  border-radius: 8px;
+}
+
+.confirm-dialog-title {
+  margin: 0;
+  font-size: var(--t-md);
+  font-weight: 600;
+  line-height: 1.3;
+}
+
+.confirm-dialog-text {
+  margin: var(--space-3) 0 0;
+  font-size: var(--t-body);
+  line-height: 1.55;
+  color: var(--ink-muted);
+}
+
+.confirm-dialog-wait {
+  min-block-size: 1.25rem;
+  margin: var(--space-2) 0 0;
+  font-size: var(--t-sm);
+  color: var(--ink-muted);
+}
+
+.confirm-dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-2);
+  margin-block-start: var(--space-4);
+  padding-block-start: var(--space-4);
+  border-block-start: 1px solid var(--line);
+}
+
+/* Proceed while it waits: the button in full colour under a pale cover that draws back from
+   right to left over five seconds (app.js); when the cover is gone the button works. */
+.proceed-wait {
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+}
+
+.proceed-wait-label {
+  position: relative;
+  z-index: 1;
+}
+
+.proceed-wait-cover {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  background: color-mix(in srgb, var(--surface) 55%, transparent);
+  transform: scaleX(1);  /* app.js animates it to scaleX(0) over five seconds */
+  transform-origin: left center;
+  pointer-events: none;
+}
+
+.confirm-dialog .proceed-wait:disabled {
+  opacity: 1;
+  cursor: not-allowed;
+}
+
+/* ===== Your logo on Appearance ===== */
+.brand-settings-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: var(--space-4);
+  margin-block-start: var(--space-3);
+}
+
+.brand-preview {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-inline-size: 10rem;
+  padding: var(--space-3) var(--space-4);
+  font-size: var(--t-card);
+  font-weight: 600;
+  background: var(--sunken);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+
+.brand-preview .brand-mark {
+  inline-size: 1.5rem;
+  block-size: 1.5rem;
+}
+
+.brand-preview .brand-custom {
+  display: block;
+  max-inline-size: 12rem;
+  block-size: 1.75rem;
+  object-fit: contain;
+}
+
+.brand-upload {
+  flex: 1 1 18rem;
+  min-inline-size: 0;
+}
+
+.brand-upload input[type="file"] {
+  max-inline-size: 100%;
+}
+
+/* ===== Brief, renewals, onboarding, client updates, notices (reference look) ===== */
+/* =================================================================================================
+   Reports and client updates, in the reference look: the Weekly brief, Renewals, the renewal call
+   sheet, Onboarding prep and its brief, Client updates (review and set-up), and the quiet pages.
+   Every rule sits under a class of one of these screens. Card and row styling is inside
+   @media screen. The print rules here only tighten what paper needs, so the brief still prints on
+   two A4 pages and the sheet and the onboarding brief on one. Colours come from the tokens in
+   app.css, so dark mode follows them.
+   ================================================================================================= */
+
+/* --- On paper: the page heads on these screens are tighter, so the printed pages keep their length.
+   The rest of each screen's print layout is in app.css. ------------------------------------------- */
+@media print {
+  .brief .page-head,
+  .renewal-sheet .page-head,
+  .onboarding-brief .page-head {
+    margin-block-end: var(--space-2);
+    padding-block-end: var(--space-2);
+  }
+
+  .brief .page-lede,
+  .onboarding-brief .page-lede {
+    margin: 0;
+  }
+
+  .brief-intro {
+    gap: 0;
+  }
+
+  /* The brief's sections lose their border and most of their padding on paper. The text and the
+     order of the rows stay as they are. */
+  .brief .brief-section {
+    padding: var(--space-2) var(--space-4);
+    gap: var(--space-2);
+    border: 0;
+    border-radius: 0;
+  }
+
+  .brief .brief-side {
+    gap: var(--space-2);
+  }
+
+  .brief .top-list > li + li {
+    margin-block-start: var(--space-1);
+  }
+
+  .brief .brief-title {
+    gap: 0;
+  }
+
+  .brief .top-line {
+    gap: 0 var(--space-2);
+  }
+
+  .brief .top-line .health,
+  .brief .top-motion {
+    min-block-size: 0;
+    padding-block: 0;
+    line-height: 1.125rem;
+  }
+
+  .brief .top-reason,
+  .brief .top-next {
+    margin-block-start: 0;
+  }
+
+  .brief .chart-stack {
+    gap: var(--space-2);
+  }
+
+  /* Since last week: one line per change, with the chip at its text's height and no box or rule. */
+  .brief .since-section .since-row {
+    padding: 0;
+    border: 0;
+  }
+
+  .brief .since-section .since-list {
+    gap: var(--space-1);
+  }
+
+  .brief .since-section .tag {
+    min-block-size: 0;
+    padding-block: 0;
+    line-height: 1.125rem;
+  }
+
+  /* The onboarding brief is one page: its sections drop the border and most of the padding, and
+     its gaps, lists and table rows are tighter. */
+  .onboarding-brief {
+    gap: var(--space-1);
+  }
+
+  .onboarding-brief .page-head {
+    margin-block-end: var(--space-1);
+    padding-block-end: var(--space-1);
+  }
+
+  .onboarding-brief .agenda,
+  .onboarding-brief .questions {
+    font-size: var(--t-sm);
+    line-height: var(--lh-sm);
+  }
+
+  .onboarding-brief .onboarding-section {
+    padding: var(--space-2) var(--space-4);
+    gap: var(--space-1);
+    border: 0;
+    border-radius: 0;
+  }
+
+  .onboarding-brief .agenda > li + li {
+    margin-block-start: var(--space-1);
+  }
+
+  .onboarding-brief .agenda li p + p {
+    margin-block-start: 0;
+  }
+
+  .onboarding-brief .plan > li + li {
+    margin-block-start: var(--space-2);
+  }
+
+  .onboarding-brief .breakdown th,
+  .onboarding-brief .breakdown td {
+    padding-block: 0.125rem;
+  }
+}
+
+/* --- Weekly brief -------------------------------------------------------------------------------- */
+@media screen {
+  .brief {
+    gap: var(--space-5);
+  }
+
+  /* The one sentence and the "Prepared by" line sit together under the page head. */
+  .brief-intro {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+  }
+
+  .brief .page-lede {
+    margin: 0;
+  }
+
+  .brief-side {
+    gap: var(--space-5);
+  }
+
+  .brief-section {
+    gap: var(--space-3);
+  }
+
+  .top-find {
+    margin-block-end: var(--space-2);
+  }
+
+  /* The top ten: a numbered list of hairline rows inside the card, not boxes inside the card. The
+     app's older rule for these items boxes each one; this clears the box. */
+  .top-list > li {
+    padding: var(--space-4) 0;
+    background: none;
+    border: 0;
+    border-radius: 0;
+    border-block-start: 1px solid var(--line);
+  }
+
+  .top-list > li + li {
+    margin-block-start: 0;
+  }
+
+  .top-list > li:first-child {
+    padding-block-start: 0;
+    border-block-start: 0;
+  }
+
+  .top-list > li:last-child {
+    padding-block-end: 0;
+  }
+
+  .top-list li::marker {
+    color: var(--ink-muted);
+    font-weight: 500;
+  }
+
+  .top-line .account-link {
+    font-size: var(--t-card);
+    line-height: 1.35;
+  }
+
+  .top-motion {
+    padding: 0.0625rem 0.5rem;
+    border: 1px solid var(--line-strong);
+    border-radius: var(--radius-tag);
+    color: var(--ink-muted);
+    font-size: var(--t-sm);
+    line-height: 1.25rem;
+    white-space: nowrap;
+  }
+
+  .top-line .num {
+    margin-inline-start: auto;
+    font-weight: 500;
+  }
+
+  .top-reason {
+    margin-block-start: var(--space-2);
+    font-size: var(--t-body);
+    line-height: var(--lh-body);
+    color: var(--ink-muted);
+  }
+
+  .top-next {
+    margin-block-start: var(--space-1);
+    font-size: var(--t-ui);
+    line-height: 1.25rem;
+    color: var(--ink);
+  }
+
+  /* ARR by health: one hairline row per band, the chip on the left and its figures on the right. */
+  .brief-side .chart-stack {
+    gap: var(--space-3);
+  }
+
+  .brief-side .legend {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+  }
+
+  .brief-side .legend-item {
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-1) var(--space-3);
+    padding-block: var(--space-2);
+    border-block-start: 1px solid var(--line);
+  }
+
+  .brief-side .legend-item:first-child {
+    padding-block-start: 0;
+    border-block-start: 0;
+  }
+
+  .brief-side .legend-item > .health {
+    align-self: center;
+  }
+
+  .brief-side .legend-figure {
+    color: var(--ink-muted);
+  }
+
+  /* This week: each change is a hairline row. */
+  .brief-side .notable {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    padding-inline-start: 0;
+    list-style: none;
+  }
+
+  .brief-side .notable > li {
+    padding-block: var(--space-2);
+    border-block-start: 1px solid var(--line);
+  }
+
+  .brief-side .notable > li:first-child {
+    padding-block-start: 0;
+    border-block-start: 0;
+  }
+
+  /* Since last week, follow-ups due, and unused seats: rows divided by hairlines, not sunken boxes. */
+  .since-section .since-list,
+  .due-section .due-list,
+  .shelfware-section .shelfware-list {
+    gap: 0;
+    background: none;
+    border: 0;
+    border-radius: 0;
+  }
+
+  .since-section .since-row,
+  .due-section .due-row,
+  .shelfware-section .shelfware-row {
+    padding: var(--space-3) 0;
+    border-block-start: 1px solid var(--line);
+  }
+
+  .since-section .since-row:first-child,
+  .due-section .due-row:first-child,
+  .shelfware-section .shelfware-row:first-child {
+    padding-block-start: 0;
+    border-block-start: 0;
+  }
+
+  .since-section .since-more,
+  .shelfware-section .shelfware-more {
+    margin-block-start: var(--space-2);
+  }
+
+  /* Accounts by motion: the count bars shrink to the column, and each row has its hairline. */
+  .brief-side .motions th,
+  .brief-side .motions td {
+    padding-block: var(--space-2);
+  }
+
+  .brief-side .motions tbody tr:last-child > * {
+    border-block-end: 0;
+  }
+
+  .brief-side .count-bar {
+    inline-size: 100%;
+    max-inline-size: 10rem;
+  }
+}
+
+/* --- Renewals ------------------------------------------------------------------------------------ */
+@media screen {
+  .renewals {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4);
+  }
+
+  .renewals .renewal-section {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+  }
+
+  .renewals .renewal-section .chart-stack {
+    gap: var(--space-3);
+  }
+
+  .renewals .renewal-totals {
+    gap: var(--space-3) var(--space-4);
+  }
+
+  .renewals .renewal-name {
+    font-weight: 500;
+  }
+
+  /* The list sits on the card, one hairline between rows. Today's sunken box is not used here. */
+  .renewals .renewal-list {
+    gap: 0;
+    background: none;
+    border: 0;
+    border-radius: 0;
+  }
+
+  .renewals li.renewal-row {
+    padding: var(--space-4) 0;
+    background: none;
+    border-block-start: 1px solid var(--line);
+  }
+
+  .renewals li.renewal-row:first-child {
+    padding-block-start: 0;
+    border-block-start: 0;
+  }
+
+  .renewals li.renewal-row:last-child {
+    padding-block-end: 0;
+  }
+
+  .renewals > .empty-card {
+    padding: var(--space-5);
+    border-style: solid;
+    border-color: var(--line);
+    background: var(--surface);
+    color: var(--ink-muted);
+    text-align: start;
+  }
+}
+
+/* --- The renewal call sheet: a printable one-pager, its sections as cards on screen ---------------- */
+@media screen {
+  .renewal-sheet {
+    gap: var(--space-5);
+  }
+
+  .renewal-sheet .sheet-head {
+    gap: var(--space-3);
+  }
+
+  /* The call is the sheet's one sentence: ink, a step above the body text. */
+  .renewal-sheet .sheet-call {
+    max-inline-size: 72ch;
+    font-size: var(--t-body);
+    line-height: var(--lh-body);
+    font-weight: 500;
+  }
+
+  .renewal-sheet .sheet-disagreement {
+    max-inline-size: 72ch;
+    font-size: var(--t-ui);
+    line-height: var(--lh-body);
+    color: var(--ink-muted);
+  }
+
+  .renewal-sheet .sheet-account {
+    gap: var(--space-3);
+  }
+
+  .renewal-sheet .sheet-name {
+    font-size: var(--t-card);
+    line-height: 1.35;
+    font-weight: 600;
+  }
+
+  .renewal-sheet .sheet-facts {
+    color: var(--ink-muted);
+  }
+
+  .renewal-sheet .sheet-columns {
+    gap: var(--space-3) var(--space-4);
+    align-items: stretch;
+  }
+
+  .renewal-sheet .sheet-section,
+  .renewal-sheet .sheet-column {
+    padding: var(--space-5);
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-card);
+  }
+
+  /* Lists inside a card are hairline rows, not bullets. */
+  .renewal-sheet .sheet-list {
+    gap: 0;
+    padding-inline-start: 0;
+    list-style: none;
+  }
+
+  .renewal-sheet .sheet-list > li,
+  .renewal-sheet .sheet-touches > li {
+    padding-block: var(--space-2);
+    border-block-start: 1px solid var(--line);
+  }
+
+  .renewal-sheet .sheet-list > li:first-child,
+  .renewal-sheet .sheet-touches > li:first-child {
+    padding-block-start: 0;
+    border-block-start: 0;
+  }
+
+  .renewal-sheet .sheet-footnote {
+    color: var(--ink-muted);
+  }
+}
+
+/* --- Onboarding prep: the picker, one card per account -------------------------------------------- */
+@media screen {
+  .onboarding-page {
+    gap: var(--space-5);
+  }
+
+  .onboarding-page .page-lede {
+    margin: 0;
+  }
+
+  .prep-list {
+    gap: var(--space-4);
+  }
+
+  .prep-card {
+    gap: var(--space-3);
+    padding: 1.25rem;
+  }
+
+  /* The card's head: the logo, the name, and the health chip at the far end. */
+  .prep-card .card-head {
+    align-items: center;
+    margin-block-end: 0;
+  }
+
+  .prep-card .prep-name {
+    flex: 1 1 10rem;
+    min-inline-size: 0;
+    overflow-wrap: anywhere;
+  }
+
+  /* The runway: its bar, then the words, which read as the card's description. */
+  .prep-card .prep-runway {
+    gap: var(--space-1);
+  }
+
+  .prep-card .runway-words {
+    font-size: var(--t-body);
+    line-height: 1.55;
+    color: var(--ink-muted);
+  }
+
+  /* The foot: the plan dots and words, the forecast chip, and the one action at the row's end. */
+  .prep-card .prep-meta {
+    align-items: center;
+    gap: var(--space-2) var(--space-3);
+    padding-block-start: var(--space-3);
+  }
+
+  /* The action always takes the row under the plan and forecast, at the card's end, so every card
+     in the picker has its button in the same place. */
+  .prep-card .prep-action {
+    display: flex;
+    flex: 1 1 100%;
+    justify-content: flex-end;
+    margin: 0;
+  }
+
+  /* The action is drawn as a secondary button: a white box with a hairline border. */
+  .prep-card .prep-action a {
+    display: inline-flex;
+    align-items: center;
+    min-block-size: 2.25rem;
+    padding: 0.375rem 0.875rem;
+    border: 1px solid var(--line-strong);
+    border-radius: var(--radius-control);
+    background: var(--surface);
+    color: var(--ink);
+    font-size: var(--t-ui);
+    font-weight: 500;
+    text-decoration: none;
+  }
+
+  .prep-card .prep-action a:hover {
+    background: var(--sunken);
+    border-color: var(--control);
+    color: var(--ink);
+  }
+}
+
+/* --- Onboarding brief: one A4 page on paper; its sections are cards on screen --------------------- */
+@media screen {
+  .onboarding-brief {
+    gap: var(--space-5);
+  }
+
+  .onboarding-brief .page-lede {
+    margin: 0;
+  }
+
+  .onboarding-brief .facts {
+    color: var(--ink-muted);
+  }
+
+  .onboarding-brief .onboarding-section {
+    gap: var(--space-3);
+  }
+
+  /* The plan and the agenda are numbered hairline rows inside their cards. */
+  .onboarding-brief .plan > li,
+  .onboarding-brief .agenda > li {
+    padding-block: var(--space-2);
+    border-block-start: 1px solid var(--line);
+  }
+
+  .onboarding-brief .plan > li + li,
+  .onboarding-brief .agenda > li + li {
+    margin-block-start: 0;
+  }
+
+  .onboarding-brief .plan > li:first-child,
+  .onboarding-brief .agenda > li:first-child {
+    padding-block-start: 0;
+    border-block-start: 0;
+  }
+
+  .onboarding-brief .plan-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  /* The agenda and the questions run the card's width, so their hairlines do too. */
+  .onboarding-brief .agenda,
+  .onboarding-brief .questions {
+    max-inline-size: none;
+  }
+
+  /* Questions to ask: hairline rows, no bullets. */
+  .onboarding-brief .questions {
+    padding-inline-start: 0;
+    list-style: none;
+  }
+
+  .onboarding-brief .questions > li {
+    padding-block: var(--space-2);
+    border-block-start: 1px solid var(--line);
+  }
+
+  .onboarding-brief .questions > li + li {
+    margin-block-start: 0;
+  }
+
+  .onboarding-brief .questions > li:first-child {
+    padding-block-start: 0;
+    border-block-start: 0;
+  }
+
+  /* The next step is the card's sentence, not a block with an accent rule. */
+  .onboarding-brief .next-step {
+    padding-inline-start: 0;
+    border-inline-start: 0;
+  }
+}
+
+/* --- Client updates: the review page (cards with their actions in the footer) and the set-up page -- */
+@media screen {
+  .updates-intro {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    padding: var(--space-6) var(--space-6) var(--space-5);
+  }
+
+  .updates-intro .page-lede {
+    margin: 0;
+  }
+
+  .updates-intro .field-help {
+    margin: 0;
+  }
+
+  /* Each card fills its grid row, so a short card ends level with its neighbour. */
+  .updates-page .update-card {
+    block-size: 100%;
+    gap: var(--space-2);
+  }
+
+  .updates-page .update-card .card-head {
+    margin-block-end: 0;
+  }
+
+  /* What the client wrote is the card's description, not a quoted box with a rule. */
+  .updates-page .update-note {
+    margin: var(--space-1) 0 0;
+    padding: 0;
+    border: 0;
+    color: var(--ink-muted);
+  }
+
+  .updates-page .update-form {
+    gap: var(--space-3);
+    margin: var(--space-2) 0 0;
+    padding: 0;
+    border: 0;
+  }
+
+  /* The footer, at the card's end. Accept comes first in the markup so Enter in a field accepts,
+     and it is shown first too, so the order you see is the order Tab takes. */
+  .updates-page .card-foot {
+    justify-content: flex-end;
+    align-items: center;
+  }
+
+  .updates-page .card-foot > * {
+    align-self: center;
+  }
+
+  .updates-page .empty-card {
+    padding: var(--space-5);
+    border-style: solid;
+    border-color: var(--line);
+    background: var(--surface);
+    text-align: start;
+  }
+
+  .updates-setup .page-lede {
+    margin: 0;
+  }
+
+  .updates-setup .setup-questions {
+    gap: 0;
+    padding-inline-start: var(--space-6);
+  }
+
+  .updates-setup .setup-questions > li {
+    padding-block: var(--space-2);
+    border-block-start: 1px solid var(--line);
+  }
+
+  .updates-setup .setup-questions > li:first-child {
+    padding-block-start: 0;
+    border-block-start: 0;
+  }
+
+  .updates-setup .setup-question {
+    font-weight: 500;
+  }
+
+  .updates-setup .setup-feeds > li {
+    padding-block: var(--space-3);
+    border-block-start: 1px solid var(--line);
+  }
+
+  .updates-setup .setup-feeds > li:first-child {
+    padding-block-start: 0;
+    border-block-start: 0;
+  }
+}
+
+/* --- Quiet pages: coming later, not found, and a book that could not load ------------------------ */
+@media screen {
+  .quiet-page {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4);
+    max-inline-size: 42rem;
+  }
+
+  .quiet-page .page-lede {
+    margin: 0;
+  }
+
+  .quiet-page .error-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-3);
+  }
+
+  .quiet-page .error-actions .inline-form {
+    margin: 0;
+  }
 }

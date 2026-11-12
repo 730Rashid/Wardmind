@@ -1,8 +1,10 @@
 {% extends "base.html" %}
+{% from "partials/page_head.html" import page_head %}
 {% block main_class %}page page--catalog{% endblock %}
 {% block content %}
-{# The same frame as My book: a full-height sidebar with the sections, the page beside it.
-   The sections are grouped; each group's heading is a plain label for the list under it. #}
+{# The same frame as My book: a full-height sidebar with the sections, the page beside it. The
+   sections are grouped; each group's heading is a plain label for the list under it. Each page's
+   title and icon come from the table below, so every settings page opens the same way. #}
 {% set groups = [
   ("", [("overview", "/settings/overview", "Overview")]),
   ("You", [("profile", "/settings/profile", "Profile & region"), ("appearance", "/settings/appearance", "Appearance")]),
@@ -10,12 +12,27 @@
   ("Your data", [("books", "/settings/books", "Books"), ("connections", "/settings/connections", "Connections"), ("mailbox", "/settings/mailbox", "Mailbox"), ("backup", "/settings/backup", "Backup & export")]),
   ("Security", [("privacy", "/settings/privacy", "Data & privacy"), ("activity", "/settings/activity", "Activity log")]),
 ] %}
+{% set titles = {
+  "overview": ("Overview", "sliders"),
+  "profile": ("Profile & region", "user"),
+  "appearance": ("Appearance", "sliders"),
+  "follow-ups": ("Follow-ups", "clock"),
+  "note-templates": ("Note templates", "note"),
+  "scoring": ("Scoring", "target"),
+  "books": ("Books", "layers"),
+  "connections": ("Connections", "plug"),
+  "mailbox": ("Mailbox", "mail"),
+  "backup": ("Backup & export", "download"),
+  "privacy": ("Data & privacy", "shield"),
+  "activity": ("Activity log", "activity"),
+} %}
+{% set heading = titles.get(section, ("Settings", "sliders")) %}
 <div class="catalog settings-shell">
   <nav class="filters settings-sidebar" aria-labelledby="settings-title">
-    <h1 class="filters-title" id="settings-title">Settings</h1>
-    {% for heading, links in groups %}
-    {% if heading %}<h2 class="settings-nav-heading" id="settings-group-{{ loop.index }}">{{ heading }}</h2>{% endif %}
-    <ul class="settings-nav-list"{% if heading %} aria-labelledby="settings-group-{{ loop.index }}"{% endif %}>
+    <p class="filters-title settings-sidebar-title" id="settings-title">Settings</p>
+    {% for heading_text, links in groups %}
+    {% if heading_text %}<h2 class="settings-nav-heading" id="settings-group-{{ loop.index }}">{{ heading_text }}</h2>{% endif %}
+    <ul class="settings-nav-list"{% if heading_text %} aria-labelledby="settings-group-{{ loop.index }}"{% endif %}>
       {% for key, href, label in links %}
       <li><a class="settings-link" href="{{ href }}"{% if section == key %} aria-current="page"{% endif %}>{{ label }}</a></li>
       {% endfor %}
@@ -23,6 +40,7 @@
     {% endfor %}
   </nav>
   <div class="catalog-main settings-main{% if section == "scoring" %} settings-main--wide{% endif %}">
+    {{ page_head(heading[0], heading[1]) }}
     {% if notice %}<p class="settings-status" role="status">{{ notice }}</p>{% endif %}
     <div class="settings-body">
       {% block settings %}{% endblock %}

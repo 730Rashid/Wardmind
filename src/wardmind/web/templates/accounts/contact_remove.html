@@ -1,14 +1,17 @@
 {% extends "base.html" %}
+{% from "partials/page_head.html" import page_head %}
 {% block content %}
-<div class="stack confirm">
-  <p class="date-line"><a href="/accounts/{{ account.id | idpath }}">Back to {{ account.name }}</a></p>
-  <h1 class="page-title">Remove {{ contact.name }}?</h1>
-  <p class="prose">{{ contact.name }} is deleted from the contacts of {{ account.name }}. Signals already recorded from contacts stay in the history.</p>
-  <div class="error-actions">
-    <form class="inline-form" method="post" action="/accounts/{{ account.id | idpath }}/contacts/{{ contact.id | idpath }}/remove">
-      <button type="submit" class="button-primary">Remove contact</button>
-    </form>
-    <a class="button" href="/accounts/{{ account.id | idpath }}">Keep it</a>
-  </div>
+<div class="account-confirm">
+  <p class="account-back"><a href="/accounts/{{ account.id | idpath }}">Back to {{ account.name }}</a></p>
+  {{ page_head("Remove " ~ contact.name ~ "?", "person-minus") }}
+  <p class="page-lede">{{ contact.name }} is deleted from the contacts of {{ account.name }}. Signals already recorded from contacts stay in the history.</p>
+  <section class="account-section confirm-card">
+    <div class="error-actions">
+      <a class="button" href="/accounts/{{ account.id | idpath }}">Keep it</a>
+      <form class="inline-form" method="post" action="/accounts/{{ account.id | idpath }}/contacts/{{ contact.id | idpath }}/remove">
+        <button type="submit" class="button-primary">Remove contact</button>
+      </form>
+    </div>
+  </section>
 </div>
 {% endblock %}

@@ -7,7 +7,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{{ page }} - Wardmind</title>
-  <link rel="preload" href="/static/fonts/atkinson-hyperlegible-next-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="/static/css/app.css">
   <meta name="htmx-config" content='{"includeIndicatorStyles": false, "allowEval": false, "allowScriptTags": false, "historyCacheSize": 0}'>
   <script src="/static/js/htmx.min.js" integrity="sha384-2OatzQy1H+Zd/IIrjr1TcuDGqLXeHhbooAyJY1KdQMKnr4LZ22k31GBLdYKHmVjg" defer></script>
@@ -17,7 +17,11 @@
   <a class="skip-link" href="#content">Skip to content</a>
   <header class="top-bar">
     <div class="column top-bar-inner">
-      <a class="brand" href="{{ settings.landing.path }}"><svg class="icon" aria-hidden="true" focusable="false"><use href="/static/icons.svg#brand"/></svg>Wardmind</a>
+      {% if brand_logo %}
+      <a class="brand brand--custom" href="{{ settings.landing.path }}"><img class="brand-custom" src="/brand-logo?v={{ brand_logo.version }}" alt="Home" height="28"></a>
+      {% else %}
+      <a class="brand" href="{{ settings.landing.path }}"><svg class="brand-mark" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><rect class="brand-tile" width="24" height="24" rx="6.5"/><path class="brand-glyph" d="M5.6 9 8.9 16.4 12 11.2 15.1 16.4 18.4 9"/><circle class="brand-dot" cx="12" cy="6.6" r="1.5"/></svg>Wardmind</a>
+      {% endif %}
       <nav aria-label="Main">
         <ul class="nav-list">
           <li>{{ nav_link("/today", "Today", "today", due_follow_ups) }}</li>

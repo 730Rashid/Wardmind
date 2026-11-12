@@ -4,16 +4,16 @@
     {% for card in cards %}
     <li>
       <article class="account-card provider-card" aria-labelledby="card-{{ card.key }}">
-        <div class="card-top">
+        <div class="card-head">
           <span class="rank-tile mark-tile" aria-hidden="true">{{ card.mark }}</span>
           {% if card.connected %}
-          <span class="pill pill--connected"><svg class="icon" aria-hidden="true" focusable="false"><use href="/static/icons.svg#check"/></svg>Connected</span>
+          <span class="badge"><svg class="icon" aria-hidden="true" focusable="false"><use href="/static/icons.svg#check"/></svg>Connected</span>
           {% endif %}
         </div>
         <h3 class="card-title" id="card-{{ card.key }}"><a class="account-link" href="{{ card.href }}">{{ card.name }}</a></h3>
-        <p class="card-owner">{{ card.by }}</p>
-        <p class="card-reason">{{ card.description }}</p>
-        <ul class="tag-list card-tags" aria-label="Brings in">
+        {% if card.by %}<p class="card-by">{{ card.by }}</p>{% endif %}
+        <p class="card-desc">{{ card.description }}</p>
+        <ul class="tag-list card-foot card-tags" aria-label="Brings in">
           {% for category in card.categories %}
           <li class="pill pill--{{ category.value }}"><svg class="icon" aria-hidden="true" focusable="false"><use href="/static/icons.svg#{{ category.value }}"/></svg>{{ category.label }}</li>
           {% endfor %}

@@ -1,14 +1,17 @@
 {% extends "base.html" %}
+{% from "partials/page_head.html" import page_head %}
 {% block content %}
-<div class="stack confirm">
-  <p class="date-line"><a href="/accounts/{{ account.id | idpath }}">Back to {{ account.name }}</a></p>
-  <h1 class="page-title">Turn off client updates for {{ account.name }}?</h1>
-  <p class="prose">Their update link stops working. {% if pending %}The {{ pending }} {{ 'update' if pending == 1 else 'updates' }} waiting for your review from this client {{ 'is' if pending == 1 else 'are' }} deleted with it.{% else %}No updates from this client are waiting, so nothing is deleted.{% endif %}</p>
-  <div class="error-actions">
-    <form class="inline-form" method="post" action="/accounts/{{ account.id | idpath }}/client-updates/off">
-      <button type="submit" class="button-primary">Turn off client updates</button>
-    </form>
-    <a class="button" href="/accounts/{{ account.id | idpath }}">Keep them on</a>
-  </div>
+<div class="account-confirm">
+  <p class="account-back"><a href="/accounts/{{ account.id | idpath }}">Back to {{ account.name }}</a></p>
+  {{ page_head("Turn off client updates for " ~ account.name ~ "?", "inbox") }}
+  <p class="page-lede">Their update link stops working. {% if pending %}The {{ pending }} {{ 'update' if pending == 1 else 'updates' }} waiting for your review from this client {{ 'is' if pending == 1 else 'are' }} deleted with it.{% else %}No updates from this client are waiting, so nothing is deleted.{% endif %}</p>
+  <section class="account-section confirm-card">
+    <div class="error-actions">
+      <a class="button" href="/accounts/{{ account.id | idpath }}">Keep them on</a>
+      <form class="inline-form" method="post" action="/accounts/{{ account.id | idpath }}/client-updates/off">
+        <button type="submit" class="button-primary">Turn off client updates</button>
+      </form>
+    </div>
+  </section>
 </div>
 {% endblock %}

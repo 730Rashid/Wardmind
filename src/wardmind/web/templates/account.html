@@ -28,15 +28,17 @@
     {% endif %}
     {% if journal.refused %}<p class="field-error" role="alert">{{ journal.refused }}</p>{% endif %}
 
-    <header class="account-head">
+    <header class="page-head account-head">
       <div class="account-title">
         {% include "accounts/_logo_controls.html" %}
-        <h1 class="account-name">{{ account.name }}</h1>
+        <h1 class="page-title account-name">{{ account.name }}</h1>
         {% if 'name' in edits %}{{ edited_marker() }}{% endif %}
-        {% if prov %}
-        <a class="button button--small no-print" href="/accounts/{{ account.id | idpath }}/edit">Edit account</a>
-        {% endif %}
       </div>
+      {% if prov %}
+      <div class="page-head-actions no-print">
+        <a class="button" href="/accounts/{{ account.id | idpath }}/edit">Edit account</a>
+      </div>
+      {% endif %}
       <ul class="facts">
         <li><span class="health health--{{ health.value }}"><svg class="icon" aria-hidden="true" focusable="false"><use href="/static/icons.svg#health-{{ health.value | replace('_', '-') }}"/></svg> {{ health.label }}</span></li>
         <li>{{ detail | motion_fact }}{% if motion_field in edits %} {{ edited_marker() }}{% endif %}</li>
@@ -69,8 +71,8 @@
       {% else %}
       <p class="field-help">Editing is available for your own data.</p>
       {% endif %}
-      <p class="account-summary">{{ detail.explanation.summary }}</p>
     </header>
+    <p class="page-lede">{{ detail.explanation.summary }}</p>
 
     {% include "accounts/_next_step.html" %}
 
@@ -121,19 +123,21 @@
   </div>
 
   <aside class="account-aside" aria-labelledby="facts-heading">
-    <h2 class="section-title" id="facts-heading">Account facts</h2>
-    <dl class="facts-list">
-      <dt>Tier</dt>
-      <dd>{{ account.tier }}{% if 'tier' in edits %} {{ edited_marker() }}{% endif %}</dd>
-      <dt>Started</dt>
-      <dd>{% if account.start_date is none %}Not known{% if prov %} <a class="no-print" href="/accounts/{{ account.id | idpath }}/edit#field-start-date">Add it</a>{% endif %}{% else %}{{ account.start_date | day_label(today_day) }}, {{ detail.days_since_start | ago }}{% endif %}{% if 'start_date' in edits %} {{ edited_marker() }}{% endif %}</dd>
-      <dt>Renews</dt>
-      <dd>{{ account.renewal_date | day_label(today_day) }}{% if 'renewal_date' in edits %} {{ edited_marker() }}{% endif %}</dd>
-      <dt>Onboarding milestones</dt>
-      <dd>{{ account.milestones.done }} of {{ account.milestones.total }} done{% if account.milestones.overdue > 0 %}, {{ account.milestones.overdue }} overdue{% endif %}{% if milestones_edited %} {{ edited_marker() }}{% endif %}</dd>
-      <dt>Data source</dt>
-      <dd>{{ connector_label }}</dd>
-    </dl>
+    <section class="account-facts">
+      <h2 class="section-title" id="facts-heading">Account facts</h2>
+      <dl class="facts-list">
+        <dt>Tier</dt>
+        <dd>{{ account.tier }}{% if 'tier' in edits %} {{ edited_marker() }}{% endif %}</dd>
+        <dt>Started</dt>
+        <dd>{% if account.start_date is none %}Not known{% if prov %} <a class="no-print" href="/accounts/{{ account.id | idpath }}/edit#field-start-date">Add it</a>{% endif %}{% else %}{{ account.start_date | day_label(today_day) }}, {{ detail.days_since_start | ago }}{% endif %}{% if 'start_date' in edits %} {{ edited_marker() }}{% endif %}</dd>
+        <dt>Renews</dt>
+        <dd>{{ account.renewal_date | day_label(today_day) }}{% if 'renewal_date' in edits %} {{ edited_marker() }}{% endif %}</dd>
+        <dt>Onboarding milestones</dt>
+        <dd>{{ account.milestones.done }} of {{ account.milestones.total }} done{% if account.milestones.overdue > 0 %}, {{ account.milestones.overdue }} overdue{% endif %}{% if milestones_edited %} {{ edited_marker() }}{% endif %}</dd>
+        <dt>Data source</dt>
+        <dd>{{ connector_label }}</dd>
+      </dl>
+    </section>
     {% include "accounts/_team.html" %}
     {% if seats is not none %}{% include "accounts/_shelfware.html" %}{% endif %}
     {% include "accounts/_growth.html" %}

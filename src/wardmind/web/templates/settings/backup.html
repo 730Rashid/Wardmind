@@ -1,7 +1,9 @@
 {% extends "settings/layout.html" %}
 {% block settings %}
+<p class="page-lede">Back up this book, restore a backup, or export spreadsheets.</p>
+
 <div class="backup">
-  <section class="backup-section" aria-labelledby="backup-make-title">
+  <section class="backup-section settings-card" aria-labelledby="backup-make-title">
     <h2 class="section-title" id="backup-make-title">Back up this book</h2>
     {% if demo %}
     <p class="field-help">Demo data is showing, so there's no book to back up. Open a book to make a backup.</p>
@@ -32,12 +34,14 @@
         <label class="choice"><input type="checkbox" name="include_keys" value="1" aria-describedby="backup-keys-help"{% if make_keys %} checked{% endif %}> Include connection keys and tokens</label>
         <p class="field-help" id="backup-keys-help">Leave this off unless you are moving to a new computer. Anyone with the backup and its password could use them.</p>
       </div>
-      <button type="submit" class="button-primary">Download backup</button>
+      <div class="settings-actions">
+        <button type="submit" class="button-primary">Download backup</button>
+      </div>
     </form>
     {% endif %}
   </section>
 
-  <section class="backup-section" aria-labelledby="backup-restore-title">
+  <section class="backup-section settings-card" aria-labelledby="backup-restore-title">
     <h2 class="section-title" id="backup-restore-title">Restore a backup</h2>
     <p class="prose">A backup opens as a new book with its own name. Your current book doesn't change, and the new one isn't opened until you choose it in the book switcher.</p>
 
@@ -68,11 +72,13 @@
         {% endif %}
         <p class="field-help" id="field-restore-name-help">Book names aren't encrypted, so use something like Book 2 rather than a client's or employer's name.</p>
       </div>
-      <button type="submit" class="button-primary">Restore as a new book</button>
+      <div class="settings-actions">
+        <button type="submit" class="button-primary">Restore as a new book</button>
+      </div>
     </form>
   </section>
 
-  <section class="backup-section" aria-labelledby="backup-export-title">
+  <section class="backup-section settings-card" aria-labelledby="backup-export-title">
     <h2 class="section-title" id="backup-export-title">Export</h2>
     <p class="prose">Spreadsheet files of what the book shows. They open in Excel, Numbers or Google Sheets, and dates are written as 2026-11-11 so they read the same everywhere.</p>
     <ul class="backup-export-list">

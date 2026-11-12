@@ -189,7 +189,7 @@ def test_a_write_to_a_locked_book_is_refused_with_423_and_saves_nothing() -> Non
     )
     assert response.status_code == 423
     assert response.text == LOCKED_WRITE
-    assert load_settings().theme.value == "system"
+    assert load_settings().theme.value == "light"  # still the default: nothing was saved
 
 
 def test_static_files_are_still_served_while_locked() -> None:

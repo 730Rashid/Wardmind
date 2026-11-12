@@ -63,8 +63,15 @@
   {% if panel.ai_error %}
   <p class="field-error" role="alert">{{ panel.ai_error }}{% if panel.ai_error_link %} <a href="/settings/privacy">Data &amp; privacy</a>{% endif %}</p>
   {% endif %}
-  {% if panel.ai_ready %}
+  {% if panel.ai_ready and panel.ai_confirm %}
+  {# Without JavaScript there is no dialog: the refusal above is the question, and this answers it. #}
   <form class="research-form no-print" method="post" action="/accounts/{{ panel.account_id }}/summarise" hx-post="/accounts/{{ panel.account_id }}/summarise" hx-target="#research" hx-swap="outerHTML" hx-disabled-elt="find button">
+    <input type="hidden" name="allow_training" value="1">
+    {% if panel.summary %}<input type="hidden" name="refresh" value="1">{% endif %}
+    <button type="submit" class="button">Proceed with {{ panel.ai_training_model }}</button>
+  </form>
+  {% elif panel.ai_ready %}
+  <form class="research-form no-print" method="post" action="/accounts/{{ panel.account_id }}/summarise" hx-post="/accounts/{{ panel.account_id }}/summarise" hx-target="#research" hx-swap="outerHTML" hx-disabled-elt="find button"{% if panel.ai_training_model %} data-training-confirm data-training-model="{{ panel.ai_training_model }}" data-training-what="this customer's website"{% endif %}>
     {% if panel.summary %}
     <input type="hidden" name="refresh" value="1">
     <button type="submit" class="button button--small">Summarise again</button>

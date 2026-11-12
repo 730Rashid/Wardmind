@@ -208,7 +208,7 @@ def _pending(store: LocalStore) -> list[ClientUpdate]:
 
 def _card(page: str, update_id: str) -> str:
     match = re.search(
-        rf'<article class="account-card update-card" aria-labelledby="update-{update_id}">'
+        rf'<article class="card update-card" aria-labelledby="update-{update_id}">'
         r"(.*?)</article>",
         page,
         re.S,
@@ -233,7 +233,7 @@ def _badge(page: str) -> str | None:
 
 
 def _waiting(page: str) -> str:
-    match = re.search(r'<p class="result-count" aria-live="polite">([^<]+)</p>', page)
+    match = re.search(r'<p class="page-lede result-count" aria-live="polite">([^<]+)</p>', page)
     assert match is not None
     return html.unescape(match.group(1))
 
@@ -490,7 +490,7 @@ def test_the_kind_filter_shows_only_the_kinds_chosen_with_their_counts(
     assert "New contact" in everything and "Someone left" in everything
     only_left = client.get("/client-updates?kind=left")
     _assert_clean(only_left)
-    assert only_left.text.count('class="account-card update-card"') == 1
+    assert only_left.text.count('class="card update-card"') == 1
     assert "Someone left" in _text(only_left)
     assert 'value="left" data-autosubmit checked' in only_left.text
     assert "Clear filters" in _text(only_left)

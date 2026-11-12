@@ -1,16 +1,18 @@
 {% extends "settings/layout.html" %}
 {% block settings %}
+<p class="page-lede">A book keeps its own accounts, connections, notes and keys, apart from the others on this computer.</p>
+
 <div class="books">
-  <section class="books-section" aria-labelledby="books-title">
+  <section class="books-section settings-card" aria-labelledby="books-title">
     <h2 class="section-title" id="books-title">Your books</h2>
-    <p class="prose">A book keeps its own accounts, connections, notes and keys, apart from the others on this computer. The open book is the one My book shows.</p>
+    <p class="prose">The open book is the one My book shows.</p>
     {% if demo %}
     <p class="field-help">Demo data is showing, so no book is open. Open a book to see its data.</p>
     {% endif %}
 
     <ul class="book-list">
       {% for row in books %}
-      <li class="book-item{% if row.is_open %} book-item--open{% endif %}">
+      <li class="book-item settings-part{% if row.is_open %} book-item--open{% endif %}">
         <div class="book-head">
           <p class="book-name">{{ row.label }}</p>
           {% if row.is_open %}<p class="book-open-mark">Open</p>{% endif %}
@@ -63,10 +65,10 @@
     </ul>
   </section>
 
-  <section class="books-section books-add" aria-labelledby="add-book-title">
+  <section class="books-section books-add settings-card" aria-labelledby="add-book-title">
     <h2 class="section-title" id="add-book-title">Add a book</h2>
     {% if can_add %}
-    <form class="book-form" method="post" action="/settings/books/add">
+    <form class="settings-form book-form" method="post" action="/settings/books/add">
       <div class="field">
         <label for="field-book-label">Name</label>
         <input type="text" name="label" id="field-book-label" value="{{ add_value }}" maxlength="40" autocomplete="off" spellcheck="false" aria-describedby="book-label-help{% if add_error %} book-label-error{% endif %}"{% if add_error %} aria-invalid="true"{% endif %}>
@@ -75,7 +77,9 @@
         {% endif %}
         <p class="field-help" id="book-label-help">Book names aren't encrypted, so use something like Book 2 rather than a client's or employer's name.</p>
       </div>
-      <button type="submit" class="button-primary">Add book</button>
+      <div class="settings-actions">
+        <button type="submit" class="button-primary">Add book</button>
+      </div>
     </form>
     <p class="field-help">A new book isn't opened when it's added. Open it from its row when you want to use it.</p>
     {% else %}

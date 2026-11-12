@@ -15,13 +15,15 @@
 {% endmacro %}
 
 {% block settings %}
+<p class="page-lede">When follow-ups are due, and which ones Wardmind adds for you.</p>
+
 <form class="settings-form followups-form" method="post" action="/settings/follow-ups">
   {% if errors %}
   <p class="field-error" role="alert">Nothing was saved. Fix the marked settings, then save again.</p>
   {% endif %}
   {% if errors.form %}<p class="field-error">{{ errors.form }}</p>{% endif %}
 
-  <section class="followups-group" aria-labelledby="followups-due-title">
+  <section class="settings-card followups-group" aria-labelledby="followups-due-title">
     <h2 class="section-title" id="followups-due-title">When things are due</h2>
 
     {{ days_box("follow_up_days", "New follow-ups are due in", 1, 90, values, errors, "The default due date when you add a follow-up. It shows on Today and on the account page.") }}
@@ -38,11 +40,11 @@
     {{ days_box("answer_wait_days", "Waiting on your reply after", 1, 14, values, errors, "Shows on Today under Waiting on replies, and on the account page. It covers an email they sent that you haven't answered.") }}
   </section>
 
-  <section class="followups-group" aria-labelledby="followups-auto-title">
+  <section class="settings-card followups-group" aria-labelledby="followups-auto-title">
     <h2 class="section-title" id="followups-auto-title">Automatic follow-ups</h2>
     <p class="prose">These rules only add follow-ups. They never change or delete anything. Each rule adds at most one follow-up per account for each occasion, and only for your own data, not demo data. You can mark an added follow-up done like any other.</p>
 
-    <fieldset class="followups-rules" aria-describedby="followups-rules-help">
+    <fieldset class="followups-rules settings-part" aria-describedby="followups-rules-help">
       <legend>Add a follow-up when</legend>
       <p class="field-help" id="followups-rules-help">Added follow-ups show on Today and on the account page, marked Added automatically.</p>
 
@@ -78,6 +80,8 @@
     {% endif %}
   </section>
 
-  <button type="submit" class="button-primary">Save changes</button>
+  <div class="settings-actions">
+    <button type="submit" class="button-primary">Save changes</button>
+  </div>
 </form>
 {% endblock %}

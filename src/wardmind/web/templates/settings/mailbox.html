@@ -1,17 +1,18 @@
 {% extends "settings/layout.html" %}
 {% block settings %}
+<p class="page-lede">Wardmind can log the emails you send and receive with your clients into each account's Activity history.</p>
+
 <div class="mailbox">
   {% if demo %}
   <p class="field-help">You're looking at demo data. Emails are only logged to accounts in your own data.</p>
   {% endif %}
 
-  <section class="mailbox-section" aria-labelledby="mailbox-title">
-    <h2 class="section-title" id="mailbox-title">Mailbox</h2>
-    <p class="prose">Wardmind can log the emails you send and receive with your clients into each account's Activity history. Only emails to or from a client's contacts or website domain are saved, as a short excerpt. Wardmind never sends, moves, deletes or marks mail as read.</p>
+  <section class="mailbox-section settings-card">
+    <p class="prose">Only emails to or from a client's contacts or website domain are saved, as a short excerpt. Wardmind never sends, moves, deletes or marks mail as read.</p>
   </section>
 
   {% if saved %}
-  <section class="mailbox-section" aria-labelledby="mailbox-status-title">
+  <section class="mailbox-section settings-card" aria-labelledby="mailbox-status-title">
     <h2 class="section-title" id="mailbox-status-title">Status</h2>
 
     {% if password_missing %}
@@ -54,14 +55,16 @@
     <p class="field-error" role="alert" id="mailbox-toggle-error">{{ toggle_error }}</p>
     {% endif %}
 
-    <form class="mailbox-disconnect" method="post" action="/settings/mailbox/disconnect">
-      <button type="submit" class="button" aria-describedby="mailbox-disconnect-help">Disconnect mailbox</button>
+    <form class="mailbox-disconnect settings-part" method="post" action="/settings/mailbox/disconnect">
       <p class="field-help" id="mailbox-disconnect-help">Deletes the saved app password and stops logging. Emails already logged stay in each account's history.</p>
+      <div class="settings-actions">
+        <button type="submit" class="button" aria-describedby="mailbox-disconnect-help">Disconnect mailbox</button>
+      </div>
     </form>
   </section>
 
   {% else %}
-  <section class="mailbox-section" aria-labelledby="mailbox-connect-title">
+  <section class="mailbox-section settings-card" aria-labelledby="mailbox-connect-title">
     <h2 class="section-title" id="mailbox-connect-title">Connect your mailbox</h2>
     <p class="prose">Wardmind signs in with an app password, not your usual one. Get one from your mail provider:</p>
     <ul class="mailbox-providers">
@@ -122,7 +125,9 @@
         <p class="field-help" id="field-mailbox-password-help">It's stored in your user profile, never in this folder, and it's never shown again.</p>
       </div>
 
-      <button type="submit" class="button-primary">Connect mailbox</button>
+      <div class="settings-actions">
+        <button type="submit" class="button-primary">Connect mailbox</button>
+      </div>
     </form>
   </section>
   {% endif %}

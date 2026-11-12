@@ -83,7 +83,7 @@ def _block(markup: str, pattern: str) -> str:
 def _rows(markup: str) -> list[str]:
     """The picker's account cards, as HTML, in order."""
     body = _block(markup, r'<ul class="prep-list">(.*?)</ul>')
-    return re.findall(r'<li class="prep-card">(.*?)</li>', body, re.S)
+    return re.findall(r'<li class="card prep-card">(.*?)</li>', body, re.S)
 
 
 def _client(monkeypatch: pytest.MonkeyPatch, connector: DemoConnector) -> TestClient:
@@ -534,6 +534,7 @@ def test_on_paper_the_forecast_is_a_sentence_of_the_summary(client: TestClient) 
     forecast = insights.golive_forecast(item.account, date.today(), load_scoring_config().motion)
     assert forecast is not None
     summary = _block(
-        client.get(f"/onboarding/{item.account.id}").text, r'<p class="brief-summary">(.*?)</p>'
+        client.get(f"/onboarding/{item.account.id}").text,
+        r'<p class="page-lede brief-summary">(.*?)</p>',
     )
     assert _plain(_block(summary, r'<span class="print-only">(.*?)</span>')) == forecast.sentence

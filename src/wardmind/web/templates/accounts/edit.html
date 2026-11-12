@@ -1,20 +1,19 @@
 {% extends "base.html" %}
+{% from "partials/page_head.html" import page_head %}
 {% from "accounts/_form.html" import account_fields %}
 {% block content %}
 <div class="account-edit">
   <p class="account-back"><a href="/accounts/{{ account.id | idpath }}">Back to account</a></p>
-  <header class="edit-head">
-    <h1 class="page-title">Edit {{ account.name }}</h1>
-    <p class="field-help">{{ source_line }}</p>
-  </header>
+  {{ page_head("Edit " ~ account.name, "building") }}
+  <p class="page-lede">{{ source_line }}</p>
   {% if notice %}<p class="status-line" role="status">{{ notice }}</p>{% endif %}
   {% if refused %}<p class="field-error" role="alert">Nothing was saved. Fix the marked fields, then save again.</p>{% endif %}
 
   <form class="account-form" method="post" action="/accounts/{{ account.id | idpath }}/edit">
     {{ account_fields(values, errors, notes, false) }}
     <div class="form-actions">
-      <button type="submit" class="button-primary">Save changes</button>
       <a class="button" href="/accounts/{{ account.id | idpath }}">Cancel</a>
+      <button type="submit" class="button-primary">Save changes</button>
     </div>
   </form>
   {% for name in notes %}

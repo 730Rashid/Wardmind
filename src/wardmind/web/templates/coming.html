@@ -1,8 +1,9 @@
 {% extends "base.html" %}
+{% from "partials/page_head.html" import page_head %}
 {% block content %}
-<div class="stack">
-  <h1 class="page-title">{{ page }}</h1>
-  <p class="prose">{{ page }} is coming in a later build.</p>
+<div class="quiet-page">
+  {{ page_head(page) }}
+  <p class="page-lede page-lede-quiet">{{ page }} is coming in a later build.</p>
   <p><a href="/">Back to My book</a></p>
 </div>
 {% endblock %}

@@ -188,7 +188,11 @@ def test_each_kind_of_activity_is_logged_with_its_own_kind(
     assert "Activity logged." in page
     activity = _block(page, ACTIVITY_OPEN)
     assert f"A {label.lower()} about the renewal" in activity
-    assert f'<span class="note-kind note-kind--{kind}">{label}</span>' in activity
+    # The kind is a chip: its class, a line icon, then the word.
+    assert re.search(
+        rf'<span class="note-kind note-kind--{kind} chip[^"]*"><svg[^>]*>.*?</svg>{label}</span>',
+        activity,
+    )
     _clean(client.get(response.headers["location"]))
 
 
@@ -619,7 +623,7 @@ def test_a_your_data_account_shows_the_monogram_and_its_logo_controls(
     page = _text(client.get(f"/accounts/{account_id}"))
     title = page[page.index('<div class="account-title">') :]
     assert 'class="logo logo--lg logo--mono' in title
-    assert title.index("logo--lg") < title.index('class="account-name"')
+    assert title.index("logo--lg") < title.index('class="page-title account-name"')
     assert 'class="logo-disclosure no-print"' in page
     assert "Upload logo" in page
     assert "Find on website" in page

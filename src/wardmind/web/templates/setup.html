@@ -1,45 +1,48 @@
 {% extends "base.html" %}
+{% from "partials/page_head.html" import page_head %}
 {% block content %}
 <div class="setup">
-  <h1 class="page-title">Set up your book</h1>
-  <p class="setup-lede">Bring your accounts in any way that suits you. You can mix them later.</p>
+  {{ page_head("Set up your book", "layers") }}
+  <p class="page-lede">Bring your accounts in any way that suits you. You can mix them later.</p>
 
-  <ul class="setup-options">
-    <li class="setup-option" data-dropzone>
-      <div class="setup-copy">
-        <h2 class="setup-title">Import a spreadsheet</h2>
-        <p class="setup-detail">CSV or Excel. We match the columns for you.</p>
-        <p class="drop-copy" aria-hidden="true">Drop to import</p>
-      </div>
-      <form class="setup-action" method="post" action="/import" enctype="multipart/form-data">
-        <input type="hidden" name="target" value="new">
-        <input type="hidden" name="back" value="setup">
-        <label class="button file-button">Choose a file<input class="visually-hidden" type="file" name="file" accept=".csv,.tsv,.txt,.xlsx" data-autosubmit></label>
-        <button type="submit" class="button no-js-only">Import</button>
-      </form>
-    </li>
-    <li class="setup-option">
-      <div class="setup-copy">
-        <h2 class="setup-title">Paste from a spreadsheet</h2>
-        <p class="setup-detail">Copy the cells in Excel or Google Sheets, paste here.</p>
-      </div>
-      <a class="button" href="/import?paste=1">Paste cells</a>
-    </li>
-    <li class="setup-option">
-      <div class="setup-copy">
-        <h2 class="setup-title">Connect HubSpot</h2>
-        <p class="setup-detail">Read-only. Needs a Service Key.</p>
-      </div>
-      <a class="button" href="/settings/connections#hubspot-access">Connect</a>
-    </li>
-    <li class="setup-option">
-      <div class="setup-copy">
-        <h2 class="setup-title">Add accounts by hand</h2>
-        <p class="setup-detail">One at a time, for a small book.</p>
-      </div>
-      <a class="button" href="/accounts/new">Add an account</a>
-    </li>
-  </ul>
+  <section class="settings-card setup-card" aria-label="Ways to bring accounts in">
+    <ul class="setup-options">
+      <li class="setup-option" data-dropzone>
+        <div class="setup-copy">
+          <h2 class="setup-title">Import a spreadsheet</h2>
+          <p class="setup-detail">CSV or Excel. We match the columns for you.</p>
+          <p class="drop-copy" aria-hidden="true">Drop to import</p>
+        </div>
+        <form class="setup-action" method="post" action="/import" enctype="multipart/form-data">
+          <input type="hidden" name="target" value="new">
+          <input type="hidden" name="back" value="setup">
+          <label class="button file-button">Choose a file<input class="visually-hidden" type="file" name="file" accept=".csv,.tsv,.txt,.xlsx" data-autosubmit></label>
+          <button type="submit" class="button no-js-only">Import</button>
+        </form>
+      </li>
+      <li class="setup-option">
+        <div class="setup-copy">
+          <h2 class="setup-title">Paste from a spreadsheet</h2>
+          <p class="setup-detail">Copy the cells in Excel or Google Sheets, paste here.</p>
+        </div>
+        <a class="button" href="/import?paste=1">Paste cells</a>
+      </li>
+      <li class="setup-option">
+        <div class="setup-copy">
+          <h2 class="setup-title">Connect HubSpot</h2>
+          <p class="setup-detail">Read-only. Needs a Service Key.</p>
+        </div>
+        <a class="button" href="/settings/connections#hubspot-access">Connect</a>
+      </li>
+      <li class="setup-option">
+        <div class="setup-copy">
+          <h2 class="setup-title">Add accounts by hand</h2>
+          <p class="setup-detail">One at a time, for a small book.</p>
+        </div>
+        <a class="button" href="/accounts/new">Add an account</a>
+      </li>
+    </ul>
+  </section>
 
   <p class="setup-aside">Not sure what to include? <a href="/import/template.csv">Download the template (CSV)</a></p>
   <form class="setup-demo" method="post" action="/settings/connections/use-demo">

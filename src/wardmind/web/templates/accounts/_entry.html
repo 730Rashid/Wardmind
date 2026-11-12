@@ -15,6 +15,13 @@
 </fieldset>
 {%- endmacro %}
 
+{#- The kind of an entry as a chip with its line icon: calls and meetings violet, email blue, a note
+   and anything else slate. The word is always there, so the colour is never the only signal. -#}
+{% macro kind_chip(kind, label) -%}
+{%- set look = {"call": ("user", "chip--violet"), "meeting": ("calendar", "chip--violet"), "email": ("mail", "chip--blue"), "note": ("note", ""), "other": ("layers", "")}.get(kind, ("layers", "")) -%}
+<span class="note-kind note-kind--{{ kind }} chip{% if look[1] %} {{ look[1] }}{% endif %}"><svg class="icon" aria-hidden="true" focusable="false"><use href="/static/icons.svg#{{ look[0] }}"/></svg>{{ label }}</span>
+{%- endmacro %}
+
 {#- Pin or Unpin, posted to the entry's own route with the page. The words say which; the entry's
    kind and day are read out after them for a screen reader. -#}
 {% macro pin_form(entry, account_id) -%}

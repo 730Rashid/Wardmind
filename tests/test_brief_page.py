@@ -42,9 +42,10 @@ def _block(markup: str, pattern: str) -> str:
     return match.group(1)
 
 
-def _summary(markup: str) -> tuple[str, str]:
-    first, second = re.findall(r'<span class="summary-line(?: [^"]*)?">([^<]*)</span>', markup)
-    return html.unescape(first), html.unescape(second)
+def _summary(markup: str) -> str:
+    """The page's one lede, its sentences as plain text with one space between them."""
+    lede = _block(markup, r'<p class="page-lede">(.*?)</p>')
+    return " ".join(html.unescape(re.sub(r"<[^>]+>", " ", lede)).split())
 
 
 @pytest.fixture
@@ -83,9 +84,9 @@ def test_summary_sentences_match_my_book(client: TestClient, brief: WeeklyBrief)
     brief_summary = _summary(client.get("/brief").text)
     book_summary = _summary(client.get("/").text)
     assert brief_summary == book_summary
-    assert brief_summary[0] == (
+    assert brief_summary.startswith(
         f"{brief.counts_by_health[Health.AT_RISK]} accounts are at risk, "
-        f"carrying {web.money_short(brief.arr_at_risk)} of ARR."
+        f"carrying {web.money_short(brief.arr_at_risk)} of ARR. "
     )
 
 

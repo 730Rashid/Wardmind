@@ -1,9 +1,11 @@
 {% extends "settings/layout.html" %}
 {% block settings %}
+<p class="page-lede">A template is starting text for a note: the headings you fill in after a call, a meeting or a review.</p>
+
 <div class="note-templates">
-  <section class="note-templates-section" aria-labelledby="note-templates-title">
+  <section class="note-templates-section settings-card" aria-labelledby="note-templates-title">
     <h2 class="section-title" id="note-templates-title">Your note templates</h2>
-    <p class="prose">A template is starting text for a note: the headings you fill in after a call, a meeting or a review. On an account's note form, choose one and its text fills the box. Nothing is saved until you add the note.</p>
+    <p class="prose">On an account's note form, choose one and its text fills the box. Nothing is saved until you add the note.</p>
     <p class="field-help">A template can use these words, which are replaced with the account's details when it's used: {account} (the account's name), {today} (today's date), {renewal_date} (the renewal date, or "no renewal date"), {owner} (the owner, if there is one) and {arr} (the ARR). Anything else in braces is kept as typed.</p>
 
     {% if rows %}
@@ -37,15 +39,17 @@
     {% endif %}
 
     {% if missing %}
-    <form class="note-templates-starters" method="post" action="/settings/note-templates/starters">
+    <form class="note-templates-starters settings-part" method="post" action="/settings/note-templates/starters">
       {% if starters_error %}<p class="field-error" role="alert">{{ starters_error }}</p>{% endif %}
       <p class="field-help">Starter templates not added yet: {{ missing | join(", ") }}.</p>
-      <button type="submit" class="button">Add the starter templates</button>
+      <div class="settings-actions">
+        <button type="submit" class="button">Add the starter templates</button>
+      </div>
     </form>
     {% endif %}
   </section>
 
-  <section class="note-templates-section note-template-form-section" aria-labelledby="note-template-form-title">
+  <section class="note-templates-section note-template-form-section settings-card" aria-labelledby="note-template-form-title">
     {% if editing %}
     <h2 class="section-title" id="note-template-form-title">Edit template</h2>
     <form class="settings-form note-template-form" method="post" action="/settings/note-templates/{{ edit_id | idpath }}/edit">
@@ -61,9 +65,9 @@
         <textarea id="edit-template-body" name="body" rows="10" maxlength="{{ body_max }}" aria-describedby="edit-template-body-help{% if edit_errors.body %} edit-template-body-error{% endif %}"{% if edit_errors.body %} aria-invalid="true"{% endif %}>{{ edit_body }}</textarea>
         {% if edit_errors.body %}<p class="field-error" id="edit-template-body-error">{{ edit_errors.body }}</p>{% endif %}
       </div>
-      <div class="form-actions">
-        <button type="submit" class="button-primary">Save changes</button>
+      <div class="settings-actions">
         <a class="button" href="/settings/note-templates">Cancel</a>
+        <button type="submit" class="button-primary">Save changes</button>
       </div>
     </form>
     {% elif can_add %}
@@ -81,7 +85,7 @@
         <textarea id="add-template-body" name="body" rows="10" maxlength="{{ body_max }}" aria-describedby="add-template-body-help{% if add_errors.body %} add-template-body-error{% endif %}"{% if add_errors.body %} aria-invalid="true"{% endif %}>{{ add_body }}</textarea>
         {% if add_errors.body %}<p class="field-error" id="add-template-body-error">{{ add_errors.body }}</p>{% endif %}
       </div>
-      <div class="form-actions">
+      <div class="settings-actions">
         <button type="submit" class="button-primary">Add template</button>
       </div>
     </form>

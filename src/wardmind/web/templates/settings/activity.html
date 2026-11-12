@@ -1,9 +1,11 @@
 {% extends "settings/layout.html" %}
 {% block settings %}
+<p class="page-lede">The log keeps the last {{ log_size }} things Wardmind did and when: unlocking and locking, encryption and passwords, books, connections, keys and settings you saved.</p>
+
 <div class="activity-log">
-  <section class="activity-log-section" aria-labelledby="activity-log-title">
+  <section class="activity-log-section settings-card" aria-labelledby="activity-log-title">
     <h2 class="section-title" id="activity-log-title">What Wardmind did</h2>
-    <p class="prose">The log keeps the last {{ log_size }} things Wardmind did and when: unlocking and locking, encryption and passwords, books, connections, keys and settings you saved. It holds no customer data: no names, notes, emails, tokens or passwords. It stays on this computer.</p>
+    <p class="prose">It holds no customer data: no names, notes, emails, tokens or passwords. It stays on this computer.</p>
 
     <nav class="activity-log-filter" aria-label="Show one kind of entry">
       <ul class="filter-list">
@@ -41,12 +43,12 @@
     <p class="empty-card">Nothing here yet.</p>
     {% endif %}
 
-    <p class="activity-log-download">
+    <div class="settings-actions settings-actions--start activity-log-download">
       <a class="button" href="{{ csv_link }}">Download as CSV</a>
-    </p>
+    </div>
   </section>
 
-  <section class="activity-log-section activity-log-clear" aria-labelledby="activity-clear-title">
+  <section class="activity-log-section activity-log-clear settings-card" aria-labelledby="activity-clear-title">
     <h2 class="section-title" id="activity-clear-title">Clear the log</h2>
     <p class="prose">Removes every entry. The clearing is kept as the first entry of the new log.</p>
     <form class="settings-form" method="post" action="/settings/activity/clear">
@@ -54,7 +56,7 @@
         <label class="choice"><input type="checkbox" name="confirm" value="1"{% if clear_error %} aria-invalid="true" aria-describedby="activity-clear-error"{% endif %}> Clear the whole log. This can't be undone.</label>
         {% if clear_error %}<p class="field-error" id="activity-clear-error" role="alert">{{ clear_error }}</p>{% endif %}
       </div>
-      <div class="form-actions">
+      <div class="settings-actions">
         <button type="submit" class="button">Clear the log</button>
       </div>
     </form>

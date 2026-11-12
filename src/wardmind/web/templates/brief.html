@@ -1,24 +1,25 @@
 {% extends "base.html" %}
 {% from "partials/logo.html" import account_logo %}
+{% from "partials/page_head.html" import page_head %}
 {% block content %}
 <div class="brief">
-  <header class="brief-head">
-    <div class="brief-title">
-      <h1 class="page-title">Weekly brief</h1>
-      <p class="date-line">{{ today_day | week_of }}</p>
-      {% if settings.your_name %}<p class="date-line">Prepared by {{ settings.your_name }}</p>{% endif %}
-    </div>
+  <div class="brief-title">
+    {% call page_head("Weekly brief", "file-text") %}
     <button type="button" class="button js-only" data-print>Print or save as PDF</button>
-  </header>
+    {% endcall %}
+    <p class="date-line">{{ today_day | week_of }}</p>
+  </div>
 
-  <p class="summary">
-    <span class="summary-line">{{ summary_first }}</span>
-    <span class="summary-line summary-line--muted">{{ summary_second }}</span>
-  </p>
+  {# One sentence for the page: the two server sentences, read as one. The spacing between them comes
+     from the .summary-line rules in app.css. #}
+  <div class="brief-intro">
+    <p class="page-lede"><span class="summary-line">{{ summary_first }}</span><span class="summary-line">{{ summary_second }}</span></p>
+    {% if settings.your_name %}<p class="date-line">Prepared by {{ settings.your_name }}</p>{% endif %}
+  </div>
 
   {# Screen: the top accounts are the main column and the rest the side column, from 1100px; below
      that they stack, with the accounts first. Paper keeps the order of the one-column brief (the
-     side sections, then the top accounts): partials and print rules in _pending_briefs.css. #}
+     side sections, then the top accounts): partials and print rules in _pending_reports.css. #}
   <div class="brief-body">
     <div class="brief-main">
       <section class="brief-section top-section" aria-labelledby="top-heading">
@@ -54,7 +55,7 @@
     <div class="brief-side">
       <section class="brief-section" aria-labelledby="bar-heading">
         <h2 class="section-title" id="bar-heading">Where your ARR sits</h2>
-        <div class="stack" data-stack>
+        <div class="chart-stack" data-stack>
         <svg class="book-bar" viewBox="0 0 100 24" preserveAspectRatio="none" width="100%" height="24" role="img" aria-label="{{ bar_label }}">
           {% for health, start, width in book_bar_segments(brief.arr_by_health, brief.total_arr) %}
           {% set count = brief.counts_by_health[health] %}

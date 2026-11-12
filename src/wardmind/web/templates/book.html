@@ -1,7 +1,11 @@
 {% extends "base.html" %}
-{% block main_class %}page page--catalog{% endblock %}
+{% from "partials/page_head.html" import page_head %}
+{% block main_class %}page page--catalog book-screen{% endblock %}
 {% block content %}
-<h1 class="visually-hidden">{{ page }}</h1>
+{# The page header runs the full width above the filter panel and the results, as the reference does. #}
+<div class="book-head">
+  {{ page_head("My book", "layers", meta=today) }}
+</div>
 {# One form holds the filter sidebar, the search and the view switch, so any change refreshes the
    results and the address. Without JavaScript, Show accounts submits it. #}
 <form id="book-filter" class="catalog" method="get" action="/" role="search"
@@ -29,7 +33,7 @@
   </aside>
 
   <div class="catalog-main">
-    <p class="date-line">{{ today }}</p>
+    <p class="page-lede">{{ summary_first }} {{ summary_second }}</p>
     {% if import_notice %}
     <div class="import-notice" role="status">
       {% for sentence in import_notice %}<p>{{ sentence }}</p>{% endfor %}
@@ -41,10 +45,6 @@
     {% if deleted_name %}
     <p class="import-notice" role="status">{{ deleted_name }} was deleted.</p>
     {% endif %}
-    <p class="summary">
-      <span class="summary-line">{{ summary_first }}</span>
-      <span class="summary-line summary-line--muted">{{ summary_second }}</span>
-    </p>
     {% if duplicate_count %}
     <p class="duplicates" role="status">{{ duplicate_count }} {{ 'account' if duplicate_count == 1 else 'accounts' }} might be duplicates. <a href="/duplicates">Review them.</a></p>
     {% endif %}
@@ -65,18 +65,7 @@
           <input type="search" id="q" name="q" value="{{ q }}" autocomplete="off" placeholder="Search accounts…">
         </div>
       </div>
-      <fieldset class="view-switch">
-        <legend class="visually-hidden">Show accounts as</legend>
-        <span class="view-option">
-          <input class="visually-hidden filter-input" type="radio" name="view" id="view-cards" value="cards"{% if view != "list" %} checked{% endif %}>
-          <label for="view-cards"><svg class="icon" aria-hidden="true" focusable="false"><use href="/static/icons.svg#view-cards"/></svg>Cards</label>
-        </span>
-        <span class="view-option">
-          <input class="visually-hidden filter-input" type="radio" name="view" id="view-list" value="list"{% if view == "list" %} checked{% endif %}>
-          <label for="view-list"><svg class="icon" aria-hidden="true" focusable="false"><use href="/static/icons.svg#view-list"/></svg>List</label>
-        </span>
-      </fieldset>
-      {# Sort by: the same switch as Cards or List. Priority is the default; any other value means it too. #}
+      {# Sort by sits at the left of the controls row, Cards or List at the right. Priority is the default; any other value means it too. #}
       <fieldset class="view-switch sort-switch">
         <legend class="visually-hidden">Sort by</legend>
         <span class="sort-label" aria-hidden="true">Sort by:</span>
@@ -87,6 +76,17 @@
         <span class="view-option">
           <input class="visually-hidden filter-input" type="radio" name="sort" id="sort-growth" value="growth"{% if sort == "growth" %} checked{% endif %}>
           <label for="sort-growth">Room to grow</label>
+        </span>
+      </fieldset>
+      <fieldset class="view-switch view-switch--view">
+        <legend class="visually-hidden">Show accounts as</legend>
+        <span class="view-option">
+          <input class="visually-hidden filter-input" type="radio" name="view" id="view-cards" value="cards"{% if view != "list" %} checked{% endif %}>
+          <label for="view-cards"><svg class="icon" aria-hidden="true" focusable="false"><use href="/static/icons.svg#view-cards"/></svg>Cards</label>
+        </span>
+        <span class="view-option">
+          <input class="visually-hidden filter-input" type="radio" name="view" id="view-list" value="list"{% if view == "list" %} checked{% endif %}>
+          <label for="view-list"><svg class="icon" aria-hidden="true" focusable="false"><use href="/static/icons.svg#view-list"/></svg>List</label>
         </span>
       </fieldset>
       <button type="submit" class="button no-js-only">Show accounts</button>

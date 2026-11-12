@@ -1,14 +1,18 @@
 {% extends "base.html" %}
+{% from "partials/page_head.html" import page_head %}
 {% block content %}
-<div class="stack confirm">
-  <h1 class="page-title">Delete all local data?</h1>
-  <p class="prose">This deletes everything Wardmind keeps on this computer: every connection and the accounts, readings and history it brought in, the accounts you added by hand, your edits, contacts, client updates, links and hidden accounts, saved website lookups and AI summaries, unfinished imports and feed set-ups, and the saved HubSpot token, OpenRouter key and feed keys. It can't be undone.</p>
-  <p class="prose">Your settings (settings.yaml) and scoring (scoring.yaml) stay, and so does the program itself.</p>
-  <div class="error-actions">
-    <form class="inline-form" method="post" action="/settings/privacy/delete-all">
-      <button type="submit" class="button-primary">Delete all local data</button>
-    </form>
-    <a class="button" href="/settings/privacy">Keep it</a>
-  </div>
+<div class="confirm">
+  {{ page_head("Delete all local data?", "shield") }}
+  <p class="page-lede">This deletes everything Wardmind keeps on this computer: every connection and the accounts, readings and history it brought in, the accounts you added by hand, your edits, contacts, client updates, links and hidden accounts, saved website lookups and AI summaries, unfinished imports and feed set-ups, and the saved HubSpot token, OpenRouter key and feed keys. It can't be undone.</p>
+
+  <section class="settings-card">
+    <p class="prose">Your settings (settings.yaml) and scoring (scoring.yaml) stay, and so does the program itself.</p>
+    <div class="settings-actions">
+      <a class="button" href="/settings/privacy">Keep it</a>
+      <form class="inline-form" method="post" action="/settings/privacy/delete-all">
+        <button type="submit" class="button-primary">Delete all local data</button>
+      </form>
+    </div>
+  </section>
 </div>
 {% endblock %}

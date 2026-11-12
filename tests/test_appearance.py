@@ -161,7 +161,11 @@ def test_appearance_form_posts_to_itself_with_the_four_fieldsets(client: TestCli
     response = client.get("/settings/appearance")
     # The header's book switcher has forms of its own; only the page's forms are counted here.
     forms = [f for f in _tags(response.text, "form") if f["action"] != "/books/switch"]
-    assert [(f["method"], f["action"]) for f in forms] == [("post", "/settings/appearance")]
+    # Then Your logo's upload form (no remove form until there is a logo to remove).
+    assert [(f["method"], f["action"]) for f in forms] == [
+        ("post", "/settings/appearance"),
+        ("post", "/settings/appearance/logo"),
+    ]
     legends = re.findall(r"<legend>(.*?)</legend>", response.text)
     assert legends == ["Theme", "Accent colour", "Density", "Opens on"]
     assert "Compact fits more rows on screen." in response.text

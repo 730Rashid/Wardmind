@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% from "partials/logo.html" import account_logo %}
+{% from "partials/page_head.html" import page_head %}
 {# Today: what needs the CSM now, in the order it's worth doing. Each section is left out when empty.
    Every form here returns to this page (back=today), except the links, which go to an account. Each
    row has one primary action; the rest sit under its More disclosure. `screen` is built by
@@ -7,15 +8,12 @@
 {% block content %}
 {% set sections = screen.page %}
 {% set query = screen.query %}
+{% set lede = [sections.summary, "" if query else sections.contacted] | select | join(" ") %}
 <div class="today">
-  <header class="today-head">
-    <h1 class="page-title">Today</h1>
-    <p class="date-line">{{ today }}</p>
-    <p class="summary">
-      {% if sections.summary %}<span class="summary-line">{{ sections.summary }}</span>{% endif %}
-      {% if not query %}<span class="summary-line summary-line--muted">{{ sections.contacted }}</span>{% endif %}
-    </p>
-  </header>
+  <div class="today-head">
+    {{ page_head("Today", "calendar", meta=today) }}
+    {% if lede %}<p class="page-lede">{{ lede }}</p>{% endif %}
+  </div>
 
   {% if screen.index %}
   <nav class="today-index" aria-label="Today's sections">
@@ -31,7 +29,10 @@
     <form class="today-find" method="get" action="/today" role="search">
       <div class="today-find-field">
         <label for="today-find-q">Find an account</label>
-        <input type="search" id="today-find-q" name="q" value="{{ query }}" autocomplete="off">
+        <div class="search-field">
+          <svg class="icon search-icon" aria-hidden="true" focusable="false"><use href="/static/icons.svg#search"/></svg>
+          <input type="search" id="today-find-q" name="q" value="{{ query }}" autocomplete="off">
+        </div>
       </div>
       <button type="submit" class="button button--small">Find</button>
     </form>
@@ -55,7 +56,7 @@
     {% if sections.due %}
     <section class="account-section today-section" id="today-due" aria-labelledby="today-due-heading">
       <h2 class="section-title" id="today-due-heading">Due</h2>
-      <ul class="today-list">
+      <ul class="rows today-list">
         {% for row in sections.due %}
         <li class="today-row">
           {{ account_logo(row.account_id, row.name, logos) }}
@@ -63,7 +64,7 @@
             <div class="today-row-head">
               <a class="account-link" href="/accounts/{{ row.account_id | idpath }}">{{ row.name }}</a>
               <span class="due{% if row.late %} due--late{% endif %}">{% if row.late %}<svg class="icon" aria-hidden="true" focusable="false"><use href="/static/icons.svg#status-overdue"/></svg>{% endif %}{{ row.due_label }}</span>
-              {% if row.automatic %}<span class="chip chip--muted">Added automatically</span>{% endif %}
+              {% if row.automatic %}<span class="chip chip--muted"><svg class="icon" aria-hidden="true" focusable="false"><use href="/static/icons.svg#sliders"/></svg>Added automatically</span>{% endif %}
             </div>
             <p class="today-text">{{ row.text }}</p>
           </div>
@@ -100,14 +101,14 @@
     {% if screen.waiting %}
     <section class="account-section today-section" id="today-waiting" aria-labelledby="today-waiting-heading">
       <h2 class="section-title" id="today-waiting-heading">Waiting on replies</h2>
-      <ul class="today-list">
+      <ul class="rows today-list">
         {% for row in screen.waiting %}
         <li class="today-row">
           {{ account_logo(row.account_id, row.name, logos) }}
           <div class="today-row-body">
             <div class="today-row-head">
               <a class="account-link" href="/accounts/{{ row.account_id | idpath }}">{{ row.name }}</a>
-              <span class="chip{% if row.waiting_on_you %} chip--late{% endif %}">{{ row.label }}</span>
+              <span class="chip{% if row.waiting_on_you %} chip--late{% endif %}"><svg class="icon" aria-hidden="true" focusable="false"><use href="/static/icons.svg#{{ 'inbox' if row.waiting_on_you else 'mail' }}"/></svg>{{ row.label }}</span>
             </div>
             <p class="today-text">{{ row.subject }}</p>
             <p class="field-help">{{ row.line }}</p>
@@ -127,7 +128,7 @@
     {% if sections.attention %}
     <section class="account-section today-section" id="today-attention" aria-labelledby="today-attention-heading">
       <h2 class="section-title" id="today-attention-heading">Needs attention</h2>
-      <ul class="today-list">
+      <ul class="rows today-list">
         {% for row in sections.attention %}
         <li class="today-row">
           {{ account_logo(row.account_id, row.name, logos) }}
@@ -170,7 +171,7 @@
     {% if sections.renewals %}
     <section class="account-section today-section" id="today-renewals" aria-labelledby="today-renewals-heading">
       <h2 class="section-title" id="today-renewals-heading">Renewals to record</h2>
-      <ul class="today-list">
+      <ul class="rows today-list">
         {% for row in sections.renewals %}
         <li class="today-row">
           {{ account_logo(row.account_id, row.name, logos) }}
@@ -192,7 +193,7 @@
     {% if sections.upcoming %}
     <section class="account-section today-section" id="today-upcoming" aria-labelledby="today-upcoming-heading">
       <h2 class="section-title" id="today-upcoming-heading">Coming up</h2>
-      <ul class="today-list">
+      <ul class="rows today-list">
         {% for row in sections.upcoming %}
         <li class="today-row">
           {{ account_logo(row.account_id, row.name, logos) }}
@@ -200,7 +201,7 @@
             <div class="today-row-head">
               <a class="account-link" href="/accounts/{{ row.account_id | idpath }}">{{ row.name }}</a>
               <span class="due">{{ row.due_label }}</span>
-              {% if row.automatic %}<span class="chip chip--muted">Added automatically</span>{% endif %}
+              {% if row.automatic %}<span class="chip chip--muted"><svg class="icon" aria-hidden="true" focusable="false"><use href="/static/icons.svg#sliders"/></svg>Added automatically</span>{% endif %}
             </div>
             <p class="today-text">{{ row.text }}</p>
           </div>
@@ -220,14 +221,14 @@
     {% if sections.snoozed %}
     <section class="account-section today-section" id="today-snoozed" aria-labelledby="today-snoozed-heading">
       <h2 class="section-title" id="today-snoozed-heading">Snoozed</h2>
-      <ul class="today-list">
+      <ul class="rows today-list">
         {% for row in sections.snoozed %}
         <li class="today-row">
           {{ account_logo(row.account_id, row.name, logos) }}
           <div class="today-row-body">
             <div class="today-row-head">
               <a class="account-link" href="/accounts/{{ row.account_id | idpath }}">{{ row.name }}</a>
-              <span class="chip chip--muted">{{ row.line }}</span>
+              <span class="chip chip--muted"><svg class="icon" aria-hidden="true" focusable="false"><use href="/static/icons.svg#clock"/></svg>{{ row.line }}</span>
             </div>
           </div>
           <div class="today-row-actions">

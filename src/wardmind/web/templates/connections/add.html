@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "partials/page_head.html" import page_head %}
 {% block main_class %}page page--catalog{% endblock %}
 {% block content %}
 {# The book's frame: a filter sidebar on the left (what to bring in), the search and the cards beside
@@ -7,7 +8,7 @@
 <form id="add-filter" class="catalog" method="get" action="/connections/add" role="search"
       hx-get="/connections/add" hx-target="#results" hx-swap="outerHTML" hx-push-url="true"
       hx-trigger="change from:.filter-input, input changed delay:250ms from:#q, submit">
-  <aside class="filters" aria-labelledby="categories-title">
+  <aside class="filters catalog-filters" aria-labelledby="categories-title">
     <h2 class="filters-title" id="categories-title">What do you want to bring in?</h2>
     <fieldset class="filter-group">
       <legend class="visually-hidden">Categories</legend>
@@ -25,9 +26,9 @@
     {% endif %}
   </aside>
 
-  <div class="catalog-main">
-    <h1 class="page-title">Add a connection</h1>
-    <p class="prose field-help">Bring in accounts and signals from a file, a web address, a database or a product you already use.</p>
+  <div class="catalog-main catalog-results">
+    {{ page_head("Add a connection", "plug") }}
+    <p class="page-lede">Bring in accounts and signals from a file, a web address, a database or a product you already use.</p>
 
     <div class="toolbar">
       <div class="search">

@@ -1,52 +1,91 @@
 {% extends "settings/layout.html" %}
 {% block settings %}
-<form class="settings-form" method="post" action="/settings/appearance" data-appearance>
-  {% if errors %}
-  <p class="field-error" role="alert">Nothing was saved. Fix the marked settings, then save again.</p>
+<p class="page-lede">Choose how Wardmind looks. A choice shows at once, and nothing is kept until you save.</p>
+
+<section class="settings-card">
+  <form class="settings-form" method="post" action="/settings/appearance" data-appearance>
+    {% if errors %}
+    <p class="field-error" role="alert">Nothing was saved. Fix the marked settings, then save again.</p>
+    {% endif %}
+
+    <fieldset class="settings-part"{% if errors.theme %} aria-describedby="theme-error"{% endif %}>
+      <legend>Theme</legend>
+      <div class="choices">
+        {% for value, label in [("light", "Light"), ("dark", "Dark"), ("system", "Match my computer")] %}
+        <label class="choice"><input type="radio" name="theme" value="{{ value }}"{% if current.theme.value == value %} checked{% endif %}> {{ label }}</label>
+        {% endfor %}
+      </div>
+      {% if errors.theme %}<p class="field-error" id="theme-error">{{ errors.theme }}</p>{% endif %}
+    </fieldset>
+
+    <fieldset class="settings-part"{% if errors.accent %} aria-describedby="accent-error"{% endif %}>
+      <legend>Accent colour</legend>
+      <div class="choices">
+        {% for value, label in [("plum", "Plum"), ("blue", "Blue"), ("petrol", "Petrol"), ("graphite", "Graphite")] %}
+        <label class="choice"><input type="radio" name="accent" value="{{ value }}"{% if current.accent.value == value %} checked{% endif %}> <span class="swatch swatch--{{ value }}" aria-hidden="true"></span> {{ label }}</label>
+        {% endfor %}
+      </div>
+      {% if errors.accent %}<p class="field-error" id="accent-error">{{ errors.accent }}</p>{% endif %}
+    </fieldset>
+
+    <fieldset class="settings-part" aria-describedby="density-help{% if errors.density %} density-error{% endif %}">
+      <legend>Density</legend>
+      <div class="choices">
+        {% for value, label in [("comfortable", "Comfortable"), ("compact", "Compact")] %}
+        <label class="choice"><input type="radio" name="density" value="{{ value }}"{% if current.density.value == value %} checked{% endif %}> {{ label }}</label>
+        {% endfor %}
+      </div>
+      <p class="field-help" id="density-help">Compact fits more rows on screen.</p>
+      {% if errors.density %}<p class="field-error" id="density-error">{{ errors.density }}</p>{% endif %}
+    </fieldset>
+
+    <fieldset class="settings-part" aria-describedby="landing-help{% if errors.landing %} landing-error{% endif %}">
+      <legend>Opens on</legend>
+      <div class="choices">
+        {% for value, label in [("today", "Today"), ("book", "My book"), ("brief", "Weekly brief")] %}
+        <label class="choice"><input type="radio" name="landing" value="{{ value }}"{% if current.landing.value == value %} checked{% endif %}> {{ label }}</label>
+        {% endfor %}
+      </div>
+      <p class="field-help" id="landing-help">The screen wardmind ui opens on.</p>
+      {% if errors.landing %}<p class="field-error" id="landing-error">{{ errors.landing }}</p>{% endif %}
+    </fieldset>
+
+    <div class="settings-actions">
+      <button type="submit" class="button-primary">Save changes</button>
+    </div>
+  </form>
+</section>
+
+<section class="settings-card brand-settings" id="logo" aria-labelledby="logo-title">
+  <h2 class="section-title" id="logo-title">Your logo</h2>
+  <p class="field-help">Show your company's logo in the top bar in place of Wardmind's. It stays on this computer.</p>
+  {% if logo_notice %}
+  <p class="{{ 'field-error' if logo_error else 'settings-status' }}" role="{{ 'alert' if logo_error else 'status' }}" id="logo-notice">{{ logo_notice }}</p>
   {% endif %}
-
-  <fieldset{% if errors.theme %} aria-describedby="theme-error"{% endif %}>
-    <legend>Theme</legend>
-    <div class="choices">
-      {% for value, label in [("light", "Light"), ("dark", "Dark"), ("system", "Match my computer")] %}
-      <label class="choice"><input type="radio" name="theme" value="{{ value }}"{% if current.theme.value == value %} checked{% endif %}> {{ label }}</label>
-      {% endfor %}
+  <div class="brand-settings-row">
+    <div class="brand-preview" aria-hidden="true">
+      {% if brand_logo %}
+      <img class="brand-custom" src="/brand-logo?v={{ brand_logo.version }}" alt="" height="28">
+      {% else %}
+      <svg class="brand-mark" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><rect class="brand-tile" width="24" height="24" rx="6.5"/><path class="brand-glyph" d="M5.6 9 8.9 16.4 12 11.2 15.1 16.4 18.4 9"/><circle class="brand-dot" cx="12" cy="6.6" r="1.5"/></svg><span>Wardmind</span>
+      {% endif %}
     </div>
-    {% if errors.theme %}<p class="field-error" id="theme-error">{{ errors.theme }}</p>{% endif %}
-  </fieldset>
-
-  <fieldset{% if errors.accent %} aria-describedby="accent-error"{% endif %}>
-    <legend>Accent colour</legend>
-    <div class="choices">
-      {% for value, label in [("plum", "Plum"), ("blue", "Blue"), ("petrol", "Petrol"), ("graphite", "Graphite")] %}
-      <label class="choice"><input type="radio" name="accent" value="{{ value }}"{% if current.accent.value == value %} checked{% endif %}> <span class="swatch swatch--{{ value }}" aria-hidden="true"></span> {{ label }}</label>
-      {% endfor %}
-    </div>
-    {% if errors.accent %}<p class="field-error" id="accent-error">{{ errors.accent }}</p>{% endif %}
-  </fieldset>
-
-  <fieldset aria-describedby="density-help{% if errors.density %} density-error{% endif %}">
-    <legend>Density</legend>
-    <div class="choices">
-      {% for value, label in [("comfortable", "Comfortable"), ("compact", "Compact")] %}
-      <label class="choice"><input type="radio" name="density" value="{{ value }}"{% if current.density.value == value %} checked{% endif %}> {{ label }}</label>
-      {% endfor %}
-    </div>
-    <p class="field-help" id="density-help">Compact fits more rows on screen.</p>
-    {% if errors.density %}<p class="field-error" id="density-error">{{ errors.density }}</p>{% endif %}
-  </fieldset>
-
-  <fieldset aria-describedby="landing-help{% if errors.landing %} landing-error{% endif %}">
-    <legend>Opens on</legend>
-    <div class="choices">
-      {% for value, label in [("today", "Today"), ("book", "My book"), ("brief", "Weekly brief")] %}
-      <label class="choice"><input type="radio" name="landing" value="{{ value }}"{% if current.landing.value == value %} checked{% endif %}> {{ label }}</label>
-      {% endfor %}
-    </div>
-    <p class="field-help" id="landing-help">The screen wardmind ui opens on.</p>
-    {% if errors.landing %}<p class="field-error" id="landing-error">{{ errors.landing }}</p>{% endif %}
-  </fieldset>
-
-  <button type="submit" class="button-primary">Save changes</button>
-</form>
+    <form class="brand-upload" method="post" action="/settings/appearance/logo" enctype="multipart/form-data">
+      <div class="field">
+        <label for="field-brand-logo">{{ "Replace your logo" if brand_logo else "Logo image" }}</label>
+        <input type="file" id="field-brand-logo" name="logo" accept="image/png,image/jpeg,image/gif,image/webp,image/x-icon" aria-describedby="field-brand-logo-help{% if logo_notice and logo_error %} logo-notice{% endif %}"{% if logo_notice and logo_error %} aria-invalid="true"{% endif %}>
+        <p class="field-help" id="field-brand-logo-help">PNG, JPEG, GIF, WebP or ICO, up to 200 KB. A wide logo about 28 pixels tall looks best.</p>
+      </div>
+      <div class="settings-actions">
+        {% if brand_logo %}
+        <button type="submit" class="button" form="brand-remove">Use Wardmind's mark</button>
+        {% endif %}
+        <button type="submit" class="button-primary">Upload logo</button>
+      </div>
+    </form>
+    {% if brand_logo %}
+    <form id="brand-remove" method="post" action="/settings/appearance/logo/remove"></form>
+    {% endif %}
+  </div>
+</section>
 {% endblock %}

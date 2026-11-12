@@ -318,14 +318,14 @@ def test_accessibility_hooks_are_present(client: TestClient) -> None:
     # Every card is named by its account's heading, and the rank is read out as "Rank 1".
     cards = [t for t in _tags(markup, "article") if t.get("class") == "account-card"]
     assert [t["aria-labelledby"] for t in cards][:2] == ["card-1", "card-2"]
-    assert '<h3 class="card-title" id="card-1">' in markup
+    assert '<h3 class="card-name" id="card-1">' in markup
     # Each filter checkbox sits inside its label, so its name is the tag text and the count.
     boxes = [t for t in _tags(markup, "input") if t.get("type") == "checkbox"]
     assert len(boxes) == 6 and all(t.get("id") for t in boxes)
     labels = [t for t in _tags(markup, "label") if t.get("for") == "q"]
     assert len(labels) == 1
     assert '<p id="result-count" class="result-count" aria-live="polite">' in markup
-    assert '<h1 class="visually-hidden">My book</h1>' in markup
+    assert '<h1 class="page-title">My book</h1>' in markup
 
     table = client.get("/?view=list").text
     assert '<caption class="visually-hidden">Accounts ranked by priority</caption>' in table

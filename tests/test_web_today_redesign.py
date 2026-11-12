@@ -469,7 +469,7 @@ def test_my_book_cards_show_a_logo_beside_each_rank(client: TestClient) -> None:
     cards = re.findall(r'<article class="account-card".*?</article>', markup, re.S)
     assert len(cards) == 2
     for card in cards:
-        top = card.split('<h3 class="card-title"')[0]
+        top = card.split('<h3 class="card-name"')[0]
         assert 'class="card-id"' in top
         assert "logo logo--md" in top
         assert 'rank-tile"><span class="visually-hidden">Rank </span>' in top

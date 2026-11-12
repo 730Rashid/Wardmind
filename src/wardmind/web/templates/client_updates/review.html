@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "partials/page_head.html" import page_head %}
 {% block main_class %}page page--catalog{% endblock %}
 {% block content %}
 {# The review page: a filter on the left (what changed), and one card per pending update. Each card is
@@ -6,127 +7,130 @@
    Without JavaScript the filter needs its Show button; with it, each box refreshes the list. #}
 <form id="check-responses" method="post" action="/client-updates/check" hidden></form>
 
-<div class="catalog updates-page">
-  <form class="filters" method="get" action="/client-updates" aria-labelledby="filter-title">
-    <h2 class="filters-title" id="filter-title">Filter</h2>
-    <fieldset class="filter-group">
-      <legend>What changed</legend>
-      {% for option in kinds %}
-      <label class="filter-option" for="kind-{{ option.value }}">
-        <input class="filter-input" type="checkbox" id="kind-{{ option.value }}" name="kind" value="{{ option.value }}" data-autosubmit{% if option.checked %} checked{% endif %}>
-        <span class="pill pill--{{ option.value }}"><svg class="icon" aria-hidden="true" focusable="false"><use href="/static/icons.svg#{{ option.icon }}"/></svg>{{ option.label }}</span>
-        <span class="filter-count">{{ option.count }}</span>
-      </label>
-      {% endfor %}
-    </fieldset>
-    <button type="submit" class="button no-js-only">Show updates</button>
-    {% if filtered %}<p class="filter-clear"><a href="/client-updates">Clear filters</a></p>{% endif %}
-  </form>
-
-  <div class="catalog-main">
-    <header class="updates-head">
-      <h1 class="page-title">Client updates</h1>
-      <p class="result-count" aria-live="polite">{{ waiting }} {{ 'update' if waiting == 1 else 'updates' }} waiting.</p>
-      {% if feeds %}
-      <p class="field-help">{{ read_text }}</p>
-      <div class="updates-actions">
-        <button type="submit" form="check-responses" class="button">Check for new responses</button>
-      </div>
-      {% else %}
-      <p class="field-help">No update form is connected yet. <a href="/client-updates/setup">Set up your update form</a>.</p>
-      {% endif %}
-    </header>
-
-    {% if notice %}<p class="status-line" role="status">{{ notice }}</p>{% endif %}
-    {% if gone %}
-    <div class="updates-gone">
-      <p>{{ gone_text }}</p>
-      <form class="inline-form" method="post" action="/client-updates/discard">
-        <button type="submit" class="button">{{ 'Discard it' if gone == 1 else 'Discard them' }}</button>
-      </form>
-    </div>
+<div class="updates-page">
+  <div class="updates-intro">
+    {% call page_head("Client updates", "inbox") %}
+      {% if feeds %}<button type="submit" form="check-responses" class="button">Check for new responses</button>{% endif %}
+    {% endcall %}
+    <p class="page-lede result-count" aria-live="polite">{{ waiting }} {{ 'update' if waiting == 1 else 'updates' }} waiting.</p>
+    {% if feeds %}
+    <p class="field-help">{{ read_text }}</p>
+    {% else %}
+    <p class="field-help">No update form is connected yet. <a href="/client-updates/setup">Set up your update form</a>.</p>
     {% endif %}
-    {% for feed in feeds if feed.error %}
-    <p class="field-error" role="alert">{{ feed.name }} couldn't be read. {{ feed.error }}</p>
-    {% endfor %}
+  </div>
 
-    {% if cards %}
-    <ul class="card-grid update-list">
-      {% for card in cards %}
-      <li>
-        <article class="account-card update-card" aria-labelledby="update-{{ card.id }}">
-          <div class="card-top">
-            <span class="pill pill--{{ card.kind }}"><svg class="icon" aria-hidden="true" focusable="false"><use href="/static/icons.svg#{{ card.icon }}"/></svg>{{ card.kind_label }}</span>
-          </div>
-          <h2 class="update-title" id="update-{{ card.id }}"><a class="account-link" href="/accounts/{{ card.account_id }}">{{ card.account_name }}</a></h2>
-          <p class="card-owner">{{ card.sent }}</p>
-          {% if card.note %}
-          <blockquote class="update-note"><p>{{ card.note }}</p></blockquote>
-          {% endif %}
+  <div class="catalog">
+    <form class="filters" method="get" action="/client-updates" aria-labelledby="filter-title">
+      <h2 class="filters-title" id="filter-title">What do you want to review?</h2>
+      <fieldset class="filter-group">
+        <legend>What changed</legend>
+        {% for option in kinds %}
+        <label class="filter-option" for="kind-{{ option.value }}">
+          <input class="filter-input" type="checkbox" id="kind-{{ option.value }}" name="kind" value="{{ option.value }}" data-autosubmit{% if option.checked %} checked{% endif %}>
+          <span class="pill pill--{{ option.value }}"><svg class="icon" aria-hidden="true" focusable="false"><use href="/static/icons.svg#{{ option.icon }}"/></svg>{{ option.label }}</span>
+          <span class="filter-count">{{ option.count }}</span>
+        </label>
+        {% endfor %}
+      </fieldset>
+      <button type="submit" class="button no-js-only">Show updates</button>
+      {% if filtered %}<p class="filter-clear"><a href="/client-updates">Clear filters</a></p>{% endif %}
+    </form>
 
-          <form class="update-form" method="post" action="/client-updates/{{ card.id | idpath }}/accept{% if filter_query %}?{{ filter_query }}{% endif %}">
-            {% if card.error %}<p class="field-error" role="alert">{{ card.error }}</p>{% endif %}
+    <div class="catalog-main">
+      {% if notice %}<p class="status-line" role="status">{{ notice }}</p>{% endif %}
+      {% if gone %}
+      <div class="updates-gone">
+        <p>{{ gone_text }}</p>
+        <form class="inline-form" method="post" action="/client-updates/discard">
+          <button type="submit" class="button">{{ 'Discard it' if gone == 1 else 'Discard them' }}</button>
+        </form>
+      </div>
+      {% endif %}
+      {% for feed in feeds if feed.error %}
+      <p class="field-error" role="alert">{{ feed.name }} couldn't be read. {{ feed.error }}</p>
+      {% endfor %}
 
-            {% if card.adds %}
-            <div class="field">
-              <label for="u-{{ card.id }}-name">Contact's name</label>
-              <input type="text" id="u-{{ card.id }}-name" name="name" value="{{ card.name }}" maxlength="80" autocomplete="off">
+      {% if cards %}
+      <ul class="card-grid update-list">
+        {% for card in cards %}
+        <li>
+          <article class="card update-card" aria-labelledby="update-{{ card.id }}">
+            <div class="card-head">
+              <span class="pill pill--{{ card.kind }}"><svg class="icon" aria-hidden="true" focusable="false"><use href="/static/icons.svg#{{ card.icon }}"/></svg>{{ card.kind_label }}</span>
             </div>
-            <div class="field">
-              <label for="u-{{ card.id }}-title">Job title</label>
-              <input type="text" id="u-{{ card.id }}-title" name="title" value="{{ card.title }}" maxlength="80" autocomplete="off">
-            </div>
-            <div class="field">
-              <label for="u-{{ card.id }}-email">Email</label>
-              <input type="text" id="u-{{ card.id }}-email" name="email" value="{{ card.email }}" inputmode="email" autocomplete="off" spellcheck="false">
-            </div>
-            <label class="choice"><input type="checkbox" name="champion" value="1"{% if card.main %} checked{% endif %}> Main contact</label>
+            <h2 class="card-name update-title" id="update-{{ card.id }}"><a class="account-link" href="/accounts/{{ card.account_id }}">{{ card.account_name }}</a></h2>
+            <p class="card-by">{{ card.sent }}</p>
+            {% if card.note %}
+            <blockquote class="update-note card-desc"><p>{{ card.note }}</p></blockquote>
             {% endif %}
 
-            {% if card.is_left or card.is_change %}
-              {% if card.about %}
-              <p class="update-about">Contact: {{ card.about }}</p>
-              <input type="hidden" name="contact_id" value="{{ card.about_id }}">
-              {% else %}
+            <form class="update-form" method="post" action="/client-updates/{{ card.id | idpath }}/accept{% if filter_query %}?{{ filter_query }}{% endif %}">
+              {% if card.error %}<p class="field-error" role="alert">{{ card.error }}</p>{% endif %}
+
+              {% if card.adds %}
               <div class="field">
-                <label for="u-{{ card.id }}-contact">Which contact is this about?</label>
-                <select id="u-{{ card.id }}-contact" name="contact_id">
-                  <option value="">Choose a contact</option>
-                  {% for contact_id, label, selected in card.candidates %}
-                  <option value="{{ contact_id }}"{% if selected %} selected{% endif %}>{{ label }}</option>
-                  {% endfor %}
-                </select>
+                <label for="u-{{ card.id }}-name">Contact's name</label>
+                <input type="text" id="u-{{ card.id }}-name" name="name" value="{{ card.name }}" maxlength="80" autocomplete="off">
+              </div>
+              <div class="field">
+                <label for="u-{{ card.id }}-title">Job title</label>
+                <input type="text" id="u-{{ card.id }}-title" name="title" value="{{ card.title }}" maxlength="80" autocomplete="off">
+              </div>
+              <div class="field">
+                <label for="u-{{ card.id }}-email">Email</label>
+                <input type="text" id="u-{{ card.id }}-email" name="email" value="{{ card.email }}" inputmode="email" autocomplete="off" spellcheck="false">
+              </div>
+              <label class="choice"><input type="checkbox" name="champion" value="1"{% if card.main %} checked{% endif %}> Main contact</label>
+              {% endif %}
+
+              {% if card.is_left or card.is_change %}
+                {% if card.about %}
+                <p class="update-about">Contact: {{ card.about }}</p>
+                <input type="hidden" name="contact_id" value="{{ card.about_id }}">
+                {% else %}
+                <div class="field">
+                  <label for="u-{{ card.id }}-contact">Which contact is this about?</label>
+                  <select id="u-{{ card.id }}-contact" name="contact_id">
+                    <option value="">Choose a contact</option>
+                    {% for contact_id, label, selected in card.candidates %}
+                    <option value="{{ contact_id }}"{% if selected %} selected{% endif %}>{{ label }}</option>
+                    {% endfor %}
+                  </select>
+                </div>
+                {% endif %}
+              {% endif %}
+
+              {% if card.is_left %}
+              <div class="field">
+                <label for="u-{{ card.id }}-left-on">Left on</label>
+                <input type="date" id="u-{{ card.id }}-left-on" name="left_on" value="{{ card.left_on }}">
               </div>
               {% endif %}
-            {% endif %}
 
-            {% if card.is_left %}
-            <div class="field">
-              <label for="u-{{ card.id }}-left-on">Left on</label>
-              <input type="date" id="u-{{ card.id }}-left-on" name="left_on" value="{{ card.left_on }}">
-            </div>
-            {% endif %}
-
-            <div class="form-actions">
-              <button type="submit" class="button-primary">{{ card.accept_label }}</button>
-              <button type="submit" class="button" formaction="/client-updates/{{ card.id | idpath }}/reject{% if filter_query %}?{{ filter_query }}{% endif %}">Reject</button>
-            </div>
-          </form>
-        </article>
-      </li>
-      {% endfor %}
-    </ul>
-    {% elif not waiting %}
-    <div class="empty empty-card">
-      <p>No updates waiting.</p>
-      {% if not setup_done %}<p><a href="/client-updates/setup">Set up your update form first</a>.</p>{% endif %}
+              {# The footer: Reject (secondary) sits left of Accept (primary). Accept stays first in the
+                 markup, so pressing Enter in a field still accepts; the stylesheet puts Reject first. #}
+              <div class="card-foot form-actions">
+                <button type="submit" class="button-primary">{{ card.accept_label }}</button>
+                <button type="submit" class="button update-reject" formaction="/client-updates/{{ card.id | idpath }}/reject{% if filter_query %}?{{ filter_query }}{% endif %}">Reject</button>
+              </div>
+            </form>
+          </article>
+        </li>
+        {% endfor %}
+      </ul>
+      {% elif not waiting %}
+      <div class="empty empty-card">
+        <p>No updates waiting.</p>
+        {% if not setup_done %}<p><a href="/client-updates/setup">Set up your update form first</a>.</p>{% endif %}
+      </div>
+      {% else %}
+      <div class="empty empty-card">
+        <p>No updates match these kinds.</p>
+        <p><a href="/client-updates">Clear filters</a></p>
+      </div>
+      {% endif %}
     </div>
-    {% else %}
-    <div class="empty empty-card">
-      <p>No updates match these kinds.</p>
-      <p><a href="/client-updates">Clear filters</a></p>
-    </div>
-    {% endif %}
   </div>
 </div>
 {% endblock %}
