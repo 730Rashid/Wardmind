@@ -10,6 +10,11 @@ from pathlib import Path
 
 from wardmind.core.models import Account, Signal
 
+# The packaged demo book, read and shifted once per day and shared by every DemoConnector (a new
+# one is made for each request). Keyed by the day the dates are shifted to; the files are part of
+# the install, so they don't change while Wardmind runs. Callers copy models, never change them.
+_PACKAGED: dict[date, tuple[list[Account], list[Signal]]] = {}
+
 
 class DemoConnector:
     """Serves data/demo/accounts.json and signals.json.
@@ -24,6 +29,7 @@ class DemoConnector:
         self._dir: Path | Traversable = (
             data_dir if data_dir is not None else files("wardmind") / "data" / "demo"
         )
+        self.packaged = data_dir is None  # the bundled files, not a folder a test passed
         self._today = today or date.today()
         self._cache: tuple[list[Account], list[Signal]] | None = None
 
@@ -37,10 +43,24 @@ class DemoConnector:
             return list(signals)
         return [s for s in signals if s.account_id == account_id]
 
+    @property
+    def today(self) -> date:
+        """The day the demo's dates are shifted to."""
+        return self._today
+
     def _loaded(self) -> tuple[list[Account], list[Signal]]:
-        """Read and shift the JSON files on first use, then reuse them."""
+        """Read and shift the JSON files on first use, then reuse them. The packaged files are
+        shared across connectors for the same day."""
         if self._cache is None:
-            self._cache = self._load()
+            if self.packaged:
+                cached = _PACKAGED.get(self._today)
+                if cached is None:
+                    cached = self._load()
+                    _PACKAGED.clear()  # only today's (or a test's chosen day's) copy is kept
+                    _PACKAGED[self._today] = cached
+                self._cache = cached
+            else:
+                self._cache = self._load()
         return self._cache
 
     def _load(self) -> tuple[list[Account], list[Signal]]:

@@ -198,13 +198,23 @@ def remove_connection(connection_id: str) -> None:
 
 
 def reset_connectors() -> None:
-    """Forget shared connectors, e.g. after the token, mapping or source changes."""
+    """Forget shared connectors, e.g. after the token, mapping or source changes, and the scored
+    demo book and its rescored days."""
     _connectors.clear()
+    _DEMO_BOOKS.clear()
+    _DEMO_SNAPSHOTS.clear()
 
 
 def get_store() -> LocalStore:
     """The local store at store.data_dir(). Cheap to create; callers needn't cache it."""
     return LocalStore()
+
+
+# The packaged demo book, scored: the same for every request on a day under the same scoring, so
+# it is worked out once. Keyed by (the demo's day, as_of, the scoring config as JSON); a handful
+# of entries at most. Your data is never cached here: its readings change under it.
+_DEMO_BOOKS: dict[tuple[date, date, str], list[ScoredAccount]] = {}
+_DEMO_BOOKS_MAX = 8
 
 
 def get_book(
@@ -216,11 +226,23 @@ def get_book(
     connector = connector if connector is not None else get_connector()
     config = config if config is not None else load_scoring_config()
     as_of = as_of if as_of is not None else date.today()
+    key = None
+    if isinstance(connector, DemoConnector) and connector.packaged:
+        key = (connector.today, as_of, config.model_dump_json())
+        cached = _DEMO_BOOKS.get(key)
+        if cached is not None:
+            return list(cached)
     scored = score_book(connector.list_accounts(), connector.list_signals(), config, as_of)
-    return [
+    book = [
         item.model_copy(update={"suggested_action": suggest_action(item.motion, item.reasons)})
         for item in scored
     ]
+    if key is not None:
+        if len(_DEMO_BOOKS) >= _DEMO_BOOKS_MAX:
+            _DEMO_BOOKS.clear()
+        _DEMO_BOOKS[key] = book
+        return list(book)
+    return book
 
 
 def latest_book_signals(connector: Connector | None = None) -> dict[str, dict[SignalKind, Signal]]:
@@ -1088,11 +1110,30 @@ def _add_automatic_follow_ups(
         _log.warning("Automatic follow-ups weren't added (%s).", type(exc).__name__)
 
 
+# The demo book rescored as of a past day: the same for every account and every request on a day
+# under the same scoring, so each is worked out once (the account trend needs about 20 of them).
+# Keyed by (the demo's day, the day rescored, the scoring config as JSON).
+_DEMO_SNAPSHOTS: dict[tuple[date, date, str], history.BookSnapshot] = {}
+_DEMO_SNAPSHOTS_MAX = 128
+
+
+def _demo_rescored(
+    demo: DemoConnector, config: ScoringConfig, day: date, now: datetime
+) -> history.BookSnapshot:
+    key = (demo.today, day, config.model_dump_json())
+    snapshot = _DEMO_SNAPSHOTS.get(key)
+    if snapshot is None:
+        snapshot = history.rescored_snapshot(
+            demo.list_accounts(), demo.list_signals(), config, day, now
+        )
+        if len(_DEMO_SNAPSHOTS) >= _DEMO_SNAPSHOTS_MAX:
+            _DEMO_SNAPSHOTS.clear()
+        _DEMO_SNAPSHOTS[key] = snapshot
+    return snapshot
+
+
 def _demo_snapshot(day: date, now: datetime) -> history.BookSnapshot:
-    demo = DemoConnector()
-    return history.rescored_snapshot(
-        demo.list_accounts(), demo.list_signals(), load_scoring_config(), day, now
-    )
+    return _demo_rescored(DemoConnector(), load_scoring_config(), day, now)
 
 
 def week_changes(
@@ -1129,7 +1170,6 @@ def account_trend(
     account_id = scored.account.id
     if _demo_mode():
         demo = DemoConnector()
-        accounts = demo.list_accounts()
         signals = demo.list_signals()
         config = load_scoring_config()
         first = min((signal.observed_at.date() for signal in signals), default=day)
@@ -1137,7 +1177,7 @@ def account_trend(
         snapshots = []
         point = max(since, first)
         while point < day:
-            snapshots.append(history.rescored_snapshot(accounts, signals, config, point, moment))
+            snapshots.append(_demo_rescored(demo, config, point, moment))
             point += timedelta(days=_DEMO_TREND_STEP)
     else:
         snapshots = [snap for snap in history_store().between(since, day) if snap.day < day]

@@ -11,6 +11,7 @@ import logging
 import math
 import os
 import re
+import sys
 import time
 from collections.abc import AsyncIterator, Awaitable, Callable, Mapping
 from contextlib import asynccontextmanager
@@ -433,8 +434,13 @@ class _LoudUndefined(Undefined):
         return ""  # unreachable; keeps type checkers happy
 
 
+# The desktop app (a frozen build) never has its templates edited, so it doesn't check each
+# template file for changes on every page; run from source it does, so edits show at once.
 _env = Environment(
-    loader=FileSystemLoader(TEMPLATES_DIR), autoescape=True, undefined=_LoudUndefined
+    loader=FileSystemLoader(TEMPLATES_DIR),
+    autoescape=True,
+    undefined=_LoudUndefined,
+    auto_reload=not getattr(sys, "frozen", False),
 )
 _env.filters["money"] = money
 _env.filters["idpath"] = idpath

@@ -229,15 +229,38 @@ def settings_path() -> Path:
     return config_dir() / "settings.yaml"
 
 
+# libyaml's parser when PyYAML was built with it (about ten times faster), else the pure one.
+_YAML_LOADER = getattr(yaml, "CSafeLoader", yaml.SafeLoader)
+
+# The last settings read, by file: (path, its (mtime_ns, size, inode)) -> Settings. A page asks
+# for the settings many times; the file is parsed again only when it changed (save_settings
+# replaces it, so a save always shows at once). Callers get a copy, so the cached one is never
+# changed.
+_LOADED: dict[str, tuple[tuple[int, int, int], Settings]] = {}
+
+
 def load_settings(path: Path | None = None) -> Settings:
     """Read settings.yaml. A missing file gives defaults; an unknown or invalid value falls
     back to that field's default rather than failing, so a hand-edited file can't break the UI.
     """
     path = path or settings_path()
-    if not path.exists():
-        return Settings()
     try:
-        data = yaml.safe_load(path.read_text(encoding="utf-8"))
+        info = path.stat()
+    except OSError:
+        return Settings()
+    stamp = (info.st_mtime_ns, info.st_size, info.st_ino)
+    cached = _LOADED.get(str(path))
+    if cached is not None and cached[0] == stamp:
+        return cached[1].model_copy()
+    settings = _read_settings(path)
+    _LOADED.clear()  # one file at a time: the current config folder's
+    _LOADED[str(path)] = (stamp, settings)
+    return settings.model_copy()
+
+
+def _read_settings(path: Path) -> Settings:
+    try:
+        data = yaml.load(path.read_text(encoding="utf-8"), Loader=_YAML_LOADER)  # noqa: S506
     except (OSError, UnicodeDecodeError, yaml.YAMLError):
         return Settings()
     if not isinstance(data, dict):
