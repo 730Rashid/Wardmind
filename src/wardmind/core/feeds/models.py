@@ -157,6 +157,10 @@ class FeedStatus(BaseModel):
     last_synced_at: datetime | None = None  # naive UTC of the last successful sync
     last_attempt_at: datetime | None = None  # naive UTC, success or not
     last_error: str | None = None  # plain English, never a secret; cleared by a success
+    # Failures in a row, and when the first of them happened (naive UTC). Both are cleared by a
+    # success. After FAILURES_BEFORE_BACKOFF failures a retry waits an hour (feeds/sync.is_due).
+    failures: int = 0
+    first_failed_at: datetime | None = None
     rows: int = 0  # rows read on the last successful sync
     accounts: int = 0  # ACCOUNTS: accounts imported; SIGNALS: accounts that got readings
     skipped_rows: int = 0  # rows the import skipped (ACCOUNTS) or that matched nothing (SIGNALS)

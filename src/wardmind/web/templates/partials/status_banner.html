@@ -1,1 +1,12 @@
-{# A problem banner for every page: background work failing, an unreadable journal. Filled by web/status_pages.py (workstream D). Empty until then. #}
+{# A problem banner for every page: a feed failing for more than a day, an unreadable journal, or
+   background checks that have stopped (core/health.py). Empty when there is nothing to say. #}
+{% set problems_now = status_banner() %}
+{% if problems_now %}
+<div class="column banner-column">
+  {% for problem in problems_now %}
+  <div class="banner" role="alert">
+    <p>{{ problem.message }} <a href="{{ problem.href }}">{{ problem.link }}</a></p>
+  </div>
+  {% endfor %}
+</div>
+{% endif %}

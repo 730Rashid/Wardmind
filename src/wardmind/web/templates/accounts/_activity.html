@@ -2,7 +2,7 @@
    customer, newest first, with a form to log one, a filter by kind and the threads still waiting on
    a reply. Pinned entries of any kind sit in the strip above both boxes (the Notes box follows this
    file). The shared macros are in _entry.html. #}
-{% from "accounts/_entry.html" import kind_choices, kind_chip, pin_form, entry_text, entry_edit %}
+{% from "accounts/_entry.html" import kind_choices, kind_chip, pin_form, entry_text, entry_edit, entry_source %}
 {% from "partials/edited.html" import edited_marker %}
 {% set form = journal.activity_form %}
 {% set base = '/accounts/' ~ (account.id | idpath) %}
@@ -103,6 +103,7 @@
         {{ kind_chip(entry.kind, entry.kind_label) }}
         <span class="note-day">{{ entry.day }}</span>
         {% if entry.from_mailbox %}<span class="entry-source">Logged from mailbox</span>{% endif %}
+        {{ entry_source(entry) }}
         {% if entry.pinned %}<span class="entry-pinned"><svg class="icon" aria-hidden="true" focusable="false"><use href="/static/icons.svg#star"/></svg>Pinned</span>{% endif %}
         {% if entry.edited %}{{ edited_marker() }}{% endif %}
       </p>

@@ -150,7 +150,7 @@ claude mcp add wardmind -- uv --directory "<path to this folder>" run wardmind m
 It reads the book open in the app. To give Claude one book whatever is open, add
 `--book <id>` (`wardmind books` lists the ids). Every result names the book it came from.
 
-The server exposes seven tools:
+The server exposes these read tools:
 
 | Tool | What it returns |
 |---|---|
@@ -161,6 +161,20 @@ The server exposes seven tools:
 | `todays_list` | your follow-ups due, accounts that need attention, renewals to record |
 | `onboarding_brief` | a prep brief for an onboarding call: plan status, agenda, questions |
 | `research_account` | what the customer's own website says: title, description, recent news (only when web research is on) |
+| `list_suggestions` | the suggestions waiting on Today, with why each was made |
+| `system_status` | whether the data can be trusted right now: feeds, mailbox, score history, rules, suggestions |
+
+Claude can also work the book for you ("go through my at-risk accounts and line up next steps"),
+but only as far as **Settings > Assistant** allows. It is off by default:
+
+| Setting | What Claude can do |
+|---|---|
+| **Off** | Read only. |
+| **Suggest only** | `propose_follow_up`, `propose_note`, `propose_snooze`: each lands on Today as a suggestion you accept or dismiss. |
+| **Make changes** | Also `add_note`, `add_follow_up`, `complete_follow_up` and `snooze_account`. Each returns a preview first and changes nothing until Claude confirms it. |
+
+Claude can never delete or edit anything. Each change is marked "Added by Claude", recorded in
+the Activity log, made once only (a repeated request changes nothing), and limited to 30 an hour.
 
 ## Data feeds: keep your data up to date by itself
 
@@ -204,6 +218,39 @@ about them:
   - what's coming up this week, and what's snoozed
 
 You can also make Today the screen Wardmind opens on (Settings > Appearance).
+
+### Suggestions: Wardmind lines up your next steps
+
+Once a day Wardmind reads your book and suggests next steps at the top of Today, under
+**Suggested for you**. Each one says why, with the dated facts behind it, and nothing changes
+until you press **Accept** (or **Edit** it first). **Dismiss** means it isn't suggested again.
+Wardmind looks for:
+
+- an account whose health got worse this week: check in
+- a renewal coming up with no forecast call yet: make your call
+- an email of yours waiting too long for a reply: chase it
+- an at-risk or watch account you haven't contacted lately: get back in touch
+- an account that only looks healthy because its data is thin: get fresh data
+
+A suggestion whose reason goes away (the reply came, the health recovered) expires by itself.
+You can turn suggestions off in **Settings > Assistant**.
+
+### Email drafts, never sent
+
+**Draft an email** on an account page (or **Draft the email** on a suggestion) writes a check-in,
+renewal, re-engage, chase-a-reply or new-champion email from the account's facts, addressed to
+its champion. Copy it, or open it in your email app. Wardmind never sends email, and the draft
+never mentions scores, health or money. With **Let AI improve the wording** on in Settings >
+Assistant, the configured AI can polish it: a model on this computer, or a model online only if
+you also allow that. Only the draft's own text is sent.
+
+### System status: can I trust what I see?
+
+**Settings > System status** lists every background job (feeds, mailbox, the daily score history,
+follow-up rules, suggestions) with when it last worked and what to do if it didn't. If Wardmind
+was closed for a while, it catches up when it starts. My book, Today and account pages say how
+current the data is when a feed falls behind, and a banner appears on every page when something
+needs fixing.
 
 ## Score history: what changed since last week
 

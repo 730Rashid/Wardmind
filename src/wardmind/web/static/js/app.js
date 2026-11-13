@@ -61,6 +61,34 @@ document.querySelectorAll("[data-copy-target]").forEach((button) => {
   });
 });
 
+// Email drafts (the account's "Draft an email" page): each Copy button copies the readonly box its
+// data-draft-copy names, and the status line under that box says what happened. The box can be
+// selected by hand without JavaScript, and the buttons are shown only when JavaScript runs.
+document.querySelectorAll("[data-draft-copy]").forEach((button) => {
+  button.addEventListener("click", async () => {
+    const field = document.getElementById(button.dataset.draftCopy);
+    const status = button.closest(".draft-field")?.querySelector("[data-copy-status]");
+    if (!(field instanceof HTMLTextAreaElement)) return;
+    const say = (message) => { if (status) status.textContent = message; };
+    try {
+      await navigator.clipboard.writeText(field.value);
+      say("Copied.");
+      return;
+    } catch {
+      // Fall through to selecting the text for Ctrl+C.
+    }
+    field.focus();
+    field.select();
+    let copied = false;
+    try {
+      copied = document.execCommand("copy");
+    } catch {
+      copied = false;
+    }
+    say(copied ? "Copied." : "Your browser blocked copying. The text is selected: press Ctrl+C to copy it.");
+  });
+});
+
 // Client updates: a client's link is a readonly box. Focusing it selects the whole link, and Copy
 // link copies it, saying so in the status line under the box. The box shows the link without
 // JavaScript; the Copy button is hidden then.

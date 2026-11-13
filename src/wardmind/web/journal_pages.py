@@ -16,7 +16,7 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import UTC, date, datetime, timedelta
 
-from wardmind.core import history, journal, rules
+from wardmind.core import history, journal, proposals, rules
 from wardmind.core.config import Thresholds
 from wardmind.core.journal import (
     AccountJournal,
@@ -357,6 +357,23 @@ class SnoozeView:
     until: str  # ISO
 
 
+# Where a follow-up with an occasion key (FollowUp.rule) came from, by the key's prefix.
+_CLAUDE_RULES = ("agent:", "mcp:")  # Claude, through the MCP server (directly or a suggestion)
+_SUGGESTION_RULES = tuple(f"{detector.value}:" for detector in proposals.Detector)
+
+
+def follow_up_origin(rule: str | None) -> str:
+    """The tag a follow-up shows: "" for one you added, "Added by Claude", "From a suggestion"
+    (one of Wardmind's suggestions you accepted) or "Added automatically" (a follow-up rule)."""
+    if rule is None:
+        return ""
+    if rule.startswith(_CLAUDE_RULES):
+        return "Added by Claude"
+    if rule.startswith(_SUGGESTION_RULES):
+        return "From a suggestion"
+    return "Added automatically"
+
+
 @dataclass(frozen=True)
 class FollowUpRow:
     id: str
@@ -364,7 +381,8 @@ class FollowUpRow:
     due_label: str
     late: bool
     move: FormState  # the move box: the due date to show, and a refused move's message
-    automatic: bool  # added by a rule (core/rules.py): shows the "Added automatically" tag
+    automatic: bool  # added by a rule, a suggestion or Claude: shows the `origin` tag
+    origin: str = ""  # follow_up_origin(rule): "Added automatically", "From a suggestion", ...
 
 
 @dataclass(frozen=True)
@@ -390,6 +408,7 @@ class NoteRow:
     edit_open: bool
     pinned: bool
     pin_error: str  # a refused pin's message, or ""
+    source_label: str  # "Added by Claude" or "From a suggestion"; "" for your own notes
 
 
 @dataclass(frozen=True)
@@ -406,6 +425,7 @@ class ActivityRow:
     direction: str  # "sent", "received", or "" (emails only)
     direction_line: str  # "Sent to priya@acme.com", "Received from ...", "Sent"; "" for non-emails
     from_mailbox: bool  # logged by the mailbox sync
+    source_label: str  # "Added by Claude" or "From a suggestion"; "" for your own entries
     text: str  # the whole text, as typed or as the email's start
     preview: str  # the text cut to ENTRY_PREVIEW characters, one line
     long: bool  # the text is longer than the preview, so the rest sits in a disclosure
@@ -553,6 +573,7 @@ def panel(
                 late=item.due < today,
                 move=_or_defaults(refused(refusal, "move", item.id), {"due": item.due.isoformat()}),
                 automatic=item.rule is not None,
+                origin=follow_up_origin(item.rule),
             )
             for item in open_items
         ],
@@ -641,6 +662,15 @@ def panel(
     )
 
 
+def _source_label(source: journal.NoteSource) -> str:
+    """Who made an entry, when it wasn't you: "Added by Claude" or "From a suggestion". "" for your
+    own entries, and for a mailbox email, whose label ("Logged from mailbox") the page shows."""
+    return {
+        journal.NoteSource.AGENT: "Added by Claude",
+        journal.NoteSource.SUGGESTION: "From a suggestion",
+    }.get(source, "")
+
+
 def _note_row(note: Note, refusal: JournalRefusal | None, today: date) -> NoteRow:
     edit_refused = refused(refusal, "note-edit", note.id)
     edit = _or_defaults(
@@ -665,6 +695,7 @@ def _note_row(note: Note, refusal: JournalRefusal | None, today: date) -> NoteRo
         edit_open=bool(edit_refused.values),
         pinned=note.pinned,
         pin_error=refused(refusal, "pin", note.id).errors.get(FORM, ""),
+        source_label=_source_label(note.source),
     )
 
 
@@ -689,6 +720,7 @@ def _activity_row(note: Note, refusal: JournalRefusal | None, today: date) -> Ac
         direction=note.direction.value if note.direction is not None else "",
         direction_line=_direction_line(note),
         from_mailbox=note.source is journal.NoteSource.MAILBOX,
+        source_label=_source_label(note.source),
         text=note.text,
         preview=preview,
         long=long,
@@ -1167,7 +1199,8 @@ class TodayDue:
     text: str
     due_label: str
     late: bool
-    automatic: bool  # added by a rule (core/rules.py): shows the "Added automatically" tag
+    automatic: bool  # added by a rule, a suggestion or Claude: shows the `origin` tag
+    origin: str = ""  # follow_up_origin(rule): "Added automatically", "From a suggestion", ...
 
 
 @dataclass(frozen=True)
@@ -1267,6 +1300,7 @@ def _today_due(item: DueItem, today: date) -> TodayDue:
         due_label=due_label(item.follow_up.due, today),
         late=item.follow_up.due < today,
         automatic=item.follow_up.rule is not None,
+        origin=follow_up_origin(item.follow_up.rule),
     )
 
 

@@ -14,6 +14,7 @@ Only these, and only when you set them up:
 | Web research, **off by default** | The customer's own website, and nowhere else | An ordinary visit to that website, when you press **Look up their website** on its account page or **Look up all websites**. Nothing about the account is sent. |
 | AI summaries, **off by default**, with your own OpenRouter key | `openrouter.ai`, and the company running the model you chose | Only the text web research read from the customer's public website. Nothing from your book. |
 | AI summaries from **a model on this computer** (Ollama, LM Studio and the like) | Nowhere: the model app on this computer (`127.0.0.1`, `localhost` or `[::1]` only) | The same website text, to that app only. Nothing leaves the computer. |
+| AI wording for email drafts, **off by default** (Settings > Assistant) | The model on this computer; or, only if you also allow a model online, `openrouter.ai` and the company running the model | Only the draft's own text (the greeting, the account's name and the template's sentences). Never ARR, scores, notes, emails or website text. |
 | Data feeds you add (**Settings > Connections > Add a connection**) | Only the address or product you set up: your own file or SQLite database (nothing leaves), a link or API you typed, Google Sheets, Stripe, Chargebee, Zendesk, Freshdesk, PostHog or Airtable | Read requests with the key you gave that feed, on the schedule you chose. Nothing from your book is sent, and nothing is ever written to the source. |
 | Your mailbox, **off until you connect it** (**Settings > Mailbox**) | Only your own mail provider's IMAP server (Gmail, Outlook, iCloud, Yahoo, Fastmail or the server you typed), over TLS | Your username and app password, to read Inbox and Sent. Wardmind never sends, moves, deletes or marks mail as read, and nothing from your book is sent. |
 | Logos, with web research on | The customer's own website | An ordinary visit to its home page and the icon files it names, when you press **Find on website** or during **Look up all websites**. Nothing about the account is sent. |
@@ -195,6 +196,21 @@ one file per day. These are the same facts My book shows, kept so Wardmind can s
 since last week and show each account's trend. Removing a connection or deleting an account
 removes it from every day's file. With demo data, nothing is recorded: the demo's history is
 worked out from its sample readings.
+
+**Suggestions** (Today's Suggested for you) are worked out on this computer from the same facts
+My book shows, and kept beside the journal in `proposals.json` (demo data: `demo-proposals.json`),
+with whether you accepted or dismissed each one.
+
+**Claude's changes.** With Settings > Assistant set to Suggest only or Make changes, Claude (through
+the MCP server on this computer) can add suggestions, notes and follow-ups, complete follow-ups
+and snooze accounts. It can't delete or edit anything. Each change is recorded in the Activity log
+by the tool's name only, and the last 500 requests are kept in `agent-requests.json`, so a
+repeated request changes nothing.
+
+**Email drafts** are written on this computer and never sent: Wardmind has no way to send email.
+
+**System status** keeps the last 30 runs of each background job in `runlog.json`: times, whether
+it worked, counts, and a plain reason when it didn't. No customer data.
 
 ## What is stored, and where
 

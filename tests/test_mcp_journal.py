@@ -41,14 +41,14 @@ async def test_get_account_shares_the_journal_but_never_note_text() -> None:
         now=NOW,
         today=TODAY,
     )
-    book.add_follow_up("acc-001", "Send the renewal quote", TODAY, now=NOW, today=TODAY)
+    follow_up = book.add_follow_up("acc-001", "Send the renewal quote", TODAY, now=NOW, today=TODAY)
     async with Client(server.mcp) as client:
         data = _data(await client.call_tool("get_account", {"account_id": "acc-001"}))
     summary = data["journal"]
     assert summary["last_contact"] == (TODAY - timedelta(days=2)).isoformat()
     assert summary["notes"] == 1
     assert summary["open_follow_ups"] == [
-        {"text": "Send the renewal quote", "due": TODAY.isoformat()}
+        {"follow_up_id": follow_up.id, "text": "Send the renewal quote", "due": TODAY.isoformat()}
     ]
     assert summary["snoozed_until"] is None
     assert summary["outcomes"] == []

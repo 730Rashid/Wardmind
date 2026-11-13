@@ -1,1 +1,10 @@
-{# Freshness line: how up to date the data on this page is. Filled by web/status_pages.py (workstream D). Empty until then. #}
+{# Freshness line: how current the data on this page is (core/health.py, web/status_pages.py). Empty
+   when there is nothing to say: demo data, no timed feeds, or a feed still waiting for its first sync. #}
+{% set line = freshness_line() %}
+{% if line %}
+<p class="freshness{% if line.warn %} freshness--warn{% endif %}">
+  <svg class="icon freshness-icon" aria-hidden="true" focusable="false"><use href="/static/icons.svg#{% if line.warn %}status-overdue{% else %}clock{% endif %}"/></svg>
+  <span>{{ line.text }}</span>
+  {% if line.warn %}<a href="/settings/status">See System status</a>{% endif %}
+</p>
+{% endif %}

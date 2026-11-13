@@ -24,6 +24,8 @@ from wardmind.core.store import WRITE_LOCK, ConnectionConfig, LocalStore
 TICK_SECONDS = 60  # how often the scheduler looks for due feeds
 ON_CHANGE_FALLBACK_MINUTES = 1440  # an ON_CHANGE feed whose mtime can't be read syncs daily
 RETRY_MINUTES = 15  # after a failed sync, wait at least this long before trying again
+FAILURES_BEFORE_BACKOFF = 3  # from this many failures in a row, retry only every BACKOFF_MINUTES
+BACKOFF_MINUTES = 60
 
 _STOP_WAIT_SECONDS = 5.0  # stop() waits this long for a tick that is already running
 NO_SIGNAL_ROWS = "The source sent no rows."
@@ -103,8 +105,9 @@ def sync_feed(
 
     Either way the status is updated and saved with the connection (store.update_connection):
     success sets last_synced_at, counts and clears last_error; failure sets last_error and keeps
-    everything else (see _last_error for which messages are shown). last_attempt_at is always
-    set. Never raises for a source problem; returns the outcome.
+    everything else (see _last_error for which messages are shown); it also counts the failure
+    (with_failure). last_attempt_at is always set. Never raises for a source problem; returns the
+    outcome.
 
     Locking: the source is read with no lock held (it can be a network call). Everything after
     that runs under store.WRITE_LOCK, starting with a fresh load of the connection: if it was
@@ -122,7 +125,7 @@ def sync_feed(
         except vault.VaultError:
             raise  # a locked or damaged book is not a failed sync
         except Exception as exc:
-            status = attempt.model_copy(update={"last_error": _last_error(exc, fetching=True)})
+            status = with_failure(attempt, _last_error(exc, fetching=True), now)
             _save_status(store, config, status)
             return SyncOutcome(status=status)
     removed = 0
@@ -144,9 +147,23 @@ def sync_feed(
         except vault.VaultError:
             raise  # a locked or damaged book is not a failed sync
         except Exception as exc:
-            status = attempt.model_copy(update={"last_error": _last_error(exc, fetching=False)})
+            status = with_failure(attempt, _last_error(exc, fetching=False), now)
         _save_status(store, current, status)
     return SyncOutcome(status=status, removed_accounts=removed)
+
+
+def with_failure(status: FeedStatus, message: str, now: datetime) -> FeedStatus:
+    """The status after a failed sync: the plain message, one more failure in a row, and when the
+    run of failures began (kept from its first failure). Everything else stays, so the last good
+    data keeps its date. A success clears all three (it builds a new FeedStatus)."""
+    began = status.first_failed_at if status.last_error is not None else None
+    return status.model_copy(
+        update={
+            "last_error": message,
+            "failures": status.failures + 1,
+            "first_failed_at": began if began is not None else now,
+        }
+    )
 
 
 def _last_error(exc: Exception, *, fetching: bool) -> str:
@@ -369,7 +386,8 @@ def _save_status(store: LocalStore, config: ConnectionConfig, status: FeedStatus
 def is_due(config: ConnectionConfig, now: datetime, mtime: float | None) -> bool:
     """Whether a FEED connection should sync now. Disabled connections and MANUAL schedules are
     never due. A connection that has never synced is due. After a failure, not before
-    RETRY_MINUTES since last_attempt_at. ON_CHANGE: due when `mtime` differs from
+    RETRY_MINUTES since last_attempt_at, or BACKOFF_MINUTES once FAILURES_BEFORE_BACKOFF failures
+    have come in a row. ON_CHANGE: due when `mtime` differs from
     status.source_mtime (or, when mtime is None, after ON_CHANGE_FALLBACK_MINUTES). Timed
     schedules: due when last_synced_at is at least the interval ago."""
     feed = config.feed
@@ -377,7 +395,9 @@ def is_due(config: ConnectionConfig, now: datetime, mtime: float | None) -> bool
         return False
     status = feed.status
     if status.last_error is not None and status.last_attempt_at is not None:
-        return now - status.last_attempt_at >= timedelta(minutes=RETRY_MINUTES)
+        backoff = status.failures >= FAILURES_BEFORE_BACKOFF
+        wait = BACKOFF_MINUTES if backoff else RETRY_MINUTES
+        return now - status.last_attempt_at >= timedelta(minutes=wait)
     if status.last_synced_at is None:
         return True
     if feed.schedule is Schedule.ON_CHANGE:

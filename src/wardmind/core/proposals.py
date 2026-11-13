@@ -28,19 +28,31 @@ store.WRITE_LOCK around load -> change -> save.
 
 from __future__ import annotations
 
+import hashlib
 import secrets
-from collections.abc import Mapping, Sequence
-from datetime import UTC, date, datetime
+import unicodedata
+from collections.abc import Callable, Mapping, Sequence
+from dataclasses import dataclass
+from datetime import UTC, date, datetime, timedelta
 from enum import StrEnum
 from pathlib import Path
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
-from wardmind.core import vault
+from wardmind.core import audit, books, insights, vault
+from wardmind.core.config import ScoringConfig, load_scoring_config
 from wardmind.core.drafts import DraftKind
-from wardmind.core.history import WeekChanges
-from wardmind.core.journal import AccountJournal, Journal
-from wardmind.core.models import ScoredAccount, Signal, SignalKey
+from wardmind.core.history import Change, ChangeKind, WeekChanges
+from wardmind.core.journal import (
+    AccountJournal,
+    Journal,
+    NoteSource,
+    TouchKind,
+    active_snooze,
+    awaiting_replies,
+    last_contact,
+)
+from wardmind.core.models import Health, ScoredAccount, Signal, SignalKey
 from wardmind.core.settings import Settings
 from wardmind.core.store import WRITE_LOCK, LocalStore
 
@@ -48,8 +60,9 @@ PROPOSALS_FILE = "proposals.json"
 DEMO_PROPOSALS_FILE = "demo-proposals.json"
 
 MAX_OPEN_PER_ACCOUNT = 3  # open suggestions one account may have at once
-MAX_OPEN = 60  # open suggestions in the whole book; more wait (RefreshResult.waiting)
-MAX_PER_RUN = 30  # suggestions one plan() run may add
+MAX_OPEN = 30  # open suggestions in the whole book; more wait (RefreshResult.waiting)
+MAX_PER_RUN = 12  # suggestions one plan() run may add, most urgent accounts first
+MAX_BLIND_SPOTS = 3  # "Get fresh data" suggestions one plan() run makes, largest ARR first
 MAX_KEPT = 2000  # decided (accepted, dismissed, expired) suggestions kept; the oldest go first
 MAX_WHY = 6  # evidence lines on one suggestion
 MAX_TITLE = 120
@@ -324,6 +337,271 @@ def _save(path: Path, data: ProposalsData) -> None:
 
 # --- Built against the contract (workstream A) ---------------------------------------------
 
+MAX_REASONS = 3  # the account's top reasons, listed after a suggestion's own evidence
+MAX_NAME = 60  # an account's name in a title is cut to this many characters
+MAX_SUBJECT_TEXT = 120  # an email's subject in the evidence is cut to this many characters
+MAX_THREAD_TEXT = 40  # a thread's text in its key; a longer one is replaced by a short hash
+_MONTHS = ("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
+_NOT_IN_BOOK = "No longer in your book."
+_REPLACED = "A newer check replaced this one."
+_DISMISSED_REFUSAL = "You dismissed this suggestion, so it can't be accepted now."
+_ACCEPTED_REFUSAL = "You accepted this suggestion, so it can't be dismissed now."
+_EXPIRED_DISMISS = "This suggestion has expired, so there is nothing to dismiss."
+_EXPIRED_ACCEPT = "This suggestion has expired, so it can't be accepted."
+_NEEDS_HEALTH = "This account isn't in your book, so it can't be snoozed here."
+_REMOVED_RULE = "You removed this follow-up before, so it isn't added again."
+
+
+@dataclass(frozen=True)
+class _Facts:
+    """What the detectors read. plan() and expire_cleared() build it the same way."""
+
+    settings: Settings
+    today: date
+    config: ScoringConfig | None
+    latest: Mapping[str, Mapping[SignalKey, Signal]]
+    worse: Mapping[str, Change]  # account id -> its WORSE change in this week's changes
+    since: Mapping[str, date]  # account id -> the first day of its current health run
+
+
+@dataclass(frozen=True)
+class _Found:
+    """One reason a detector found for an account today, before it becomes a suggestion."""
+
+    detector: Detector
+    key: str
+    title: str  # also the follow-up's text, so accepting writes what the card says
+    due: date
+    why: tuple[Evidence, ...]  # the detector's own evidence, most important first
+    draft_kind: DraftKind | None
+
+
+_Detect = Callable[[_Facts, ScoredAccount, AccountJournal], list[_Found]]
+
+
+def _facts(
+    settings: Settings,
+    today: date,
+    config: ScoringConfig | None,
+    latest: Mapping[str, Mapping[SignalKey, Signal]],
+    changes: WeekChanges | None,
+    health_since: Mapping[str, date],
+) -> _Facts:
+    worse: dict[str, Change] = {}
+    if changes is not None:
+        worse = {item.account_id: item for item in changes.changes if item.kind is ChangeKind.WORSE}
+    return _Facts(
+        settings=settings,
+        today=today,
+        config=ScoringConfig() if config is None else config,
+        latest=latest,
+        worse=worse,
+        since=health_since,
+    )
+
+
+def _cut_text(text: str, limit: int) -> str:
+    """The text on one line, at most `limit` characters; a longer one ends with an ellipsis."""
+    flat = " ".join(text.split())
+    if len(flat) <= limit:
+        return flat
+    return flat[: limit - 1].rstrip() + "…"
+
+
+def _name(scored: ScoredAccount) -> str:
+    """The account's name for a title: no control or hidden characters, cut to MAX_NAME."""
+    visible = "".join(
+        char for char in scored.account.name if unicodedata.category(char) not in ("Cc", "Cf")
+    )
+    return _cut_text(visible, MAX_NAME) or "this account"
+
+
+def _day(day: date) -> str:
+    """'3 Nov 2026'. Built here, so core doesn't depend on the web's date wording."""
+    return f"{day.day} {_MONTHS[day.month - 1]} {day.year}"
+
+
+def _days_text(count: int) -> str:
+    return "1 day" if count == 1 else f"{count} days"
+
+
+def _reply_key(thread: str, sent_on: date) -> str:
+    """reply_overdue:<thread>:<day>, with a long thread replaced by a short hash (MAX_KEY)."""
+    if len(thread) <= MAX_THREAD_TEXT:
+        text = thread
+    else:
+        text = hashlib.sha1(thread.encode("utf-8"), usedforsecurity=False).hexdigest()[:10]
+    return f"reply_overdue:{text}:{sent_on.isoformat()}"
+
+
+def _health_dropped(facts: _Facts, scored: ScoredAccount, entry: AccountJournal) -> list[_Found]:
+    change = facts.worse.get(scored.account.id)
+    if change is None or change.health_after is None:
+        return []
+    since = facts.since.get(scored.account.id, facts.today)
+    return [
+        _Found(
+            detector=Detector.HEALTH_DROPPED,
+            key=f"health_dropped:{change.health_after.value}:{since.isoformat()}",
+            title=f"Check in with {_name(scored)}: health dropped to {change.health_after.label}",
+            due=facts.today,
+            why=(Evidence(text=change.sentence, observed=facts.today),),
+            draft_kind=DraftKind.CHECK_IN,
+        )
+    ]
+
+
+def _renewal_no_call(facts: _Facts, scored: ScoredAccount, entry: AccountJournal) -> list[_Found]:
+    renewal = scored.account.renewal_date
+    ahead = (renewal - facts.today).days
+    if not 0 <= ahead <= facts.settings.rule_renewal_days:
+        return []
+    if any(call.renewal_date == renewal for call in entry.calls):
+        return []
+    return [
+        _Found(
+            detector=Detector.RENEWAL_NO_CALL,
+            key=f"renewal_no_call:{renewal.isoformat()}",
+            title=f"Make your renewal call for {_name(scored)}",
+            due=facts.today,
+            why=(
+                Evidence(text=f"Renews {_day(renewal)}"),
+                Evidence(text="No forecast call yet", observed=facts.today),
+            ),
+            draft_kind=DraftKind.RENEWAL,
+        )
+    ]
+
+
+def _reply_overdue(facts: _Facts, scored: ScoredAccount, entry: AccountJournal) -> list[_Found]:
+    found: list[_Found] = []
+    threads = awaiting_replies(
+        entry,
+        facts.today,
+        reply_wait_days=facts.settings.reply_wait_days,
+        answer_wait_days=facts.settings.answer_wait_days,
+    )
+    for thread in threads:
+        if not thread.waiting_on_them:  # they wrote to us and we owe the answer: not ours to chase
+            continue
+        why = [
+            Evidence(
+                text=(
+                    f"Your email on {_day(thread.last_on)} has had no reply for "
+                    f"{_days_text(thread.days)}"
+                ),
+                observed=thread.last_on,
+            )
+        ]
+        if thread.subject.strip():
+            subject = _cut_text(thread.subject, MAX_SUBJECT_TEXT)
+            why.append(Evidence(text=f"Subject: {subject}", observed=thread.last_on))
+        found.append(
+            _Found(
+                detector=Detector.REPLY_OVERDUE,
+                key=_reply_key(thread.thread, thread.last_on),
+                title=f"Chase {_name(scored)} for a reply",
+                due=facts.today,
+                why=tuple(why),
+                draft_kind=DraftKind.CHASE_REPLY,
+            )
+        )
+    return found
+
+
+def _gone_quiet(facts: _Facts, scored: ScoredAccount, entry: AccountJournal) -> list[_Found]:
+    if scored.health not in (Health.AT_RISK, Health.WATCH):
+        return []
+    last = last_contact(entry)
+    quiet_before = facts.today - timedelta(days=facts.settings.quiet_days)
+    if last is not None and last >= quiet_before:
+        return []
+    if last is None:
+        why = Evidence(text="No contact logged yet")
+        key = "gone_quiet:never"
+    else:
+        why = Evidence(text=f"Last contact {_day(last)}", observed=last)
+        key = f"gone_quiet:{last.isoformat()}"
+    return [
+        _Found(
+            detector=Detector.GONE_QUIET,
+            key=key,
+            title=f"Get back in touch with {_name(scored)}",
+            due=facts.today,
+            why=(why,),
+            draft_kind=DraftKind.RE_ENGAGE,
+        )
+    ]
+
+
+def _blind_spot(facts: _Facts, scored: ScoredAccount, entry: AccountJournal) -> list[_Found]:
+    readings = dict(facts.latest.get(scored.account.id, {}))
+    confidence = insights.score_confidence(scored, readings, facts.today, facts.config)
+    if not confidence.blind_spot:
+        return []
+    labels = "\n".join(sorted([*confidence.missing, *confidence.stale]))
+    digest = hashlib.sha1(labels.encode("utf-8"), usedforsecurity=False).hexdigest()[:10]
+    return [
+        _Found(
+            detector=Detector.BLIND_SPOT,
+            key=f"blind_spot:{digest}",
+            title=f"Get fresh data for {_name(scored)}",
+            due=facts.today,
+            why=(Evidence(text=_cut_text(confidence.sentence, MAX_EVIDENCE)),),
+            draft_kind=None,
+        )
+    ]
+
+
+_DETECTORS: dict[Detector, _Detect] = {
+    Detector.HEALTH_DROPPED: _health_dropped,
+    Detector.RENEWAL_NO_CALL: _renewal_no_call,
+    Detector.REPLY_OVERDUE: _reply_overdue,
+    Detector.GONE_QUIET: _gone_quiet,
+    Detector.BLIND_SPOT: _blind_spot,
+}
+
+
+def _reasons(facts: _Facts, scored: ScoredAccount) -> list[Evidence]:
+    """The account's top reasons as evidence, each dated by the day of its reading."""
+    readings = facts.latest.get(scored.account.id, {})
+    found: list[Evidence] = []
+    for reason in scored.reasons[:MAX_REASONS]:
+        text = _cut_text(reason.plain_english, MAX_EVIDENCE)
+        if not text:
+            continue
+        reading = readings.get(reason.kind)
+        observed = None if reading is None else reading.observed_at.date()
+        found.append(Evidence(text=text, signal=reason.kind.value, observed=observed))
+    return found
+
+
+def _eligible(entry: AccountJournal, found: _Found) -> bool:
+    """Not when the CSM removed a follow-up with this key, nor when the account already has one
+    with it, open or done: one occasion is never two follow-ups (core/rules.py checks the same)."""
+    if found.key in entry.dismissed_rules:
+        return False
+    return not any(item.rule == found.key for item in entry.follow_ups)
+
+
+def _proposal(facts: _Facts, scored: ScoredAccount, found: _Found, created: datetime) -> Proposal:
+    why = [*found.why, *_reasons(facts, scored)][:MAX_WHY]
+    return Proposal(
+        id="",
+        account_id=scored.account.id,
+        kind=ProposalKind.FOLLOW_UP,
+        source=ProposalSource.DETECTOR,
+        detector=found.detector,
+        key=found.key,
+        title=found.title,
+        why=why,
+        text=found.title,
+        due=found.due,
+        draft_kind=found.draft_kind,
+        created_at=created,
+        basis_day=facts.today,
+    )
+
 
 def plan(
     book: Sequence[ScoredAccount],
@@ -334,14 +612,49 @@ def plan(
     settings: Settings,
     today: date,
     now: datetime,
+    *,
+    config: ScoringConfig | None = None,
 ) -> list[Proposal]:
     """The suggestions the five Detectors make for this book today, most urgent account first
-    (book order), at most one per detector per account. Pure: no I/O, no randomness; ids are
-    "" (Proposals.add gives the real one). `latest` is account id -> SignalKey value -> the
+    (book order), at most one per detector per account, and no GONE_QUIET where HEALTH_DROPPED
+    fired (both ask for the same contact). Pure: no I/O, no randomness; ids are "" (Proposals.add
+    gives the real one). `latest` is account id -> SignalKey value -> the
     latest Signal, as service.latest_book_signals returns it. `health_since` is account id -> the
     first day of its current health run (history.health_since); HEALTH_DROPPED keys use it, so the
-    same drop is suggested once however many days it shows in `changes`. Empty for demo data."""
-    raise NotImplementedError
+    same drop is suggested once however many days it shows in `changes`. Empty for demo data.
+    `config` is the scoring config the confidence check reads (None: the built-in signals only).
+    An account with an active snooze gets nothing. For each detector the first candidate the
+    journal doesn't already have is the one suggested."""
+    facts = _facts(settings, today, config, latest, changes, health_since)
+    created = naive_utc(now)
+    planned: list[Proposal] = []
+    for scored in book:
+        entry = journals.get(scored.account.id, AccountJournal())
+        if active_snooze(entry, scored.health, today) is not None:
+            continue
+        chosen: set[Detector] = set()
+        for detector in Detector:
+            if detector is Detector.GONE_QUIET and Detector.HEALTH_DROPPED in chosen:
+                continue  # "Check in: health dropped" already asks for the same contact
+            options = _DETECTORS[detector](facts, scored, entry)
+            choice = next((found for found in options if _eligible(entry, found)), None)
+            if choice is not None:
+                chosen.add(detector)
+                planned.append(_proposal(facts, scored, choice, created))
+    return _fewer_blind_spots(planned, {item.account.id: item.account.arr for item in book})
+
+
+def _fewer_blind_spots(planned: list[Proposal], arr: Mapping[str, float]) -> list[Proposal]:
+    """At most MAX_BLIND_SPOTS BLIND_SPOT suggestions, the largest accounts' (a new book with few
+    readings would otherwise fill Today with them); the rest keep their order."""
+    spots = [item for item in planned if item.detector is Detector.BLIND_SPOT]
+    if len(spots) <= MAX_BLIND_SPOTS:
+        return planned
+    ranked = sorted(spots, key=lambda item: (-arr.get(item.account_id, 0.0), item.account_id))
+    kept = {id(item) for item in ranked[:MAX_BLIND_SPOTS]}
+    return [
+        item for item in planned if item.detector is not Detector.BLIND_SPOT or id(item) in kept
+    ]
 
 
 def refresh(
@@ -354,11 +667,29 @@ def refresh(
     settings: Settings,
     today: date,
     now: datetime,
+    *,
+    config: ScoringConfig | None = None,
 ) -> RefreshResult:
     """Expire the open DETECTOR suggestions whose reason has gone (expire_cleared), then add
     plan()'s new ones, at most MAX_PER_RUN, through Proposals.add_many, and set last_run. Does
-    nothing (and returns an empty result) when settings.suggestions is off."""
-    raise NotImplementedError
+    nothing (and returns an empty result) when settings.suggestions is off. A key the store
+    already has, in any status, is not new. `waiting` counts what the caps held back plus what
+    was beyond MAX_PER_RUN. `config` defaults to load_scoring_config()."""
+    if not settings.suggestions:
+        return RefreshResult()
+    scoring = config if config is not None else load_scoring_config()
+    expired = expire_cleared(
+        store, book, journals, latest, changes, health_since, settings, today, now, config=scoring
+    )
+    planned = plan(
+        book, journals, latest, changes, health_since, settings, today, now, config=scoring
+    )
+    known = {(item.account_id, item.key) for item in store.all()}
+    fresh = [item for item in planned if (item.account_id, item.key) not in known]
+    beyond = max(0, len(fresh) - MAX_PER_RUN)
+    added, held = store.add_many(fresh[:MAX_PER_RUN])
+    store.set_last_run(today)
+    return RefreshResult(added=len(added), expired=expired, waiting=held + beyond)
 
 
 def expire_cleared(
@@ -371,10 +702,67 @@ def expire_cleared(
     settings: Settings,
     today: date,
     now: datetime,
+    *,
+    config: ScoringConfig | None = None,
 ) -> int:
     """Mark EXPIRED (with expired_reason) every open DETECTOR suggestion whose reason no longer
-    holds, and any open suggestion whose account has left the book; return how many."""
-    raise NotImplementedError
+    holds, and any open suggestion whose account has left the book; return how many. A detector
+    suggestion still holds while its detector finds its key for the account. Snoozes don't count:
+    a snooze hides a suggestion, it doesn't make its reason untrue."""
+    facts = _facts(settings, today, config, latest, changes, health_since)
+    when = naive_utc(now)
+    in_book = {scored.account.id: scored for scored in book}
+    expired = 0
+    for item in store.open():
+        scored = in_book.get(item.account_id)
+        if scored is None:
+            reason = _NOT_IN_BOOK
+        elif item.source is ProposalSource.DETECTOR and item.detector is not None:
+            entry = journals.get(item.account_id, AccountJournal())
+            found = _DETECTORS[item.detector](facts, scored, entry)
+            if any(option.key == item.key for option in found):
+                continue
+            # The detector still finds the account, under a newer key (a new week's drop, a new
+            # set of missing readings): that one replaces this, which says so.
+            reason = _REPLACED if found else _gone_reason(facts, scored, entry, item)
+        else:
+            continue
+        store.replace(
+            item.model_copy(
+                update={
+                    "status": ProposalStatus.EXPIRED,
+                    "decided_at": when,
+                    "expired_reason": reason,
+                }
+            )
+        )
+        expired += 1
+    return expired
+
+
+def _gone_reason(
+    facts: _Facts, scored: ScoredAccount, entry: AccountJournal, item: Proposal
+) -> str:
+    """Why a detector suggestion no longer holds, in plain English."""
+    detector = item.detector
+    if detector is Detector.HEALTH_DROPPED:
+        return "Health is no longer worse."
+    if detector is Detector.RENEWAL_NO_CALL:
+        if any(call.renewal_date == scored.account.renewal_date for call in entry.calls):
+            return "The forecast call was made."
+        return f"The renewal is no longer within {facts.settings.rule_renewal_days} days."
+    if detector is Detector.REPLY_OVERDUE:
+        return "The reply came, or the thread has gone quiet."
+    if detector is Detector.GONE_QUIET:
+        last = last_contact(entry)
+        if last is not None and last >= item.basis_day:
+            return f"You logged a contact on {_day(last)}."
+        if scored.health is Health.HEALTHY:
+            return "Health recovered."
+        return "The account is no longer quiet."
+    if scored.health is not Health.HEALTHY:
+        return "It no longer looks healthy on thin data."
+    return "Its readings are no longer thin."
 
 
 class Edits(BaseModel):
@@ -394,15 +782,124 @@ def accept(
     now: datetime,
     today: date,
     edits: Edits | None = None,
+    health: Health | None = None,
 ) -> Proposal:
     """Write the suggestion's one journal entry and mark it ACCEPTED with result_id. Accepting an
     ACCEPTED suggestion returns it unchanged. LookupError(NOT_FOUND) for an unknown id;
     ValueError with a plain message when it is DISMISSED or EXPIRED, or when the journal refuses
-    the entry (its own messages). Records audit PROPOSAL_ACCEPTED (detail: the kind)."""
-    raise NotImplementedError
+    the entry (its own messages). A follow-up whose key the journal already has is not written
+    again: the suggestion is ACCEPTED with that follow-up's id. A snooze needs `health`, the
+    account's health now (journal.snooze keeps it); without it, ValueError. Records audit
+    PROPOSAL_ACCEPTED (detail: the kind). The edits replace the text, the due day or the end of
+    a snooze; a snooze keeps no text, so an edited text is ignored for one."""
+    with WRITE_LOCK:
+        current = store.get(proposal_id)
+        if current is None:
+            raise LookupError(NOT_FOUND)
+        if current.status is ProposalStatus.ACCEPTED:
+            return current
+        if current.status is ProposalStatus.DISMISSED:
+            raise ValueError(_DISMISSED_REFUSAL)
+        if current.status is ProposalStatus.EXPIRED:
+            reason = f" {current.expired_reason}" if current.expired_reason else ""
+            raise ValueError(_EXPIRED_ACCEPT + reason)
+        result_id = _write_entry(journal, current, now=now, today=today, edits=edits, health=health)
+        accepted = current.model_copy(
+            update={
+                "status": ProposalStatus.ACCEPTED,
+                "decided_at": naive_utc(now),
+                "result_id": result_id,
+            }
+        )
+        store.replace(accepted)
+    _audit(audit.Event.PROPOSAL_ACCEPTED, current)
+    return accepted
+
+
+def _write_entry(
+    journal: Journal,
+    current: Proposal,
+    *,
+    now: datetime,
+    today: date,
+    edits: Edits | None,
+    health: Health | None,
+) -> str:
+    """The one journal entry the suggestion stands for: its id, or "snooze". An edit replaces the
+    suggestion's own value; no edit keeps it."""
+    text = current.text
+    due = current.due
+    until = current.until
+    if edits is not None:
+        text = text if edits.text is None else edits.text
+        due = due if edits.due is None else edits.due
+        until = until if edits.until is None else edits.until
+    if current.kind is ProposalKind.FOLLOW_UP:
+        return _follow_up(journal, current, text, max(due or today, today), now=now, today=today)
+    if current.kind is ProposalKind.NOTE:
+        note = journal.add_note(
+            current.account_id,
+            TouchKind.NOTE,
+            text,
+            today,
+            now=now,
+            today=today,
+            source=NoteSource.SUGGESTION,
+        )
+        return note.id
+    if health is None:
+        raise ValueError(_NEEDS_HEALTH)
+    journal.snooze(current.account_id, until or today, health, now=now, today=today)
+    return "snooze"
+
+
+def _follow_up(
+    journal: Journal, current: Proposal, text: str, due: date, *, now: datetime, today: date
+) -> str:
+    """Add the follow-up under the suggestion's key. A key the journal already has is not an
+    error: that follow-up's id stands for the suggestion."""
+    try:
+        return journal.add_follow_up(
+            current.account_id, text, due, now=now, today=today, rule=current.key
+        ).id
+    except ValueError:
+        account = journal.for_account(current.account_id)
+        existing = next((item for item in account.follow_ups if item.rule == current.key), None)
+        if existing is not None:
+            return existing.id
+        if current.key in account.dismissed_rules:
+            raise ValueError(_REMOVED_RULE) from None
+        raise
 
 
 def dismiss(store: Proposals, proposal_id: str, *, now: datetime) -> Proposal:
     """Mark it DISMISSED, so its key is never suggested again. Dismissing a DISMISSED one returns
     it unchanged; ValueError when it is ACCEPTED or EXPIRED. Records PROPOSAL_DISMISSED."""
-    raise NotImplementedError
+    with WRITE_LOCK:
+        current = store.get(proposal_id)
+        if current is None:
+            raise LookupError(NOT_FOUND)
+        if current.status is ProposalStatus.DISMISSED:
+            return current
+        if current.status is ProposalStatus.ACCEPTED:
+            raise ValueError(_ACCEPTED_REFUSAL)
+        if current.status is ProposalStatus.EXPIRED:
+            raise ValueError(_EXPIRED_DISMISS)
+        dismissed = current.model_copy(
+            update={"status": ProposalStatus.DISMISSED, "decided_at": naive_utc(now)}
+        )
+        store.replace(dismissed)
+    _audit(audit.Event.PROPOSAL_DISMISSED, current)
+    return dismissed
+
+
+def _audit(event: audit.Event, item: Proposal) -> None:
+    """The log line names the event and the kind of suggestion only: never a name or any text."""
+    audit.record(event, book=_book_name(), detail=item.kind.value)
+
+
+def _book_name() -> str | None:
+    try:
+        return books.active_id() or None
+    except books.BookError:
+        return None

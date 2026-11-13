@@ -1,0 +1,64 @@
+{# One suggestion (proposal_pages.Card). `card`, `query` and `logos` come from the page or the route.
+   Accept, Accept with changes and Dismiss post to /suggestions/...; with htmx the card is swapped for
+   its one-line result (partials/suggestion_done.html), or for the card again when it was refused. #}
+{% from "partials/logo.html" import account_logo %}
+<li class="today-row">
+  {{ account_logo(card.account_id, card.name, logos) }}
+  <div class="today-row-body">
+    <div class="today-row-head">
+      <a class="account-link" href="/accounts/{{ card.account_id | idpath }}">{{ card.name }}</a>
+      <span class="chip chip--muted">{{ card.source }}</span>
+      {% if card.when %}<span class="due">{{ card.when }}</span>{% endif %}
+    </div>
+    <p class="today-text suggestion-title">{{ card.title }}</p>
+    {% if card.why %}
+    <div class="suggestion-why">
+      <p class="field-help suggestion-why-label">Why</p>
+      <ul>
+        {% for line in card.why %}
+        <li>{{ line.text }}{% if line.observed %} <span class="field-help">({{ line.observed }})</span>{% endif %}</li>
+        {% endfor %}
+      </ul>
+    </div>
+    {% endif %}
+    {% if card.error %}<p class="field-error" role="alert">{{ card.error }}</p>{% endif %}
+    <details class="today-more suggestion-edit">
+      <summary>Edit<span class="visually-hidden"> this suggestion for {{ card.name }}</span></summary>
+      <form class="suggestion-edit-form" method="post" action="/suggestions/{{ card.id | idpath }}/accept" hx-post="/suggestions/{{ card.id | idpath }}/accept" hx-target="closest li" hx-swap="outerHTML">
+        {% if query %}<input type="hidden" name="q" value="{{ query }}">{% endif %}
+        {% if card.edit_text %}
+        <div class="field">
+          <label for="suggestion-{{ card.id }}-text">{{ 'Note' if card.multiline else 'Text' }}</label>
+          {% if card.multiline %}
+          <textarea id="suggestion-{{ card.id }}-text" name="text" rows="4" maxlength="4000">{{ card.text }}</textarea>
+          {% else %}
+          <input type="text" id="suggestion-{{ card.id }}-text" name="text" value="{{ card.text }}" maxlength="200" autocomplete="off">
+          {% endif %}
+        </div>
+        {% endif %}
+        {% if card.date_name %}
+        <div class="field">
+          <label for="suggestion-{{ card.id }}-{{ card.date_name }}">{{ card.date_label }}</label>
+          <input type="date" id="suggestion-{{ card.id }}-{{ card.date_name }}" name="{{ card.date_name }}" value="{{ card.date_value }}">
+        </div>
+        {% endif %}
+        <div class="form-actions">
+          <button type="submit" class="button">Accept with changes<span class="visually-hidden"> for {{ card.name }}</span></button>
+        </div>
+      </form>
+    </details>
+    {% if card.draft_kind %}
+    <a class="field-help" href="/accounts/{{ card.account_id | idpath }}/draft?kind={{ card.draft_kind }}&amp;back=today">Draft the email<span class="visually-hidden"> for {{ card.name }}</span></a>
+    {% endif %}
+  </div>
+  <div class="today-row-actions">
+    <form class="inline-form" method="post" action="/suggestions/{{ card.id | idpath }}/accept" hx-post="/suggestions/{{ card.id | idpath }}/accept" hx-target="closest li" hx-swap="outerHTML">
+      {% if query %}<input type="hidden" name="q" value="{{ query }}">{% endif %}
+      <button type="submit" class="button-primary button--small">Accept<span class="visually-hidden"> {{ card.title }}</span></button>
+    </form>
+    <form class="inline-form" method="post" action="/suggestions/{{ card.id | idpath }}/dismiss" hx-post="/suggestions/{{ card.id | idpath }}/dismiss" hx-target="closest li" hx-swap="outerHTML">
+      {% if query %}<input type="hidden" name="q" value="{{ query }}">{% endif %}
+      <button type="submit" class="button button--small">Dismiss<span class="visually-hidden"> {{ card.title }}</span></button>
+    </form>
+  </div>
+</li>

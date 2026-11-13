@@ -32,6 +32,12 @@
 </form>
 {%- endmacro %}
 
+{#- Who made an entry, when it wasn't you: "Added by Claude" or "From a suggestion", shown beside the
+   day like the mailbox label. Nothing for your own entries. -#}
+{% macro entry_source(entry) -%}
+{% if entry.source_label %}<span class="entry-source">{{ entry.source_label }}</span>{% endif %}
+{%- endmacro %}
+
 {#- The text of an entry: all of it when short; otherwise its start, with the rest one click away. -#}
 {% macro entry_text(entry) -%}
 {% if entry.long %}

@@ -12609,3 +12609,358 @@ thead th {
 .settings-card .privacy-key[hidden] {
   display: none;
 }
+
+/* --- suggestions --------------------------------------------------------------- */
+/* Suggested for you, the first section of Today (web/proposal_pages.py). Workstream A: the lead merges
+   this into app.css. The rows reuse .today-row, .today-list and .today-more; this file adds only what
+   a suggestion card needs on top of them. */
+
+.suggestion-title {
+  font-weight: 600;
+}
+
+/* "Why": the evidence lines, each with its day in brackets, quieter than the step itself. */
+.suggestion-why {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  font-size: var(--t-sm);
+  line-height: var(--lh-sm);
+}
+
+.suggestion-why-label {
+  margin: 0;
+}
+
+.suggestion-why ul {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin: 0;
+  padding-inline-start: var(--space-4);
+  overflow-wrap: anywhere;
+}
+
+.suggestion-why .field-help {
+  display: inline;
+}
+
+/* Edit: the disclosure opens a short form in place. The form keeps to a readable width. */
+.suggestion-edit-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  inline-size: 100%;
+  max-inline-size: 28rem;
+  margin-block-start: var(--space-2);
+}
+
+.suggestion-edit-form .field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.suggestion-edit-form .field input,
+.suggestion-edit-form .field textarea {
+  inline-size: 100%;
+  border-color: var(--line-strong);
+  border-radius: 10px;
+}
+
+.suggestion-edit-form .form-actions {
+  justify-content: flex-start;
+}
+
+.suggestion-edit > summary + form {
+  margin-block-end: var(--space-1);
+}
+
+/* The one-line result that takes a card's place after Accept or Dismiss. */
+.suggestion-done {
+  display: block;
+  padding: var(--space-3) var(--space-5);
+  border-block-start: 1px solid var(--line);
+}
+
+.suggestion-done-line {
+  margin: 0;
+}
+
+/* A suggestion shown on its own (a refused action without JavaScript). */
+.suggestion-page-list {
+  margin: 0;
+}
+
+.suggestions .today-row-actions .inline-form {
+  display: inline-flex;
+}
+
+/* --- drafts --------------------------------------------------------------- */
+/* Email drafts: the account's "Draft an email" page (web/templates/accounts/draft.html). The lead
+   merges this file into app.css. Tokens only; the look is the account page's. */
+
+.draft-page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+  max-inline-size: 48rem;
+}
+
+.draft-kinds .chip-list {
+  margin-block-start: 0;
+}
+
+a.chip {
+  color: inherit;
+  text-decoration: none;
+}
+
+a.chip:hover {
+  text-decoration: underline;
+}
+
+.draft-kind--current {
+  border-color: var(--accent);
+}
+
+.draft-to {
+  margin: 0;
+  font-size: var(--t-sm);
+  line-height: var(--lh-sm);
+  color: var(--ink);
+}
+
+.draft-to-label {
+  margin-inline-end: var(--space-2);
+  color: var(--ink-muted);
+}
+
+.draft-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.draft-label {
+  font-size: var(--t-sm);
+  line-height: var(--lh-sm);
+  font-weight: 600;
+}
+
+.draft-text {
+  inline-size: 100%;
+  max-inline-size: 100%;
+  padding: var(--space-2) var(--space-3);
+  color: var(--ink);
+  background: var(--surface);
+  border: 1px solid var(--control);
+  border-radius: var(--radius-control);
+  font: inherit;
+  line-height: var(--lh-body);
+  resize: vertical;
+}
+
+.draft-text--subject {
+  resize: none;
+}
+
+.draft-text--body {
+  min-block-size: 14rem;
+}
+
+.draft-field-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+}
+
+.draft-field-actions .field-help {
+  margin: 0;
+}
+
+.draft-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}
+
+.draft-ai-form {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-3);
+  margin: 0;
+}
+
+.draft-ai-form + .draft-ai-form {
+  margin-block-start: var(--space-2);
+}
+
+.draft-status {
+  margin: 0;
+  font-size: var(--t-body);
+  line-height: var(--lh-body);
+  color: var(--ink);
+}
+
+.draft-basis-list {
+  margin: 0;
+  padding-inline-start: var(--space-5);
+  font-size: var(--t-sm);
+  line-height: var(--lh-sm);
+  color: var(--ink);
+}
+
+.draft-basis-list li + li {
+  margin-block-start: var(--space-1);
+}
+
+/* --- assistant --------------------------------------------------------------- */
+/* Settings > Assistant. The cards, the choices and their help reuse .settings-card, .choice-option,
+   .choice-help, .field-check and .settings-actions from app.css; this file only sets the spacing
+   between the three cards. */
+.assistant-form {
+  gap: var(--space-5);
+}
+
+.assistant-group {
+  gap: var(--space-4);
+}
+
+.assistant-group > .prose {
+  margin: 0;
+}
+
+/* --- status --------------------------------------------------------------- */
+/* System status (Settings > System status), the freshness line under a page's title, and the
+   problem banner's links. Built from the existing tokens; merged into app.css by the lead. */
+
+/* Freshness line: one quiet line under the title. The words carry the state, the icon only backs
+   them up, and a warning is set in full ink so it doesn't need colour to be seen. */
+.freshness {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1) var(--space-2);
+  margin: 0;
+  font-size: var(--t-sm);
+  line-height: var(--lh-sm);
+  color: var(--ink-muted);
+}
+
+.freshness--warn {
+  color: var(--ink);
+}
+
+.freshness-icon {
+  inline-size: 0.875rem;
+  block-size: 0.875rem;
+  flex: none;
+}
+
+/* System status: one row per check, like the setup check on Settings > Overview. */
+.system-status-list {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.system-status-item {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding-block: var(--space-4);
+  border-block-start: 1px solid var(--line);
+}
+
+.system-status-item:last-child {
+  border-block-end: 1px solid var(--line);
+}
+
+.system-status-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-1) var(--space-3);
+}
+
+.system-status-title {
+  margin: 0;
+  font-size: var(--t-md);
+  line-height: var(--lh-md);
+  font-weight: 600;
+}
+
+/* The state's words sit beside the name; the colour only repeats them. */
+.system-status-mark {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  margin: 0;
+  font-size: var(--t-sm);
+  line-height: var(--lh-sm);
+  color: var(--ink);
+}
+
+.system-status-item--ok .system-status-mark {
+  color: var(--healthy);
+}
+
+.system-status-item--warn .system-status-mark {
+  color: var(--watch);
+}
+
+.system-status-item--fail .system-status-mark {
+  color: var(--risk);
+}
+
+.system-status-icon {
+  inline-size: 0.875rem;
+  block-size: 0.875rem;
+  flex: none;
+}
+
+.system-status-detail,
+.system-status-last,
+.system-status-fix {
+  margin: 0;
+}
+
+.system-status-last,
+.system-status-fix {
+  font-size: var(--t-sm);
+  line-height: var(--lh-sm);
+  color: var(--ink-muted);
+}
+
+.system-status-fix a {
+  color: var(--ink);
+}
+
+/* Recent runs: one disclosure per job, closed until wanted. */
+.system-status-run {
+  padding-block: var(--space-3);
+  border-block-start: 1px solid var(--line);
+}
+
+.system-status-run > summary {
+  cursor: pointer;
+  font-size: var(--t-ui);
+  font-weight: 600;
+}
+
+.system-status-run-list {
+  margin: var(--space-2) 0 0;
+  padding-inline-start: var(--space-4);
+  font-size: var(--t-sm);
+  line-height: var(--lh-sm);
+}
+
+.system-status-run-when {
+  color: var(--ink-muted);
+}

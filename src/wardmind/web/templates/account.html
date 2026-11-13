@@ -34,11 +34,10 @@
         <h1 class="page-title account-name">{{ account.name }}</h1>
         {% if 'name' in edits %}{{ edited_marker() }}{% endif %}
       </div>
-      {% if prov %}
       <div class="page-head-actions no-print">
-        <a class="button" href="/accounts/{{ account.id | idpath }}/edit">Edit account</a>
+        <a class="button" href="/accounts/{{ account.id | idpath }}/draft?back=account">Draft an email</a>
+        {% if prov %}<a class="button" href="/accounts/{{ account.id | idpath }}/edit">Edit account</a>{% endif %}
       </div>
-      {% endif %}
       <ul class="facts">
         <li><span class="health health--{{ health.value }}"><svg class="icon" aria-hidden="true" focusable="false"><use href="/static/icons.svg#health-{{ health.value | replace('_', '-') }}"/></svg> {{ health.label }}</span></li>
         <li>{{ detail | motion_fact }}{% if motion_field in edits %} {{ edited_marker() }}{% endif %}</li>

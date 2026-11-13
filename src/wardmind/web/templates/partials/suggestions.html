@@ -1,0 +1,17 @@
+{# "Suggested for you", the first section of Today (proposal_pages.today_section). `screen.suggestions`
+   is set and has cards; the find text is kept by each card's forms. Nothing here changes the
+   journal: Accept does, from the card. #}
+{% set section = screen.suggestions %}
+{% set query = section.query %}
+<section class="account-section today-section today-suggestions" id="today-suggested" aria-labelledby="today-suggested-heading">
+  <h2 class="section-title" id="today-suggested-heading">Suggested for you</h2>
+  <p class="field-help">Nothing reaches your journal until you accept it.</p>
+  <ul class="rows today-list">
+    {% for card in section.cards %}
+    {% include "partials/suggestion_card.html" %}
+    {% endfor %}
+  </ul>
+  {% if section.waiting %}
+  <p class="field-help">{{ section.waiting }} more {{ 'suggestion is' if section.waiting == 1 else 'suggestions are' }} waiting. Accept or dismiss some to make room.</p>
+  {% endif %}
+</section>

@@ -27,7 +27,7 @@ from __future__ import annotations
 
 import contextlib
 import shutil
-from collections.abc import Callable, Iterable
+from collections.abc import Callable, Iterable, Sequence
 from datetime import date, datetime, timedelta
 from enum import StrEnum
 from pathlib import Path
@@ -301,6 +301,35 @@ def trend_points(snapshots: Iterable[BookSnapshot], account_id: str) -> list[Tre
                 TrendPoint(day=snapshot.day, risk=entry.risk, health=entry.health, rank=entry.rank)
             )
     return points
+
+
+def health_since(
+    book: Sequence[ScoredAccount], store: HistoryStore, today: date
+) -> dict[str, date]:
+    """For each account in `book`, the first day of its CURRENT health run: the earliest recorded
+    day before today on which it had the same health as it has now. The run goes back through the
+    snapshot files for as long as the account has that health in each one. A day with no snapshot
+    file (Wardmind wasn't open) is skipped and does not end the run; the first snapshot where the
+    account has another health, or is not in it, ends the run. An account with no earlier snapshot
+    to look at starts its run today. This is rules.at_risk_since for every health."""
+    start: dict[str, date] = {}
+    running: dict[str, Health] = {}
+    for scored in book:
+        start[scored.account.id] = today
+        running[scored.account.id] = scored.health
+    for day in reversed([known for known in store.days() if known < today]):
+        if not running:
+            break
+        snapshot = store.load(day)
+        if snapshot is None:  # an unreadable file counts as absent, so it doesn't end a run
+            continue
+        for account_id, health in list(running.items()):
+            entry = snapshot.accounts.get(account_id)
+            if entry is not None and entry.health is health:
+                start[account_id] = day
+            else:
+                del running[account_id]
+    return start
 
 
 # --- The history folder (Your data) -------------------------------------------------------

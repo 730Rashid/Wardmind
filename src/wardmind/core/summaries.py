@@ -503,6 +503,51 @@ class OpenRouterClient:
             raise AIUnavailable(_NO_ANSWER)
         return content, _usage(data.get("usage"))
 
+    def complete_text(
+        self,
+        system: str,
+        user: str,
+        *,
+        model: str,
+        max_tokens: int,
+        allow_training: bool = False,
+    ) -> str:
+        """A plain chat completion: the reply's text, with no response schema (email drafts,
+        core/drafts.py). The same provider rules as complete(): data_collection "deny", so only
+        providers that don't store or train on the data. A model that trains_on_data is refused
+        (TrainingNotConfirmed, nothing sent) unless allow_training says the CSM confirmed it, and
+        is then sent "allow". Errors map as in complete()."""
+        trains = trains_on_data(model)
+        if trains and not allow_training:
+            raise TrainingNotConfirmed(training_message(model))
+        body: dict[str, Any] = {
+            "model": model,
+            "messages": [
+                {"role": "system", "content": system},
+                {"role": "user", "content": user},
+            ],
+            "max_tokens": max_tokens,
+            "provider": {
+                "data_collection": "allow" if trains else "deny",
+                "require_parameters": True,
+            },
+        }
+        data = self._check(self._send("POST", CHAT_PATH, body))
+        error = data.get("error")
+        if error:  # a 200 can still carry an error
+            raise AIUnavailable(self._error_text(error) or _FAILED)
+        choices = data.get("choices")
+        if not isinstance(choices, list) or not choices or not isinstance(choices[0], dict):
+            raise AIUnavailable(_NO_ANSWER)
+        choice = choices[0]
+        if choice.get("finish_reason") == "error":
+            raise AIUnavailable(_FAILED)
+        message = choice.get("message")
+        content = message.get("content") if isinstance(message, dict) else None
+        if not isinstance(content, str) or not content.strip():
+            raise AIUnavailable(_NO_ANSWER)
+        return content
+
     def key_info(self) -> KeyInfo:
         """GET KEY_PATH. Same error mapping as complete()."""
         data = self._check(self._send("GET", KEY_PATH))
@@ -693,6 +738,41 @@ class LocalModelClient:
             raise AIUnavailable(_NO_ANSWER)
         usage = _usage(data.get("usage"))
         return content, usage.model_copy(update={"cost_usd": None})
+
+    def complete_text(
+        self,
+        system: str,
+        user: str,
+        *,
+        model: str,
+        max_tokens: int,
+        allow_training: bool = False,
+    ) -> str:
+        """A plain chat completion: the reply's text, with no response schema (email drafts,
+        core/drafts.py). As complete(): nothing leaves this computer, so allow_training is ignored,
+        there are no retries, and a model that is not there is named with its address."""
+        del allow_training
+        body: dict[str, Any] = {
+            "model": model,
+            "messages": [
+                {"role": "system", "content": system},
+                {"role": "user", "content": user},
+            ],
+            "max_tokens": max_tokens,
+            "stream": False,
+        }
+        response = self._send("POST", CHAT_PATH, body)
+        if response.status_code == 404:
+            raise AIUnavailable(_LOCAL_NO_MODEL.format(url=self._base_url, model=model))
+        data = self._check(response)
+        choices = data.get("choices")
+        if not isinstance(choices, list) or not choices or not isinstance(choices[0], dict):
+            raise AIUnavailable(_NO_ANSWER)
+        message = choices[0].get("message")
+        content = message.get("content") if isinstance(message, dict) else None
+        if not isinstance(content, str) or not content.strip():
+            raise AIUnavailable(_NO_ANSWER)
+        return content
 
     def models(self) -> list[str]:
         """GET /models: the names of the models the server has, sorted, at most

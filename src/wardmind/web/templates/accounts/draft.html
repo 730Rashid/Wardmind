@@ -1,0 +1,85 @@
+{% extends "base.html" %}
+{% from "partials/page_head.html" import page_head %}
+{% block content %}
+<div class="draft-page">
+  <p class="account-back no-print"><a href="{{ back_href }}">{{ back_label }}</a></p>
+  {{ page_head(page, "mail", meta=account_name) }}
+  <p class="page-lede">A draft for this account, built from its facts. Wardmind never sends email. Copy it into your own email.</p>
+
+  <nav class="draft-kinds no-print" aria-label="Kind of email">
+    <ul class="chip-list">
+      {% for kind in kinds %}
+      <li><a class="chip{% if kind.current %} draft-kind--current{% endif %}" href="{{ kind.href }}"{% if kind.current %} aria-current="page"{% endif %}>{{ kind.label }}</a></li>
+      {% endfor %}
+    </ul>
+  </nav>
+
+  <section class="account-section draft-email" aria-labelledby="draft-heading">
+    <h2 class="section-title" id="draft-heading">Your draft</h2>
+    <p class="draft-to"><span class="draft-to-label">To</span> {{ to_line }}</p>
+
+    <div class="draft-field">
+      <label class="draft-label" for="draft-subject">Subject</label>
+      <textarea class="draft-text draft-text--subject" id="draft-subject" rows="1" readonly>{{ draft.subject }}</textarea>
+      <div class="draft-field-actions no-print">
+        <button type="button" class="button button--small js-only" data-draft-copy="draft-subject">Copy subject</button>
+        <p class="field-help" role="status" data-copy-status></p>
+      </div>
+    </div>
+
+    <div class="draft-field">
+      <label class="draft-label" for="draft-body">Body</label>
+      <textarea class="draft-text draft-text--body" id="draft-body" rows="12" readonly>{{ draft.body }}</textarea>
+      <div class="draft-field-actions no-print">
+        <button type="button" class="button button--small js-only" data-draft-copy="draft-body">Copy body</button>
+        <p class="field-help" role="status" data-copy-status></p>
+      </div>
+    </div>
+
+    <div class="draft-actions no-print">
+      <a class="button-primary" href="{{ mailto }}">Open in your email app</a>
+    </div>
+    <p class="field-help">Wardmind never sends email. Copy it into your own email.</p>
+  </section>
+
+  <section class="account-section draft-wording no-print" aria-labelledby="wording-heading">
+    <h2 class="section-title" id="wording-heading">Wording</h2>
+    {% if made_by %}
+    <p class="draft-status" role="status">Wording improved by {{ made_by }}.</p>
+    {% else %}
+    <p class="draft-status" role="status">Written from a template.</p>
+    {% if draft.fallback_reason %}<p class="field-help" role="status">{{ draft.fallback_reason }}</p>{% endif %}
+    {% endif %}
+
+    {% if offer %}
+    <form class="draft-ai-form" method="post" action="{{ polish_href }}"{% if training_model %} data-training-confirm data-training-model="{{ training_model }}" data-training-what="this email"{% endif %}>
+      <input type="hidden" name="kind" value="{{ draft.kind.value }}">
+      <input type="hidden" name="back" value="{{ back }}">
+      <button type="submit" class="button">Improve the wording with AI</button>
+    </form>
+    {% if training_refused %}
+    {# Without JavaScript there is no dialog: the refusal is the question, and this answers it. #}
+    <form class="draft-ai-form" method="post" action="{{ polish_href }}">
+      <input type="hidden" name="kind" value="{{ draft.kind.value }}">
+      <input type="hidden" name="back" value="{{ back }}">
+      <input type="hidden" name="allow_training" value="1">
+      <p class="field-warning" role="alert"><svg class="icon" aria-hidden="true" focusable="false"><use href="/static/icons.svg#health-watch"/></svg><span>{{ training_text }}</span></p>
+      <button type="submit" class="button">Proceed with {{ training_model }}</button>
+    </form>
+    {% endif %}
+    {% else %}
+    <p class="field-help">{{ offer_note }}</p>
+    {% endif %}
+  </section>
+
+  <section class="account-section draft-basis" aria-labelledby="basis-heading">
+    <h2 class="section-title" id="basis-heading">What this is based on</h2>
+    <p class="field-help">For you only. It isn't in the email.</p>
+    <ul class="draft-basis-list">
+      {% for item in draft.basis %}
+      <li>{{ item }}</li>
+      {% endfor %}
+    </ul>
+  </section>
+</div>
+{% endblock %}

@@ -1,0 +1,60 @@
+{% extends "settings/layout.html" %}
+{# Settings > Assistant: three cards. Each choice's help sits under it, linked with aria-describedby,
+   so nothing depends on colour alone. Errors name the field they belong to. #}
+{% block settings %}
+<p class="page-lede">What Claude may do with your book, and how your email drafts are worded.</p>
+
+<form class="settings-form assistant-form" method="post" action="/settings/assistant">
+  {% if errors %}
+  <p class="field-error" role="alert">Nothing was saved. Fix the marked settings, then save again.</p>
+  {% endif %}
+  {% if errors.form %}<p class="field-error">{{ errors.form }}</p>{% endif %}
+
+  <section class="settings-card assistant-group" aria-labelledby="assistant-suggestions-title">
+    <h2 class="section-title" id="assistant-suggestions-title">Suggestions</h2>
+    <div class="field-check">
+      <label class="choice"><input type="checkbox" id="suggestions" name="suggestions" value="1"{% if values.suggestions %} checked{% endif %} aria-describedby="suggestions-help"> Suggest next steps on Today</label>
+      <p class="field-help" id="suggestions-help">Wardmind checks your book once a day and suggests next steps for you to accept or dismiss. Nothing changes until you accept one.</p>
+    </div>
+  </section>
+
+  <section class="settings-card assistant-group" aria-labelledby="assistant-claude-title">
+    <h2 class="section-title" id="assistant-claude-title">What Claude may change</h2>
+    <p class="prose">Claude reads your book through Wardmind's MCP server. It never deletes or edits anything, and every change it makes is in the Activity log.</p>
+
+    <fieldset class="settings-part" aria-describedby="{% if errors.mcp_writes %}mcp-writes-error{% endif %}">
+      <legend>Claude's changes</legend>
+      <div class="choice-option">
+        <label class="choice"><input type="radio" name="mcp_writes" value="off" aria-describedby="mcp-off-help"{% if values.mcp_writes == "off" %} checked{% endif %}> Off</label>
+        <p class="field-help choice-help" id="mcp-off-help">Claude can read your book but can't change it. Its write tools say how to turn them on.</p>
+      </div>
+      <div class="choice-option">
+        <label class="choice"><input type="radio" name="mcp_writes" value="propose" aria-describedby="mcp-propose-help"{% if values.mcp_writes == "propose" %} checked{% endif %}> Suggest only</label>
+        <p class="field-help choice-help" id="mcp-propose-help">Claude can suggest a note, a follow-up or a snooze. Each one waits on Today until you accept it.</p>
+      </div>
+      <div class="choice-option">
+        <label class="choice"><input type="radio" name="mcp_writes" value="direct" aria-describedby="mcp-direct-help"{% if values.mcp_writes == "direct" %} checked{% endif %}> Make changes</label>
+        <p class="field-help choice-help" id="mcp-direct-help">Claude can also add notes and follow-ups, mark a follow-up done and snooze an account. It shows a preview first and makes the change only when it is asked to confirm.</p>
+      </div>
+      {% if errors.mcp_writes %}<p class="field-error" id="mcp-writes-error">{{ errors.mcp_writes }}</p>{% endif %}
+    </fieldset>
+  </section>
+
+  <section class="settings-card assistant-group" aria-labelledby="assistant-drafts-title">
+    <h2 class="section-title" id="assistant-drafts-title">Email drafts</h2>
+    <p class="prose">Drafts are always written from templates. An AI can polish the wording. Wardmind never sends an email.</p>
+    <div class="field-check">
+      <label class="choice"><input type="checkbox" id="ai-drafts" name="ai_drafts" value="1" aria-describedby="ai-drafts-help"{% if values.ai_drafts %} checked{% endif %}> Let AI improve the wording</label>
+      <p class="field-help" id="ai-drafts-help">A model on this computer is used as set in Data & privacy.</p>
+    </div>
+    <div class="field-check">
+      <label class="choice"><input type="checkbox" id="ai-drafts-cloud" name="ai_drafts_cloud" value="1" aria-describedby="ai-drafts-cloud-help"{% if values.ai_drafts_cloud %} checked{% endif %}> Allow a model online (OpenRouter)</label>
+      <p class="field-help" id="ai-drafts-cloud-help">The draft's text goes to OpenRouter and the company running the model. Nothing else from your book is sent.</p>
+    </div>
+  </section>
+
+  <div class="settings-actions">
+    <button type="submit" class="button-primary">Save changes</button>
+  </div>
+</form>
+{% endblock %}

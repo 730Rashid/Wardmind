@@ -27,6 +27,7 @@ from wardmind.core import (
     proposals,
     research,
     rules,
+    runlog,
     secrets,
     summaries,
     vault,
@@ -808,6 +809,12 @@ _feed_scheduler: feed_sync.FeedScheduler | None = None
 _FEED_FAILED = feed_sync.SYNC_FAILED
 _HOUSEKEEPING_EVERY = timedelta(hours=1)
 _last_housekeeping: datetime | None = None  # when sync_due_feeds last ran housekeeping
+# book id -> the day the scheduler last asked remember_book for that book's snapshot. A new
+# day, or another open book, asks again at once (see _sync_due_feeds).
+_snapshot_days: dict[str, date] = {}
+# When this process last asked for each book's snapshot (naive UTC): a day with no snapshot file is
+# asked again only after _RETRY_AFTER, so a snapshot that keeps failing isn't retried every tick.
+_snapshot_tried: dict[str, datetime] = {}
 
 
 def _utc_now() -> datetime:
@@ -877,20 +884,52 @@ def sync_due_feeds() -> int:
         return _sync_due_feeds()
 
 
+def run_checks_now() -> int:
+    """Settings > System status > Run checks now: the scheduler's tick, at once, for the open book,
+    with the day's snapshot asked for again (remember_book still skips one taken within the hour).
+    Returns how many feeds were synced."""
+    book = books.active_id()
+    _snapshot_days.pop(book, None)
+    _snapshot_tried.pop(book, None)
+    return sync_due_feeds()
+
+
+def _no_snapshot_for(day: date) -> bool:
+    """Your data has no score snapshot file for `day` (it was never written, or Delete all local
+    data removed it), so the tick takes one even though this process already tried today."""
+    if _demo_mode():
+        return False
+    try:
+        return day not in history_store().days()
+    except Exception:  # a folder that can't be read: remember_book reports its own failure
+        return False
+
+
 def _sync_due_feeds() -> int:
     """Sync every enabled feed that feed_sync.is_due says is due, one after another; return how
-    many were synced. Never raises for one feed's problem (it lands in that feed's status).
-    Runs housekeeping, and records the day's score snapshot (remember_book), at most once an
-    hour. Also syncs the mailbox when it is due (see _sync_mailbox_if_due). While the book is
-    locked (core/vault.py) it does nothing and returns 0."""
+    many were synced. Never raises for one feed's problem: it lands in that feed's status and the
+    run log (core/runlog.py). Each tick catches up on what has fallen due. Housekeeping and the
+    day's score snapshot (remember_book) run at most once an hour, and the snapshot runs again
+    whenever the date or the open book has changed since the last one, so a book switch takes its
+    own snapshot. Then the feeds, the mailbox, and the day's follow-up rules and suggestions, which
+    run if they haven't succeeded for the day (_daily_steps). While the book is locked it does
+    nothing and returns 0."""
     global _last_housekeeping
+    now = _utc_now()
+    runlog.beat(now)
     if not vault.ensure_unlocked():
         return 0
     store = get_store()
-    now = _utc_now()
-    if _last_housekeeping is None or now - _last_housekeeping >= _HOUSEKEEPING_EVERY:
+    today = date.today()
+    book = books.active_id()
+    hourly = _last_housekeeping is None or now - _last_housekeeping >= _HOUSEKEEPING_EVERY
+    if hourly:
         _last_housekeeping = now
-        housekeeping(now)
+        _job("housekeeping", lambda: housekeeping(now))
+    missing = _no_snapshot_for(today) and now - _snapshot_tried.get(book, now) >= _RETRY_AFTER
+    if hourly or _snapshot_days.get(book) != today or missing:
+        _snapshot_days[book] = today
+        _snapshot_tried[book] = now
         remember_book()
     synced = 0
     for config in store.connections():
@@ -902,16 +941,33 @@ def _sync_due_feeds() -> int:
         if not feed_sync.is_due(config, now, mtime):
             continue
         try:
-            _sync_one(config, store, now)
+            with runlog.run(f"feed:{config.id}", store=store) as job:
+                outcome = _sync_one(config, store, now)
+                job.counts.update(
+                    {"rows": outcome.status.rows, "accounts": outcome.status.accounts}
+                )
+                if outcome.status.last_error is not None:
+                    job.fail(outcome.status.last_error)
         except Exception as exc:  # one feed's failure must not stop the others
             _log.warning("Feed %s wasn't synced (%s).", config.id, type(exc).__name__)
             _record_failure(store, config.id, now)
             continue
         synced += 1
     _sync_mailbox_if_due(now)
+    _daily_steps(now, today)
     if synced:
         reset_connectors()
     return synced
+
+
+def _job(name: str, body: Callable[[], None]) -> None:
+    """One step of the background work, inside runlog.run(name). A failure is recorded there and
+    logged here by its exception type; it never stops the steps after it."""
+    try:
+        with runlog.run(name):
+            body()
+    except Exception as exc:
+        _log.warning("The %s step didn't finish (%s).", name, type(exc).__name__)
 
 
 def _record_failure(store: LocalStore, connection_id: str, now: datetime) -> None:
@@ -920,19 +976,19 @@ def _record_failure(store: LocalStore, connection_id: str, now: datetime) -> Non
         latest = store.get_connection(connection_id)
         if latest is None or latest.feed is None:
             return
-        status = latest.feed.status.model_copy(
-            update={"last_attempt_at": now, "last_error": _FEED_FAILED}
+        status = feed_sync.with_failure(
+            latest.feed.status.model_copy(update={"last_attempt_at": now}), _FEED_FAILED, now
         )
         feed = latest.feed.model_copy(update={"status": status})
         store.update_connection(latest.model_copy(update={"feed": feed}))
 
 
 def start_feed_scheduler() -> None:
-    """Start the background scheduler (idempotent). The web app calls it on startup. Runs
-    housekeeping once before the first tick, which then waits its hour."""
-    global _feed_scheduler, _last_housekeeping
-    _last_housekeeping = _utc_now()
-    housekeeping(_last_housekeeping)
+    """Start the background scheduler (idempotent). The web app calls it on startup. Its first tick
+    runs at once, so the day's score snapshot and housekeeping don't wait an hour; later ticks run
+    every feed_sync.TICK_SECONDS."""
+    global _feed_scheduler
+    runlog.scheduler_started(_utc_now())
     if _feed_scheduler is None:
         _feed_scheduler = feed_sync.FeedScheduler(tick=sync_due_feeds)
     _feed_scheduler.start()
@@ -940,6 +996,7 @@ def start_feed_scheduler() -> None:
 
 def stop_feed_scheduler() -> None:
     """Stop it (idempotent). The web app calls it on shutdown; tests call it too."""
+    runlog.scheduler_stopped()
     if _feed_scheduler is not None:
         _feed_scheduler.stop()
 
@@ -1151,6 +1208,9 @@ def open_suggestion_count() -> int:
         return 0
 
 
+_SUGGESTIONS_WAIT = "A connection couldn't load, so suggestions wait until it does."
+
+
 def refresh_suggestions(
     today: date | None = None, now: datetime | None = None, *, force: bool = False
 ) -> proposals.RefreshResult | None:
@@ -1167,6 +1227,10 @@ def refresh_suggestions(
     if not force and store.load().last_run == day:
         return None
     connector = get_connector()
+    if isinstance(connector, CombinedConnector) and connector.problems:
+        # A connection that can't load leaves its accounts out of the book. Suggesting from the
+        # rest would expire theirs as "no longer in your book", so wait until it loads again.
+        raise ConnectionNotReady(_SUGGESTIONS_WAIT)
     book = get_book(connector, as_of=day)
     latest = latest_book_signals(connector)
     since = {} if _demo_mode() else history.health_since(book, history_store(), day)
@@ -1202,28 +1266,103 @@ def history_store() -> history.HistoryStore:
 
 def remember_book(now: datetime | None = None, today: date | None = None) -> bool:
     """Your data: record today's score snapshot, unless one was taken in the last hour; return
-    whether one was written. Demo data: nothing is recorded (its history is worked out from the
-    sample readings). Never raises: a failure (a connection that can't load, a full disk) is
-    logged by its exception type only, because a snapshot must never break a page."""
+    whether one was written. Then the day's follow-up rules and suggestions run if they haven't
+    succeeded for the day yet (_daily_steps). Demo data: nothing is recorded or run (its history is
+    worked out from the sample readings). Never raises: a failure (a connection that can't load, a
+    full disk) is recorded in the run log and logged by its exception type only, because a snapshot
+    must never break a page."""
     if _demo_mode():
         return False
     moment = now if now is not None else _utc_now()
     day = today if today is not None else date.today()
+    scored: tuple[list[ScoredAccount], list[Signal]] | None = None
     try:
         store = history_store()
         saved = store.load(day)
         if saved is not None and moment - saved.taken_at < history.REWRITE_AFTER:
-            return False
-        connector = get_connector()
-        signals = connector.list_signals()
-        book = get_book(connector, as_of=day)
-        written = store.save(history.snapshot_of(book, signals, day, moment))
+            written = False
+        else:
+            with runlog.run("snapshot", day=day):
+                connector = get_connector()
+                signals = connector.list_signals()
+                book = get_book(connector, as_of=day)
+                written = store.save(history.snapshot_of(book, signals, day, moment))
+                scored = (book, signals)
     except Exception as exc:
         _log.warning("Today's score history wasn't recorded (%s).", type(exc).__name__)
         return False
-    if written:
-        _add_automatic_follow_ups(book, signals, store, day, moment)
+    _daily_steps(moment, day, scored)
     return written
+
+
+def _daily_steps(
+    moment: datetime,
+    day: date,
+    scored: tuple[list[ScoredAccount], list[Signal]] | None = None,
+) -> None:
+    """The follow-up rules, then the suggestions, for `day`, once that day's score history is saved.
+    Each runs only while it hasn't succeeded for the day (the run log's last success), so a failed
+    run is tried again on the next call; the scheduler calls this on every tick. `scored` is the
+    book and its readings when the caller already has them. Nothing runs for demo data, while the
+    book is locked, or before the day's score history exists. Never raises."""
+    if _demo_mode() or not vault.ensure_unlocked():
+        return
+    try:
+        store = get_store()
+        if history_store().load(day) is None:
+            return
+        settings = load_settings()
+        if rules.any_rule_on(settings) and _pending("rules", day, store):
+            _run_rules(moment, day, scored)
+        if settings.suggestions and _pending("suggestions", day, store):
+            _run_suggestions(moment, day)
+    except Exception as exc:
+        _log.warning(
+            "The day's follow-ups and suggestions weren't checked (%s).", type(exc).__name__
+        )
+
+
+_RETRY_AFTER = timedelta(minutes=15)  # a failed daily step waits this long before trying again
+
+
+def _pending(job: str, day: date, store: LocalStore) -> bool:
+    """Whether `job` has not succeeded for `day` yet and didn't fail in the last _RETRY_AFTER (so
+    a step that keeps failing is retried every quarter hour, not on every tick)."""
+    done = runlog.last_success(job, store=store)
+    if done is not None and done.day == day:
+        return False
+    latest = runlog.last(job, store=store)
+    return latest is None or latest.ok or _utc_now() - latest.finished_at >= _RETRY_AFTER
+
+
+def _run_rules(
+    moment: datetime, day: date, scored: tuple[list[ScoredAccount], list[Signal]] | None
+) -> None:
+    """The automatic follow-up rules for `day`, recorded as the "rules" run. Logged by type on a
+    failure, which the next call retries."""
+    try:
+        with runlog.run("rules", day=day) as job:
+            if scored is None:
+                connector = get_connector()
+                scored = (get_book(connector, as_of=day), connector.list_signals())
+            book, signals = scored
+            job.counts.update(
+                _add_automatic_follow_ups(book, signals, history_store(), day, moment)
+            )
+    except Exception as exc:
+        _log.warning("Automatic follow-ups weren't added (%s).", type(exc).__name__)
+
+
+def _run_suggestions(moment: datetime, day: date) -> None:
+    """The day's suggestions (refresh_suggestions), recorded as the "suggestions" run. Logged by
+    type on a failure, which the next call retries."""
+    try:
+        with runlog.run("suggestions", day=day) as job:
+            result = refresh_suggestions(today=day, now=moment)
+            if result is not None:
+                job.counts.update({"added": result.added, "waiting": result.waiting})
+    except Exception as exc:
+        _log.warning("Suggestions weren't refreshed (%s).", type(exc).__name__)
 
 
 def _add_automatic_follow_ups(
@@ -1232,21 +1371,18 @@ def _add_automatic_follow_ups(
     store: history.HistoryStore,
     day: date,
     moment: datetime,
-) -> None:
-    """Run the automatic follow-up rules (core/rules.py) for Your data, right after the day's
-    snapshot is written. Never raises: a failure is logged by its exception type only."""
-    try:
-        rules.apply_rules(
-            get_journal(),
-            book,
-            load_settings(),
-            day,
-            rules.at_risk_since(book, store, day),
-            signals=signals,
-            now=moment,
-        )
-    except Exception as exc:
-        _log.warning("Automatic follow-ups weren't added (%s).", type(exc).__name__)
+) -> dict[str, int]:
+    """Run the automatic follow-up rules (core/rules.py) for Your data, for `day`. Returns the run
+    log's counts: "added", and "held_back" (the follow-ups past rules.MAX_PLANNED, which this run
+    leaves for a later one). Raises on failure, so _run_rules can record it."""
+    settings = load_settings()
+    journal_file = get_journal()
+    at_risk = rules.at_risk_since(book, store, day)
+    held = rules.held_back(book, journal_file.all(), settings, day, at_risk, signals=signals)
+    added = rules.apply_rules(
+        journal_file, book, settings, day, at_risk, signals=signals, now=moment
+    )
+    return {"added": added, "held_back": held}
 
 
 # The demo book rescored as of a past day: the same for every account and every request on a day
@@ -1473,8 +1609,16 @@ def _sync_mailbox_if_due(now: datetime) -> None:
     """The scheduler's mailbox step (called from sync_due_feeds). Never raises: a failed sync is
     recorded in the settings, and anything else is logged by its exception type only."""
     try:
-        if mailbox_due(now):
-            sync_mailbox_now()
+        due = mailbox_due(now)
+    except Exception as exc:
+        _log.warning("The mailbox wasn't checked (%s).", type(exc).__name__)
+        return
+    if not due:
+        return
+    try:
+        with runlog.run("mailbox") as job:
+            result = sync_mailbox_now()
+            job.counts.update({"read": result.counts.read, "logged": result.counts.logged})
     except Exception as exc:
         _log.warning("The mailbox wasn't synced (%s).", type(exc).__name__)
 

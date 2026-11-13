@@ -105,6 +105,10 @@ def _rows(section: str) -> list[str]:
     return re.findall(r'<li class="today-row">(.*?)</li>', section, re.S)
 
 
+# The suggestions section (tests/test_web_suggestions.py) is listed first when it has cards.
+TODAY_SUGGESTED = "today-suggested"
+
+
 def _index(page: str) -> list[tuple[str, str, int]]:
     """(anchor, label, count) for each link in the section index, in page order."""
     nav = re.search(
@@ -145,7 +149,7 @@ def test_the_index_is_a_labelled_nav_that_links_to_each_section_and_counts_its_r
     page = _text(response)
 
     assert 'aria-label="Today\'s sections"' in page
-    assert _index(page) == [
+    assert [link for link in _index(page) if link[0] != TODAY_SUGGESTED] == [
         ("today-due", "Due", 2),
         ("today-waiting", "Waiting on replies", 1),
         ("today-renewals", "Renewals to record", 1),
@@ -208,7 +212,7 @@ def test_find_narrows_every_section_and_the_index_to_matching_names(client: Test
     renewals = _section(page, "today-renewals")
     assert "Acme Renewals" in renewals
     assert "Beacon" not in page
-    assert _index(page) == [
+    assert [link for link in _index(page) if link[0] != TODAY_SUGGESTED] == [
         ("today-due", "Due", 1),
         ("today-renewals", "Renewals to record", 1),
     ]

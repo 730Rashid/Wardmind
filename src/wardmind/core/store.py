@@ -123,6 +123,8 @@ _ALL_FILES = (
     "note-templates.json",  # core/note_templates.NOTE_TEMPLATES_FILE (it imports this module)
     "proposals.json",  # core/proposals.PROPOSALS_FILE (it imports this module)
     "demo-proposals.json",  # core/proposals.DEMO_PROPOSALS_FILE
+    "runlog.json",  # core/runlog.RUNLOG_FILE (it imports this module)
+    "agent-requests.json",  # mcp/writes.LEDGER_FILE (the MCP server's answered request ids)
 )
 
 _SAFE_ID = re.compile(r"[A-Za-z0-9_-]+")  # connection ids, used in file names

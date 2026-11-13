@@ -228,7 +228,12 @@ def _client_updates_card(page: str) -> re.Match[str] | None:
 
 
 def _badge(page: str) -> str | None:
-    match = re.search(r'<span class="nav-badge" role="img" aria-label="([^"]+)">', page)
+    """The Client updates badge, from its own nav link. (The Today badge counts follow-ups and
+    suggestions, so the first badge on the page is not necessarily this one.)"""
+    link = re.search(r'<a class="nav-link" href="/client-updates"[^>]*>(.*?)</a>', page, re.S)
+    if link is None:
+        return None
+    match = re.search(r'<span class="nav-badge" role="img" aria-label="([^"]+)">', link.group(1))
     return match.group(1) if match else None
 
 

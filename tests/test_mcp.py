@@ -30,6 +30,17 @@ TOOLS = {
     "research_account",
     "todays_list",
 }
+READ_ONLY_TOOLS = TOOLS | {"list_suggestions", "system_status"}  # these read only
+WRITE_TOOLS = {
+    "propose_follow_up",
+    "propose_note",
+    "propose_snooze",
+    "add_note",
+    "add_follow_up",
+    "complete_follow_up",
+    "snooze_account",
+}  # mcp/writes.py: refused unless Settings > Assistant allows them (see test_mcp_writes.py)
+ALL_TOOLS = READ_ONLY_TOOLS | WRITE_TOOLS
 ROW_KEYS = {
     "rank",
     "id",
@@ -72,11 +83,11 @@ def _error_text(result: CallToolResult) -> str:
     return result.content[0].text
 
 
-async def test_lists_the_seven_tools_with_descriptions():
+async def test_lists_every_tool_with_a_description():
     async with Client(server.mcp) as client:
         tools = (await client.list_tools()).tools
-    assert {tool.name for tool in tools} == TOOLS
-    assert len(tools) == 7
+    assert {tool.name for tool in tools} == ALL_TOOLS
+    assert len(tools) == len(ALL_TOOLS)
     assert all(tool.description for tool in tools)
 
 
@@ -238,7 +249,7 @@ async def test_stdio_subprocess_serves_the_tools():
         async with Client(params) as client:
             tools = await client.list_tools()
             result = await client.call_tool("list_book", {"limit": 1})
-    assert {tool.name for tool in tools.tools} == TOOLS
+    assert {tool.name for tool in tools.tools} == ALL_TOOLS
     assert [row["rank"] for row in _rows(result)] == [1]
 
 
@@ -375,8 +386,10 @@ async def test_every_tool_names_the_demo_data_it_came_from():
         ("todays_list", {}),
         ("onboarding_brief", {"account_id": onboarding_id}),
         ("research_account", {"account_id": "acc-001"}),
+        ("list_suggestions", {}),
+        ("system_status", {}),
     ]
-    assert {tool for tool, _ in calls} == TOOLS
+    assert {tool for tool, _ in calls} == READ_ONLY_TOOLS
     async with Client(server.mcp) as client:
         for tool, arguments in calls:
             data = _data(await client.call_tool(tool, arguments))
@@ -415,3 +428,14 @@ async def test_a_pinned_book_is_the_one_every_result_names(no_pin_left_behind):
         account = _data(await client.call_tool("get_account", {"account_id": "acc-001"}))
     assert rows[0]["book"] == named
     assert account["book"] == named
+
+
+async def test_system_status_lists_the_checks_and_names_the_book():
+    async with Client(server.mcp) as client:
+        data = _data(await client.call_tool("system_status", {}))
+    assert data["book"] == {"id": "demo", "label": "Demo data"}
+    assert data["checks"]
+    assert {check["state"] for check in data["checks"]} <= {"ok", "warn", "fail"}
+    assert all(check["name"] and check["detail"] for check in data["checks"])
+    assert data["data_as_of"] is None  # demo data has no feeds
+    assert data["overdue_sources"] == []

@@ -1,0 +1,53 @@
+{% extends "settings/layout.html" %}
+{% block settings %}
+<p class="page-lede">{{ summary }}</p>
+
+<div class="system-status">
+  <section class="system-status-section settings-card" aria-labelledby="system-checks-title">
+    <h2 class="section-title" id="system-checks-title">Checks</h2>
+    <p class="prose">Each check reads what Wardmind already knows. Nothing here is sent anywhere.</p>
+
+    <ul class="system-status-list">
+      {% for row in rows %}
+      <li class="system-status-item system-status-item--{{ row.state }}">
+        <div class="system-status-head">
+          <h3 class="system-status-title">{{ row.name }}</h3>
+          <p class="system-status-mark"><svg class="icon system-status-icon" aria-hidden="true" focusable="false"><use href="/static/icons.svg#{{ row.icon }}"/></svg> {{ row.word }}</p>
+        </div>
+        <p class="system-status-detail">{{ row.detail }}</p>
+        {% if row.last %}<p class="system-status-last">Last worked {{ row.last }}</p>{% endif %}
+        {% if row.fix_url %}<p class="system-status-fix"><a href="{{ row.fix_url }}">{{ row.fix_label }}</a></p>{% endif %}
+      </li>
+      {% endfor %}
+    </ul>
+
+    <form class="settings-form" method="post" action="/settings/status/run">
+      <div class="settings-actions settings-actions--start">
+        <button type="submit" class="button">Run checks now</button>
+      </div>
+      <p class="field-help">Syncs the feeds that are due, and records today's scores, follow-ups and suggestions if they haven't been yet.</p>
+    </form>
+  </section>
+
+  <section class="system-status-section settings-card" aria-labelledby="system-runs-title">
+    <h2 class="section-title" id="system-runs-title">Recent runs</h2>
+    <p class="prose">The last {{ shown }} runs of each background job, newest first. A failed run says why.</p>
+    {% if groups %}
+      {% for group in groups %}
+      <details class="system-status-run">
+        <summary>{{ group.label }}</summary>
+        {% if group.rows %}
+        <ul class="system-status-run-list">
+          {% for run in group.rows %}
+          <li><span class="system-status-run-when">{{ run.when }}</span> {{ run.result }}{% if run.detail %}. {{ run.detail }}{% endif %}{% if run.counts %} <span class="field-help">{{ run.counts }}.</span>{% endif %}</li>
+          {% endfor %}
+        </ul>
+        {% endif %}
+      </details>
+      {% endfor %}
+    {% else %}
+      <p class="empty-card">No background runs yet.</p>
+    {% endif %}
+  </section>
+</div>
+{% endblock %}

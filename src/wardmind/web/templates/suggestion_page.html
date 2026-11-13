@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% from "partials/page_head.html" import page_head %}
+{# A suggestion that was refused, shown on its own when the page had no JavaScript to show it on Today. #}
+{% block content %}
+<div class="today">
+  <div class="today-head">
+    {{ page_head("Suggested for you", "target") }}
+  </div>
+  <div class="today-main">
+    <ul class="rows today-list">
+      {% include "partials/suggestion_card.html" %}
+    </ul>
+    <p><a href="{{ '/today?q=' ~ (query | urlencode) if query else '/today' }}">Back to Today</a></p>
+  </div>
+</div>
+{% endblock %}

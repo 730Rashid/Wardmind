@@ -43,6 +43,10 @@ def _post(client: TestClient, path: str, data: dict[str, str] | None = None) -> 
     return client.post(path, data=data or {}, headers=ORIGIN, follow_redirects=False)
 
 
+def _suggestions_off() -> None:
+    save_settings(load_settings().model_copy(update={"suggestions": False}))
+
+
 def _use(source: DataSource) -> None:
     save_settings(Settings(source=source))
     service.reset_connectors()
@@ -159,6 +163,7 @@ def test_the_summary_says_one_of_each_and_counts_this_weeks_contacts(client: Tes
 
 
 def test_a_book_with_nothing_due_shows_the_empty_state(client: TestClient) -> None:
+    _suggestions_off()  # a hand-added account with no readings is suggested a data check
     _account("Nothing Wrong", TODAY + timedelta(days=200))
     response = client.get("/today")
     assert response.status_code == 200
@@ -298,6 +303,7 @@ def _today_link(page: str) -> str:
 
 
 def test_the_nav_badge_counts_follow_ups_due_today_or_earlier(client: TestClient) -> None:
+    _suggestions_off()  # the badge also counts open suggestions (tests/test_web_suggestions.py)
     assert "nav-badge" not in _today_link(client.get("/").text)
 
     account = _account("Badge Count", TODAY + timedelta(days=200))

@@ -48,6 +48,15 @@ def no_guarded_feed_dns(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 @pytest.fixture(autouse=True)
+def fresh_catch_up_state(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The scheduler's per-process memory of when each book took its snapshot starts empty in
+    every test, so a test never depends on what an earlier one ran."""
+    monkeypatch.setattr(service, "_snapshot_days", {})
+    monkeypatch.setattr(service, "_snapshot_tried", {})
+    monkeypatch.setattr(service, "_last_housekeeping", None)
+
+
+@pytest.fixture(autouse=True)
 def no_feed_scheduler(monkeypatch: pytest.MonkeyPatch) -> None:
     """A test never starts the background feed scheduler (the web app starts it on startup).
     Tests of the scheduler itself build their own FeedScheduler with a fake tick."""

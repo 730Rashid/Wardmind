@@ -1,22 +1,122 @@
-"""Settings > Assistant: suggestions on or off, what Claude may change (McpWrites), and AI drafts.
-Workstream C.
+"""Settings > Assistant: suggestions on Today, what Claude may change (McpWrites), and whether an AI
+may improve the wording of email drafts (ai_drafts, and ai_drafts_cloud for a model online).
 
-CONTRACT STUB: registered by create_app (web/app.py) through register(). `render` is app._render
-(the shared layout and context every page needs); `templates` is the app's Jinja2Templates, for
-partials and for Jinja globals. Cross-site writes never reach these routes (same_origin_writes in
-app.py), and the session check and lock gate run first.
+Registered by create_app (web/app.py) through register(). `render` is app._render (the shared
+layout and context every page needs); `templates` is the app's Jinja2Templates, for partials.
+Cross-site writes never reach these routes (see same_origin_writes in app.py), and the session
+check and lock gate run first.
+
+A save is all or nothing: a bad value re-renders the form (422) with a message and writes nothing;
+otherwise the settings are saved, the change goes into the activity log and the page shows the
+notice. A checkbox that isn't posted is off.
 """
 
 from __future__ import annotations
 
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
+from typing import Any
 
-from fastapi import FastAPI
-from fastapi.responses import HTMLResponse
+from fastapi import FastAPI, Request
+from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from fastapi.templating import Jinja2Templates
+from pydantic import ValidationError
+from starlette.concurrency import run_in_threadpool
+
+from wardmind.core import audit
+from wardmind.core.settings import McpWrites, Settings, load_settings, save_settings
 
 Render = Callable[..., HTMLResponse]
 
+CHECKBOX_FIELDS = ("suggestions", "ai_drafts", "ai_drafts_cloud")
+MODE_FIELD = "mcp_writes"  # a radio: McpWrites values off, propose or direct
+SAVED_NOTICE = "Assistant settings saved."
+MODE_MESSAGE = "Pick Off, Suggest only or Make changes."
+NOT_SAVEABLE = "These settings can't be saved. Check them and try again."
+FORM_ERROR = "form"  # the error key for a message about the whole form
+AUDIT_DETAIL = "Assistant"  # the section named in the activity log
+
+
+def values_of(settings: Settings) -> dict[str, Any]:
+    """The form's values for saved settings: checkboxes as on or off, the mode as its value."""
+    values: dict[str, Any] = {name: getattr(settings, name) for name in CHECKBOX_FIELDS}
+    values[MODE_FIELD] = settings.mcp_writes.value
+    return values
+
+
+def form_values(posted: Mapping[str, str]) -> dict[str, Any]:
+    """The values a POST carries, as the form shows them again: each checkbox on or off, and the
+    mode's text as typed (checked by check_form)."""
+    values: dict[str, Any] = {name: name in posted for name in CHECKBOX_FIELDS}
+    values[MODE_FIELD] = posted.get(MODE_FIELD, "").strip()
+    return values
+
+
+def check_form(
+    values: Mapping[str, Any], current: Settings
+) -> tuple[Settings | None, dict[str, str]]:
+    """The settings the form describes, or None with a message for each field that is wrong. The
+    other settings come from `current`. Cloud drafts need the wording on as well: a posted
+    ai_drafts_cloud without ai_drafts is saved off."""
+    chosen: dict[str, Any] = {name: bool(values[name]) for name in CHECKBOX_FIELDS}
+    chosen["ai_drafts_cloud"] = chosen["ai_drafts"] and chosen["ai_drafts_cloud"]
+    errors: dict[str, str] = {}
+    try:
+        chosen[MODE_FIELD] = McpWrites(values[MODE_FIELD])
+    except ValueError:
+        errors[MODE_FIELD] = MODE_MESSAGE
+    if errors:
+        return None, errors
+    try:
+        return Settings.model_validate({**current.model_dump(), **chosen}), {}
+    except ValidationError:
+        return None, {FORM_ERROR: NOT_SAVEABLE}
+
 
 def register(app: FastAPI, render: Render, templates: Jinja2Templates) -> None:
-    """Add this module's routes to the app."""
+    """Add this section's routes to `app`."""
+
+    def page(
+        request: Request,
+        *,
+        values: dict[str, Any],
+        errors: dict[str, str],
+        notice: str = "",
+        status_code: int = 200,
+    ) -> HTMLResponse:
+        return render(
+            request,
+            "settings/assistant.html",
+            page="Assistant",
+            active="settings",
+            section="assistant",
+            values=values,
+            errors=errors,
+            notice=notice,
+            status_code=status_code,
+        )
+
+    @app.get("/settings/assistant")
+    def assistant(request: Request, saved: str = "") -> HTMLResponse:
+        """The saved values and, after a save, the notice. ?saved= is only read as "1"."""
+        current = load_settings()
+        return page(
+            request,
+            values=values_of(current),
+            errors={},
+            notice=SAVED_NOTICE if saved == "1" else "",
+        )
+
+    @app.post("/settings/assistant")
+    async def save_assistant(request: Request) -> Response:
+        """Save the assistant settings. A bad value re-renders the form (422) with each message and
+        writes nothing; otherwise the settings are saved and logged, and the notice shows."""
+        form = await request.form()
+        posted = {key: value for key, value in form.items() if isinstance(value, str)}
+        values = form_values(posted)
+        current = await run_in_threadpool(load_settings)
+        checked, errors = check_form(values, current)
+        if checked is None:
+            return page(request, values=values, errors=errors, status_code=422)
+        await run_in_threadpool(save_settings, checked)
+        await run_in_threadpool(audit.record, audit.Event.SETTINGS_SAVED, detail=AUDIT_DETAIL)
+        return RedirectResponse("/settings/assistant?saved=1", status_code=303)

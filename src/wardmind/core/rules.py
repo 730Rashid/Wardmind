@@ -173,14 +173,44 @@ def planned_follow_ups(
     *,
     signals: Iterable[Signal] = (),
 ) -> list[PlannedFollowUp]:
-    """The follow-ups the enabled rules say should exist, in book order then rule order. Pure.
+    """The follow-ups the enabled rules say should exist, in book order then rule order, at most
+    MAX_PLANNED of them (held_back counts the rest). Pure.
 
     An occasion is skipped when its key is already on any of the account's follow-ups (open or
     done). An account already at MAX_OPEN_FOLLOW_UPS open follow-ups gets none, and the room left
     is counted as items are planned, so one run never takes an account past the cap. Champion
     readings come from `signals` (only read when that rule is on). at_risk_since maps an account
     to the day its current At-risk run began; an At-risk account missing from it counts from today.
-    At most MAX_PLANNED items."""
+    """
+    return _plan(book, journals, settings, today, at_risk_since, signals=signals)[:MAX_PLANNED]
+
+
+def held_back(
+    book: Sequence[ScoredAccount],
+    journals: Mapping[str, AccountJournal],
+    settings: Settings,
+    today: date,
+    at_risk_since: Mapping[str, date],
+    *,
+    signals: Iterable[Signal] = (),
+) -> int:
+    """How many follow-ups the rules want beyond the MAX_PLANNED one run adds: the ones a run
+    holds back (planned_follow_ups leaves them out). Pure."""
+    return max(
+        0, len(_plan(book, journals, settings, today, at_risk_since, signals=signals)) - MAX_PLANNED
+    )
+
+
+def _plan(
+    book: Sequence[ScoredAccount],
+    journals: Mapping[str, AccountJournal],
+    settings: Settings,
+    today: date,
+    at_risk_since: Mapping[str, date],
+    *,
+    signals: Iterable[Signal],
+) -> list[PlannedFollowUp]:
+    """Every follow-up the enabled rules want, with no cap, in book order then rule order. Pure."""
     if not any_rule_on(settings):
         return []
     champion_left = _champion_left_on(signals) if settings.rule_champion_left else {}
@@ -204,8 +234,6 @@ def planned_follow_ups(
                     rule=occasion.rule,
                 )
             )
-            if len(planned) == MAX_PLANNED:
-                return planned
             room -= 1
     return planned
 

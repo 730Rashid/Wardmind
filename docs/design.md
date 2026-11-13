@@ -872,6 +872,32 @@ Every screen follows one quiet, enterprise language, taken from a reference the 
   mind keeping watch). `static/favicon.svg` is the same mark for the browser tab.
 
 
+## Agentic and reliable: suggestions, drafts, Claude's changes, System status (2026-11-13)
+
+Planned with Fable; contract 958a727. Four workstreams were built in parallel against it.
+
+- **Cross-process write lock** (`core/filelock.py`). `store.WRITE_LOCK` is a re-entrant thread lock
+  plus an OS lock on `.write.lock` in the root folder (msvcrt / fcntl), so the MCP server and the
+  web app can't undo each other's saves. A wait over 15 s raises `StoreBusy` (an `OSError`).
+- **Suggestions** (`core/proposals.py`, `web/proposal_pages.py`). Five pure detectors (health
+  dropped, renewal with no call, reply overdue, gone quiet, blind spot) run once a day after the
+  snapshot and on the first Today load. A suggestion is unique per (account, key) for ever. Accept
+  writes exactly one journal entry (the follow-up's rule is the key, so the automatic rules can't
+  add it twice). Caps: 3 open per account, 30 in the book, 12 per run, 3 blind spots per run.
+  Planning waits while a connection can't load, so accounts aren't expired as "no longer in your
+  book".
+- **Email drafts** (`core/drafts.py`, `web/draft_pages.py`, `/accounts/{id}/draft`). A template
+  per kind. The optional AI polish sends only the template text and falls back on any doubt (a new
+  link or address, a lost greeting, too long). There is no send path.
+- **Claude's changes** (`mcp/writes.py`, Settings > Assistant). `mcp_writes` is off, propose or
+  direct. Direct tools preview first (`confirm`), are idempotent by `request_id`, are capped at 30
+  an hour, never delete or edit, and are audited by tool name.
+- **Trust layer** (`core/runlog.py`, `core/health.py`, `web/status_pages.py`). Every background
+  step runs inside a recorded job. The first scheduler tick catches up the day's snapshot, rules
+  and suggestions, per book, and a failed step retries after 15 minutes. Feeds count failures and
+  back off to hourly after three. Settings > System status, a freshness line, a banner for real
+  problems, and the `system_status` MCP tool.
+
 ## AI summaries from a model on this computer (2026-11-12)
 
 On **Settings > Data & privacy**, the AI summaries form has a **Who writes them** choice under
