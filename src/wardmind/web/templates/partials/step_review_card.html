@@ -1,0 +1,32 @@
+{# One step asking "Did it work?" (effect_pages.ReviewCard). `card`, `query` and `logos` come from the section or
+   the route. The three answers are in partials/step_review_buttons.html; with htmx the card is swapped for its
+   one-line result (partials/step_review_done.html), or for the card again when the answer was refused. #}
+{% from "partials/logo.html" import account_logo %}
+{% from "partials/step_review_buttons.html" import review_buttons %}
+<li class="today-row step-review">
+  {{ account_logo(card.account_id, card.name, logos) }}
+  <div class="today-row-body">
+    <div class="today-row-head">
+      <a class="account-link" href="/accounts/{{ card.account_id | idpath }}">{{ card.name }}</a>
+      <span class="chip chip--muted">{{ card.done }}</span>
+      <span class="chip chip--muted">{{ card.days }}-day check</span>
+    </div>
+    <p class="today-text suggestion-title">{{ card.title }}</p>
+    <p class="step-review-sentence{% if card.direction %} step-review-sentence--{{ card.direction }}{% endif %}">{{ card.sentence }}</p>
+    {% if card.readings %}
+    <ul class="step-review-readings">
+      {% for line in card.readings %}
+      <li class="step-review-reading">
+        <span class="step-review-reading-label">{{ line.label }}</span>
+        <span class="field-help">Before: {{ line.before_text }}</span>
+        <span class="field-help">After: {{ line.after_text }}</span>
+      </li>
+      {% endfor %}
+    </ul>
+    {% endif %}
+    {% if card.error %}<p class="field-error" role="alert">{{ card.error }}</p>{% endif %}
+  </div>
+  <div class="today-row-actions">
+    {{ review_buttons(card.proposal_id, card.days, "today", query, card.title) }}
+  </div>
+</li>

@@ -872,6 +872,23 @@ Every screen follows one quiet, enterprise language, taken from a reference the 
   mind keeping watch). `static/favicon.svg` is the same mark for the browser tab.
 
 
+## Did it work? (2026-11-13)
+
+Fable's first pick for the next round: close the loop on suggestions. Contract b8f6351.
+
+- A **step** is an accepted follow-up suggestion whose journal follow-up is done; its day is the
+  day it was done (`core/effects.py`). Notes and snoozes aren't steps.
+- Checks at 14 and 30 days compare the latest snapshot in the 7 days up to the step with the
+  earliest one in the 7 days from the check's day (`HistoryStore.latest_between` /
+  `earliest_between`; demo data rescored as of those days). Direction: health first, then a risk
+  move of 10 points or more. No "before" or no "after" snapshot means no comparison, said in
+  words; the wording is "since", never "because".
+- The CSM's answer is `Proposal.review` (Helped, Didn't help, Too early; Too early asks again at
+  the next check, and nothing is asked after 60 days). Effects themselves are never stored.
+- Shown on Today ("Did it work?", 3 at a time), the account page ("Steps you took"), Settings >
+  Assistant ("What followed your steps", per detector), and the `step_results` MCP tool. These
+  counts are what a later round can learn from.
+
 ## Agentic and reliable: suggestions, drafts, Claude's changes, System status (2026-11-13)
 
 Planned with Fable; contract 958a727. Four workstreams were built in parallel against it.

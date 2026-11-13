@@ -12964,3 +12964,106 @@ a.chip:hover {
 .system-status-run-when {
   color: var(--ink-muted);
 }
+
+/* --- Did it work?: what moved since each step -------------------------------------------------- */
+/* What moved since each step, on Today, the account page and Settings > Assistant (web/effect_pages.py).
+   Workstream B: the lead merges this into app.css. The cards reuse .today-row, .today-list,
+   .today-row-body, .today-row-actions, .suggestion-title, .chip, .journal-* and .table-card; this file adds
+   only what those need. Direction is said in words in each sentence; the colour is only a second cue. */
+
+.step-review-sentence {
+  margin: 0;
+  font-size: var(--t-sm);
+  line-height: var(--lh-sm);
+  overflow-wrap: anywhere;
+}
+
+.step-review-sentence--better {
+  color: var(--healthy);
+}
+
+.step-review-sentence--same {
+  color: var(--ink);
+}
+
+.step-review-sentence--worse {
+  color: var(--risk);
+}
+
+.step-review-sentence--gone {
+  color: var(--watch);
+}
+
+/* Before and after for each reading, one reading to a line. */
+.step-review-readings {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: var(--t-sm);
+  line-height: var(--lh-sm);
+}
+
+.step-review-reading {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  overflow-wrap: anywhere;
+}
+
+.step-review-reading-label {
+  font-weight: 600;
+}
+
+.step-review-reading .field-help {
+  margin: 0;
+}
+
+/* The one-line result that takes a step's place after an answer. */
+.step-review-done {
+  display: block;
+  padding: var(--space-3) var(--space-5);
+  border-block-start: 1px solid var(--line);
+}
+
+.step-review-line {
+  margin: 0;
+}
+
+/* Steps you took (the account page): each check's sentence, then the answer given. */
+.step-item .journal-actions {
+  margin-block-start: var(--space-2);
+}
+
+.step-checks {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin: 0;
+  padding-inline-start: var(--space-4);
+  font-size: var(--t-sm);
+  line-height: var(--lh-sm);
+  overflow-wrap: anywhere;
+}
+
+.step-said {
+  margin: var(--space-1) 0 0;
+}
+
+/* Settings > Assistant: "What followed your steps". Counts sit at the end of their columns. */
+.assistant-steps .field-help {
+  margin-block-end: var(--space-3);
+}
+
+.steps-table {
+  inline-size: 100%;
+  border-collapse: collapse;
+}
+
+.steps-table .steps-count {
+  text-align: end;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}

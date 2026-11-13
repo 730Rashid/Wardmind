@@ -1,0 +1,15 @@
+{# The three answers to "Did it work?": Helped, Didn't help and Too early, one form each. Each form posts to
+   /steps/{id}/review with the check it answers and where to return to (back: today or account). With htmx
+   the form's item (li) is swapped for its one-line result, or for the item again when the answer was refused.
+   Import it as {% from "partials/step_review_buttons.html" import review_buttons %}. #}
+{% macro review_buttons(proposal_id, check_days, back, query, title) %}
+{% for verdict, label in [("helped", "Helped"), ("didnt_help", "Didn't help"), ("too_early", "Too early")] %}
+<form class="inline-form" method="post" action="/steps/{{ proposal_id | idpath }}/review" hx-post="/steps/{{ proposal_id | idpath }}/review" hx-target="closest li" hx-swap="outerHTML">
+  <input type="hidden" name="verdict" value="{{ verdict }}">
+  <input type="hidden" name="check_days" value="{{ check_days }}">
+  <input type="hidden" name="back" value="{{ back }}">
+  {% if query %}<input type="hidden" name="q" value="{{ query }}">{% endif %}
+  <button type="submit" class="button button--small">{{ label }}<span class="visually-hidden"> for {{ title }}</span></button>
+</form>
+{% endfor %}
+{% endmacro %}

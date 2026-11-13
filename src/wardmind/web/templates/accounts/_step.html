@@ -1,0 +1,20 @@
+{# One step on the account page (effect_pages.StepView): when it was done, its title, one sentence per check, the
+   answer given and, when a check is ready for one, the buttons. With htmx the item is swapped for its one-line
+   result, or for the item again when the answer was refused (then `step.error` is set). #}
+{% from "partials/step_review_buttons.html" import review_buttons %}
+<li class="journal-item step-item">
+  <p class="journal-meta"><span class="field-help">{{ step.done }}</span></p>
+  <p class="journal-text">{{ step.title }}</p>
+  <ul class="step-checks">
+    {% for sentence in step.checks %}
+    <li>{{ sentence }}</li>
+    {% endfor %}
+  </ul>
+  {% if step.said %}<p class="field-help step-said">{{ step.said }}</p>{% endif %}
+  {% if step.error %}<p class="field-error" role="alert">{{ step.error }}</p>{% endif %}
+  {% if step.needs_review %}
+  <div class="journal-actions">
+    {{ review_buttons(step.proposal_id, step.check_days, "account", "", step.title) }}
+  </div>
+  {% endif %}
+</li>

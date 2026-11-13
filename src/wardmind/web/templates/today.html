@@ -58,6 +58,10 @@
     {% include "partials/suggestions.html" %}
     {% endif %}
 
+    {% if screen.reviews %}
+    {% include "partials/step_reviews.html" %}
+    {% endif %}
+
     {% if sections.due %}
     <section class="account-section today-section" id="today-due" aria-labelledby="today-due-heading">
       <h2 class="section-title" id="today-due-heading">Due</h2>

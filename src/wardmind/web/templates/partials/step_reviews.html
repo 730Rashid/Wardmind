@@ -1,0 +1,17 @@
+{# "Did it work?", the section after "Suggested for you" on Today (effect_pages.today_section). `screen.reviews`
+   is set and has cards; the find text is kept by each answer's form. Nothing here changes the journal or
+   the score: an answer is only recorded. #}
+{% set section = screen.reviews %}
+{% set query = section.query %}
+<section class="account-section today-section today-reviews" id="today-review" aria-labelledby="today-review-heading">
+  <h2 class="section-title" id="today-review-heading">Did it work?</h2>
+  <p class="field-help">What moved since steps you took. Moved after isn't proof it worked.</p>
+  <ul class="rows today-list">
+    {% for card in section.cards %}
+    {% include "partials/step_review_card.html" %}
+    {% endfor %}
+  </ul>
+  {% if section.more %}
+  <p class="field-help">{{ section.more }} more to review.</p>
+  {% endif %}
+</section>

@@ -163,6 +163,7 @@ The server exposes these read tools:
 | `research_account` | what the customer's own website says: title, description, recent news (only when web research is on) |
 | `list_suggestions` | the suggestions waiting on Today, with why each was made |
 | `system_status` | whether the data can be trusted right now: feeds, mailbox, score history, rules, suggestions |
+| `step_results` | for each suggested step you took, what moved in the 14 and 30 days after it |
 
 Claude can also work the book for you ("go through my at-risk accounts and line up next steps"),
 but only as far as **Settings > Assistant** allows. It is off by default:
@@ -234,6 +235,20 @@ Wardmind looks for:
 
 A suggestion whose reason goes away (the reply came, the health recovered) expires by itself.
 You can turn suggestions off in **Settings > Assistant**.
+
+### Did it work?
+
+When you accept a suggested follow-up and later mark it done, Wardmind looks at the account again
+14 and 30 days after that day and compares its score history from before. Today then asks
+**Did it work?** with what moved since, for example "Better since: health At risk to Watch,
+risk 62 to 48", and the signals behind the suggestion before and after. Answer **Helped**,
+**Didn't help** or **Too early** (it asks again after the 30-day check). The account page lists
+every step you took there under **Steps you took**, and Settings > Assistant counts what followed
+each kind of suggestion.
+
+Wardmind only reports what moved after a step, never that the step caused it, and it compares
+nothing unless it has a score from both before and after (it says so when Wardmind wasn't open
+around that day).
 
 ### Email drafts, never sent
 

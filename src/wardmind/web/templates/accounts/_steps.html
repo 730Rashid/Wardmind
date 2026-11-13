@@ -1,0 +1,13 @@
+{# Steps you took: the account's recent steps on a suggestion, each with what moved since its checks and any answer
+   given (effect_pages.account_steps). Left out when there are none. Nothing here changes the journal or the score. #}
+{% if steps %}
+<section class="account-section journal-section step-steps" id="account-steps" aria-labelledby="account-steps-heading">
+  <h2 class="section-title" id="account-steps-heading">Steps you took</h2>
+  <p class="field-help">What moved since each step. Moved after isn't proof it worked.</p>
+  <ul class="journal-list">
+    {% for step in steps %}
+    {% include "accounts/_step.html" %}
+    {% endfor %}
+  </ul>
+</section>
+{% endif %}

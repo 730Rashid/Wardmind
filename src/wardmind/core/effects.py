@@ -25,17 +25,31 @@ effects.
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from enum import StrEnum
 from typing import Protocol
 
 from pydantic import BaseModel, Field
 
+from wardmind.core import signal_info
 from wardmind.core.config import ScoringConfig
-from wardmind.core.history import BookSnapshot
-from wardmind.core.journal import AccountJournal
-from wardmind.core.models import Health
-from wardmind.core.proposals import Detector, Proposal, Proposals, Review, Verdict
+from wardmind.core.history import BookSnapshot, SnapshotEntry
+from wardmind.core.journal import HEALTH_ORDER, AccountJournal, FollowUpStatus
+from wardmind.core.models import Health, SignalKey, SignalKind, signal_key
+from wardmind.core.proposals import (
+    NOT_FOUND,
+    Detector,
+    Proposal,
+    ProposalKind,
+    Proposals,
+    ProposalStatus,
+    Review,
+    Verdict,
+    _day,
+    naive_utc,
+)
+from wardmind.core.scoring import _whole, describe, format_number
+from wardmind.core.store import WRITE_LOCK
 
 CHECK_DAYS: tuple[int, ...] = (14, 30)  # days after the step each check compares with
 BEFORE_WINDOW = 7  # the "before" snapshot is the latest one in [step day - 7, step day]
@@ -175,7 +189,25 @@ def steps_done(
     """The steps: each ACCEPTED FOLLOW_UP suggestion whose journal follow-up (found by
     result_id in its account's journal) is DONE, with the day it was done (done_at's date).
     Newest step first; ties by proposal id."""
-    raise NotImplementedError
+    found: list[tuple[Proposal, date]] = []
+    for item in items:
+        if item.status is not ProposalStatus.ACCEPTED or item.kind is not ProposalKind.FOLLOW_UP:
+            continue
+        account = journals.get(item.account_id)
+        if account is None or item.result_id is None:
+            continue
+        follow_up = next(
+            (entry for entry in account.follow_ups if entry.id == item.result_id), None
+        )
+        if follow_up is None or follow_up.status is not FollowUpStatus.DONE:
+            continue
+        if follow_up.done_at is None:
+            continue
+        found.append((item, follow_up.done_at.date()))
+    # Ties on the day go by proposal id: sort by id first, then stably by day, newest first.
+    found.sort(key=lambda pair: pair[0].id)
+    found.sort(key=lambda pair: pair[1], reverse=True)
+    return found
 
 
 def effect_of(
@@ -191,7 +223,18 @@ def effect_of(
     snapshot is earliest_between(due_on, min(due_on + AFTER_WINDOW, today)). Readings: the
     suggestion's evidence signals (Evidence.signal, first seen first, unknown kinds skipped),
     at most MAX_READINGS, each only when the before or the after snapshot has a value for it."""
-    raise NotImplementedError
+    before = snapshots.latest_between(done_on - timedelta(days=BEFORE_WINDOW), done_on)
+    checks = [_check(item, days, done_on, before, snapshots, today, config) for days in CHECK_DAYS]
+    return Effect(
+        proposal_id=item.id,
+        account_id=item.account_id,
+        title=item.title,
+        detector=item.detector,
+        source=item.source.label,
+        done_on=done_on,
+        checks=checks,
+        review=item.review,
+    )
 
 
 def effects_for(
@@ -204,18 +247,29 @@ def effects_for(
 ) -> list[Effect]:
     """effect_of for every step (only that account's when account_id is given), newest step
     first."""
-    raise NotImplementedError
+    chosen = [item for item in items if account_id is None or item.account_id == account_id]
+    return [
+        effect_of(item, done_on, snapshots, today, config)
+        for item, done_on in steps_done(chosen, journals)
+    ]
 
 
 def to_review(effects: Sequence[Effect], today: date) -> list[Effect]:
     """The effects Today asks about (Effect.needs_review), oldest step first."""
-    raise NotImplementedError
+    asked = [effect for effect in effects if effect.needs_review(today)]
+    return sorted(asked, key=lambda effect: (effect.done_on, effect.proposal_id))
 
 
 def summary(effects: Sequence[Effect]) -> list[DetectorSummary]:
     """One row per detector in Detector order, then the CLAUDE_LABEL row; rows with no steps are
     left out."""
-    raise NotImplementedError
+    detectors: list[Detector | None] = [*Detector, None]
+    rows: list[DetectorSummary] = []
+    for detector in detectors:
+        group = [effect for effect in effects if effect.detector is detector]
+        if group:
+            rows.append(_summary_row(detector, group))
+    return rows
 
 
 def review(
@@ -225,4 +279,189 @@ def review(
     save it with store.replace. LookupError(proposals.NOT_FOUND) when it is gone; ValueError
     ("Only a step you took can be reviewed.") when it isn't ACCEPTED; ValueError ("Pick a check
     of 14 or 30 days.") when check_days isn't in CHECK_DAYS. `now` is stored as naive UTC."""
-    raise NotImplementedError
+    with WRITE_LOCK:
+        current = store.get(proposal_id)
+        if current is None:
+            raise LookupError(NOT_FOUND)
+        is_step = current.kind is ProposalKind.FOLLOW_UP
+        if current.status is not ProposalStatus.ACCEPTED or not is_step:
+            raise ValueError(_NOT_A_STEP)
+        if check_days not in CHECK_DAYS:
+            raise ValueError(_BAD_CHECK)
+        answer = Review(verdict=verdict, check_days=check_days, at=naive_utc(now))
+        return store.replace(current.model_copy(update={"review": answer}))
+
+
+# --- Helpers (private) ---------------------------------------------------------------------------
+
+NO_READING = "No reading"
+_NOT_A_STEP = "Only a step you took can be reviewed."
+_BAD_CHECK = "Pick a check of 14 or 30 days."
+_NO_HISTORY_BEFORE = "No score history from before this step."
+
+
+def _check(
+    item: Proposal,
+    days: int,
+    done_on: date,
+    before: BookSnapshot | None,
+    snapshots: Snapshots,
+    today: date,
+    config: ScoringConfig,
+) -> Check:
+    """One check of a step: WAITING until its day, then READY, MISSED or WAITING (the window)."""
+    due_on = done_on + timedelta(days=days)
+    if due_on > today:
+        return Check(
+            days=days,
+            due_on=due_on,
+            status=CheckStatus.WAITING,
+            sentence=f"The {days}-day check is on {_day(due_on)}.",
+        )
+    if before is None or item.account_id not in before.accounts:
+        return Check(
+            days=days,
+            due_on=due_on,
+            status=CheckStatus.MISSED,
+            sentence=_NO_HISTORY_BEFORE,
+        )
+    window_end = min(due_on + timedelta(days=AFTER_WINDOW), today)
+    after = snapshots.earliest_between(due_on, window_end)
+    if after is None:
+        if today > due_on + timedelta(days=AFTER_WINDOW):
+            return Check(
+                days=days,
+                due_on=due_on,
+                status=CheckStatus.MISSED,
+                sentence=(
+                    f"Wardmind wasn't open around {_day(due_on)}, so there is nothing to compare."
+                ),
+            )
+        return Check(
+            days=days,
+            due_on=due_on,
+            status=CheckStatus.WAITING,
+            sentence=f"Waiting for the {days}-day reading.",
+        )
+    before_entry = before.accounts[item.account_id]
+    after_entry = after.accounts.get(item.account_id)
+    if after_entry is None:
+        return Check(
+            days=days,
+            due_on=due_on,
+            status=CheckStatus.READY,
+            before_day=before.day,
+            after_day=after.day,
+            health_before=before_entry.health,
+            risk_before=before_entry.risk,
+            direction=Direction.GONE,
+            sentence="Left the book since.",
+        )
+    direction = _direction(before_entry, after_entry)
+    return Check(
+        days=days,
+        due_on=due_on,
+        status=CheckStatus.READY,
+        before_day=before.day,
+        after_day=after.day,
+        health_before=before_entry.health,
+        health_after=after_entry.health,
+        risk_before=before_entry.risk,
+        risk_after=after_entry.risk,
+        direction=direction,
+        readings=_readings(item, before_entry, after_entry, config),
+        sentence=_sentence(direction, before_entry, after_entry),
+    )
+
+
+def _direction(before: SnapshotEntry, after: SnapshotEntry) -> Direction:
+    """A health change decides (HEALTH_ORDER: higher is better); otherwise the risk move, to one
+    decimal, is compared with RISK_STEP."""
+    if after.health is not before.health:
+        if HEALTH_ORDER[after.health] > HEALTH_ORDER[before.health]:
+            return Direction.BETTER
+        return Direction.WORSE
+    moved = round(after.risk - before.risk, 1)
+    if moved <= -RISK_STEP:
+        return Direction.BETTER
+    if moved >= RISK_STEP:
+        return Direction.WORSE
+    return Direction.SAME
+
+
+def _sentence(direction: Direction, before: SnapshotEntry, after: SnapshotEntry) -> str:
+    """One sentence such as "Better since: health At risk to Watch, risk 62 to 48."; the health is
+    named once when it didn't change."""
+    if after.health is before.health:
+        health = f"health {before.health.label}"
+    else:
+        health = f"health {before.health.label} to {after.health.label}"
+    return f"{direction.label}: {health}, risk {_whole(before.risk)} to {_whole(after.risk)}."
+
+
+def _readings(
+    item: Proposal,
+    before: SnapshotEntry,
+    after: SnapshotEntry,
+    config: ScoringConfig,
+) -> list[Reading]:
+    """The suggestion's evidence signals, first seen first, skipping repeats, missing and unknown
+    kinds, and any with no value on either side; at most MAX_READINGS."""
+    readings: list[Reading] = []
+    seen: set[str] = set()
+    for evidence in item.why:
+        name = evidence.signal
+        if name is None or name in seen:
+            continue
+        seen.add(name)
+        try:
+            kind = signal_key(name)
+        except ValueError:
+            continue
+        before_value = before.signals.get(kind)
+        after_value = after.signals.get(kind)
+        if before_value is None and after_value is None:
+            continue
+        readings.append(
+            Reading(
+                signal=kind.value,
+                label=signal_info.label(kind, config),
+                before=before_value,
+                after=after_value,
+                before_text=_reading_text(kind, before_value, config),
+                after_text=_reading_text(kind, after_value, config),
+            )
+        )
+        if len(readings) == MAX_READINGS:
+            break
+    return readings
+
+
+def _reading_text(kind: SignalKey, value: float | None, config: ScoringConfig) -> str:
+    """scoring.describe of the value; a custom signal the book has since removed reads as its
+    readable label and value, not its raw id."""
+    if value is None:
+        return NO_READING
+    custom = config.custom_signal(kind)
+    if not isinstance(kind, SignalKind) and custom is None:
+        return f"{signal_info.label(kind, config)}: {format_number(value)}"
+    return describe(kind, value, custom)
+
+
+def _summary_row(detector: Detector | None, group: list[Effect]) -> DetectorSummary:
+    """One row of the table: the steps of one detector (None: Claude's)."""
+    latest = [effect.latest_ready for effect in group]
+    checked = [check for check in latest if check is not None]
+    directions = [check.direction for check in checked]
+    verdicts = [effect.review.verdict for effect in group if effect.review is not None]
+    return DetectorSummary(
+        detector=detector,
+        label=CLAUDE_LABEL if detector is None else DETECTOR_LABELS[detector],
+        steps=len(group),
+        checked=len(checked),
+        better=directions.count(Direction.BETTER),
+        same=directions.count(Direction.SAME),
+        worse=directions.count(Direction.WORSE) + directions.count(Direction.GONE),
+        helped=verdicts.count(Verdict.HELPED),
+        didnt_help=verdicts.count(Verdict.DIDNT_HELP),
+    )

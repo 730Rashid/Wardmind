@@ -3,7 +3,7 @@ from __future__ import annotations
 import asyncio
 import os
 import sys
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from pathlib import Path
 from typing import Any
 
@@ -12,7 +12,7 @@ from mcp import Client, StdioServerParameters
 from mcp.client.stdio import get_default_environment
 from mcp.types import CallToolResult
 
-from wardmind.core import books, briefs, contacts, service, summaries
+from wardmind.core import books, briefs, contacts, proposals, service, summaries
 from wardmind.core.connectors.demo import DemoConnector
 from wardmind.core.connectors.errors import ConnectionNotReady
 from wardmind.core.models import Motion
@@ -30,7 +30,7 @@ TOOLS = {
     "research_account",
     "todays_list",
 }
-READ_ONLY_TOOLS = TOOLS | {"list_suggestions", "system_status"}  # these read only
+READ_ONLY_TOOLS = TOOLS | {"list_suggestions", "system_status", "step_results"}  # these read only
 WRITE_TOOLS = {
     "propose_follow_up",
     "propose_note",
@@ -388,6 +388,7 @@ async def test_every_tool_names_the_demo_data_it_came_from():
         ("research_account", {"account_id": "acc-001"}),
         ("list_suggestions", {}),
         ("system_status", {}),
+        ("step_results", {}),
     ]
     assert {tool for tool, _ in calls} == READ_ONLY_TOOLS
     async with Client(server.mcp) as client:
@@ -439,3 +440,52 @@ async def test_system_status_lists_the_checks_and_names_the_book():
     assert all(check["name"] and check["detail"] for check in data["checks"])
     assert data["data_as_of"] is None  # demo data has no feeds
     assert data["overdue_sources"] == []
+
+
+async def test_step_results_lists_a_done_step_as_since_not_because():
+    # One suggestion the CSM accepted and then marked done, on the demo book (its own files).
+    store = service.get_proposals()
+    stored = store.add(
+        proposals.Proposal(
+            id="",
+            account_id="acc-001",
+            kind=proposals.ProposalKind.FOLLOW_UP,
+            source=proposals.ProposalSource.DETECTOR,
+            detector=proposals.Detector.HEALTH_DROPPED,
+            key="health_dropped:at_risk:" + date.today().isoformat(),
+            title="Check in: health dropped",
+            why=[proposals.Evidence(text="Health went from Watch to At risk")],
+            text="Check in: health dropped",
+            due=date.today(),
+            created_at=datetime.now(UTC).replace(tzinfo=None),
+            basis_day=date.today(),
+        )
+    )
+    assert stored is not None
+    accepted = proposals.accept(
+        store,
+        service.get_journal(),
+        stored.id,
+        now=datetime.now(UTC).replace(tzinfo=None),
+        today=date.today(),
+    )
+    assert accepted.result_id is not None
+    service.get_journal().complete_follow_up(
+        "acc-001", accepted.result_id, now=datetime.now(UTC).replace(tzinfo=None)
+    )
+    async with Client(server.mcp) as client:
+        tools = {tool.name: tool for tool in (await client.list_tools()).tools}
+        data = _data(await client.call_tool("step_results", {}))
+        elsewhere = _data(await client.call_tool("step_results", {"account_id": "acc-002"}))
+    assert "not what caused it" in (tools["step_results"].description or "")
+    assert data["book"] == DEMO_BOOK
+    assert data["steps"] == [effect.model_dump(mode="json") for effect in service.step_effects()]
+    (step,) = data["steps"]
+    assert step["proposal_id"] == stored.id
+    assert step["account_id"] == "acc-001"
+    assert step["source"] == "Wardmind"
+    # The step was done today, so both checks are still ahead: waiting, with their days.
+    assert [check["status"] for check in step["checks"]] == ["waiting", "waiting"]
+    assert step["checks"][0]["sentence"].startswith("The 14-day check is on ")
+    assert step["checks"][1]["sentence"].startswith("The 30-day check is on ")
+    assert elsewhere["steps"] == []

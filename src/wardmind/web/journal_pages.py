@@ -67,6 +67,7 @@ NOTICES = {
     "unpinned": "Unpinned.",
     "team-added": "Added to the account team.",
     "team-removed": "Removed from the account team.",
+    "step-reviewed": "Saved your answer.",
 }
 # The message for a refusal that came from a Today form, which has no room for the values typed.
 REFUSALS = {

@@ -1,0 +1,10 @@
+{% extends "base.html" %}
+{% from "partials/page_head.html" import page_head %}
+{# An answer to "Did it work?" that was refused, shown on its own when the page had no JavaScript to show it in place. #}
+{% block content %}
+<div class="quiet-page">
+  {{ page_head(page) }}
+  <p class="page-lede page-lede-quiet" role="alert">{{ message }}</p>
+  <p><a href="{{ back_href }}">{{ back_label }}</a></p>
+</div>
+{% endblock %}

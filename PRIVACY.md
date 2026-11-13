@@ -199,7 +199,9 @@ worked out from its sample readings.
 
 **Suggestions** (Today's Suggested for you) are worked out on this computer from the same facts
 My book shows, and kept beside the journal in `proposals.json` (demo data: `demo-proposals.json`),
-with whether you accepted or dismissed each one.
+with whether you accepted or dismissed each one, and your answer to **Did it work?** for each
+step you took. What moved since a step is worked out from the score history each time it is
+shown, and isn't stored.
 
 **Claude's changes.** With Settings > Assistant set to Suggest only or Make changes, Claude (through
 the MCP server on this computer) can add suggestions, notes and follow-ups, complete follow-ups

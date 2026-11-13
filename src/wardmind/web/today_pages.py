@@ -6,7 +6,8 @@ that view to the accounts whose name contains the find text (before journal_page
 summary sentence describes what is shown), counts what is left for the index, and adds the threads
 from journal.awaiting_replies. Nothing here reads a file: the route passes in the book and the
 journals. The "Suggested for you" section comes from proposal_pages.today_section, the one place
-Today touches the suggestions file (that call also runs the day's check).
+Today touches the suggestions file (that call also runs the day's check). "Did it work?" comes from
+effect_pages.today_section, the one place Today reads the steps (core/effects.py).
 """
 
 from __future__ import annotations
@@ -18,7 +19,7 @@ from datetime import date
 from wardmind.core import journal
 from wardmind.core.journal import AccountJournal, TodayView
 from wardmind.core.models import ScoredAccount
-from wardmind.web import formatting, journal_pages, proposal_pages
+from wardmind.web import effect_pages, formatting, journal_pages, proposal_pages
 from wardmind.web.journal_pages import TodayPage
 
 WAITING_LIMIT = 10  # thread rows listed under "Waiting on replies"; the rest are counted
@@ -63,10 +64,16 @@ class TodayScreen:
     waiting_total: int  # every thread that matches the find text
     index: list[IndexLink]  # the non-empty sections, in page order
     suggestions: proposal_pages.Section | None = None  # "Suggested for you"; None when hidden
+    reviews: effect_pages.ReviewSection | None = None  # "Did it work?"; None when nothing is due
 
     @property
     def empty(self) -> bool:
-        return self.page.empty and self.waiting_total == 0 and self.suggestions is None
+        return (
+            self.page.empty
+            and self.waiting_total == 0
+            and self.suggestions is None
+            and self.reviews is None
+        )
 
 
 def narrow(view: TodayView, needle: str) -> TodayView:
@@ -129,11 +136,15 @@ def waiting_on_replies(
 
 
 def _index(
-    page: TodayPage, waiting_total: int, suggestions: proposal_pages.Section | None
+    page: TodayPage,
+    waiting_total: int,
+    suggestions: proposal_pages.Section | None,
+    reviews: effect_pages.ReviewSection | None,
 ) -> list[IndexLink]:
     """The sections in page order, each with its count; a section with nothing is left out."""
     links = [
         IndexLink("today-suggested", "Suggested", len(suggestions.cards) if suggestions else 0),
+        IndexLink("today-review", "Did it work?", reviews.total if reviews else 0),
         IndexLink("today-due", "Due", len(page.due)),
         IndexLink("today-waiting", "Waiting on replies", waiting_total),
         IndexLink("today-attention", "Needs attention", len(page.attention)),
@@ -169,12 +180,14 @@ def screen(
         answer_wait_days=answer_wait_days,
     )
     suggestions = proposal_pages.today_section(book, today, text)
+    reviews = effect_pages.today_section(book, today, text)
     return TodayScreen(
         query=text,
         page=page,
         waiting=threads[:WAITING_LIMIT],
         waiting_more=max(0, len(threads) - WAITING_LIMIT),
         waiting_total=len(threads),
-        index=_index(page, len(threads), suggestions),
+        index=_index(page, len(threads), suggestions, reviews),
         suggestions=suggestions,
+        reviews=reviews,
     )

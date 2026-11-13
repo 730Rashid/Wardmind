@@ -57,4 +57,42 @@
     <button type="submit" class="button-primary">Save changes</button>
   </div>
 </form>
+
+{% if step_rows %}
+<section class="settings-card assistant-group assistant-steps" aria-labelledby="assistant-steps-title">
+  <h2 class="section-title" id="assistant-steps-title">What followed your steps</h2>
+  <p class="field-help">Counts of what moved after each step, not what caused it.</p>
+  <div class="table-card">
+    <table class="steps-table">
+      <caption class="visually-hidden">What moved after each kind of step, and what you said about them</caption>
+      <thead>
+        <tr>
+          <th scope="col">Suggestion</th>
+          <th scope="col" class="steps-count">Steps</th>
+          <th scope="col" class="steps-count">Checked</th>
+          <th scope="col" class="steps-count">Better</th>
+          <th scope="col" class="steps-count">Same</th>
+          <th scope="col" class="steps-count">Worse</th>
+          <th scope="col" class="steps-count">You said helped</th>
+          <th scope="col" class="steps-count">You said didn't help</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in step_rows %}
+        <tr>
+          <th scope="row">{{ row.label }}</th>
+          <td class="steps-count">{{ row.steps }}</td>
+          <td class="steps-count">{{ row.checked }}</td>
+          <td class="steps-count">{{ row.better }}</td>
+          <td class="steps-count">{{ row.same }}</td>
+          <td class="steps-count">{{ row.worse }}</td>
+          <td class="steps-count">{{ row.helped }}</td>
+          <td class="steps-count">{{ row.didnt_help }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+{% endif %}
 {% endblock %}

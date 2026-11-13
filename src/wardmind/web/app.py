@@ -127,6 +127,7 @@ from wardmind.web import (
     contact_pages,
     custom_signals_form,
     draft_pages,
+    effect_pages,
     feed_pages,
     formatting,
     journal_pages,
@@ -2517,6 +2518,8 @@ def _render_account(
         note_templates=saved_templates,
         note_template_id=picked.id if picked is not None else "",
         note_template_name=picked.name if picked is not None else "",
+        # "Steps you took" (web/effect_pages.py): what moved since each accepted follow-up's checks.
+        steps=effect_pages.account_steps(account_id, today),
     )
 
 
@@ -6815,6 +6818,7 @@ def create_app(gate: session.SessionGate | None = None) -> FastAPI:
     settings_assistant.register(app, _render, templates)
     # --- Suggestions, email drafts and System status (each has register()) -------------------
     proposal_pages.register(app, _render, templates)
+    effect_pages.register(app, _render, templates)
     draft_pages.register(app, _render, templates)
     status_pages.register(app, _render, templates)
 

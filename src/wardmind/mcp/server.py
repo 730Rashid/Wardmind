@@ -316,6 +316,28 @@ def system_status() -> dict[str, Any]:
     )
 
 
+@mcp.tool()
+def step_results(account_id: str | None = None) -> dict[str, Any]:
+    """Did it work? Each step the CSM took on a suggestion (an accepted follow-up now marked done),
+    newest first: for the checks 14 and 30 days after it, the account's health and risk then and
+    at the check, which way it moved ("better", "same", "worse" or "gone" when the account left
+    the book), the evidence signals that moved, and the CSM's own answer when they gave one. A
+    check that can't be compared says why (waiting, or missed for lack of score history). These
+    comparisons show what moved after a step, not what caused it.
+
+    Args:
+        account_id: Only that account's steps (the id from list_book). All accounts when omitted.
+    """
+    with _connector_errors():
+        found = service.step_effects(account_id=account_id)
+    return _named(
+        {
+            "steps": [effect.model_dump(mode="json") for effect in found],
+            "note": _DATA_NOTE,
+        }
+    )
+
+
 def run() -> None:
     """Serve the tools over stdio until the client disconnects."""
     mcp.run("stdio")

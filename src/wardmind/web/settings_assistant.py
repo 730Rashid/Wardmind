@@ -24,6 +24,7 @@ from starlette.concurrency import run_in_threadpool
 
 from wardmind.core import audit
 from wardmind.core.settings import McpWrites, Settings, load_settings, save_settings
+from wardmind.web import effect_pages
 
 Render = Callable[..., HTMLResponse]
 
@@ -93,6 +94,8 @@ def register(app: FastAPI, render: Render, templates: Jinja2Templates) -> None:
             errors=errors,
             notice=notice,
             status_code=status_code,
+            # "What followed your steps" (effect_pages.summary_table): shown only when it has rows.
+            step_rows=effect_pages.summary_table(),
         )
 
     @app.get("/settings/assistant")
