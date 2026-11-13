@@ -18,6 +18,7 @@ from wardmind.core import (
     bulk,
     client_updates,
     contacts,
+    effects,
     growth,
     history,
     import_flow,
@@ -1424,6 +1425,48 @@ def week_changes(
     else:
         earlier = history_store().on_or_before(week_ago)
     return None if earlier is None else history.changes_since(book, earlier)
+
+
+class _DemoSnapshots:
+    """effects.Snapshots for demo data: the demo book scored as of the day asked for (there is
+    a reading for every day: the latest in a range is its last day, the earliest its first)."""
+
+    def __init__(self, now: datetime) -> None:
+        self._now = now
+
+    def latest_between(self, since: date, until: date) -> history.BookSnapshot | None:
+        return _demo_snapshot(until, self._now) if since <= until else None
+
+    def earliest_between(self, since: date, until: date) -> history.BookSnapshot | None:
+        return _demo_snapshot(since, self._now) if since <= until else None
+
+
+def step_effects(today: date | None = None, account_id: str | None = None) -> list[effects.Effect]:
+    """Did it work? Every step taken on a suggestion for the data showing, with what moved
+    since (core/effects.py), newest first; only that account's when account_id is given. Reads
+    files only (the suggestions, the journal and the score history), never a connector."""
+    day = today if today is not None else date.today()
+    snapshots: effects.Snapshots
+    if _demo_mode():
+        snapshots = _DemoSnapshots(_utc_now())
+    else:
+        snapshots = history_store()
+    return effects.effects_for(
+        get_proposals().all(),
+        get_journal().all(),
+        snapshots,
+        day,
+        load_scoring_config(),
+        account_id,
+    )
+
+
+def review_step(
+    proposal_id: str, verdict: proposals.Verdict, check_days: int, now: datetime | None = None
+) -> proposals.Proposal:
+    """Record the CSM's answer to "Did it work?" (effects.review)."""
+    moment = now if now is not None else _utc_now()
+    return effects.review(get_proposals(), proposal_id, verdict, check_days, now=moment)
 
 
 def history_started() -> date | None:

@@ -103,6 +103,26 @@ class Detector(StrEnum):
     BLIND_SPOT = "blind_spot"  # looks Healthy on thin data: get a fresh reading
 
 
+class Verdict(StrEnum):
+    """The CSM's answer to "Did it work?" about a step they took (core/effects.py)."""
+
+    HELPED = "helped"
+    DIDNT_HELP = "didnt_help"
+    TOO_EARLY = "too_early"  # asked again at the next check
+
+    @property
+    def label(self) -> str:
+        return {"helped": "Helped", "didnt_help": "Didn't help", "too_early": "Too early"}[
+            self.value
+        ]
+
+
+class Review(BaseModel):
+    verdict: Verdict
+    check_days: int  # the check (effects.CHECK_DAYS) the answer was given on
+    at: datetime  # naive UTC
+
+
 class Evidence(BaseModel):
     """One reason a suggestion was made, in plain English: "Health went from Watch to At risk"
     (observed 2026-11-10). `signal` is the SignalKey value it rests on, when there is one."""
@@ -136,6 +156,7 @@ class Proposal(BaseModel):
     result_id: str | None = None  # ACCEPTED: the journal entry's id ("f-...", "n-...", "snooze")
     expired_reason: str | None = None  # EXPIRED: plain English, e.g. "Health recovered."
     basis_day: date  # the day the evidence was read
+    review: Review | None = None  # ACCEPTED follow-ups: "Did it work?" (core/effects.py)
 
     @field_validator("title")
     @classmethod
@@ -305,6 +326,7 @@ def _add_to(data: ProposalsData, proposal: Proposal) -> Proposal | None:
             "decided_at": None,
             "result_id": None,
             "expired_reason": None,
+            "review": None,
         }
     )
     data.items.append(stored)

@@ -388,6 +388,24 @@ class HistoryStore:
         found = self.days()
         return found[0] if found else None
 
+    def latest_between(self, since: date, until: date) -> BookSnapshot | None:
+        """The readable snapshot of the latest day in [since, until], or None."""
+        for candidate in reversed(self.days()):
+            if since <= candidate <= until:
+                snapshot = self.load(candidate)
+                if snapshot is not None:
+                    return snapshot
+        return None
+
+    def earliest_between(self, since: date, until: date) -> BookSnapshot | None:
+        """The readable snapshot of the earliest day in [since, until], or None."""
+        for candidate in self.days():
+            if since <= candidate <= until:
+                snapshot = self.load(candidate)
+                if snapshot is not None:
+                    return snapshot
+        return None
+
     def between(self, since: date, until: date) -> list[BookSnapshot]:
         """Snapshots with since <= day <= until, by day ascending."""
         found: list[BookSnapshot] = []
