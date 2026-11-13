@@ -5,6 +5,7 @@
 {# The page header runs the full width above the filter panel and the results, as the reference does. #}
 <div class="book-head">
   {{ page_head("My book", "layers", meta=today) }}
+  {% include "partials/freshness.html" %}
 </div>
 {# One form holds the filter sidebar, the search and the view switch, so any change refreshes the
    results and the address. Without JavaScript, Show accounts submits it. #}

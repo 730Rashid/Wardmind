@@ -113,10 +113,12 @@ def test_the_page_has_its_title_and_is_in_the_settings_navigation(client: TestCl
         "/settings/follow-ups",
         "/settings/note-templates",
         "/settings/scoring",
+        "/settings/assistant",
         "/settings/books",
         "/settings/connections",
         "/settings/mailbox",
         "/settings/backup",
+        "/settings/status",
         "/settings/privacy",
         "/settings/activity",
     ]

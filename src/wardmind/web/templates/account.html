@@ -72,6 +72,7 @@
       <p class="field-help">Editing is available for your own data.</p>
       {% endif %}
     </header>
+    {% include "partials/freshness.html" %}
     <p class="page-lede">{{ detail.explanation.summary }}</p>
 
     {% include "accounts/_next_step.html" %}

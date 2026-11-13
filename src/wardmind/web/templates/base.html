@@ -80,6 +80,7 @@
     {% endfor %}
   </div>
   {% endif %}
+  {% include "partials/status_banner.html" %}
   <main id="content" tabindex="-1" class="{% block main_class %}column page{% endblock %}">
     {% block content %}{% endblock %}
   </main>

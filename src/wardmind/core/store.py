@@ -29,7 +29,6 @@ import json
 import re
 import secrets
 import shutil
-import threading
 from collections.abc import Callable
 from datetime import UTC, date, datetime
 from enum import StrEnum
@@ -40,6 +39,7 @@ from pydantic import BaseModel, Field, TypeAdapter
 
 from wardmind.core import vault
 from wardmind.core.feeds.models import FeedSettings
+from wardmind.core.filelock import ProcessWriteLock
 from wardmind.core.models import Account, Signal
 from wardmind.core.secrets import delete_all_feed_secrets
 
@@ -98,12 +98,13 @@ HISTORY_DIR = "history"
 # and core/logos.py (one image file per account in this folder).
 MAILBOX_FILE = "mailbox.json"
 LOGOS_DIR = "logos"
-# One lock for every read-modify-write of the data folder in this process. The feed scheduler
-# runs on its own thread, so without it a sync that loaded a file before the CSM's change and
-# saved after it would undo that change (an opt-out, a rejected update, a removed connection).
-# Hold it around load -> change -> save, never around network calls. Re-entrant, so helpers
-# that take it can call each other.
-WRITE_LOCK = threading.RLock()
+# One lock for every read-modify-write of the data folder, in this process and across Wardmind's
+# processes (the web app, the MCP server, the CLI; see core/filelock.py). The feed scheduler runs
+# on its own thread and the MCP server in its own process, so without it a save that loaded a file
+# before the CSM's change and saved after it would undo that change (an opt-out, a rejected
+# update, a removed connection, a note). Hold it around load -> change -> save, never around
+# network calls. Re-entrant, so helpers that take it can call each other.
+WRITE_LOCK = ProcessWriteLock()
 _P = ParamSpec("_P")
 _R = TypeVar("_R")
 
@@ -120,6 +121,8 @@ _ALL_FILES = (
     DEMO_JOURNAL_FILE,
     MAILBOX_FILE,
     "note-templates.json",  # core/note_templates.NOTE_TEMPLATES_FILE (it imports this module)
+    "proposals.json",  # core/proposals.PROPOSALS_FILE (it imports this module)
+    "demo-proposals.json",  # core/proposals.DEMO_PROPOSALS_FILE
 )
 
 _SAFE_ID = re.compile(r"[A-Za-z0-9_-]+")  # connection ids, used in file names

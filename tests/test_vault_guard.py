@@ -23,6 +23,7 @@ ALLOWED = {
     "core/brand.py": "brand-logo.<ext>: your company's logo, shown before unlock",
     "core/books.py": "books.json: book ids and labels (no customer data), read before unlock",
     "core/audit.py": "activity-log.jsonl: plain event lines in the root folder, no customer data",
+    "core/filelock.py": ".write.lock: an empty lock file in the root folder, never any data",
     "core/connectors/demo.py": "the packaged, invented demo data",
     "core/connectors/hubspot.py": "hubspot.yaml: the property mapping, no customer data",
     "core/feeds/providers/files.py": "a spreadsheet the user picked, wherever it is",

@@ -126,17 +126,21 @@ from wardmind.core.store import (
 from wardmind.web import (
     contact_pages,
     custom_signals_form,
+    draft_pages,
     feed_pages,
     formatting,
     journal_pages,
     lock,
+    proposal_pages,
     renewal_pages,
     session,
     settings_activity,
+    settings_assistant,
     settings_backup,
     settings_followups,
     settings_note_templates,
     settings_overview,
+    status_pages,
     today_pages,
 )
 from wardmind.web import runway as runway_geometry
@@ -594,8 +598,9 @@ def _pending_count() -> int:
 
 
 def _due_count() -> int:
-    """The Today badge: open follow-ups due today or earlier, read from the journal file alone."""
-    return service.due_follow_up_count()
+    """The Today badge: open follow-ups due today or earlier plus open suggestions, read from the
+    journal and suggestions files alone."""
+    return service.due_follow_up_count() + service.open_suggestion_count()
 
 
 def _duplicate_count() -> int:
@@ -6807,5 +6812,10 @@ def create_app(gate: session.SessionGate | None = None) -> FastAPI:
     settings_note_templates.register(app, _render, templates)
     settings_backup.register(app, _render, templates)
     settings_activity.register(app, _render, templates)
+    settings_assistant.register(app, _render, templates)
+    # --- Suggestions, email drafts and System status (each has register()) -------------------
+    proposal_pages.register(app, _render, templates)
+    draft_pages.register(app, _render, templates)
+    status_pages.register(app, _render, templates)
 
     return app

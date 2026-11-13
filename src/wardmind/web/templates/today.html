@@ -13,6 +13,7 @@
   <div class="today-head">
     {{ page_head("Today", "calendar", meta=today) }}
     {% if lede %}<p class="page-lede">{{ lede }}</p>{% endif %}
+    {% include "partials/freshness.html" %}
   </div>
 
   {% if screen.index %}

@@ -175,6 +175,21 @@ class DateStyle(StrEnum):
     ISO = "iso"  # 2026-10-21
 
 
+class McpWrites(StrEnum):
+    """What Claude (the MCP server, mcp/writes.py) may change in the book. Settings > Assistant.
+
+    OFF: nothing; the write tools answer with how to turn them on.
+    PROPOSE: Claude's changes arrive as suggestions on Today (core/proposals.py), and nothing
+    reaches the journal until the CSM accepts one.
+    DIRECT: Claude may also add notes and follow-ups, complete follow-ups and snooze accounts
+    itself, after a preview it must confirm. It can never delete or edit anything.
+    """
+
+    OFF = "off"
+    PROPOSE = "propose"
+    DIRECT = "direct"
+
+
 MAX_NAME = 60  # characters in your_name
 RENEWAL_RULE_CHOICES = (30, 60, 90, 120)  # days before renewal for the renewal rule
 
@@ -232,6 +247,18 @@ class Settings(BaseModel):
     rule_renewal: bool = False  # rule_renewal_days before renewal: "Prepare the renewal"
     rule_renewal_days: int = 60  # one of RENEWAL_RULE_CHOICES
     rule_champion_left: bool = False  # the champion leaves: "Find a new champion", due in 3 days
+
+    # --- Assistant (Settings > Assistant) -------------------------------------------------------
+    # Suggestions on Today (core/proposals.py): on by default, because a suggestion changes
+    # nothing until the CSM accepts it.
+    suggestions: bool = True
+    # What Claude may change through the MCP server (McpWrites). Off until the CSM chooses.
+    mcp_writes: McpWrites = McpWrites.OFF
+    # Email drafts (core/drafts.py) are always written from templates. With ai_drafts on, the
+    # configured AI may polish the wording: a model on this computer straight away, a model online
+    # (OpenRouter) only when ai_drafts_cloud is on as well. Wardmind never sends an email.
+    ai_drafts: bool = False
+    ai_drafts_cloud: bool = False
 
     @field_validator("your_name")
     @classmethod

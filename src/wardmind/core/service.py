@@ -24,6 +24,7 @@ from wardmind.core import (
     journal,
     logos,
     mailbox,
+    proposals,
     research,
     rules,
     secrets,
@@ -540,6 +541,22 @@ def _local_client(base_url: str) -> summaries.LocalModelClient:
     if _local_factory is not None:
         return _local_factory(base_url)
     return summaries.LocalModelClient(base_url)
+
+
+def ai_problem() -> summaries.SummaryError | None:
+    """Why the configured AI can't be used now (no key, no local model chosen), or None. For
+    callers outside this module, e.g. email drafts (web/draft_pages.py)."""
+    return _ai_problem()
+
+
+def training_problem(allow_training: bool) -> summaries.TrainingNotConfirmed | None:
+    """The free-model guard (see _training_problem), for callers outside this module."""
+    return _training_problem(allow_training)
+
+
+def ai_client() -> summaries.OpenRouterClient | summaries.LocalModelClient:
+    """The client for the configured AI, for callers outside this module (see _client)."""
+    return _client()
 
 
 def _client() -> summaries.OpenRouterClient | summaries.LocalModelClient:
@@ -1115,6 +1132,55 @@ def get_journal() -> journal.Journal:
 
 def account_journal(account_id: str) -> journal.AccountJournal:
     return get_journal().for_account(account_id)
+
+
+def get_proposals() -> proposals.Proposals:
+    """The suggestions for the data showing (core/proposals.py). Demo data keeps its own file
+    beside the demo journal, so trying the demo never mixes with real suggestions."""
+    if _demo_mode():
+        return proposals.Proposals(LocalStore(books.book_data_dir(books.DEFAULT_BOOK)), demo=True)
+    return proposals.Proposals(get_store())
+
+
+def open_suggestion_count() -> int:
+    """For the Today badge: open suggestions, read from the file alone. Never raises."""
+    try:
+        return get_proposals().open_count()
+    except Exception as exc:
+        _log.warning("Suggestions weren't counted (%s).", type(exc).__name__)
+        return 0
+
+
+def refresh_suggestions(
+    today: date | None = None, now: datetime | None = None, *, force: bool = False
+) -> proposals.RefreshResult | None:
+    """Run the daily suggestion check (proposals.refresh) for the data showing, unless it already
+    ran today (force runs it anyway). Returns None when it didn't run: already ran, suggestions
+    are off, or the book is locked. Raises on failure, so the caller (remember_book's job runner,
+    or the Today page) can record it; the Today page shows the suggestions it already has."""
+    current = load_settings()
+    if not current.suggestions or not vault.ensure_unlocked():
+        return None
+    day = today if today is not None else date.today()
+    moment = now if now is not None else _utc_now()
+    store = get_proposals()
+    if not force and store.load().last_run == day:
+        return None
+    connector = get_connector()
+    book = get_book(connector, as_of=day)
+    latest = latest_book_signals(connector)
+    since = {} if _demo_mode() else history.health_since(book, history_store(), day)
+    return proposals.refresh(
+        store,
+        book,
+        get_journal().all(),
+        latest,
+        week_changes(book, day),
+        since,
+        current,
+        day,
+        moment,
+    )
 
 
 def due_follow_up_count(today: date | None = None) -> int:

@@ -71,6 +71,13 @@ class Event(StrEnum):
     BACKUP_RESTORED = "backup_restored"
     EXPORTED = "exported"  # detail: which export
     ALL_DATA_DELETED = "all_data_deleted"
+    # Assistant (core/proposals.py, mcp/writes.py). The detail names the tool or the kind of
+    # suggestion only, never an account id, a name or any text.
+    AGENT_PROPOSED = "agent_proposed"  # Claude added a suggestion through the MCP server
+    AGENT_WROTE = "agent_wrote"  # Claude changed the journal directly (McpWrites.DIRECT)
+    PROPOSAL_ACCEPTED = "proposal_accepted"
+    PROPOSAL_DISMISSED = "proposal_dismissed"
+    BACKGROUND_FAILED = "background_failed"  # detail: the job, e.g. "snapshot" or "feed sync"
     # Settings
     SETTINGS_SAVED = "settings_saved"  # detail: which section
     LOG_CLEARED = "log_cleared"
@@ -112,6 +119,11 @@ _GROUPS: dict[Event, Group] = {
     Event.BACKUP_RESTORED: Group.DATA,
     Event.EXPORTED: Group.DATA,
     Event.ALL_DATA_DELETED: Group.DATA,
+    Event.AGENT_PROPOSED: Group.DATA,
+    Event.AGENT_WROTE: Group.DATA,
+    Event.PROPOSAL_ACCEPTED: Group.DATA,
+    Event.PROPOSAL_DISMISSED: Group.DATA,
+    Event.BACKGROUND_FAILED: Group.DATA,
     Event.SETTINGS_SAVED: Group.SETTINGS,
     Event.LOG_CLEARED: Group.SETTINGS,
 }
@@ -143,6 +155,11 @@ _LABELS: dict[Event, str] = {
     Event.BACKUP_RESTORED: "Backup restored",
     Event.EXPORTED: "Export made",
     Event.ALL_DATA_DELETED: "All local data deleted",
+    Event.AGENT_PROPOSED: "Claude suggested a change",
+    Event.AGENT_WROTE: "Claude made a change",
+    Event.PROPOSAL_ACCEPTED: "Suggestion accepted",
+    Event.PROPOSAL_DISMISSED: "Suggestion dismissed",
+    Event.BACKGROUND_FAILED: "Background job failed",
     Event.SETTINGS_SAVED: "Settings saved",
     Event.LOG_CLEARED: "Log cleared",
 }

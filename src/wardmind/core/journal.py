@@ -105,6 +105,8 @@ class TouchKind(StrEnum):
 class NoteSource(StrEnum):
     MANUAL = "manual"  # typed on the account page (or Today)
     MAILBOX = "mailbox"  # logged by the mailbox sync (core/mailbox.py)
+    AGENT = "agent"  # added by Claude through the MCP server (mcp/writes.py): "Added by Claude"
+    SUGGESTION = "suggestion"  # an accepted suggestion (core/proposals.py)
 
 
 class Direction(StrEnum):
@@ -713,9 +715,11 @@ class Journal:
         *,
         now: datetime,
         today: date,
+        source: NoteSource = NoteSource.MANUAL,
     ) -> Note:
         """ValueError("This account has 1,000 notes, the most it can keep. Remove some old
-        ones first.") at MAX_NOTES_PER_ACCOUNT."""
+        ones first.") at MAX_NOTES_PER_ACCOUNT. `source` is MANUAL unless Claude (AGENT) or an
+        accepted suggestion (SUGGESTION) adds it; MAILBOX notes come from log_email."""
         cleaned = clean_note_text(text)
         day = check_happened_on(happened_on, today)
         with WRITE_LOCK:
@@ -729,6 +733,7 @@ class Journal:
                 text=cleaned,
                 happened_on=day,
                 created_at=_naive(now),
+                source=source,
             )
             journal.notes.append(note)
             data.by_account[account_id] = journal

@@ -17,7 +17,7 @@ import httpx
 import pytest
 
 from wardmind.core import client_updates as cu
-from wardmind.core import import_flow, importing, service
+from wardmind.core import filelock, import_flow, importing, service
 from wardmind.core import secrets as vault
 from wardmind.core.contacts import ContactInput, validate
 from wardmind.core.feeds import http as feed_http
@@ -390,7 +390,12 @@ def test_delete_all_local_data_removes_every_data_and_key_file_and_switches_two_
     service.delete_all_local_data()
 
     assert [path for path in store.root.rglob("*") if path.is_file()] == []
-    assert [path for path in vault.secrets_dir().rglob("*") if path.is_file()] == []
+    # Only the empty cross-process lock file (core/filelock.py) remains: it holds no data.
+    assert [
+        path
+        for path in vault.secrets_dir().rglob("*")
+        if path.is_file() and path.name != filelock.LOCK_FILE
+    ] == []
     settings = load_settings()
     assert settings.web_research is False
     assert settings.ai_summaries is False

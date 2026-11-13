@@ -212,10 +212,12 @@ def test_the_page_has_its_title_and_the_sub_navigation(client: TestClient) -> No
         "/settings/follow-ups",
         "/settings/note-templates",
         "/settings/scoring",
+        "/settings/assistant",
         "/settings/books",
         "/settings/connections",
         "/settings/mailbox",
         "/settings/backup",
+        "/settings/status",
         "/settings/privacy",
         "/settings/activity",
     ]

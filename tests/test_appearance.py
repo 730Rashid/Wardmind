@@ -147,10 +147,12 @@ def test_appearance_marks_settings_current_and_lists_the_sub_navigation(client: 
         "/settings/follow-ups",
         "/settings/note-templates",
         "/settings/scoring",
+        "/settings/assistant",
         "/settings/books",
         "/settings/connections",
         "/settings/mailbox",
         "/settings/backup",
+        "/settings/status",
         "/settings/privacy",
         "/settings/activity",
     ]

@@ -8,8 +8,8 @@
 {% set groups = [
   ("", [("overview", "/settings/overview", "Overview")]),
   ("You", [("profile", "/settings/profile", "Profile & region"), ("appearance", "/settings/appearance", "Appearance")]),
-  ("Your work", [("follow-ups", "/settings/follow-ups", "Follow-ups"), ("note-templates", "/settings/note-templates", "Note templates"), ("scoring", "/settings/scoring", "Scoring")]),
-  ("Your data", [("books", "/settings/books", "Books"), ("connections", "/settings/connections", "Connections"), ("mailbox", "/settings/mailbox", "Mailbox"), ("backup", "/settings/backup", "Backup & export")]),
+  ("Your work", [("follow-ups", "/settings/follow-ups", "Follow-ups"), ("note-templates", "/settings/note-templates", "Note templates"), ("scoring", "/settings/scoring", "Scoring"), ("assistant", "/settings/assistant", "Assistant")]),
+  ("Your data", [("books", "/settings/books", "Books"), ("connections", "/settings/connections", "Connections"), ("mailbox", "/settings/mailbox", "Mailbox"), ("backup", "/settings/backup", "Backup & export"), ("status", "/settings/status", "System status")]),
   ("Security", [("privacy", "/settings/privacy", "Data & privacy"), ("activity", "/settings/activity", "Activity log")]),
 ] %}
 {% set titles = {
@@ -25,6 +25,8 @@
   "backup": ("Backup & export", "download"),
   "privacy": ("Data & privacy", "shield"),
   "activity": ("Activity log", "activity"),
+  "assistant": ("Assistant", "star"),
+  "status": ("System status", "check"),
 } %}
 {% set heading = titles.get(section, ("Settings", "sliders")) %}
 <div class="catalog settings-shell">
