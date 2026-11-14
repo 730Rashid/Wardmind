@@ -384,6 +384,7 @@ class FollowUpRow:
     move: FormState  # the move box: the due date to show, and a refused move's message
     automatic: bool  # added by a rule, a suggestion or Claude: shows the `origin` tag
     origin: str = ""  # follow_up_origin(rule): "Added automatically", "From a suggestion", ...
+    mirror: str = ""  # journal.slip_line: "Moved 4 times. Do it, hand it off or remove it.", or ""
 
 
 @dataclass(frozen=True)
@@ -506,6 +507,7 @@ class JournalPanel:
     refused: str  # a refusal sent back from Today, or ""
     undo_id: str  # the follow-up an Undo button is offered for, or ""
     demo: bool  # demo data is showing: a line says the journal is kept apart
+    snooze_mirror: str = ""  # journal.snooze_line: "Snoozed 3 times since 2 Oct 2026...", or ""
 
 
 def panel(
@@ -575,6 +577,7 @@ def panel(
                 move=_or_defaults(refused(refusal, "move", item.id), {"due": item.due.isoformat()}),
                 automatic=item.rule is not None,
                 origin=follow_up_origin(item.rule),
+                mirror=journal.slip_line(item) or "",
             )
             for item in open_items
         ],
@@ -660,6 +663,7 @@ def panel(
         refused=refusal_text(why),
         undo_id=undo_id,
         demo=demo,
+        snooze_mirror=journal.snooze_line(account_journal, today) or "",
     )
 
 
@@ -1202,6 +1206,7 @@ class TodayDue:
     late: bool
     automatic: bool  # added by a rule, a suggestion or Claude: shows the `origin` tag
     origin: str = ""  # follow_up_origin(rule): "Added automatically", "From a suggestion", ...
+    mirror: str = ""  # journal.slip_line: "Moved 4 times. Do it, hand it off or remove it.", or ""
 
 
 @dataclass(frozen=True)
@@ -1214,6 +1219,7 @@ class TodayAttention:
     reason: str  # the top reason, in full
     contact: str  # "Contacted 12 days ago" or "Not contacted yet"
     suggested: str  # the next step, cut for the quick follow-up form
+    mirror: str = ""  # journal.snooze_line for the account, or ""
 
 
 @dataclass(frozen=True)
@@ -1228,6 +1234,7 @@ class TodaySnoozed:
     account_id: str
     name: str
     line: str  # "Snoozed until Mon 16 Nov"
+    mirror: str = ""  # journal.snooze_line for the account, or ""
 
 
 @dataclass(frozen=True)
@@ -1245,8 +1252,17 @@ class TodayPage:
         return not (self.due or self.attention or self.renewals or self.upcoming or self.snoozed)
 
 
-def today_page(view: TodayView, today: date) -> TodayPage:
-    """The Today page's rows and sentences, from the core's view."""
+def today_page(
+    view: TodayView, today: date, journals: Mapping[str, AccountJournal] | None = None
+) -> TodayPage:
+    """The Today page's rows and sentences, from the core's view. `journals` (every account's
+    journal, by id) gives the snooze mirror for the Needs attention and Snoozed rows; without it
+    those rows carry no mirror. The follow-up mirror needs no journal: it is on the follow-up."""
+    found = journals or {}
+
+    def snooze_mirror(account_id: str) -> str:
+        return journal.snooze_line(found.get(account_id, AccountJournal()), today) or ""
+
     due = [_today_due(item, today) for item in view.due]
     attention = [
         TodayAttention(
@@ -1258,6 +1274,7 @@ def today_page(view: TodayView, today: date) -> TodayPage:
             reason=item.scored.top_reason,
             contact=contact_label(item.last_contact, today),
             suggested=cut_text(item.scored.suggested_action),
+            mirror=snooze_mirror(item.scored.account.id),
         )
         for item in view.attention
     ]
@@ -1281,6 +1298,7 @@ def today_page(view: TodayView, today: date) -> TodayPage:
                 account_id=item.scored.account.id,
                 name=item.scored.account.name,
                 line=snooze_line(item.snooze, today),
+                mirror=snooze_mirror(item.scored.account.id),
             )
             for item in view.snoozed
         ],
@@ -1302,6 +1320,7 @@ def _today_due(item: DueItem, today: date) -> TodayDue:
         late=item.follow_up.due < today,
         automatic=item.follow_up.rule is not None,
         origin=follow_up_origin(item.follow_up.rule),
+        mirror=journal.slip_line(item.follow_up) or "",
     )
 
 

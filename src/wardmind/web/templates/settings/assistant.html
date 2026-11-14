@@ -1,6 +1,7 @@
 {% extends "settings/layout.html" %}
-{# Settings > Assistant: three cards. Each choice's help sits under it, linked with aria-describedby,
-   so nothing depends on colour alone. Errors name the field they belong to. #}
+{# Settings > Assistant: three cards in the form, then how suggestions adapt (taste_rows) and what
+   followed the steps. Each choice's help sits under it, linked with aria-describedby, so nothing
+   depends on colour alone. Errors name the field they belong to. #}
 {% block settings %}
 <p class="page-lede">What Claude may do with your book, and how your email drafts are worded.</p>
 
@@ -15,6 +16,10 @@
     <div class="field-check">
       <label class="choice"><input type="checkbox" id="suggestions" name="suggestions" value="1"{% if values.suggestions %} checked{% endif %} aria-describedby="suggestions-help"> Suggest next steps on Today</label>
       <p class="field-help" id="suggestions-help">Wardmind checks your book once a day and suggests next steps for you to accept or dismiss. Nothing changes until you accept one.</p>
+    </div>
+    <div class="field-check">
+      <label class="choice"><input type="checkbox" id="suggestions-learn" name="suggestions_learn" value="1"{% if values.suggestions_learn %} checked{% endif %} aria-describedby="suggestions-learn-help"> Learn from what I accept and dismiss</label>
+      <p class="field-help" id="suggestions-learn-help">A kind of suggestion you keep dismissing as Not useful or Wrong is shown less. Health drops and renewals are always shown.</p>
     </div>
   </section>
 
@@ -57,6 +62,43 @@
     <button type="submit" class="button-primary">Save changes</button>
   </div>
 </form>
+
+{# Outside the form: each Reset is a form of its own. Shown while suggestions are on (taste_rows). #}
+{% if taste_rows is not none %}
+<section class="settings-card assistant-group assistant-taste" aria-labelledby="assistant-taste-title">
+  <h2 class="section-title" id="assistant-taste-title">How suggestions adapt to you</h2>
+  <p class="field-help">Wardmind counts what you accepted and dismissed for each kind of suggestion, over recent months. Reset forgets what it learnt about one kind; the decisions themselves stay.</p>
+  <div class="table-card">
+    <table class="steps-table taste-table">
+      <caption class="visually-hidden">How each kind of suggestion adapts to what you accept and dismiss</caption>
+      <thead>
+        <tr>
+          <th scope="col">Suggestion</th>
+          <th scope="col">State</th>
+          <th scope="col">Your decisions</th>
+          <th scope="col"><span class="visually-hidden">Reset</span></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in taste_rows %}
+        <tr>
+          <th scope="row">{{ row.label }}</th>
+          <td>{{ row.state.label }}</td>
+          <td class="taste-sentence">{{ row.sentence }}</td>
+          <td class="taste-actions">
+            {% if (row.accepted + row.dismissed) and row.state.value not in ("off", "protected") %}
+            <form class="inline-form" method="post" action="/settings/assistant/taste/{{ row.detector }}/reset">
+              <button type="submit" class="button button--small">Reset<span class="visually-hidden"> what Wardmind learnt about {{ row.label }}</span></button>
+            </form>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+{% endif %}
 
 {% if step_rows %}
 <section class="settings-card assistant-group assistant-steps" aria-labelledby="assistant-steps-title">

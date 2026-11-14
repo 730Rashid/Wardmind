@@ -10,6 +10,7 @@
     <li class="journal-item" id="follow-up-{{ item.id }}">
       <p class="journal-meta"><span class="due{% if item.late %} due--late{% endif %}">{% if item.late %}<svg class="icon" aria-hidden="true" focusable="false"><use href="/static/icons.svg#status-overdue"/></svg>{% endif %}{{ item.due_label }}</span>{% if item.automatic %} <span class="chip chip--muted">{{ item.origin }}</span>{% endif %}</p>
       <p class="journal-text">{{ item.text }}</p>
+      {% if item.mirror %}<p class="field-help">{{ item.mirror }}</p>{% endif %}
       <div class="journal-actions">
         <form class="inline-form" method="post" action="/accounts/{{ account.id | idpath }}/follow-ups/{{ item.id | idpath }}/done">
           <input type="hidden" name="back" value="account">

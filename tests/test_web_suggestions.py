@@ -136,6 +136,7 @@ def test_the_card_forms_post_to_the_routes_and_say_where_to_send_htmx(
     assert f'action="/suggestions/{item.id}/dismiss"' in page
     assert f'hx-post="/suggestions/{item.id}/accept"' in page
     assert 'hx-target="closest li"' in page
+    assert '<details class="dismiss-menu">' in page  # Dismiss opens its reasons (test_web_taste.py)
 
 
 def test_the_section_is_hidden_when_suggestions_are_off(client: TestClient, acme: str) -> None:

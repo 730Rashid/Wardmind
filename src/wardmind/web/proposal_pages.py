@@ -5,8 +5,10 @@ day's check (service.refresh_suggestions, once a day) and reads the open suggest
 there is logged by its exception type only and the section is left out, so Today always renders.
 
 Two write routes are registered here: POST /suggestions/{id}/accept and POST
-/suggestions/{id}/dismiss. Without JavaScript each returns to Today with a fixed notice code
-(?journal=, as the journal forms do). Sent by htmx (HX-Request), each answers with the card's
+/suggestions/{id}/dismiss. Dismiss opens a short menu of reasons (proposals.DismissReason, which
+core/taste.py learns from); a Dismiss sent with no reason is the one-button Dismiss of before.
+Without JavaScript each returns to Today with a fixed notice code (?journal=, as the journal forms
+do), and a dismissal has no notice. Sent by htmx (HX-Request), each answers with the card's
 one-line result, or with the card again when something refused it. Nothing a suggestion says
 reaches the journal until Accept.
 """
@@ -37,10 +39,16 @@ Render = Callable[..., HTMLResponse]
 
 MAX_QUERY = 100  # characters kept from the find box (as today_pages does)
 _PICK_DAY = "Pick a date, such as 2026-11-16."
+_PICK_REASON = "Pick a reason from the list."
 _UNNAMED = "This account"  # the name shown when the account is no longer in the book
 _DISMISSED_LINE = "Dismissed."
 # The ?journal= notice codes journal_pages.NOTICES already has, for what Accept writes.
 _NOTICE_CODES = {ProposalKind.FOLLOW_UP: "follow-up-added", ProposalKind.NOTE: "note-added"}
+# The Dismiss menu's choices, (value, label) in DismissReason's order: "Not now", "Already on it",
+# "Not useful", "Wrong".
+DISMISS_CHOICES: tuple[tuple[str, str], ...] = tuple(
+    (reason.value, reason.label) for reason in proposals.DismissReason
+)
 
 
 @dataclass(frozen=True)
@@ -68,6 +76,7 @@ class Card:
     date_value: str  # ISO day for the date box, or ""
     draft_kind: str  # the DraftKind value for "Draft the email", or ""
     error: str = ""  # why the last action was refused, shown on the card
+    reasons: tuple[tuple[str, str], ...] = DISMISS_CHOICES  # the Dismiss menu: (value, label)
 
 
 @dataclass(frozen=True)
@@ -235,15 +244,36 @@ def _dismiss(
     if item is None:
         return _unknown(request, render, templates, proposal_id, query)
     try:
-        proposals.dismiss(store, proposal_id, now=datetime.now(UTC))
+        reason = _reason_of(fields)
+        dismissed = proposals.dismiss(store, proposal_id, now=datetime.now(UTC), reason=reason)
     except LookupError:
         return _unknown(request, render, templates, proposal_id, query)
     except ValueError as error:
         card = card_for(item, _in_book(item.account_id, today), today, error=str(error))
         return _refused(request, render, templates, card, query)
     if _is_htmx(request):
-        return _line(request, templates, _DISMISSED_LINE)
+        return _line(request, templates, _dismissed_line(dismissed.dismiss_reason))
     return RedirectResponse(_today_url(q=query), status_code=303)
+
+
+def _reason_of(fields: Mapping[str, str]) -> proposals.DismissReason | None:
+    """The reason the Dismiss menu sent, or None when none was sent (a blank choice, or the
+    one-button Dismiss). ValueError for a value that is not one of DismissReason's."""
+    text = fields.get("reason", "").strip()
+    if not text:
+        return None
+    try:
+        return proposals.DismissReason(text)
+    except ValueError:
+        raise ValueError(_PICK_REASON) from None
+
+
+def _dismissed_line(reason: proposals.DismissReason | None) -> str:
+    """What the card says in its place after Dismiss: the reason as it was stored, if there was one.
+    The label is lower-cased after the colon, e.g. "Dismissed: already on it."."""
+    if reason is None:
+        return _DISMISSED_LINE
+    return f"Dismissed: {reason.label.lower()}."
 
 
 def _accepted_line(kind: ProposalKind, until: date | None, today: date) -> str:

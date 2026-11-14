@@ -11,7 +11,7 @@ from datetime import date, datetime, timedelta
 
 import pytest
 
-from wardmind.core import history, proposals, service
+from wardmind.core import history, proposals, service, taste
 from wardmind.core.config import ScoringConfig
 from wardmind.core.drafts import DraftKind
 from wardmind.core.journal import (
@@ -39,6 +39,7 @@ from wardmind.core.models import (
 )
 from wardmind.core.proposals import (
     Detector,
+    DismissReason,
     Edits,
     Evidence,
     Proposal,
@@ -150,6 +151,8 @@ def _plan(
     changes: history.WeekChanges | None = None,
     since: dict[str, date] | None = None,
     settings: Settings | None = None,
+    fewer: frozenset[Detector] = frozenset(),
+    known: frozenset[tuple[str, str]] = frozenset(),
 ) -> list[Proposal]:
     return proposals.plan(
         book,
@@ -161,6 +164,8 @@ def _plan(
         TODAY,
         NOW,
         config=CONFIG,
+        fewer=fewer,
+        known=known,
     )
 
 
@@ -498,6 +503,61 @@ def test_one_suggestion_per_detector_per_account_in_book_order() -> None:
     assert names == sorted(set(names), key=list(Detector).index)
 
 
+def _fewer_book() -> list[ScoredAccount]:
+    """a-1's health dropped (its gone-quiet is folded into that); a-2, a-3 and a-4 are gone quiet,
+    and a-3's renewal is near with no call, so it also has a renewal suggestion."""
+    return [
+        _scored(_account("a-1"), Health.AT_RISK, 52),
+        _scored(_account("a-2"), Health.AT_RISK, 60),
+        _scored(_account("a-3", renewal=TODAY + timedelta(days=10)), Health.AT_RISK, 60),
+        _scored(_account("a-4"), Health.AT_RISK, 60),
+    ]
+
+
+def test_a_known_suggestion_never_takes_a_held_detectors_one_place() -> None:
+    # a-2's gone-quiet suggestion was made before (and dismissed): with gone quiet held back, its
+    # one place goes to the next gone-quiet account, so the detector is never silenced.
+    book = _fewer_book()
+    first = _plan(book, changes=_worse("a-1"))
+    a2 = next(item for item in first if item.account_id == "a-2")
+    held = _plan(
+        book,
+        changes=_worse("a-1"),
+        fewer=frozenset({Detector.GONE_QUIET}),
+        known=frozenset({(a2.account_id, a2.key)}),
+    )
+    quiet = [item.account_id for item in held if item.detector is Detector.GONE_QUIET]
+    assert quiet == ["a-3"]
+
+
+def test_fewer_keeps_a_held_detectors_first_suggestion_and_moves_it_last() -> None:
+    book = _fewer_book()
+    base = _plan(book, changes=_worse("a-1"))
+    assert [(item.account_id, item.detector) for item in base] == [
+        ("a-1", Detector.HEALTH_DROPPED),
+        ("a-2", Detector.GONE_QUIET),
+        ("a-3", Detector.RENEWAL_NO_CALL),
+        ("a-3", Detector.GONE_QUIET),
+        ("a-4", Detector.GONE_QUIET),
+    ]
+    held = _plan(book, changes=_worse("a-1"), fewer=frozenset({Detector.GONE_QUIET}))
+    assert [(item.account_id, item.detector) for item in held] == [
+        ("a-1", Detector.HEALTH_DROPPED),
+        ("a-3", Detector.RENEWAL_NO_CALL),
+        ("a-2", Detector.GONE_QUIET),  # the most urgent gone-quiet account, after the rest
+    ]
+    assert len([item for item in held if item.detector is Detector.GONE_QUIET]) == (
+        taste.FEWER_PER_RUN
+    )
+
+
+def test_without_fewer_plan_is_unchanged_and_a_detector_not_planned_changes_nothing() -> None:
+    book = _fewer_book()
+    base = _plan(book, changes=_worse("a-1"))
+    assert _plan(book, changes=_worse("a-1"), fewer=frozenset()) == base
+    assert _plan(book, changes=_worse("a-1"), fewer=frozenset({Detector.REPLY_OVERDUE})) == base
+
+
 # --- refresh, expiry and the caps --------------------------------------------------------------
 
 
@@ -621,6 +681,53 @@ def test_refresh_returns_the_count_of_what_it_expired(store: Proposals) -> None:
     proposals.refresh(store, book, {}, {}, None, {}, Settings(), TODAY, NOW, config=CONFIG)
     result = proposals.refresh(store, [], {}, {}, None, {}, Settings(), TODAY, NOW, config=CONFIG)
     assert result.expired >= 1 and result.added == 0
+
+
+def test_refresh_passes_fewer_on_and_the_cap_cuts_the_held_suggestions_first(
+    store: Proposals, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(proposals, "MAX_PER_RUN", 2)
+    result = proposals.refresh(
+        store,
+        _fewer_book(),
+        {},
+        {},
+        _worse("a-1"),
+        {},
+        Settings(),
+        TODAY,
+        NOW,
+        config=CONFIG,
+        fewer=frozenset({Detector.GONE_QUIET}),
+    )
+    # Planned with the hold: health dropped, renewal, then one gone-quiet. Two fit the run.
+    assert (result.added, result.waiting) == (2, 1)
+    assert {(item.account_id, item.detector) for item in store.open()} == {
+        ("a-1", Detector.HEALTH_DROPPED),
+        ("a-3", Detector.RENEWAL_NO_CALL),
+    }
+
+
+def test_ten_not_useful_gone_quiet_dismissals_hold_that_detector_back(store: Proposals) -> None:
+    book = [
+        _scored(_account(f"a-{index}", f"Account {index}"), Health.AT_RISK, 60)
+        for index in range(10)
+    ]
+    proposals.refresh(store, book, {}, {}, None, {}, Settings(), TODAY, NOW, config=CONFIG)
+    assert store.open_count() == 10
+    for item in store.open():
+        proposals.dismiss(store, item.id, now=NOW, reason=DismissReason.NOT_USEFUL)
+
+    data = store.load()
+    found = taste.tastes(data.items, data.taste_resets, NOW)
+    assert taste.fewer(found) == frozenset({Detector.GONE_QUIET})
+    assert taste.fewer(taste.tastes(data.items, data.taste_resets, NOW, learn=False)) == (
+        frozenset()
+    )
+
+    assert len([item for item in _plan(book) if item.detector is Detector.GONE_QUIET]) == 10
+    held = _plan(book, fewer=taste.fewer(found))
+    assert [item.account_id for item in held if item.detector is Detector.GONE_QUIET] == ["a-0"]
 
 
 # --- accept and dismiss -----------------------------------------------------------------------

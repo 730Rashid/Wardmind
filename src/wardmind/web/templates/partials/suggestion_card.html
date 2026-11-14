@@ -1,6 +1,7 @@
 {# One suggestion (proposal_pages.Card). `card`, `query` and `logos` come from the page or the route.
-   Accept, Accept with changes and Dismiss post to /suggestions/...; with htmx the card is swapped for
-   its one-line result (partials/suggestion_done.html), or for the card again when it was refused. #}
+   Accept, Accept with changes post to /suggestions/...; Dismiss opens a menu of four reasons, each a
+   form that posts to /suggestions/.../dismiss with its reason. With htmx the card is swapped for its
+   one-line result (partials/suggestion_done.html), or for the card again when it was refused. #}
 {% from "partials/logo.html" import account_logo %}
 <li class="today-row">
   {{ account_logo(card.account_id, card.name, logos) }}
@@ -56,9 +57,18 @@
       {% if query %}<input type="hidden" name="q" value="{{ query }}">{% endif %}
       <button type="submit" class="button-primary button--small">Accept<span class="visually-hidden"> {{ card.title }}</span></button>
     </form>
-    <form class="inline-form" method="post" action="/suggestions/{{ card.id | idpath }}/dismiss" hx-post="/suggestions/{{ card.id | idpath }}/dismiss" hx-target="closest li" hx-swap="outerHTML">
-      {% if query %}<input type="hidden" name="q" value="{{ query }}">{% endif %}
-      <button type="submit" class="button button--small">Dismiss<span class="visually-hidden"> {{ card.title }}</span></button>
-    </form>
+    <details class="dismiss-menu">
+      <summary class="button button--small">Dismiss<span class="visually-hidden"> {{ card.title }}</span></summary>
+      <div class="dismiss-menu-panel">
+        {% for value, label in card.reasons %}
+        <form class="inline-form" method="post" action="/suggestions/{{ card.id | idpath }}/dismiss" hx-post="/suggestions/{{ card.id | idpath }}/dismiss" hx-target="closest li" hx-swap="outerHTML">
+          {% if query %}<input type="hidden" name="q" value="{{ query }}">{% endif %}
+          <input type="hidden" name="reason" value="{{ value }}">
+          <button type="submit" class="button button--small">{{ label }}<span class="visually-hidden"> for {{ card.title }}</span></button>
+        </form>
+        {% endfor %}
+        <p class="field-help dismiss-menu-help">Not useful and Wrong teach Wardmind to suggest fewer of these.</p>
+      </div>
+    </details>
   </div>
 </li>

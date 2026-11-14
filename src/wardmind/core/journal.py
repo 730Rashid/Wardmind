@@ -571,17 +571,26 @@ def recently_done(journal: AccountJournal, now: datetime, days: int = 14) -> lis
 
 def slip_line(follow_up: FollowUp) -> str | None:
     """The mirror for an OPEN follow-up moved later SLIP_MOVES times or more: "Moved 4 times. Do
-    it, hand it off or remove it." None otherwise (and for a DONE one). Built against the contract
-    (workstream C)."""
-    raise NotImplementedError
+    it, hand it off or remove it." None otherwise (and for a DONE one)."""
+    if follow_up.status is not FollowUpStatus.OPEN or follow_up.moved < SLIP_MOVES:
+        return None
+    return f"Moved {follow_up.moved} times. Do it, hand it off or remove it."
 
 
 def snooze_line(journal: AccountJournal, today: date) -> str | None:
     """The mirror for an account snoozed SLIP_SNOOZES times or more in the last
     SLIP_SNOOZE_WINDOW days (counting today): "Snoozed 3 times since 2 Oct 2026. Decide: act on
     it, hand it off or let it go." (the date is the earliest of those snoozes, '3 Nov 2026' style).
-    None otherwise. Built against the contract (workstream C)."""
-    raise NotImplementedError
+    None otherwise. A snooze counts when its day is within (today - SLIP_SNOOZE_WINDOW, today]: one
+    SLIP_SNOOZE_WINDOW - 1 days ago counts, one SLIP_SNOOZE_WINDOW days ago does not."""
+    window_start = today - timedelta(days=SLIP_SNOOZE_WINDOW)
+    recent = [day for day in journal.snoozed_on if window_start < day <= today]
+    if len(recent) < SLIP_SNOOZES:
+        return None
+    return (
+        f"Snoozed {len(recent)} times since {_short_date(min(recent))}. "
+        "Decide: act on it, hand it off or let it go."
+    )
 
 
 def active_snooze(journal: AccountJournal, health: Health, today: date) -> Snooze | None:
@@ -1047,7 +1056,8 @@ class Journal:
         self, account_id: str, follow_up_id: str, due: date, *, today: date
     ) -> FollowUp:
         """A new due date (check_due). Only an OPEN follow-up can move:
-        ValueError("That follow-up is already done.") otherwise."""
+        ValueError("That follow-up is already done.") otherwise. A date later than the current due
+        date counts once in `moved` (the mirror); an earlier or the same date doesn't."""
         day = check_due(due, today)
         with WRITE_LOCK:
             data = _load(self._path)
@@ -1056,7 +1066,8 @@ class Journal:
             current = journal.follow_ups[index]
             if current.status is FollowUpStatus.DONE:
                 raise ValueError("That follow-up is already done.")
-            updated = current.model_copy(update={"due": day})
+            slipped = current.moved + 1 if day > current.due else current.moved
+            updated = current.model_copy(update={"due": day, "moved": slipped})
             journal.follow_ups[index] = updated
             data.by_account[account_id] = journal
             _save(self._path, data)
@@ -1082,13 +1093,16 @@ class Journal:
     def snooze(
         self, account_id: str, until: date, health: Health, *, now: datetime, today: date
     ) -> Snooze:
-        """Replace any snooze with this one (check_snooze_until)."""
+        """Replace any snooze with this one (check_snooze_until). Today is also added to
+        `snoozed_on` (every snooze counts, even one on the same day as another), keeping the
+        newest MAX_SNOOZE_DAYS_KEPT days in ascending order."""
         day = check_snooze_until(until, today)
         with WRITE_LOCK:
             data = _load(self._path)
             journal = data.by_account.get(account_id, AccountJournal())
             record = Snooze(until=day, health=health, created_at=_naive(now))
             journal.snooze = record
+            journal.snoozed_on = sorted([*journal.snoozed_on, today])[-MAX_SNOOZE_DAYS_KEPT:]
             data.by_account[account_id] = journal
             _save(self._path, data)
         return record
@@ -1217,8 +1231,9 @@ class Journal:
         (ids that clash get new ones); the later of the two snoozes is kept. A moved MAILBOX email
         whose message_id to_id already has is dropped, and a moved team member whose email to_id's
         team already has is dropped. A moved call whose renewal_date to_id already has a call for
-        is dropped too: to_id's call wins. from_id is then removed. Nothing happens when from_id
-        has no journal or from_id == to_id."""
+        is dropped too: to_id's call wins. Both accounts' snooze days (snoozed_on) are kept, the
+        newest MAX_SNOOZE_DAYS_KEPT. from_id is then removed. Nothing happens when from_id has no
+        journal or from_id == to_id."""
         if from_id == to_id:
             return
         with WRITE_LOCK:
@@ -1263,6 +1278,9 @@ class Journal:
                 ),
             ]
             target.snooze = _later_snooze(moving.snooze, target.snooze)
+            target.snoozed_on = sorted([*target.snoozed_on, *moving.snoozed_on])[
+                -MAX_SNOOZE_DAYS_KEPT:
+            ]
             data.by_account[to_id] = target
             _save(self._path, data)
 
@@ -1316,6 +1334,8 @@ _NO_SUBJECT = "(No subject)"
 # A reply or forward prefix at the start of a subject, in several languages: "Re:", "Fwd:",
 # "re[2]:", "AW:", "SV:", "WG:". The colon is required; a space after it is optional.
 _THREAD_PREFIX = re.compile(r"(?:re|fwd?|aw|sv|wg)(?:\[\d+\])?:\s*", re.IGNORECASE)
+# English month names, not strftime's: the mirror's wording must not depend on the machine's locale.
+_MONTH_NAMES = ("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
 
 
 def _unify_breaks(text: str) -> str:
@@ -1336,6 +1356,11 @@ def _naive(moment: datetime) -> datetime:
     if moment.tzinfo is None:
         return moment
     return moment.astimezone(UTC).replace(tzinfo=None)
+
+
+def _short_date(day: date) -> str:
+    """'2 Oct 2026': the day without a leading zero, the short month, the year."""
+    return f"{day.day} {_MONTH_NAMES[day.month - 1]} {day.year}"
 
 
 def _load(path: Path) -> JournalData:

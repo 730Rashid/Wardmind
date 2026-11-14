@@ -201,7 +201,10 @@ worked out from its sample readings.
 My book shows, and kept beside the journal in `proposals.json` (demo data: `demo-proposals.json`),
 with whether you accepted or dismissed each one, and your answer to **Did it work?** for each
 step you took. What moved since a step is worked out from the score history each time it is
-shown, and isn't stored.
+shown, and isn't stored. The reason you gave when you dismissed one is kept there too, with any
+**Reset** you pressed in Settings > Assistant; how suggestions adapt is worked out from these on
+this computer. The journal counts how often a follow-up was moved later and keeps the days an
+account was snoozed (the last 20), for the "keeps slipping" lines.
 
 **Claude's changes.** With Settings > Assistant set to Suggest only or Make changes, Claude (through
 the MCP server on this computer) can add suggestions, notes and follow-ups, complete follow-ups

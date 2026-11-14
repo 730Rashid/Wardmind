@@ -872,6 +872,23 @@ Every screen follows one quiet, enterprise language, taken from a reference the 
   mind keeping watch). `static/favicon.svg` is the same mark for the browser tab.
 
 
+## Suggestions that learn your taste, and the mirror (2026-11-14)
+
+Fable's second pick. Contract 591647b.
+
+- **Dismiss reasons** (`proposals.DismissReason`): Not now and Already on it are timing and never
+  count against a detector; Not useful, Wrong and a plain dismissal do.
+- **Taste** (`core/taste.py`, pure): per detector, counted decisions in the last 180 days after
+  its reset. With 10 or more and an accept rate under 25%, the detector is FEWER: `plan(fewer=)`
+  keeps one of its suggestions per run and puts it after the rest, so MAX_PER_RUN cuts it first.
+  Health dropped and renewal with no call are PROTECTED. Nothing is silenced; every state shows
+  its numbers in Settings > Assistant, with Reset (`ProposalsData.taste_resets`) and the
+  `suggestions_learn` switch. Thresholds (quiet days, reply wait) are not tuned automatically:
+  that would change what the CSM set.
+- **Mirror** (`journal.slip_line`, `journal.snooze_line`): `FollowUp.moved` counts moves later;
+  `AccountJournal.snoozed_on` keeps snooze days. Three moves, or three snoozes in 90 days, show a
+  plain line offering a choice. Not exported, not in MCP output.
+
 ## Did it work? (2026-11-13)
 
 Fable's first pick for the next round: close the loop on suggestions. Contract b8f6351.

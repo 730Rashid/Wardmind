@@ -170,7 +170,7 @@ def screen(
     text = clean_query(query)
     needle = text.casefold()
     view = journal.today_view(book, dict(journals), today, quiet_days=quiet_days)
-    page = journal_pages.today_page(narrow(view, needle), today)
+    page = journal_pages.today_page(narrow(view, needle), today, journals)
     threads = waiting_on_replies(
         book,
         journals,

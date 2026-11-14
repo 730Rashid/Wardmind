@@ -13067,3 +13067,122 @@ a.chip:hover {
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
+
+/* --- suggestions that learn your taste ------------------------------------------------------- */
+/* Workstream B, pending: the lead merges this into app.css (it is not linked anywhere yet).
+   The Dismiss menu on a suggestion card (web/templates/partials/suggestion_card.html) and the
+   "How suggestions adapt to you" section of Settings > Assistant (settings/assistant.html). Both
+   reuse .button, .button--small, .inline-form, .today-row-actions, .steps-table, .table-card and
+   .field-help from app.css; this file adds only what they need. Nothing here is colour alone: the
+   menu is a native disclosure, so it works without JavaScript and from the keyboard. */
+
+/* Dismiss: the summary is styled as the old one-button Dismiss; the marker is hidden. */
+.dismiss-menu {
+  position: relative;
+  min-inline-size: 0;
+}
+
+.dismiss-menu > summary {
+  display: inline-block;
+  list-style: none;
+  cursor: pointer;
+}
+
+.dismiss-menu > summary::-webkit-details-marker {
+  display: none;
+}
+
+.dismiss-menu[open] > summary {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+/* The focus ring is drawn outside each control; the menu sits over the card, so it never pushes
+   the card's text sideways when it opens. */
+.dismiss-menu > summary:focus-visible,
+.dismiss-menu-panel .button:focus-visible {
+  outline: var(--focus-width) solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* The menu: the four reasons stacked, one per line, over the card, lined up with Dismiss's right
+   edge. Its width is its widest line, and never wider than the screen less the page gutters, so
+   it fits at 375px. */
+.dismiss-menu-panel {
+  position: absolute;
+  inset-block-start: calc(100% + var(--space-1));
+  inset-inline-end: 0;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--space-2);
+  inline-size: max-content;
+  max-inline-size: min(16rem, calc(100vw - 2rem));
+  padding: var(--space-3);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-card);
+  background: var(--surface);
+}
+
+.dismiss-menu .dismiss-menu-panel .inline-form {
+  display: flex;
+}
+
+.dismiss-menu-panel .button {
+  display: block;
+  inline-size: 100%;
+  text-align: start;
+}
+
+.dismiss-menu-help {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+/* On a phone the actions sit near the left edge, so a floating panel would run off the screen:
+   the reasons open in place under Dismiss instead. */
+@media (max-width: 599px) {
+  .dismiss-menu-panel {
+    position: static;
+    inline-size: auto;
+    max-inline-size: none;
+    margin-block-start: var(--space-2);
+  }
+}
+
+/* Settings > Assistant: "How suggestions adapt to you". The table keeps the steps table's look. */
+.assistant-taste .field-help {
+  margin-block-end: var(--space-3);
+}
+
+.taste-table th,
+.taste-table td {
+  vertical-align: top;
+  text-align: start;
+}
+
+.taste-table tbody th[scope="row"] {
+  font-weight: 500;
+  overflow-wrap: anywhere;
+}
+
+.taste-sentence {
+  min-inline-size: 12rem;
+  overflow-wrap: anywhere;
+}
+
+.taste-actions {
+  white-space: nowrap;
+}
+
+.taste-actions .inline-form {
+  display: inline-flex;
+}
+
+/* The mirror (core/journal.py slip_line and snooze_line), pending the lead's merge into app.css.
+   Not linked from base.html yet. The snooze mirror line sits in the Next step row, which wraps,
+   so it takes a full row of its own. Its colour and size are field-help's. */
+.step-actions > .snooze-mirror {
+  flex-basis: 100%;
+}

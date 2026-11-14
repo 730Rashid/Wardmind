@@ -32,6 +32,7 @@ import hashlib
 import secrets
 import unicodedata
 from collections.abc import Callable, Mapping, Sequence
+from collections.abc import Set as AbstractSet
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, timedelta
 from enum import StrEnum
@@ -674,8 +675,13 @@ def plan(
     *,
     config: ScoringConfig | None = None,
     fewer: frozenset[Detector] = frozenset(),
+    known: AbstractSet[tuple[str, str]] = frozenset(),
 ) -> list[Proposal]:
-    """`fewer` (core/taste.py: the detectors the CSM keeps dismissing) are held back: each of
+    """`known` holds the (account id, key) pairs the store already has, in any status: those are
+    left out before `fewer` is applied, so an old (say, dismissed) suggestion never takes a held
+    detector's one place.
+
+    `fewer` (core/taste.py: the detectors the CSM keeps dismissing) are held back: each of
     them makes at most taste.FEWER_PER_RUN suggestions (the most urgent accounts'), and they come
     after every other suggestion, so MAX_PER_RUN cuts them first.
 
@@ -705,7 +711,9 @@ def plan(
             if choice is not None:
                 chosen.add(detector)
                 planned.append(_proposal(facts, scored, choice, created))
-    return _fewer_blind_spots(planned, {item.account.id: item.account.arr for item in book})
+    spread = _fewer_blind_spots(planned, {item.account.id: item.account.arr for item in book})
+    fresh = [item for item in spread if (item.account_id, item.key) not in known]
+    return _held_back(fresh, fewer)
 
 
 def _fewer_blind_spots(planned: list[Proposal], arr: Mapping[str, float]) -> list[Proposal]:
@@ -719,6 +727,26 @@ def _fewer_blind_spots(planned: list[Proposal], arr: Mapping[str, float]) -> lis
     return [
         item for item in planned if item.detector is not Detector.BLIND_SPOT or id(item) in kept
     ]
+
+
+def _held_back(planned: list[Proposal], fewer: frozenset[Detector]) -> list[Proposal]:
+    """Each `fewer` detector keeps its first FEWER_PER_RUN suggestions (book order: the most urgent
+    accounts'), and those kept go after every other suggestion, in their order. core/taste.py
+    imports this module, so its FEWER_PER_RUN is read here, when plan() runs."""
+    if not fewer:
+        return planned
+    from wardmind.core.taste import FEWER_PER_RUN  # local: taste imports this module
+
+    ordinary: list[Proposal] = []
+    held: list[Proposal] = []
+    kept: dict[Detector | None, int] = {}
+    for item in planned:
+        if item.detector not in fewer:
+            ordinary.append(item)
+        elif kept.get(item.detector, 0) < FEWER_PER_RUN:
+            kept[item.detector] = kept.get(item.detector, 0) + 1
+            held.append(item)
+    return ordinary + held
 
 
 def refresh(
@@ -746,10 +774,20 @@ def refresh(
     expired = expire_cleared(
         store, book, journals, latest, changes, health_since, settings, today, now, config=scoring
     )
-    planned = plan(
-        book, journals, latest, changes, health_since, settings, today, now, config=scoring
-    )
     known = {(item.account_id, item.key) for item in store.all()}
+    planned = plan(
+        book,
+        journals,
+        latest,
+        changes,
+        health_since,
+        settings,
+        today,
+        now,
+        config=scoring,
+        fewer=fewer,
+        known=known,
+    )
     fresh = [item for item in planned if (item.account_id, item.key) not in known]
     beyond = max(0, len(fresh) - MAX_PER_RUN)
     added, held = store.add_many(fresh[:MAX_PER_RUN])

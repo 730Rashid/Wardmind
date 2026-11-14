@@ -76,6 +76,7 @@
               {% if row.automatic %}<span class="chip chip--muted"><svg class="icon" aria-hidden="true" focusable="false"><use href="/static/icons.svg#sliders"/></svg>{{ row.origin }}</span>{% endif %}
             </div>
             <p class="today-text">{{ row.text }}</p>
+            {% if row.mirror %}<p class="field-help">{{ row.mirror }}</p>{% endif %}
           </div>
           <div class="today-row-actions">
             <form class="inline-form" method="post" action="/accounts/{{ row.account_id | idpath }}/follow-ups/{{ row.follow_up_id | idpath }}/done">
@@ -149,6 +150,7 @@
             </div>
             <p class="today-text">{{ row.reason }}</p>
             <p class="field-help">{{ row.contact }}</p>
+            {% if row.mirror %}<p class="field-help">{{ row.mirror }}</p>{% endif %}
           </div>
           <div class="today-row-actions">
             <form class="inline-form" method="post" action="/accounts/{{ row.account_id | idpath }}/follow-ups">
@@ -213,6 +215,7 @@
               {% if row.automatic %}<span class="chip chip--muted"><svg class="icon" aria-hidden="true" focusable="false"><use href="/static/icons.svg#sliders"/></svg>{{ row.origin }}</span>{% endif %}
             </div>
             <p class="today-text">{{ row.text }}</p>
+            {% if row.mirror %}<p class="field-help">{{ row.mirror }}</p>{% endif %}
           </div>
           <div class="today-row-actions">
             <form class="inline-form" method="post" action="/accounts/{{ row.account_id | idpath }}/follow-ups/{{ row.follow_up_id | idpath }}/done">
@@ -239,6 +242,7 @@
               <a class="account-link" href="/accounts/{{ row.account_id | idpath }}">{{ row.name }}</a>
               <span class="chip chip--muted"><svg class="icon" aria-hidden="true" focusable="false"><use href="/static/icons.svg#clock"/></svg>{{ row.line }}</span>
             </div>
+            {% if row.mirror %}<p class="field-help">{{ row.mirror }}</p>{% endif %}
           </div>
           <div class="today-row-actions">
             <form class="inline-form" method="post" action="/accounts/{{ row.account_id | idpath }}/wake">

@@ -71,7 +71,11 @@ def test_the_page_shows_the_defaults(client: TestClient) -> None:
     assert response.status_code == 200
     assert "<title>Assistant - Wardmind</title>" in response.text
     assert re.search(r'href="/settings/assistant"[^>]*aria-current="page"', response.text)
-    assert _checked(response.text) == {("suggestions", "1"), ("mcp_writes", "off")}
+    assert _checked(response.text) == {
+        ("suggestions", "1"),
+        ("suggestions_learn", "1"),
+        ("mcp_writes", "off"),
+    }
 
 
 def test_the_page_explains_each_level_and_what_claude_never_does(client: TestClient) -> None:

@@ -250,6 +250,25 @@ Wardmind only reports what moved after a step, never that the step caused it, an
 nothing unless it has a score from both before and after (it says so when Wardmind wasn't open
 around that day).
 
+### Suggestions that learn your taste
+
+**Dismiss** asks why: **Not now**, **Already on it**, **Not useful** or **Wrong**. Once you've
+accepted or dismissed ten of one kind of suggestion (say, "Gone quiet"), Wardmind looks at how
+many you accepted. If it's under a quarter, and you dismissed the rest as Not useful or Wrong,
+that kind is shown less: at most one a day, after the others. Not now and Already on it are about
+timing, so they never count against a suggestion. Health drops and renewals are always shown.
+
+**Settings > Assistant > How suggestions adapt to you** shows each kind with its numbers ("You
+accepted 2 of 14. Showing fewer: at most 1 a day."), a **Reset** to start it over, and a switch
+to turn the learning off.
+
+### Things you keep putting off
+
+Wardmind also says back what keeps slipping, as a choice: a follow-up moved later three times or
+more reads "Moved 4 times. Do it, hand it off or remove it.", and an account snoozed three times
+in 90 days reads "Snoozed 3 times since 2 Oct 2026. Decide: act on it, hand it off or let it go."
+These lines are only for you: they aren't in exports or given to Claude.
+
 ### Email drafts, never sent
 
 **Draft an email** on an account page (or **Draft the email** on a suggestion) writes a check-in,
