@@ -31,6 +31,7 @@ from wardmind.core import (
     runlog,
     secrets,
     summaries,
+    taste,
     vault,
 )
 from wardmind.core.briefs import AccountDetail, account_detail, suggest_action
@@ -1245,7 +1246,27 @@ def refresh_suggestions(
         current,
         day,
         moment,
+        fewer=taste.fewer(_tastes_of(store, current, moment)),
     )
+
+
+def _tastes_of(
+    store: proposals.Proposals, current: Settings, now: datetime
+) -> list[taste.DetectorTaste]:
+    data = store.load()
+    return taste.tastes(data.items, data.taste_resets, now, learn=current.suggestions_learn)
+
+
+def get_tastes(now: datetime | None = None) -> list[taste.DetectorTaste]:
+    """How suggestions adapt to the CSM (core/taste.py), for Settings > Assistant: one row per
+    detector. Reads the suggestions file only."""
+    moment = now if now is not None else _utc_now()
+    return _tastes_of(get_proposals(), load_settings(), moment)
+
+
+def reset_taste(detector: proposals.Detector, now: datetime | None = None) -> None:
+    """Settings > Assistant's Reset: forget what was learnt about this detector."""
+    get_proposals().reset_taste(detector, now if now is not None else _utc_now())
 
 
 def due_follow_up_count(today: date | None = None) -> int:

@@ -117,6 +117,30 @@ class Verdict(StrEnum):
         ]
 
 
+class DismissReason(StrEnum):
+    """Why the CSM dismissed a suggestion (core/taste.py learns from it). NOT_NOW and
+    ALREADY_ON_IT are about timing, so they don't count against the kind of suggestion; NOT_USEFUL,
+    WRONG and a dismissal with no reason do."""
+
+    NOT_NOW = "not_now"
+    ALREADY_ON_IT = "already_on_it"
+    NOT_USEFUL = "not_useful"
+    WRONG = "wrong"
+
+    @property
+    def label(self) -> str:
+        return {
+            "not_now": "Not now",
+            "already_on_it": "Already on it",
+            "not_useful": "Not useful",
+            "wrong": "Wrong",
+        }[self.value]
+
+    @property
+    def counts_against(self) -> bool:
+        return self in (DismissReason.NOT_USEFUL, DismissReason.WRONG)
+
+
 class Review(BaseModel):
     verdict: Verdict
     check_days: int  # the check (effects.CHECK_DAYS) the answer was given on
@@ -157,6 +181,7 @@ class Proposal(BaseModel):
     expired_reason: str | None = None  # EXPIRED: plain English, e.g. "Health recovered."
     basis_day: date  # the day the evidence was read
     review: Review | None = None  # ACCEPTED follow-ups: "Did it work?" (core/effects.py)
+    dismiss_reason: DismissReason | None = None  # DISMISSED: why, when the CSM said
 
     @field_validator("title")
     @classmethod
@@ -186,6 +211,9 @@ class Proposal(BaseModel):
 class ProposalsData(BaseModel):
     items: list[Proposal] = Field(default_factory=list)
     last_run: date | None = None  # the last day plan() ran for this book (refresh())
+    # Settings > Assistant's Reset per detector (core/taste.py): decisions made before this
+    # moment (naive UTC) are no longer learnt from.
+    taste_resets: dict[Detector, datetime] = Field(default_factory=dict)
 
 
 class RefreshResult(BaseModel):
@@ -282,6 +310,14 @@ class Proposals:
             data.last_run = day
             _save(self._path, data)
 
+    def reset_taste(self, detector: Detector, now: datetime) -> None:
+        """Forget what was learnt about this detector: decisions before `now` no longer count
+        (core/taste.py). The decisions themselves are kept."""
+        with WRITE_LOCK:
+            data = _load(self._path)
+            data.taste_resets[detector] = naive_utc(now)
+            _save(self._path, data)
+
     def clear(self) -> None:
         """Forget every suggestion (Delete all local data)."""
         with WRITE_LOCK:
@@ -327,6 +363,7 @@ def _add_to(data: ProposalsData, proposal: Proposal) -> Proposal | None:
             "result_id": None,
             "expired_reason": None,
             "review": None,
+            "dismiss_reason": None,
         }
     )
     data.items.append(stored)
@@ -636,8 +673,13 @@ def plan(
     now: datetime,
     *,
     config: ScoringConfig | None = None,
+    fewer: frozenset[Detector] = frozenset(),
 ) -> list[Proposal]:
-    """The suggestions the five Detectors make for this book today, most urgent account first
+    """`fewer` (core/taste.py: the detectors the CSM keeps dismissing) are held back: each of
+    them makes at most taste.FEWER_PER_RUN suggestions (the most urgent accounts'), and they come
+    after every other suggestion, so MAX_PER_RUN cuts them first.
+
+    The suggestions the five Detectors make for this book today, most urgent account first
     (book order), at most one per detector per account, and no GONE_QUIET where HEALTH_DROPPED
     fired (both ask for the same contact). Pure: no I/O, no randomness; ids are "" (Proposals.add
     gives the real one). `latest` is account id -> SignalKey value -> the
@@ -691,12 +733,13 @@ def refresh(
     now: datetime,
     *,
     config: ScoringConfig | None = None,
+    fewer: frozenset[Detector] = frozenset(),
 ) -> RefreshResult:
     """Expire the open DETECTOR suggestions whose reason has gone (expire_cleared), then add
     plan()'s new ones, at most MAX_PER_RUN, through Proposals.add_many, and set last_run. Does
     nothing (and returns an empty result) when settings.suggestions is off. A key the store
     already has, in any status, is not new. `waiting` counts what the caps held back plus what
-    was beyond MAX_PER_RUN. `config` defaults to load_scoring_config()."""
+    was beyond MAX_PER_RUN. `config` defaults to load_scoring_config(). `fewer` goes to plan()."""
     if not settings.suggestions:
         return RefreshResult()
     scoring = config if config is not None else load_scoring_config()
@@ -894,9 +937,16 @@ def _follow_up(
         raise
 
 
-def dismiss(store: Proposals, proposal_id: str, *, now: datetime) -> Proposal:
-    """Mark it DISMISSED, so its key is never suggested again. Dismissing a DISMISSED one returns
-    it unchanged; ValueError when it is ACCEPTED or EXPIRED. Records PROPOSAL_DISMISSED."""
+def dismiss(
+    store: Proposals,
+    proposal_id: str,
+    *,
+    now: datetime,
+    reason: DismissReason | None = None,
+) -> Proposal:
+    """Mark it DISMISSED with the CSM's reason (if given), so its key is never suggested again.
+    Dismissing a DISMISSED one returns it unchanged; ValueError when it is ACCEPTED or EXPIRED.
+    Records PROPOSAL_DISMISSED."""
     with WRITE_LOCK:
         current = store.get(proposal_id)
         if current is None:
@@ -908,7 +958,11 @@ def dismiss(store: Proposals, proposal_id: str, *, now: datetime) -> Proposal:
         if current.status is ProposalStatus.EXPIRED:
             raise ValueError(_EXPIRED_DISMISS)
         dismissed = current.model_copy(
-            update={"status": ProposalStatus.DISMISSED, "decided_at": naive_utc(now)}
+            update={
+                "status": ProposalStatus.DISMISSED,
+                "decided_at": naive_utc(now),
+                "dismiss_reason": reason,
+            }
         )
         store.replace(dismissed)
     _audit(audit.Event.PROPOSAL_DISMISSED, current)

@@ -63,6 +63,11 @@ QUIET_THREAD_DAYS = 60  # a thread whose latest email is older than this has gon
 MAX_OPEN_FOLLOW_UPS = 20  # open follow-ups per account
 MAX_DISMISSED_RULES = 200  # removed automatic follow-ups remembered per account
 MAX_SNOOZE_DAYS = 90
+# The mirror: what the CSM keeps putting off, said back as a choice (slip_line, snooze_line).
+SLIP_MOVES = 3  # a follow-up moved later this many times or more
+SLIP_SNOOZES = 3  # snoozed this many times or more ...
+SLIP_SNOOZE_WINDOW = 90  # ... within this many days
+MAX_SNOOZE_DAYS_KEPT = 20  # AccountJournal.snoozed_on keeps the newest this many days
 SNOOZE_CHOICES = (3, 7, 14, 30)  # the snooze buttons, in days
 FOLLOW_UP_DEFAULT_DAYS = 7  # a new follow-up is due this many days from today unless chosen
 MAX_FOLLOW_UP_DAYS = 366  # a follow-up can't be due further out than this
@@ -152,6 +157,9 @@ class FollowUp(BaseModel):
     status: FollowUpStatus = FollowUpStatus.OPEN
     created_at: datetime
     done_at: datetime | None = None  # set while DONE
+    # Times its due date was moved later (Journal.move_follow_up): the "mirror" says so once it
+    # reaches SLIP_MOVES. Moving it earlier doesn't count.
+    moved: int = 0
     # The occasion key of the automatic rule (core/rules.py) that added this follow-up, e.g.
     # "at_risk:2026-11-02", "renewal:2027-01-14" or "champion_left:2026-10-30". None for one the
     # CSM added. A rule adds at most one follow-up per key on an account, open or done.
@@ -305,6 +313,9 @@ class AccountJournal(BaseModel):
     # Occasion keys (FollowUp.rule) of automatic follow-ups the CSM removed, so a rule never adds
     # them back. The newest MAX_DISMISSED_RULES are kept.
     dismissed_rules: list[str] = Field(default_factory=list)
+    # The days the account was snoozed (Journal.snooze), newest MAX_SNOOZE_DAYS_KEPT kept, for the
+    # mirror ("Snoozed 3 times since 2 Oct 2026").
+    snoozed_on: list[date] = Field(default_factory=list)
 
     @property
     def empty(self) -> bool:
@@ -316,6 +327,7 @@ class AccountJournal(BaseModel):
             or self.team
             or self.calls
             or self.dismissed_rules
+            or self.snoozed_on
         )
 
 
@@ -555,6 +567,21 @@ def recently_done(journal: AccountJournal, now: datetime, days: int = 14) -> lis
         and item.done_at >= cutoff
     ]
     return sorted(found, key=lambda item: item.done_at or cutoff, reverse=True)
+
+
+def slip_line(follow_up: FollowUp) -> str | None:
+    """The mirror for an OPEN follow-up moved later SLIP_MOVES times or more: "Moved 4 times. Do
+    it, hand it off or remove it." None otherwise (and for a DONE one). Built against the contract
+    (workstream C)."""
+    raise NotImplementedError
+
+
+def snooze_line(journal: AccountJournal, today: date) -> str | None:
+    """The mirror for an account snoozed SLIP_SNOOZES times or more in the last
+    SLIP_SNOOZE_WINDOW days (counting today): "Snoozed 3 times since 2 Oct 2026. Decide: act on
+    it, hand it off or let it go." (the date is the earliest of those snoozes, '3 Nov 2026' style).
+    None otherwise. Built against the contract (workstream C)."""
+    raise NotImplementedError
 
 
 def active_snooze(journal: AccountJournal, health: Health, today: date) -> Snooze | None:

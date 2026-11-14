@@ -252,6 +252,9 @@ class Settings(BaseModel):
     # Suggestions on Today (core/proposals.py): on by default, because a suggestion changes
     # nothing until the CSM accepts it.
     suggestions: bool = True
+    # Suggestions learn from what the CSM accepts and dismisses (core/taste.py): a kind they keep
+    # dismissing is shown less. Shown and reversible in Settings > Assistant.
+    suggestions_learn: bool = True
     # What Claude may change through the MCP server (McpWrites). Off until the CSM chooses.
     mcp_writes: McpWrites = McpWrites.OFF
     # Email drafts (core/drafts.py) are always written from templates. With ai_drafts on, the
